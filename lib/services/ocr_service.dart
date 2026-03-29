@@ -4,6 +4,7 @@ import 'package:image/image.dart' as img;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../models/scan_result.dart';
 import '../models/assessment.dart';
+import 'answer_parser.dart';
 
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
@@ -13,6 +14,7 @@ class OcrService {
   OcrService._();
 
   late final TextRecognizer _textRecognizer;
+  final AnswerParser _parser = const AnswerParser();
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
@@ -201,65 +203,18 @@ class OcrService {
     List<TextRegion> regions,
     Assessment assessment,
   ) {
-    final answers = <DetectedAnswer>[];
-
-    for (final region in regions) {
-      final parsed = _parseQuestionAnswer(region.text);
-      if (parsed != null) {
-        answers.add(DetectedAnswer(
-          questionNumber: parsed.$1,
-          answer: parsed.$2,
-          confidence: region.confidence,
-          rawText: region.text,
-        ));
-      }
-    }
-
-    return answers;
-  }
-
-  /// Parse "1. A" or "1-A" or "1) እውነት" format
-  (int, String)? _parseQuestionAnswer(String text) {
-    final patterns = [
-      RegExp(r'^(\d+)\s*[.\-):]\s*(.+)$'),  // "1. A" or "1-A" or "1) እውነት"
-      RegExp(r'^(\d+)\s+(.+)$'),              // "1 A"
-    ];
-
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(text.trim());
-      if (match != null) {
-        final number = int.tryParse(match.group(1)!);
-        final answer = _normalizeAnswer(match.group(2)!.trim());
-        if (number != null && answer.isNotEmpty) {
-          return (number, answer);
-        }
-      }
-    }
-    return null;
-  }
-
-  /// Normalize answer text (handle Amharic/English variants)
-  String _normalizeAnswer(String raw) {
-    final lower = raw.toLowerCase().trim();
-
-    // Amharic True/False
-    if (lower.contains('እውነት') || lower == 'ት') return 'True';
-    if (lower.contains('ሐሰት') || lower == 'ሐ') return 'False';
-
-    // English True/False
-    if (lower == 't' || lower == 'true') return 'True';
-    if (lower == 'f' || lower == 'false') return 'False';
-
-    // MCQ letters
-    if (RegExp(r'^[a-eA-E]$').hasMatch(lower)) return lower.toUpperCase();
-
-    // Amharic letters for MCQ (if used)
-    const amharicLetters = {
-      'ሀ': 'A', 'ለ': 'B', 'ሐ': 'C', 'መ': 'D', 'ሠ': 'E',
-    };
-    if (amharicLetters.containsKey(raw)) return amharicLetters[raw]!;
-
-    return raw;
+    final inputs = regions
+        .map((r) => TextRegionInput(text: r.text, confidence: r.confidence, x: r.x, y: r.y))
+        .toList();
+    return _parser
+        .parseAnswers(inputs)
+        .map((p) => DetectedAnswer(
+              questionNumber: p.questionNumber,
+              answer: p.answer,
+              confidence: p.confidence,
+              rawText: p.rawText,
+            ))
+        .toList();
   }
 
   List<AnswerMatch> _scoreAnswers(
