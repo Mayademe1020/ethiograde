@@ -16,7 +16,27 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ### Planned (Sprint 1)
 - Real device testing on 2GB phone with actual exam papers
-- Unit tests for scoring engine
+- Unit tests for analytics provider
+- Widget tests for dashboard, create assessment, review screens
+
+## [0.1.0-scoring] — 2026-03-29
+
+### Added
+- `ScoringService`: pure-Dart scoring engine extracted from OcrService
+  - No Flutter/platform deps — independently testable
+  - Public API: `checkAnswer`, `scoreAnswers`, `deduplicateAnswers`, `calculateGrade`, `calculateConfidence`, `calculateTotalScore`, `calculatePercentage`
+  - Grading scales as constants: MoE national (11 bands), private international (6 bands), university (10 bands)
+- Unit tests: 40+ cases for scoring engine
+  - checkAnswer: MCQ, T/F, short answer (list + string), null safety
+  - scoreAnswers: full/zero/partial/missing/mixed-type scenarios
+  - deduplicateAnswers: confidence-based dedup, sort order, empty input
+  - calculateGrade: every boundary value across all 3 scales
+  - End-to-end pipelines: 20-question MCQ, perfect, zero, mixed types
+
+### Changed
+- OcrService delegates scoring to ScoringService (zero behavior change)
+- Removed 5 private methods from OcrService: `_scoreAnswers`, `_checkAnswer`, `_calculateGrade`, `_getGradingScale`, `_calculateConfidence`, `_deduplicateAnswers`
+- `DetectedAnswer` class moved from ocr_service.dart to scoring_service.dart
 
 ---
 

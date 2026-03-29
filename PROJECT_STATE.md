@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser; zero coverage for scoring, services |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring engine; zero coverage for services (OCR, PDF, Excel) |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -99,9 +99,9 @@
 | Harden OCR: confidence filter + image cap | ✅ Done | ML | 2 | Reject noise <0.5 confidence, downscale >1600px |
 | Validate answer parser against ML Kit output | ✅ Done | ML | 3 | AnswerParser extracted, 30+ test cases, edge cases fixed |
 | Replace enhancement pipeline | ✅ Done | ML | 3 | 4 native ops, zero pixel loops, skew detection, dedup |
-| Add unit tests for scoring engine | ⬜ Todo | QA | 2 | — |
+| Add unit tests for scoring engine | ✅ Done | QA | 2 | ScoringService extracted (pure Dart), 40+ tests covering all 3 grading scales, answer types, edge cases |
 
-**Sprint Burndown:** 17/17 points complete — Sprint 0 done ✅
+**Sprint Burndown:** 19/19 points complete — Sprint 0 done ✅
 
 ---
 
