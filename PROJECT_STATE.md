@@ -59,6 +59,8 @@
 | F31 | **StudentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, UUID generation, Result type, search |
 | F32 | **AssessmentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, Result type, backward-compat saveAssessment |
 | F33 | **ScanResult auto-save + persistence** | ✅ Done | Backend | F30 | Medium | Auto-save in gradePaper, retry logic, pending queue, lazy box queries |
+| F34 | **Data migration framework** | ✅ Done | Backend | F07 | Low | Schema versioning in metadata box, ordered migrations, never crashes |
+| F35 | **Backup & export service** | ✅ Done | Backend | F07 | Medium | JSON export/import, share sheet, auto-backup every 10 scans, pruning |
 
 ### Teacher Features (v0.2.0)
 
@@ -115,6 +117,8 @@
 | Rewrite StudentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, UUID gen, Result type, Amharic search |
 | Rewrite AssessmentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, Result type, backward-compat saveAssessment |
 | ScanResult auto-save in HybridGradingService | ✅ Done | Backend | 3 | Auto-save with retry, pending queue, lazy box queries (load/get/delete/student) |
+| MigrationService | ✅ Done | Backend | 2 | Schema versioning in metadata box, ordered migration runner, wired to main.dart |
+| BackupService | ✅ Done | Backend | 3 | JSON export/import with validation, share_plus, auto-backup every 10 scans, pruning |
 
 ### Completed Sprint 0
 

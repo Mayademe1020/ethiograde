@@ -67,6 +67,20 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
     `deleteScanResult(id)`, `getResultsForStudent(studentId)`
   - `pendingSaveCount` getter for monitoring queue depth
   - All queries use `Hive.lazyBox('scan_results')` (memory-safe on 2GB devices)
+- `MigrationService`: schema versioning framework
+  - Stores schema version in separate `metadata` Hive box
+  - Ordered migration runner — runs pending migrations on app start
+  - Each migration is a versioned function with description
+  - Failed migrations log error but never block app launch
+  - Wired into `main.dart` after box init, before Provider tree
+  - Current schema version: 1 (baseline, no migrations yet)
+- `BackupService`: data export, import, and auto-backup
+  - `exportAllData()`: dumps all boxes to pretty-printed JSON with version + timestamp
+  - `exportAndShare()`: export + open system share sheet via share_plus
+  - `importData(path, replace: bool)`: reads JSON, validates every record via ValidationService, supports replace or merge mode, returns `{imported, skipped, errors}`
+  - `recordScanAndMaybeBackup()`: auto-backup every 10 scans, keeps last 3 auto-backups, prunes older
+  - `listBackups()`: returns all backup files with date, size, auto/manual flag
+  - All file operations wrapped in try/catch
 - Real device testing on 2GB phone with actual exam papers
 - Unit tests for PDF service
 - Widget tests for dashboard, create assessment, review screens

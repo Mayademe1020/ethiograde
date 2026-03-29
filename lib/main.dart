@@ -16,6 +16,7 @@ import 'services/assessment_provider.dart';
 import 'services/student_provider.dart';
 import 'services/analytics_provider.dart';
 import 'services/settings_provider.dart';
+import 'services/migration_service.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home/main_dashboard.dart';
 
@@ -24,6 +25,7 @@ class _BoxNames {
   static const String students = 'students';
   static const String assessments = 'assessments';
   static const String scanResults = 'scan_results';
+  static const String metadata = 'metadata';
 }
 
 /// Secure-storage key that holds the AES-256 Hive encryption key.
@@ -106,6 +108,16 @@ Future<_InitStatus> _initEncryptedHive() async {
   await students.compact();
   await assessments.compact();
   await scanResults.compact();
+
+  // ── 5. Metadata box (for schema versioning) ───────────────────────
+  final metadata = await _openBoxSafe(
+    _BoxNames.metadata,
+    cipher: cipher,
+  );
+  await metadata.compact();
+
+  // ── 6. Run migrations ─────────────────────────────────────────────
+  await MigrationService.runMigrations();
 
   debugPrint('[Hive] Boxes open — students: ${students.length}, '
       'assessments: ${assessments.length}, '
