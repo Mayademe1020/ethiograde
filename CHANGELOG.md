@@ -24,6 +24,28 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - `box.compact()` after opening to optimise storage
   - Fallback mode: if any Hive init fails, app starts with in-memory state and shows a dismissable warning banner
 - `flutter_secure_storage: ^9.0.0` dependency for platform-keystore key storage
+- `ValidationService`: pure-Dart model validator (no platform deps)
+  - `validateStudent`: name non-empty ≤100 chars, grade 1–12 or University(0)
+  - `validateAssessment`: title non-empty, questions non-empty, correct answers valid per type (A–E for MCQ, True/False for TF, non-empty for short answer)
+  - `validateScanResult`: score ≥0 and ≤max, confidence 0–1, percentage 0–100, IDs non-empty
+  - `ValidationResult` type with `isValid` bool and `errors` list
+  - 25+ unit tests: happy paths, edge cases, boundary values, mixed valid/invalid
+- `StudentProvider` rewritten with real Hive CRUD
+  - `loadStudents`: reads from encrypted `students` box, sorts by name, error-safe
+  - `addStudent`: validates → UUID generation → duplicate check → Hive write → memory update
+  - `updateStudent`: validates → existence check → overwrite → notify
+  - `deleteStudent`: existence check → delete → keeps associated scan results for history
+  - `searchStudents`: case-insensitive English + Amharic name search
+  - `addStudents`: bulk add with count return
+  - `Result<T>` type: `{success, data, error}` — callers never need try/catch
+- `AssessmentProvider` rewritten with real Hive CRUD
+  - `loadAssessments`: reads from encrypted `assessments` box, sorts newest-first
+  - `addAssessment`: validates → duplicate check → Hive write → memory update
+  - `updateAssessment`: validates → existence check → overwrite → notify
+  - `deleteAssessment`: existence check → delete → clears current if matched
+  - `getRecentAssessments(limit)`: returns N most recent
+  - `saveAssessment` kept as backward-compatible wrapper (add-or-update)
+  - `Result<T>` type matching StudentProvider pattern
 
 ### Planned (Sprint 1)
 - Real device testing on 2GB phone with actual exam papers

@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService; zero coverage for PDF and Excel |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService, 25+ tests for validation service; zero coverage for PDF and Excel |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -55,6 +55,9 @@
 | F13 | **Splash screen** | ✅ Done | Design | — | Low | 512x512 PNG, Ethiopian green + checkmark |
 | F14 | Voice commands (STT/TTS) | ✅ Done | Mobile | — | Low | Recording + playback |
 | F29 | **Encrypted Hive storage** | ✅ Done | Backend | F07 | Medium | AES-256 via HiveAesCipher, key in flutter_secure_storage, corrupt-box recovery |
+| F30 | **Validation service** | ✅ Done | Backend | F07 | Low | Pure Dart, Student/Assessment/ScanResult validation, 25+ tests |
+| F31 | **StudentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, UUID generation, Result type, search |
+| F32 | **AssessmentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, Result type, backward-compat saveAssessment |
 
 ### Teacher Features (v0.2.0)
 
@@ -107,6 +110,9 @@
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
 | End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
 | Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |
+| ValidationService | ✅ Done | Backend | 3 | Pure Dart student/assessment/scan validation, 25+ unit tests |
+| Rewrite StudentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, UUID gen, Result type, Amharic search |
+| Rewrite AssessmentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, Result type, backward-compat saveAssessment |
 
 ### Completed Sprint 0
 
