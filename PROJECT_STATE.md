@@ -41,7 +41,7 @@
 |---|---------|--------|-------|------------|------|-------|
 | F01 | Camera capture | ✅ Done | Mobile | — | Low | Working with guide overlay |
 | F02 | Image enhancement | ✅ Done | ML | — | Medium | Pixel loops slow on device — needs isolate |
-| F03 | **Real OCR extraction** | ✅ Done | ML | F02 | Medium | ML Kit TextRecognizer (on-device, Latin script) |
+| F03 | **Real OCR extraction** | ✅ Done | ML | F02 | Medium | ML Kit TextRecognizer + confidence filter + image downscale |
 | F04 | **Amharic handwriting model** | ❌ Missing | ML | F03 | 🔴 High | No model trained or sourced |
 | F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | Regex works, needs validation against real OCR |
 | F06 | Scoring engine | ✅ Done | Backend | F05 | Low | MoE, international, university scales |
@@ -96,13 +96,13 @@
 | Add font files (NotoSansEthiopic) | ✅ Done | Design | 1 | NotoSansEthiopic-Regular.ttf + Bold.ttf (OFL) |
 | Add splash logo | ✅ Done | Design | 1 | 512x512 PNG, green bg + white checkmark + yellow accent |
 | Wire ML Kit text recognition | ✅ Done | ML | 5 | google_mlkit_text_recognition, on-device, graceful failure |
+| Harden OCR: confidence filter + image cap | ✅ Done | ML | 2 | Reject noise <0.5 confidence, downscale >2048px |
 | Validate answer parser against ML Kit output | ⬜ Todo | ML | 3 | Adjust regex if needed |
 | Move image processing to isolate | ⬜ Todo | Mobile | 3 | Prevent UI jank |
-| Add error handling to OCR pipeline | ⬜ Todo | Mobile | 2 | Graceful failures |
 | Add unit tests for scoring engine | ⬜ Todo | QA | 2 | — |
 | Add unit tests for answer parser | ⬜ Todo | QA | 2 | — |
 
-**Sprint Burndown:** 7/19 points complete
+**Sprint Burndown:** 9/19 points complete
 
 ---
 

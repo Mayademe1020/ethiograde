@@ -19,12 +19,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ### Planned (Sprint 0)
 - Move image processing to Dart isolates for 2GB device performance
-- Error handling for OCR pipeline (corrupt images, permissions, empty results)
 - Unit tests for scoring engine and answer parser
 
 ---
 
 ## [0.1.0-ocr] — 2026-03-29
+
+### Improved
+- OCR confidence filtering: text lines below 0.5 confidence discarded as noise
+- Image downscaling: images >2048px resized before enhancement to protect 2GB devices
+- Line sorting: proportional Y-tolerance (5% of vertical span) replaces hardcoded 10px
+- Error logging: exception type only, no file paths in debug output
 
 ### Changed
 - Replaced mock OCR extractor with real Google ML Kit TextRecognizer
