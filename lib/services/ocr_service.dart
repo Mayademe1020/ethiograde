@@ -6,6 +6,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import '../models/scan_result.dart';
 import '../models/assessment.dart';
 import 'answer_parser.dart';
+import 'scoring_service.dart';
 
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
@@ -22,6 +23,7 @@ class OcrService {
 
   late final TextRecognizer _textRecognizer;
   final AnswerParser _parser = const AnswerParser();
+  final ScoringService _scoring = const ScoringService();
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
@@ -99,25 +101,31 @@ class OcrService {
     final extractionResult = await _extractTextRegions(enhancedPath);
 
     // 3. Parse question numbers and answers
-    final detectedAnswers = _parseAnswers(extractionResult.regions, assessment);
+    final parsedAnswers = _parseAnswers(extractionResult.regions, assessment);
 
     // 4. Deduplicate — if ML Kit reads the same Q# twice, keep highest confidence
-    final deduplicated = _deduplicateAnswers(detectedAnswers);
+    final deduplicated = _scoring.deduplicateAnswers(parsedAnswers);
 
     // 5. Score against answer key
-    final scoredAnswers = _scoreAnswers(deduplicated, assessment);
+    final scoredAnswers = _scoring.scoreAnswers(
+      detected: deduplicated,
+      assessment: assessment,
+    );
 
     // 6. Calculate totals
-    final totalScore = scoredAnswers.fold(0.0, (sum, a) => sum + a.score);
+    final totalScore = _scoring.calculateTotalScore(scoredAnswers);
     final maxScore = assessment.maxScore;
-    final percentage = maxScore > 0 ? (totalScore / maxScore * 100) : 0.0;
-    final overallConfidence = _calculateConfidence(scoredAnswers);
+    final percentage = _scoring.calculatePercentage(
+      totalScore: totalScore,
+      maxScore: maxScore,
+    );
+    final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
 
     // 7. Build metadata with quality signals
     final metadata = <String, dynamic>{
       'textLinesDetected': extractionResult.regions.length,
       'questionsDetected': deduplicated.length,
-      'duplicatesRemoved': detectedAnswers.length - deduplicated.length,
+      'duplicatesRemoved': parsedAnswers.length - deduplicated.length,
       'skewAngle': extractionResult.skewAngle,
       'skewWarning': extractionResult.skewAngle.abs() > _skewWarningDegrees,
     };
@@ -132,7 +140,7 @@ class OcrService {
       totalScore: totalScore,
       maxScore: maxScore,
       percentage: percentage,
-      grade: _calculateGrade(percentage.toDouble(), assessment.rubricType),
+      grade: _scoring.calculateGrade(percentage.toDouble(), assessment.rubricType),
       status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
       confidence: overallConfidence,
       metadata: metadata,
@@ -246,123 +254,6 @@ class OcrService {
         .toList();
   }
 
-  /// Remove duplicate answers for the same question number.
-  /// Keeps the one with highest confidence.
-  List<DetectedAnswer> _deduplicateAnswers(List<DetectedAnswer> answers) {
-    final Map<int, DetectedAnswer> best = {};
-    for (final answer in answers) {
-      final existing = best[answer.questionNumber];
-      if (existing == null || answer.confidence > existing.confidence) {
-        best[answer.questionNumber] = answer;
-      }
-    }
-    return best.values.toList()
-      ..sort((a, b) => a.questionNumber.compareTo(b.questionNumber));
-  }
-
-  List<AnswerMatch> _scoreAnswers(
-    List<DetectedAnswer> detected,
-    Assessment assessment,
-  ) {
-    final matches = <AnswerMatch>[];
-
-    for (final question in assessment.questions) {
-      final detectedAnswer = detected
-          .where((d) => d.questionNumber == question.number)
-          .firstOrNull;
-
-      if (detectedAnswer == null) {
-        matches.add(AnswerMatch(
-          questionNumber: question.number,
-          detectedAnswer: '[MISSING]',
-          correctAnswer: question.correctAnswer?.toString() ?? '',
-          isCorrect: false,
-          score: 0,
-          maxScore: question.points,
-          confidence: 0,
-        ));
-        continue;
-      }
-
-      final isCorrect = _checkAnswer(
-        detectedAnswer.answer,
-        question.correctAnswer,
-        question.type,
-      );
-
-      matches.add(AnswerMatch(
-        questionNumber: question.number,
-        detectedAnswer: detectedAnswer.answer,
-        correctAnswer: question.correctAnswer?.toString() ?? '',
-        isCorrect: isCorrect,
-        score: isCorrect ? question.points : 0,
-        maxScore: question.points,
-        confidence: detectedAnswer.confidence,
-        ocrRawText: detectedAnswer.rawText,
-      ));
-    }
-
-    return matches;
-  }
-
-  bool _checkAnswer(dynamic detected, dynamic correct, QuestionType type) {
-    if (detected == null || correct == null) return false;
-
-    if (type == QuestionType.mcq || type == QuestionType.trueFalse) {
-      return detected.toString().toUpperCase() ==
-          correct.toString().toUpperCase();
-    }
-
-    if (type == QuestionType.shortAnswer) {
-      if (correct is List) {
-        return correct.any(
-          (c) => c.toString().toLowerCase() == detected.toString().toLowerCase(),
-        );
-      }
-      return detected.toString().toLowerCase() ==
-          correct.toString().toLowerCase();
-    }
-
-    return false;
-  }
-
-  String _calculateGrade(double percentage, String rubricType) {
-    final scale = _getGradingScale(rubricType);
-    for (final entry in scale.entries) {
-      final range = entry.value as List<int>;
-      if (percentage >= range[0] && percentage <= range[1]) {
-        return entry.key;
-      }
-    }
-    return 'F';
-  }
-
-  Map<String, dynamic> _getGradingScale(String rubricType) {
-    const scales = {
-      'moe_national': {
-        'A+': [95, 100], 'A': [90, 94], 'A-': [85, 89],
-        'B+': [80, 84], 'B': [75, 79], 'B-': [70, 74],
-        'C+': [65, 69], 'C': [60, 64], 'C-': [55, 59],
-        'D': [50, 54], 'F': [0, 49],
-      },
-      'private_international': {
-        'A*': [90, 100], 'A': [80, 89], 'B': [70, 79],
-        'C': [60, 69], 'D': [50, 59], 'F': [0, 49],
-      },
-      'university': {
-        'A': [90, 100], 'A-': [85, 89], 'B+': [80, 84],
-        'B': [75, 79], 'B-': [70, 74], 'C+': [65, 69],
-        'C': [60, 64], 'C-': [55, 59], 'D': [50, 54], 'F': [0, 49],
-      },
-    };
-    return scales[rubricType] ?? scales['moe_national']!;
-  }
-
-  double _calculateConfidence(List<AnswerMatch> answers) {
-    if (answers.isEmpty) return 0;
-    return answers.fold(0.0, (sum, a) => sum + a.confidence) / answers.length;
-  }
-
   /// Release ML Kit resources. Call when app is shutting down.
   void dispose() {
     if (_isInitialized) {
@@ -384,20 +275,5 @@ class TextRegion {
     required this.confidence,
     required this.x,
     required this.y,
-  });
-}
-
-/// A detected question-answer pair from OCR.
-class DetectedAnswer {
-  final int questionNumber;
-  final String answer;
-  final double confidence;
-  final String rawText;
-
-  DetectedAnswer({
-    required this.questionNumber,
-    required this.answer,
-    required this.confidence,
-    required this.rawText,
   });
 }
