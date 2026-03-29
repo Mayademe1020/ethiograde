@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ethiograde/services/analytics_service.dart';
 import 'package:ethiograde/models/assessment.dart';
 import 'package:ethiograde/models/scan_result.dart';
+import 'package:ethiograde/models/class_info.dart';
 
 void main() {
   const analytics = AnalyticsService();

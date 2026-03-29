@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/home/main_dashboard.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';

@@ -508,7 +508,7 @@ class PdfService {
             '${analytics.lowestScore.toStringAsFixed(1)}%',
           ),
           _scoreColumn(
-            isAmharic % 'ማለፍ' : 'Pass Rate',
+            isAmharic ? 'ማለፍ' : 'Pass Rate',
             '${analytics.passRate.toStringAsFixed(0)}%',
           ),
         ],
@@ -614,7 +614,7 @@ class PdfService {
             _tableHeader(isAmharic ? 'ውጤት' : 'Score'),
             _tableHeader('%'),
             _tableHeader(isAmharic ? 'ደረጃ' : 'Grade'),
-            _tableHeader(isAmharic % 'ሁኔታ' : 'Status'),
+            _tableHeader(isAmharic ? 'ሁኔታ' : 'Status'),
           ],
         ),
         ...sorted.asMap().entries.map((entry) {

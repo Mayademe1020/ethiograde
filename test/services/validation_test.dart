@@ -73,7 +73,7 @@ void main() {
     });
 
     test('empty first name fails', () {
-      final result = validator.validateStudent(_student(firstName: ''));
+      final result = validator.validateStudent(_student(firstName: '', lastName: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('empty'));
     });
@@ -93,9 +93,11 @@ void main() {
     });
 
     test('exactly 100-char name passes', () {
-      final name = 'A' * 100;
+      final firstName = 'A' * 49;
+      final lastName = 'B' * 49;
+      // fullName = 'A*49 B*49' = 99 chars (with space)
       final result = validator.validateStudent(
-        _student(firstName: name.substring(0, 50), lastName: name.substring(50)),
+        _student(firstName: firstName, lastName: lastName),
       );
       expect(result.isValid, isTrue);
     });

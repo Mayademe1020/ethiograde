@@ -1,5 +1,6 @@
 import '../models/scan_result.dart';
 import '../models/assessment.dart';
+import '../models/class_info.dart';
 import 'scoring_service.dart';
 
 /// Pure-Dart analytics engine. No Flutter, no platform plugins.

@@ -376,7 +376,7 @@ class _CreateAssessmentScreenState extends State<CreateAssessmentScreen> {
               controller: answerController,
               decoration: InputDecoration(
                 labelText: isAm ? 'ትክክለኛ መልስ' : 'Correct Answer',
-                hintText: q.type == QuestionType.mcQ
+                hintText: q.type == QuestionType.mcq
                     ? 'A, B, C, D, or E'
                     : q.type == QuestionType.trueFalse
                         ? 'True or False'

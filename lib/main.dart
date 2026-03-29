@@ -142,7 +142,7 @@ Future<Box> _openBoxSafe(
 }
 
 /// Open a [LazyBox] with error recovery.
-Future<Box<List>> _openLazyBoxSafe(
+Future<LazyBox<List>> _openLazyBoxSafe(
   String name, {
   required HiveCipher cipher,
 }) async {
