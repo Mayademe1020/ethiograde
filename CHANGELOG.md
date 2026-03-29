@@ -14,13 +14,33 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
-### In Progress
-- Move image processing to Dart isolates for 2GB device performance
-
-### Planned (Sprint 0)
+### Planned (Sprint 1)
+- Real device testing on 2GB phone with actual exam papers
 - Unit tests for scoring engine
 
 ---
+
+## [0.1.0-pipeline] — 2026-03-29
+
+### Changed
+- Image enhancement: replaced 6-step pipeline with 4 native operations
+  - Removed: white balance (pixel loop), sharpen (pixel loop), denoise (blur), adaptive threshold (pixel loop, ~47M reads)
+  - Kept: downscale to 1600px, grayscale, contrast boost 1.2x
+  - Rationale: ML Kit has internal preprocessing. Our pixel loops were destroying information it could use, while adding 3-8s latency on 2GB devices.
+- Enhanced images saved as JPEG 92% instead of PNG (5x smaller, faster ML Kit loading)
+
+### Added
+- Paper skew detection: estimates tilt angle from ML Kit text block alignment
+- Duplicate answer deduplication: same Q# detected twice keeps highest confidence
+- Scan quality metadata: text lines detected, skew angle, warnings
+- Auto-flag low-confidence scans as needsRescan (overall < 0.6)
+- `dart:math` import for atan2 skew calculation
+
+### Removed
+- `_autoWhiteBalance` — pixel loop over every pixel, redundant with ML Kit
+- `_sharpen` — gaussianBlur + pixel loop, introduced artifacts
+- `_denoise` — aggressive gaussianBlur destroyed thin text strokes
+- `_adaptiveThreshold` — 225 pixel reads per pixel, 47M total on 1600px image
 
 ## [0.1.0-parser] — 2026-03-29
 
