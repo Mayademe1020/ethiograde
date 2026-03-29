@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService, 25+ tests for validation service; zero coverage for PDF and Excel |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -119,6 +119,7 @@
 | ScanResult auto-save in HybridGradingService | ✅ Done | Backend | 3 | Auto-save with retry, pending queue, lazy box queries (load/get/delete/student) |
 | MigrationService | ✅ Done | Backend | 2 | Schema versioning in metadata box, ordered migration runner, wired to main.dart |
 | BackupService | ✅ Done | Backend | 3 | JSON export/import with validation, share_plus, auto-backup every 10 scans, pruning |
+| Persistence test suite | ✅ Done | QA | 3 | 25 tests: happy path, validation, edge cases, error handling, backup, migration |
 
 ### Completed Sprint 0
 

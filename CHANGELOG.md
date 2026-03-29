@@ -81,6 +81,14 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - `recordScanAndMaybeBackup()`: auto-backup every 10 scans, keeps last 3 auto-backups, prunes older
   - `listBackups()`: returns all backup files with date, size, auto/manual flag
   - All file operations wrapped in try/catch
+- `persistence_test.dart`: 25 integration tests for the full persistence layer
+  - Happy path (7): box init, add/load student, add/load assessment, save/load scan result, update, delete, search
+  - Validation (5): empty name, long name, invalid MCQ, negative grade, empty title
+  - Edge cases (5): empty box, duplicate ID, delete nonexistent, 100 scan results bulk, corrupted data graceful
+  - Error handling (3): Result type on failure, backward-compat saveAssessment, getRecentAssessments limit
+  - Backup (3): JSON structure, import round-trip, merge dedup
+  - Migration (2): schema version storage, framework execution
+  - Each test uses fresh Hive boxes via setUp/tearDown — zero shared state
 - Real device testing on 2GB phone with actual exam papers
 - Unit tests for PDF service
 - Widget tests for dashboard, create assessment, review screens
