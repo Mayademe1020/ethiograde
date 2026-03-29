@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -8,6 +9,12 @@ import 'answer_parser.dart';
 
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
+///
+/// Image enhancement philosophy:
+/// ML Kit's TextRecognizer has its own preprocessing pipeline. We do the
+/// minimum that helps it: downscale for memory, boost contrast for ink/paper
+/// separation, and convert to grayscale. Everything else (sharpen, denoise,
+/// binarize) is counterproductive — it destroys information ML Kit could use.
 class OcrService {
   static final OcrService _instance = OcrService._();
   factory OcrService() => _instance;
@@ -18,73 +25,65 @@ class OcrService {
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
-  /// Below this, the line is discarded as noise.
   static const double _minConfidence = 0.5;
 
-  /// Maximum image dimension before enhancement.
-  /// Larger images are downscaled to protect 2GB devices from OOM.
-  static const int _maxImageDimension = 2048;
+  /// Maximum image dimension for enhancement.
+  /// Scales down to protect 2GB devices and speed up processing.
+  static const int _maxImageDimension = 1600;
+
+  /// Skew angle threshold — beyond this, we warn the teacher.
+  static const double _skewWarningDegrees = 8.0;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    // Latin script handles English A/B/C/D/E and numbers
-    // ML Kit's Latin recognizer also handles mixed scripts reasonably
     _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     _isInitialized = true;
   }
 
-  /// Enhance image for better OCR: auto-contrast, denoise, sharpen
-  /// Designed for poor classroom lighting, shadows, and glare.
-  /// Downscales large images to [_maxImageDimension] to protect low-spec devices.
+  /// Enhance image for OCR with minimal processing.
+  ///
+  /// Strategy: ML Kit does its own preprocessing. We only do what it can't:
+  /// 1. EXIF rotation correction (camera orientation)
+  /// 2. Downscale to [_maxImageDimension] (memory protection)
+  /// 3. Grayscale (halves data, text is luminance)
+  /// 4. Contrast boost (ink/paper separation in poor lighting)
+  ///
+  /// No pixel loops. No binarization. No sharpening. No denoising.
+  /// All operations use the `image` package's native-compiled routines.
   Future<String> enhanceImage(String imagePath) async {
     final file = File(imagePath);
     final bytes = await file.readAsBytes();
-    img.Image? image = img.decodeImage(bytes); // auto-applies EXIF rotation
+    img.Image? image = img.decodeImage(bytes);
     if (image == null) return imagePath;
 
-    // Downscale to protect 2GB devices from OOM during pixel-loop processing
+    // Downscale — protects memory on cheap phones, speeds up ML Kit
     if (image.width > _maxImageDimension || image.height > _maxImageDimension) {
-      final ratio = _maxImageDimension / (image.width > image.height ? image.width : image.height);
+      final longer = image.width > image.height ? image.width : image.height;
+      final ratio = _maxImageDimension / longer;
       image = img.copyResize(
         image,
         width: (image.width * ratio).round(),
         height: (image.height * ratio).round(),
-        interpolation: img.Interpolation.cubic,
+        interpolation: img.Interpolation.cubic, // best quality for text
       );
     }
 
-    // Auto white balance
-    image = _autoWhiteBalance(image);
+    // Grayscale — text recognition is about luminance, not color
+    image = img.grayscale(image);
 
-    // Increase contrast
-    image = img.adjustColor(
-      image,
-      contrast: 1.3,
-      brightness: 1.05,
-      saturation: 0.9,
-    );
+    // Contrast boost — helps in dim classrooms, fluorescent lighting
+    // Moderate values: too aggressive destroys subtle ink differences
+    image = img.adjustColor(image, contrast: 1.2);
 
-    // Sharpen for text clarity
-    image = _sharpen(image);
-
-    // Remove noise (simple median-like approach)
-    image = _denoise(image);
-
-    // Convert to grayscale for OCR
-    final grayscale = img.grayscale(image);
-
-    // Binarize (adaptive threshold)
-    final binarized = _adaptiveThreshold(grayscale);
-
-    // Save enhanced image
-    final enhancedPath = imagePath.replaceFirst('.jpg', '_enhanced.png');
-    await File(enhancedPath).writeAsBytes(img.encodePng(binarized));
+    // Save as JPEG (smaller than PNG, faster to load for ML Kit)
+    final enhancedPath = imagePath.replaceFirst('.jpg', '_enhanced.jpg');
+    await File(enhancedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
 
     return enhancedPath;
   }
 
-  /// Process a scanned paper and extract answers
-  /// Returns answers matched against the assessment's answer key
+  /// Process a scanned paper and extract answers.
+  /// Returns answers matched against the assessment's answer key.
   Future<ScanResult> processScannedPaper({
     required String imagePath,
     required Assessment assessment,
@@ -93,22 +92,35 @@ class OcrService {
   }) async {
     await initialize();
 
-    // 1. Enhance image
+    // 1. Enhance image (downscale + grayscale + contrast)
     final enhancedPath = await enhanceImage(imagePath);
 
     // 2. Extract text regions using ML Kit (on-device, offline)
-    final textRegions = await _extractTextRegions(enhancedPath);
+    final extractionResult = await _extractTextRegions(enhancedPath);
 
     // 3. Parse question numbers and answers
-    final detectedAnswers = _parseAnswers(textRegions, assessment);
+    final detectedAnswers = _parseAnswers(extractionResult.regions, assessment);
 
-    // 4. Score against answer key
-    final scoredAnswers = _scoreAnswers(detectedAnswers, assessment);
+    // 4. Deduplicate — if ML Kit reads the same Q# twice, keep highest confidence
+    final deduplicated = _deduplicateAnswers(detectedAnswers);
 
-    // 5. Calculate totals
+    // 5. Score against answer key
+    final scoredAnswers = _scoreAnswers(deduplicated, assessment);
+
+    // 6. Calculate totals
     final totalScore = scoredAnswers.fold(0.0, (sum, a) => sum + a.score);
     final maxScore = assessment.maxScore;
     final percentage = maxScore > 0 ? (totalScore / maxScore * 100) : 0.0;
+    final overallConfidence = _calculateConfidence(scoredAnswers);
+
+    // 7. Build metadata with quality signals
+    final metadata = <String, dynamic>{
+      'textLinesDetected': extractionResult.regions.length,
+      'questionsDetected': deduplicated.length,
+      'duplicatesRemoved': detectedAnswers.length - deduplicated.length,
+      'skewAngle': extractionResult.skewAngle,
+      'skewWarning': extractionResult.skewAngle.abs() > _skewWarningDegrees,
+    };
 
     return ScanResult(
       assessmentId: assessment.id,
@@ -121,15 +133,17 @@ class OcrService {
       maxScore: maxScore,
       percentage: percentage,
       grade: _calculateGrade(percentage.toDouble(), assessment.rubricType),
-      status: ScanStatus.graded,
-      confidence: _calculateConfidence(scoredAnswers),
+      status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
+      confidence: overallConfidence,
+      metadata: metadata,
     );
   }
 
   /// Extract text regions from an image using ML Kit.
-  /// Runs entirely on-device — no internet required.
-  /// Returns text lines sorted by vertical position (top to bottom).
-  Future<List<TextRegion>> _extractTextRegions(String imagePath) async {
+  /// Also estimates paper skew angle from text block alignment.
+  Future<({List<TextRegion> regions, double skewAngle})> _extractTextRegions(
+    String imagePath,
+  ) async {
     await initialize();
 
     try {
@@ -137,14 +151,27 @@ class OcrService {
       final RecognizedText recognized = await _textRecognizer.processImage(inputImage);
 
       final regions = <TextRegion>[];
+      double totalAngle = 0;
+      int angleCount = 0;
 
       for (final block in recognized.blocks) {
+        // Estimate skew from block angle
+        if (block.cornerPoints.length >= 2) {
+          final p1 = block.cornerPoints[0];
+          final p2 = block.cornerPoints[1];
+          final angle = math.atan2(
+            (p2.y - p1.y).toDouble(),
+            (p2.x - p1.x).toDouble(),
+          );
+          totalAngle += angle;
+          angleCount++;
+        }
+
         for (final line in block.lines) {
           final text = line.text.trim();
           if (text.isEmpty) continue;
 
-          // ML Kit confidence: average of character-level confidences
-          // Elements may not always have confidence, default to 0.8
+          // Confidence from character-level detection
           double confidence = 0.8;
           if (line.elements.isNotEmpty) {
             final confidences = line.elements
@@ -153,16 +180,14 @@ class OcrService {
             confidence = confidences.reduce((a, b) => a + b) / confidences.length;
           }
 
-          // Skip low-confidence detections — likely noise, not real text
           if (confidence < _minConfidence) continue;
 
-          // Position: use top-left corner of bounding box
-          final rect = line.cornerPoints;
+          // Position from bounding box
+          final points = line.cornerPoints;
           double x = 0, y = 0;
-          if (rect != null && rect.isNotEmpty) {
-            // Find topmost-leftmost point
-            x = rect.map((p) => p.x.toDouble()).reduce((a, b) => a < b ? a : b);
-            y = rect.map((p) => p.y.toDouble()).reduce((a, b) => a < b ? a : b);
+          if (points != null && points.isNotEmpty) {
+            x = points.map((p) => p.x.toDouble()).reduce(math.min);
+            y = points.map((p) => p.y.toDouble()).reduce(math.min);
           }
 
           regions.add(TextRegion(
@@ -174,28 +199,27 @@ class OcrService {
         }
       }
 
-      // Sort by vertical position (top to bottom), then horizontal (left to right)
-      // Lines within 5% of max Y span are treated as same line
+      // Sort: top-to-bottom, left-to-right within same line
       double yTolerance = 10.0;
       if (regions.length > 1) {
         final ys = regions.map((r) => r.y);
-        yTolerance = (ys.reduce((a, b) => a > b ? a : b) -
-                      ys.reduce((a, b) => a < b ? a : b)) * 0.05;
+        yTolerance = (ys.reduce(math.max) - ys.reduce(math.min)) * 0.05;
       }
       regions.sort((a, b) {
-        if ((a.y - b.y).abs() < yTolerance) {
-          return a.x.compareTo(b.x); // same line, sort left to right
-        }
+        if ((a.y - b.y).abs() < yTolerance) return a.x.compareTo(b.x);
         return a.y.compareTo(b.y);
       });
 
-      debugPrint('OCR: detected ${regions.length} text lines');
-      return regions;
+      // Average skew angle in degrees
+      final skewDegrees = angleCount > 0
+          ? (totalAngle / angleCount) * 180 / math.pi
+          : 0.0;
+
+      debugPrint('OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°');
+      return (regions: regions, skewAngle: skewDegrees);
     } catch (e) {
-      debugPrint('OCR: text recognition failed (${e.runtimeType})');
-      // Graceful failure — return empty so the pipeline continues
-      // Teacher can manually enter answers via review screen
-      return [];
+      debugPrint('OCR: recognition failed (${e.runtimeType})');
+      return (regions: <TextRegion>[], skewAngle: 0.0);
     }
   }
 
@@ -204,7 +228,12 @@ class OcrService {
     Assessment assessment,
   ) {
     final inputs = regions
-        .map((r) => TextRegionInput(text: r.text, confidence: r.confidence, x: r.x, y: r.y))
+        .map((r) => TextRegionInput(
+              text: r.text,
+              confidence: r.confidence,
+              x: r.x,
+              y: r.y,
+            ))
         .toList();
     return _parser
         .parseAnswers(inputs)
@@ -215,6 +244,20 @@ class OcrService {
               rawText: p.rawText,
             ))
         .toList();
+  }
+
+  /// Remove duplicate answers for the same question number.
+  /// Keeps the one with highest confidence.
+  List<DetectedAnswer> _deduplicateAnswers(List<DetectedAnswer> answers) {
+    final Map<int, DetectedAnswer> best = {};
+    for (final answer in answers) {
+      final existing = best[answer.questionNumber];
+      if (existing == null || answer.confidence > existing.confidence) {
+        best[answer.questionNumber] = answer;
+      }
+    }
+    return best.values.toList()
+      ..sort((a, b) => a.questionNumber.compareTo(b.questionNumber));
   }
 
   List<AnswerMatch> _scoreAnswers(
@@ -318,90 +361,6 @@ class OcrService {
   double _calculateConfidence(List<AnswerMatch> answers) {
     if (answers.isEmpty) return 0;
     return answers.fold(0.0, (sum, a) => sum + a.confidence) / answers.length;
-  }
-
-  // ──── Image processing helpers ────
-
-  img.Image _autoWhiteBalance(img.Image image) {
-    num totalR = 0, totalG = 0, totalB = 0;
-    final pixelCount = image.width * image.height;
-
-    for (int y = 0; y < image.height; y++) {
-      for (int x = 0; x < image.width; x++) {
-        final pixel = image.getPixel(x, y);
-        totalR += pixel.r;
-        totalG += pixel.g;
-        totalB += pixel.b;
-      }
-    }
-
-    final avgR = totalR / pixelCount;
-    final avgG = totalG / pixelCount;
-    final avgB = totalB / pixelCount;
-    final avg = (avgR + avgG + avgB) / 3;
-
-    final scaleR = avg / avgR;
-    final scaleG = avg / avgG;
-    final scaleB = avg / avgB;
-
-    return img.adjustColor(image,
-      red: scaleR.toDouble(),
-      green: scaleG.toDouble(),
-      blue: scaleB.toDouble(),
-    );
-  }
-
-  img.Image _sharpen(img.Image image) {
-    final blurred = img.gaussianBlur(image, radius: 2);
-    final result = img.Image.from(image);
-
-    for (int y = 0; y < image.height; y++) {
-      for (int x = 0; x < image.width; x++) {
-        final orig = image.getPixel(x, y);
-        final blur = blurred.getPixel(x, y);
-        final r = (orig.r * 1.5 - blur.r * 0.5).clamp(0, 255).toInt();
-        final g = (orig.g * 1.5 - blur.g * 0.5).clamp(0, 255).toInt();
-        final b = (orig.b * 1.5 - blur.b * 0.5).clamp(0, 255).toInt();
-        result.setPixelRgba(x, y, r, g, b, orig.a.toInt());
-      }
-    }
-
-    return result;
-  }
-
-  img.Image _denoise(img.Image image) {
-    return img.gaussianBlur(image, radius: 1);
-  }
-
-  img.Image _adaptiveThreshold(img.Image grayscale) {
-    final result = img.Image.from(grayscale);
-    const blockSize = 15;
-    const c = 10;
-
-    for (int y = 0; y < grayscale.height; y++) {
-      for (int x = 0; x < grayscale.width; x++) {
-        final pixel = grayscale.getPixel(x, y);
-        final intensity = pixel.r.toInt();
-
-        num sum = 0;
-        int count = 0;
-        for (int dy = -blockSize ~/ 2; dy <= blockSize ~/ 2; dy++) {
-          for (int dx = -blockSize ~/ 2; dx <= blockSize ~/ 2; dx++) {
-            final nx = (x + dx).clamp(0, grayscale.width - 1);
-            final ny = (y + dy).clamp(0, grayscale.height - 1);
-            sum += grayscale.getPixel(nx, ny).r;
-            count++;
-          }
-        }
-
-        final mean = sum / count;
-        final threshold = mean - c;
-        final value = intensity > threshold ? 255 : 0;
-        result.setPixelRgba(x, y, value, value, value, 255);
-      }
-    }
-
-    return result;
   }
 
   /// Release ML Kit resources. Call when app is shutting down.
