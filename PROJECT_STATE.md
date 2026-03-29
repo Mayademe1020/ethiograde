@@ -9,7 +9,7 @@
 
 | Signal | Status | Detail |
 |--------|--------|--------|
-| **Build** | 🔴 Not buildable | Missing font files, splash image, assets |
+| **Build** | 🟡 Partial | Fonts + splash done; OCR still mock — needs ML Kit |
 | **Tests** | ⚫ None | Zero test coverage |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
@@ -50,8 +50,8 @@
 | F09 | Review screen | ✅ Done | UX | F06 | Low | Side-by-side, manual overrides |
 | F10 | PDF reports | ✅ Done | Mobile | F06 | Low | Student + class reports |
 | F11 | Excel import | ✅ Done | Mobile | F07 | Low | .xlsx via file_picker |
-| F12 | **Font assets** | ❌ Missing | Design | — | 🔴 High | App won't compile |
-| F13 | **Splash screen** | ❌ Missing | Design | — | 🔴 High | Android drawable empty |
+| F12 | **Font assets** | ✅ Done | Design | — | Low | NotoSansEthiopic Regular + Bold (OFL) |
+| F13 | **Splash screen** | ✅ Done | Design | — | Low | 512x512 PNG, Ethiopian green + checkmark |
 | F14 | Voice commands (STT/TTS) | ✅ Done | Mobile | — | Low | Recording + playback |
 
 ### Teacher Features (v0.2.0)
@@ -93,8 +93,8 @@
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
-| Add font files (NotoSansEthiopic) | ⬜ Todo | Design | 1 | Download from Google Fonts |
-| Add splash logo | ⬜ Todo | Design | 1 | Create + place in Android drawable |
+| Add font files (NotoSansEthiopic) | ✅ Done | Design | 1 | NotoSansEthiopic-Regular.ttf + Bold.ttf (OFL) |
+| Add splash logo | ✅ Done | Design | 1 | 512x512 PNG, green bg + white checkmark + yellow accent |
 | Wire ML Kit text recognition | ⬜ Todo | ML | 5 | Replace mock extractor |
 | Validate answer parser against ML Kit output | ⬜ Todo | ML | 3 | Adjust regex if needed |
 | Move image processing to isolate | ⬜ Todo | Mobile | 3 | Prevent UI jank |
@@ -102,7 +102,7 @@
 | Add unit tests for scoring engine | ⬜ Todo | QA | 2 | — |
 | Add unit tests for answer parser | ⬜ Todo | QA | 2 | — |
 
-**Sprint Burndown:** 0/19 points complete
+**Sprint Burndown:** 2/19 points complete
 
 ---
 

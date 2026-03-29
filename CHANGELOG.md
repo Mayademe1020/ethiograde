@@ -14,7 +14,7 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
-### In Progress
+- Real OCR integration (ML Kit text recognition)
 - Real OCR integration (ML Kit text recognition)
 - Font assets (NotoSansEthiopic)
 - Splash screen assets
