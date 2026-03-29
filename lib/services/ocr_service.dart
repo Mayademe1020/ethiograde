@@ -53,10 +53,13 @@ class OcrService {
   /// No pixel loops. No binarization. No sharpening. No denoising.
   /// All operations use the `image` package's native-compiled routines.
   Future<String> enhanceImage(String imagePath) async {
-    final file = File(imagePath);
-    final bytes = await file.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
-    if (image == null) return imagePath;
+    try {
+      final file = File(imagePath);
+      if (!await file.exists()) return imagePath;
+
+      final bytes = await file.readAsBytes();
+      img.Image? image = img.decodeImage(bytes);
+      if (image == null) return imagePath;
 
     // Downscale — protects memory on cheap phones, speeds up ML Kit
     if (image.width > _maxImageDimension || image.height > _maxImageDimension) {
@@ -78,10 +81,16 @@ class OcrService {
     image = img.adjustColor(image, contrast: 1.2);
 
     // Save as JPEG (smaller than PNG, faster to load for ML Kit)
-    final enhancedPath = imagePath.replaceFirst('.jpg', '_enhanced.jpg');
+    final dotIndex = imagePath.lastIndexOf('.');
+    final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+    final enhancedPath = '${basePath}_enhanced.jpg';
     await File(enhancedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
 
     return enhancedPath;
+  } catch (e) {
+    debugPrint('OCR: enhanceImage failed (${e.runtimeType})');
+    return imagePath;
+  }
   }
 
   /// Process a scanned paper and extract answers.

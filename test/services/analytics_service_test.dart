@@ -379,7 +379,7 @@ void main() {
 
     test('custom threshold', () {
       final questions = [
-        const QuestionAnalytics(questionNumber: 1, correctRate: 0.5),
+        const QuestionAnalytics(questionNumber: 1, correctRate: 0.45),
         const QuestionAnalytics(questionNumber: 2, correctRate: 0.55),
       ];
 

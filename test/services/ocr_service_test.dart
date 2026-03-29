@@ -631,7 +631,8 @@ void main() {
       ];
 
       final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
-      expect(scored, hasLength(1));
+      // scoreAnswers returns one match per question in assessment
+      expect(scored, hasLength(4));
       expect(scored[0].confidence, 0);
     });
 

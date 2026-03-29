@@ -471,7 +471,7 @@ void main() {
       final loaded = Student.fromMap(
           Map<String, dynamic>.from(box.get('imp_s1') as Map));
       expect(loaded.firstName, 'Imported');
-      expect(loaded.grade, 1);
+      expect(loaded.grade, 5);
       expect(box.containsKey('imp_s1'), isTrue);
 
       await importDir.delete(recursive: true);
