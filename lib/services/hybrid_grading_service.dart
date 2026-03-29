@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
 import 'ocr_service.dart';
 import 'scoring_service.dart';
+import 'validation_service.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.
 ///
@@ -16,6 +18,7 @@ import 'scoring_service.dart';
 /// - ScoringService handles answer matching and grade calculation
 /// - HybridGradingService orchestrates both and adds business logic
 ///   (error handling, retry logic, batch processing, progress reporting)
+///   and now auto-persists every graded result to the encrypted Hive box.
 ///
 /// Future: when OMR (bubble detection) is added, this service will run
 /// both OCR and OMR in parallel and merge results — hence "Hybrid".
@@ -26,7 +29,13 @@ class HybridGradingService {
 
   final OcrService _ocr = OcrService();
   final ScoringService _scoring = const ScoringService();
+  static const ValidationService _validator = ValidationService();
   bool _isInitialized = false;
+
+  /// ScanResults that failed to save — retried on next successful save.
+  final List<ScanResult> _pendingSaves = [];
+
+  static const String _scanResultsBoxName = 'scan_results';
 
   /// Initialize underlying services. Safe to call multiple times.
   Future<void> initialize() async {
@@ -34,6 +43,8 @@ class HybridGradingService {
     await _ocr.initialize();
     _isInitialized = true;
   }
+
+  // ── Grading ───────────────────────────────────────────────────────
 
   /// Grade a single paper image against an assessment.
   ///
@@ -45,6 +56,7 @@ class HybridGradingService {
   /// 4. Deduplicate duplicate detections
   /// 5. Score against assessment answer key
   /// 6. Calculate grade and confidence
+  /// 7. Auto-save to encrypted Hive box (with retry)
   ///
   /// Returns a ScanResult with status set to graded or needsRescan.
   /// Never throws — returns a failed ScanResult on error so the UI
@@ -83,6 +95,9 @@ class HybridGradingService {
         '${result.totalScore}/${result.maxScore} '
         '(${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf)',
       );
+
+      // Auto-save with retry — never let persistence break the grading flow
+      await _saveWithRetry(result);
 
       return result;
     } catch (e, stackTrace) {
@@ -161,6 +176,143 @@ class HybridGradingService {
       studentName: studentName,
     );
   }
+
+  // ── Persistence ───────────────────────────────────────────────────
+
+  /// Persist a ScanResult to the encrypted lazy box.
+  /// On failure: retry once after 500ms, then queue for later.
+  Future<void> _saveWithRetry(ScanResult result) async {
+    // Validate before writing
+    final validation = _validator.validateScanResult(result);
+    if (!validation.isValid) {
+      debugPrint('HybridGrading: scan result validation failed: ${validation.errors}');
+      // Still save — validation is advisory, not blocking
+    }
+
+    try {
+      final box = Hive.lazyBox(_scanResultsBoxName);
+      await box.put(result.id, result.toMap());
+      debugPrint('HybridGrading: saved scan result ${result.id}');
+
+      // Opportunistically flush pending saves
+      await flushPendingSaves();
+    } catch (e) {
+      debugPrint('HybridGrading: save failed (${e.runtimeType}), retrying in 500ms…');
+      await Future.delayed(const Duration(milliseconds: 500));
+      try {
+        final box = Hive.lazyBox(_scanResultsBoxName);
+        await box.put(result.id, result.toMap());
+        debugPrint('HybridGrading: retry succeeded for ${result.id}');
+        await flushPendingSaves();
+      } catch (e2) {
+        debugPrint('HybridGrading: retry failed (${e2.runtimeType}), queuing for later');
+        _pendingSaves.add(result);
+      }
+    }
+  }
+
+  /// Retry all items in the pending-saves queue.
+  /// Removes entries on success; keeps them on failure.
+  Future<void> flushPendingSaves() async {
+    if (_pendingSaves.isEmpty) return;
+
+    final box = Hive.lazyBox(_scanResultsBoxName);
+    final succeeded = <ScanResult>[];
+
+    for (final result in _pendingSaves) {
+      try {
+        await box.put(result.id, result.toMap());
+        succeeded.add(result);
+      } catch (e) {
+        debugPrint('HybridGrading: flush failed for ${result.id} (${e.runtimeType})');
+      }
+    }
+
+    _pendingSaves.removeWhere(succeeded.contains);
+    if (succeeded.isNotEmpty) {
+      debugPrint('HybridGrading: flushed ${succeeded.length} pending saves');
+    }
+  }
+
+  // ── Queries ───────────────────────────────────────────────────────
+
+  /// Load all scan results for a specific assessment.
+  /// Sorts by score descending (best first).
+  Future<List<ScanResult>> loadScanResults(String assessmentId) async {
+    try {
+      final box = Hive.lazyBox(_scanResultsBoxName);
+      final results = <ScanResult>[];
+
+      for (final key in box.keys) {
+        final data = await box.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['assessmentId'] == assessmentId) {
+          results.add(ScanResult.fromMap(map));
+        }
+      }
+
+      results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
+      return results;
+    } catch (e) {
+      debugPrint('HybridGrading: loadScanResults failed (${e.runtimeType})');
+      return [];
+    }
+  }
+
+  /// Single lookup by ID. Returns `null` when not found.
+  Future<ScanResult?> getScanResultById(String id) async {
+    try {
+      final box = Hive.lazyBox(_scanResultsBoxName);
+      final data = await box.get(id);
+      if (data == null) return null;
+      return ScanResult.fromMap(Map<String, dynamic>.from(data as Map));
+    } catch (e) {
+      debugPrint('HybridGrading: getScanResultById failed (${e.runtimeType})');
+      return null;
+    }
+  }
+
+  /// Remove a scan result from the box.
+  Future<bool> deleteScanResult(String id) async {
+    try {
+      final box = Hive.lazyBox(_scanResultsBoxName);
+      await box.delete(id);
+      return true;
+    } catch (e) {
+      debugPrint('HybridGrading: deleteScanResult failed (${e.runtimeType})');
+      return false;
+    }
+  }
+
+  /// Load all results for a single student across all assessments.
+  /// Sorts by date descending (most recent first).
+  Future<List<ScanResult>> getResultsForStudent(String studentId) async {
+    try {
+      final box = Hive.lazyBox(_scanResultsBoxName);
+      final results = <ScanResult>[];
+
+      for (final key in box.keys) {
+        final data = await box.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['studentId'] == studentId) {
+          results.add(ScanResult.fromMap(map));
+        }
+      }
+
+      results.sort((a, b) => b.scannedAt.compareTo(a.scannedAt));
+      return results;
+    } catch (e) {
+      debugPrint('HybridGrading: getResultsForStudent failed (${e.runtimeType})');
+      return [];
+    }
+  }
+
+  /// Count of items waiting to be saved.
+  int get pendingSaveCount => _pendingSaves.length;
+
+  // ── Helpers ───────────────────────────────────────────────────────
 
   /// Create a failed ScanResult when processing cannot complete.
   ScanResult _failedResult({

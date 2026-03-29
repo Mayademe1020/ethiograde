@@ -55,6 +55,25 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 - Camera guidance overlay
 - Score override/edit flow
 
+### Changed
+- `HybridGradingService`: auto-persists every graded ScanResult
+  - `gradePaper()` now saves to encrypted `scan_results` lazy box after scoring
+  - Retry logic: on save failure, waits 500ms and retries once
+  - On second failure: queues to in-memory `_pendingSaves` list
+  - `flushPendingSaves()` runs opportunistically after every successful save
+  - Validation via `ValidationService` before every write (advisory, not blocking)
+  - Grading flow never breaks — persistence errors are logged, not thrown
+  - New queries: `loadScanResults(assessmentId)`, `getScanResultById(id)`,
+    `deleteScanResult(id)`, `getResultsForStudent(studentId)`
+  - `pendingSaveCount` getter for monitoring queue depth
+  - All queries use `Hive.lazyBox('scan_results')` (memory-safe on 2GB devices)
+- Real device testing on 2GB phone with actual exam papers
+- Unit tests for PDF service
+- Widget tests for dashboard, create assessment, review screens
+- Pure Dart perspective correction
+- Camera guidance overlay
+- Score override/edit flow
+
 ## [0.1.0-hybrid-grading] — 2026-03-30
 
 ### Added

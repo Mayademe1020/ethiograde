@@ -58,6 +58,7 @@
 | F30 | **Validation service** | ✅ Done | Backend | F07 | Low | Pure Dart, Student/Assessment/ScanResult validation, 25+ tests |
 | F31 | **StudentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, UUID generation, Result type, search |
 | F32 | **AssessmentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, Result type, backward-compat saveAssessment |
+| F33 | **ScanResult auto-save + persistence** | ✅ Done | Backend | F30 | Medium | Auto-save in gradePaper, retry logic, pending queue, lazy box queries |
 
 ### Teacher Features (v0.2.0)
 
@@ -113,6 +114,7 @@
 | ValidationService | ✅ Done | Backend | 3 | Pure Dart student/assessment/scan validation, 25+ unit tests |
 | Rewrite StudentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, UUID gen, Result type, Amharic search |
 | Rewrite AssessmentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, Result type, backward-compat saveAssessment |
+| ScanResult auto-save in HybridGradingService | ✅ Done | Backend | 3 | Auto-save with retry, pending queue, lazy box queries (load/get/delete/student) |
 
 ### Completed Sprint 0
 
