@@ -16,8 +16,27 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ### Planned (Sprint 1)
 - Real device testing on 2GB phone with actual exam papers
-- Unit tests for analytics provider
+- Unit tests for PDF service
 - Widget tests for dashboard, create assessment, review screens
+
+## [0.1.0-analytics] — 2026-03-29
+
+### Added
+- `AnalyticsService`: pure-Dart analytics engine extracted from AnalyticsProvider
+  - No Flutter/platform deps — independently testable
+  - Public API: `computeAnalytics`, `getDifficultQuestions`, `getEasyQuestions`, `getTopicHeatmap`
+  - Pass marks as constants: MoE 50%, international 60%, university 50%
+- Unit tests: 20+ cases for analytics engine
+  - computeAnalytics: empty/single/multiple students, averages, median, pass rate, grade distribution
+  - Pass mark varies by rubric type
+  - Question analytics: correct rate, answer distribution, topic scores
+  - getDifficultQuestions / getEasyQuestions: threshold filtering, sorting
+  - getTopicHeatmap: topic × subject, General fallback, empty input
+  - QuestionAnalytics.isDifficult / isEasy flags
+
+### Changed
+- AnalyticsProvider delegates computation to AnalyticsService (zero behavior change)
+- Removed 4 private methods from AnalyticsProvider: `computeAnalytics` body, `_median`, `_getPassMark`, heatmap logic
 
 ## [0.1.0-scoring] — 2026-03-29
 

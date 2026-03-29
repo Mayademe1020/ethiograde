@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring engine; zero coverage for services (OCR, PDF, Excel) |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics; zero coverage for services (OCR, PDF, Excel) |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
