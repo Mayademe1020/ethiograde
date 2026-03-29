@@ -14,6 +14,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Added
+- Encrypted Hive initialization in `main.dart`
+  - AES-256 encryption for all Hive boxes via `HiveAesCipher`
+  - 32-byte key generated on first launch via `dart:math` `Random.secure()`
+  - Key stored in `flutter_secure_storage` (Android EncryptedSharedPreferences)
+  - Three encrypted boxes: `students` (regular), `assessments` (regular), `scan_results` (lazy)
+  - Corrupt-box recovery: delete + recreate on open failure, never blocks app launch
+  - `box.compact()` after opening to optimise storage
+  - Fallback mode: if any Hive init fails, app starts with in-memory state and shows a dismissable warning banner
+- `flutter_secure_storage: ^9.0.0` dependency for platform-keystore key storage
+
 ### Planned (Sprint 1)
 - Real device testing on 2GB phone with actual exam papers
 - Unit tests for PDF service

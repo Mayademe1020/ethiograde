@@ -15,6 +15,7 @@
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
 | **Security audit** | ⚫ None | No audit performed |
+| **Data encryption** | 🟢 Done | AES-256 Hive boxes, key in flutter_secure_storage |
 | **Accessibility** | 🟡 Partial | Theme contrast not verified, no screen reader tests |
 | **i18n coverage** | 🟡 Partial | UI strings bilingual, but no extraction/validation tool |
 
@@ -53,6 +54,7 @@
 | F12 | **Font assets** | ✅ Done | Design | — | Low | NotoSansEthiopic Regular + Bold (OFL) |
 | F13 | **Splash screen** | ✅ Done | Design | — | Low | 512x512 PNG, Ethiopian green + checkmark |
 | F14 | Voice commands (STT/TTS) | ✅ Done | Mobile | — | Low | Recording + playback |
+| F29 | **Encrypted Hive storage** | ✅ Done | Backend | F07 | Medium | AES-256 via HiveAesCipher, key in flutter_secure_storage, corrupt-box recovery |
 
 ### Teacher Features (v0.2.0)
 
@@ -104,6 +106,7 @@
 | Score override/edit flow | 📋 Pending | UX | — | Sprint 1 task 5 |
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
 | End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
+| Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |
 
 ### Completed Sprint 0
 
@@ -186,6 +189,7 @@
 | `camera` | ^0.10.5+9 | Camera | Stable, well-maintained |
 | `pdf` | ^3.10.7 | Report generation | Stable |
 | `hive` / `hive_flutter` | ^2.2.3 | Local DB | Stable, no SQL overhead |
+| `flutter_secure_storage` | ^9.0.0 | Encryption key storage | Platform keystore (Android EncryptedSharedPreferences) |
 | `provider` | ^6.1.1 | State mgmt | Standard Flutter pattern |
 | `speech_to_text` | ^6.6.0 | STT | Platform-dependent accuracy |
 | `flutter_tts` | ^3.8.5 | TTS | Amharic voice quality unknown |
