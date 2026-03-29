@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics; zero coverage for services (OCR, PDF, Excel) |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService; zero coverage for PDF and Excel |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -87,9 +87,25 @@
 
 ## 🏃 Sprint Board
 
-**Current Sprint:** Sprint 0 — Foundation
-**Goal:** Get the app buildable with real OCR
-**Velocity:** Baseline (first sprint)
+**Current Sprint:** Sprint 1 — Integration
+**Goal:** Wire services to screens, add test coverage, build HybridGradingService
+**Velocity:** In progress
+
+| Task | Status | Assignee | Points | Notes |
+|------|--------|----------|--------|-------|
+| Template-to-PDF flow | 📋 Pending | — | — | Sprint 1 task 1 |
+| Wire batch_scan_screen to HybridGradingService | ✅ Done | Backend | 3 | Replaced OcrService direct calls with HybridGradingService |
+| Wire camera_screen to HybridGradingService | ✅ Done | Backend | 2 | Single-paper grading also uses HybridGradingService now |
+| Create HybridGradingService | ✅ Done | Backend | 3 | Orchestrates OcrService + ScoringService; error handling, batch with progress callback |
+| Unit tests for OcrService | ✅ Done | QA | 5 | 40+ tests: TextRegion model, enhanceImage (downscale/grayscale/contrast/edge cases), parseAnswers integration, deduplication, scoring pipeline, ScanResult serialization |
+| Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
+| Pure Dart perspective correction | 📋 Pending | ML | — | Sprint 1 task 3 |
+| Camera guidance overlay | 📋 Pending | UX | — | Sprint 1 task 4 |
+| Score override/edit flow | 📋 Pending | UX | — | Sprint 1 task 5 |
+| Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
+| End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
+
+### Completed Sprint 0
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
@@ -101,7 +117,7 @@
 | Replace enhancement pipeline | ✅ Done | ML | 3 | 4 native ops, zero pixel loops, skew detection, dedup |
 | Add unit tests for scoring engine | ✅ Done | QA | 2 | ScoringService extracted (pure Dart), 40+ tests covering all 3 grading scales, answer types, edge cases |
 
-**Sprint Burndown:** 19/19 points complete — Sprint 0 done ✅
+**Sprint 0 Burndown:** 19/19 points complete — Sprint 0 done ✅
 
 ---
 

@@ -18,6 +18,40 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 - Real device testing on 2GB phone with actual exam papers
 - Unit tests for PDF service
 - Widget tests for dashboard, create assessment, review screens
+- Pure Dart perspective correction
+- Camera guidance overlay
+- Score override/edit flow
+
+## [0.1.0-hybrid-grading] — 2026-03-30
+
+### Added
+- `HybridGradingService`: high-level grading orchestrator
+  - Stable API for screens — screens no longer call OcrService directly
+  - `gradePaper()`: single-paper grading with file existence check, error handling
+  - `gradeBatch()`: sequential batch processing with progress callback (safe for 2GB)
+  - `regradePaper()`: re-scan a single paper with separate logging
+  - Graceful failure: never throws, returns `needsRescan` ScanResult on error
+- Unit tests for OcrService: 40+ cases
+  - TextRegion model: construction, zero values
+  - enhanceImage: path naming, downscaling large images, no upscale for small images, grayscale conversion, PNG→JPEG conversion, invalid file handling, contrast boost verification
+  - parseAnswers integration: standard MCQ, confidence preservation, noise filtering, concatenated format, True/False, Amharic, empty input, trailing punctuation
+  - Scoring pipeline: perfect/all-wrong/missing/partial answers, confidence averaging, grade boundaries for all 3 rubric types
+  - Edge cases: Q# >200 rejected, Q# 0 rejected, empty string, prose lines, zero max score, unknown rubric fallback
+  - ScanResult model: round-trip serialization, needsReview logic, copyWith
+- Unit tests for HybridGradingService: 10+ cases
+  - gradePaper: file-not-found graceful failure, real image processing, result structure validation
+  - gradeBatch: empty list, progress callbacks, custom names, auto-generated names, partial names, mixed valid/invalid images
+  - regradePaper: result structure matches gradePaper
+
+### Changed
+- `batch_scan_screen.dart`: replaced direct OcrService calls with HybridGradingService
+  - Cleaner batch loop: single `gradeBatch()` call with progress callback
+  - No more try/catch per image — HybridGradingService handles errors internally
+  - Removed unused `dart:io` import
+- `camera_screen.dart`: replaced direct OcrService calls with HybridGradingService
+  - Single-paper scan now goes through `gradePaper()`
+  - Same error handling benefits as batch scan
+- Removed unused `dart:io` import from batch_scan_screen
 
 ## [0.1.0-analytics] — 2026-03-29
 
