@@ -41,6 +41,9 @@ dependencies:
   google_mlkit_text_recognition: ^0.11.0
   google_mlkit_commons: ^0.7.0
 
+  # Security
+  flutter_secure_storage: ^9.0.0
+
   # UI & Utilities
   flutter_animate: ^4.3.0
   shimmer: ^3.0.0
