@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -16,6 +15,14 @@ class OcrService {
   late final TextRecognizer _textRecognizer;
   bool _isInitialized = false;
 
+  /// Minimum confidence to accept a detected text line.
+  /// Below this, the line is discarded as noise.
+  static const double _minConfidence = 0.5;
+
+  /// Maximum image dimension before enhancement.
+  /// Larger images are downscaled to protect 2GB devices from OOM.
+  static const int _maxImageDimension = 2048;
+
   Future<void> initialize() async {
     if (_isInitialized) return;
     // Latin script handles English A/B/C/D/E and numbers
@@ -25,12 +32,24 @@ class OcrService {
   }
 
   /// Enhance image for better OCR: auto-contrast, denoise, sharpen
-  /// Designed for poor classroom lighting, shadows, and glare
+  /// Designed for poor classroom lighting, shadows, and glare.
+  /// Downscales large images to [_maxImageDimension] to protect low-spec devices.
   Future<String> enhanceImage(String imagePath) async {
     final file = File(imagePath);
     final bytes = await file.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
+    img.Image? image = img.decodeImage(bytes); // auto-applies EXIF rotation
     if (image == null) return imagePath;
+
+    // Downscale to protect 2GB devices from OOM during pixel-loop processing
+    if (image.width > _maxImageDimension || image.height > _maxImageDimension) {
+      final ratio = _maxImageDimension / (image.width > image.height ? image.width : image.height);
+      image = img.copyResize(
+        image,
+        width: (image.width * ratio).round(),
+        height: (image.height * ratio).round(),
+        interpolation: img.Interpolation.cubic,
+      );
+    }
 
     // Auto white balance
     image = _autoWhiteBalance(image);
@@ -132,6 +151,9 @@ class OcrService {
             confidence = confidences.reduce((a, b) => a + b) / confidences.length;
           }
 
+          // Skip low-confidence detections — likely noise, not real text
+          if (confidence < _minConfidence) continue;
+
           // Position: use top-left corner of bounding box
           final rect = line.cornerPoints;
           double x = 0, y = 0;
@@ -151,11 +173,16 @@ class OcrService {
       }
 
       // Sort by vertical position (top to bottom), then horizontal (left to right)
+      // Lines within 5% of max Y span are treated as same line
+      double yTolerance = 10.0;
+      if (regions.length > 1) {
+        final ys = regions.map((r) => r.y);
+        yTolerance = (ys.reduce((a, b) => a > b ? a : b) -
+                      ys.reduce((a, b) => a < b ? a : b)) * 0.05;
+      }
       regions.sort((a, b) {
-        final yDiff = (a.y - b.y).abs();
-        if (yDiff < 10) {
-          // Same line — sort left to right
-          return a.x.compareTo(b.x);
+        if ((a.y - b.y).abs() < yTolerance) {
+          return a.x.compareTo(b.x); // same line, sort left to right
         }
         return a.y.compareTo(b.y);
       });
@@ -163,7 +190,7 @@ class OcrService {
       debugPrint('OCR: detected ${regions.length} text lines');
       return regions;
     } catch (e) {
-      debugPrint('OCR error: $e');
+      debugPrint('OCR: text recognition failed (${e.runtimeType})');
       // Graceful failure — return empty so the pipeline continues
       // Teacher can manually enter answers via review screen
       return [];
