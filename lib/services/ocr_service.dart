@@ -1,26 +1,26 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../models/scan_result.dart';
 import '../models/assessment.dart';
 
 /// Offline OCR and image processing service.
-/// Uses local image processing + ML Kit text recognition.
-/// In production, swap in TFLite models for Amharic handwriting.
+/// Uses ML Kit text recognition (runs on-device, no internet required).
 class OcrService {
   static final OcrService _instance = OcrService._();
   factory OcrService() => _instance;
   OcrService._();
 
+  late final TextRecognizer _textRecognizer;
   bool _isInitialized = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    // Load local TFLite model when available
-    // await Tflite.loadModel(
-    //   model: "assets/models/amharic_ocr.tflite",
-    //   labels: "assets/models/labels.txt",
-    // );
+    // Latin script handles English A/B/C/D/E and numbers
+    // ML Kit's Latin recognizer also handles mixed scripts reasonably
+    _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     _isInitialized = true;
   }
 
@@ -70,10 +70,12 @@ class OcrService {
     required String studentId,
     required String studentName,
   }) async {
+    await initialize();
+
     // 1. Enhance image
     final enhancedPath = await enhanceImage(imagePath);
 
-    // 2. Extract text regions using ML Kit or local model
+    // 2. Extract text regions using ML Kit (on-device, offline)
     final textRegions = await _extractTextRegions(enhancedPath);
 
     // 3. Parse question numbers and answers
@@ -103,19 +105,69 @@ class OcrService {
     );
   }
 
-  /// Mock OCR extraction — in production, replace with TFLite inference
+  /// Extract text regions from an image using ML Kit.
+  /// Runs entirely on-device — no internet required.
+  /// Returns text lines sorted by vertical position (top to bottom).
   Future<List<TextRegion>> _extractTextRegions(String imagePath) async {
-    // Simulated OCR results
-    // In production: use google_mlkit_text_recognition or TFLite
-    await Future.delayed(const Duration(milliseconds: 800));
+    await initialize();
 
-    return [
-      TextRegion(text: '1. A', confidence: 0.92, x: 100, y: 50),
-      TextRegion(text: '2. B', confidence: 0.88, x: 100, y: 100),
-      TextRegion(text: '3. እውነት', confidence: 0.85, x: 100, y: 150),
-      TextRegion(text: '4. C', confidence: 0.91, x: 100, y: 200),
-      TextRegion(text: '5. ሐሰት', confidence: 0.79, x: 100, y: 250),
-    ];
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final RecognizedText recognized = await _textRecognizer.processImage(inputImage);
+
+      final regions = <TextRegion>[];
+
+      for (final block in recognized.blocks) {
+        for (final line in block.lines) {
+          final text = line.text.trim();
+          if (text.isEmpty) continue;
+
+          // ML Kit confidence: average of character-level confidences
+          // Elements may not always have confidence, default to 0.8
+          double confidence = 0.8;
+          if (line.elements.isNotEmpty) {
+            final confidences = line.elements
+                .map((e) => e.confidence ?? 0.8)
+                .toList();
+            confidence = confidences.reduce((a, b) => a + b) / confidences.length;
+          }
+
+          // Position: use top-left corner of bounding box
+          final rect = line.cornerPoints;
+          double x = 0, y = 0;
+          if (rect != null && rect.isNotEmpty) {
+            // Find topmost-leftmost point
+            x = rect.map((p) => p.x.toDouble()).reduce((a, b) => a < b ? a : b);
+            y = rect.map((p) => p.y.toDouble()).reduce((a, b) => a < b ? a : b);
+          }
+
+          regions.add(TextRegion(
+            text: text,
+            confidence: confidence.clamp(0.0, 1.0),
+            x: x,
+            y: y,
+          ));
+        }
+      }
+
+      // Sort by vertical position (top to bottom), then horizontal (left to right)
+      regions.sort((a, b) {
+        final yDiff = (a.y - b.y).abs();
+        if (yDiff < 10) {
+          // Same line — sort left to right
+          return a.x.compareTo(b.x);
+        }
+        return a.y.compareTo(b.y);
+      });
+
+      debugPrint('OCR: detected ${regions.length} text lines');
+      return regions;
+    } catch (e) {
+      debugPrint('OCR error: $e');
+      // Graceful failure — return empty so the pipeline continues
+      // Teacher can manually enter answers via review screen
+      return [];
+    }
   }
 
   List<DetectedAnswer> _parseAnswers(
@@ -168,7 +220,7 @@ class OcrService {
     if (lower.contains('ሐሰት') || lower == 'ሐ') return 'False';
 
     // English True/False
-    if (lower == 't' || lower == 'true' || lower == 'ት rue') return 'True';
+    if (lower == 't' || lower == 'true') return 'True';
     if (lower == 'f' || lower == 'false') return 'False';
 
     // MCQ letters
@@ -286,10 +338,9 @@ class OcrService {
     return answers.fold(0.0, (sum, a) => sum + a.confidence) / answers.length;
   }
 
-  // Image processing helpers
+  // ──── Image processing helpers ────
 
   img.Image _autoWhiteBalance(img.Image image) {
-    // Simple gray-world white balance
     num totalR = 0, totalG = 0, totalB = 0;
     final pixelCount = image.width * image.height;
 
@@ -319,7 +370,6 @@ class OcrService {
   }
 
   img.Image _sharpen(img.Image image) {
-    // Simple unsharp mask approximation
     final blurred = img.gaussianBlur(image, radius: 2);
     final result = img.Image.from(image);
 
@@ -351,7 +401,6 @@ class OcrService {
         final pixel = grayscale.getPixel(x, y);
         final intensity = pixel.r.toInt();
 
-        // Local mean
         num sum = 0;
         int count = 0;
         for (int dy = -blockSize ~/ 2; dy <= blockSize ~/ 2; dy++) {
@@ -373,11 +422,16 @@ class OcrService {
     return result;
   }
 
+  /// Release ML Kit resources. Call when app is shutting down.
   void dispose() {
-    // Tflite.close();
+    if (_isInitialized) {
+      _textRecognizer.close();
+      _isInitialized = false;
+    }
   }
 }
 
+/// A detected text region from OCR.
 class TextRegion {
   final String text;
   final double confidence;
@@ -392,6 +446,7 @@ class TextRegion {
   });
 }
 
+/// A detected question-answer pair from OCR.
 class DetectedAnswer {
   final int questionNumber;
   final String answer;
