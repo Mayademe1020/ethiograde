@@ -9,7 +9,7 @@ import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
-import '../../services/ocr_service.dart';
+import '../../services/hybrid_grading_service.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -395,10 +395,9 @@ class _CameraScreenState extends State<CameraScreen>
       _scanCount++;
 
       // Process image (auto-enhance + OCR)
-      final ocr = OcrService();
-      await ocr.initialize();
+      final grading = HybridGradingService();
 
-      final result = await ocr.processScannedPaper(
+      final result = await grading.gradePaper(
         imagePath: image.path,
         assessment: _selectedAssessment!,
         studentId: 'student_$_scanCount',
