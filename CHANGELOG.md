@@ -15,13 +15,28 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### In Progress
-- Validate answer parser against real ML Kit output on actual exam papers
+- Move image processing to Dart isolates for 2GB device performance
 
 ### Planned (Sprint 0)
-- Move image processing to Dart isolates for 2GB device performance
-- Unit tests for scoring engine and answer parser
+- Unit tests for scoring engine
 
 ---
+
+## [0.1.0-parser] — 2026-03-29
+
+### Added
+- `AnswerParser` class: extracted from OcrService for testability
+- Unit tests: 30+ cases covering MCQ, T/F, Amharic, concatenated formats, noise filtering
+- Concatenated format support: "1A", "10B", "1true" (bubbled answer sheets)
+- yes/no → True/False normalization
+
+### Fixed
+- Pattern 2 narrowed to 1-2 char answers — prevents prose lines from false-matching
+- Concatenated pattern now handles lowercase true/false
+- Trailing OCR punctuation stripped from answers ("A." → "A", "True." → "True")
+
+### Changed
+- OcrService delegates parsing to AnswerParser (single responsibility)
 
 ## [0.1.0-ocr] — 2026-03-29
 

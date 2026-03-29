@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | ⚫ None | Zero test coverage |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser; zero coverage for scoring, services |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟡 Unverified | Image processing untested on real devices |
@@ -43,7 +43,7 @@
 | F02 | Image enhancement | ✅ Done | ML | — | Medium | Pixel loops slow on device — needs isolate |
 | F03 | **Real OCR extraction** | ✅ Done | ML | F02 | Medium | ML Kit TextRecognizer + confidence filter + image downscale |
 | F04 | **Amharic handwriting model** | ❌ Missing | ML | F03 | 🔴 High | No model trained or sourced |
-| F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | Regex works, needs validation against real OCR |
+| F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | AnswerParser extracted, concatenated format, 30+ tests |
 | F06 | Scoring engine | ✅ Done | Backend | F05 | Low | MoE, international, university scales |
 | F07 | Student model + storage | ✅ Done | Backend | — | Low | Hive adapters generated |
 | F08 | Assessment CRUD | ✅ Done | Mobile | F07 | Low | Create, edit, answer key |
@@ -97,12 +97,12 @@
 | Add splash logo | ✅ Done | Design | 1 | 512x512 PNG, green bg + white checkmark + yellow accent |
 | Wire ML Kit text recognition | ✅ Done | ML | 5 | google_mlkit_text_recognition, on-device, graceful failure |
 | Harden OCR: confidence filter + image cap | ✅ Done | ML | 2 | Reject noise <0.5 confidence, downscale >2048px |
-| Validate answer parser against ML Kit output | ⬜ Todo | ML | 3 | Adjust regex if needed |
+| Validate answer parser against ML Kit output | ✅ Done | ML | 3 | AnswerParser extracted, 30+ test cases, edge cases fixed |
 | Move image processing to isolate | ⬜ Todo | Mobile | 3 | Prevent UI jank |
 | Add unit tests for scoring engine | ⬜ Todo | QA | 2 | — |
-| Add unit tests for answer parser | ⬜ Todo | QA | 2 | — |
+| Add unit tests for answer parser | ✅ Done | QA | 2 | 30+ test cases in test/services/answer_parser_test.dart |
 
-**Sprint Burndown:** 9/19 points complete
+**Sprint Burndown:** 14/19 points complete
 
 ---
 
