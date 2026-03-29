@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -6,7 +5,7 @@ import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../services/locale_provider.dart';
-import '../../services/ocr_service.dart';
+import '../../services/hybrid_grading_service.dart';
 import '../../services/analytics_provider.dart';
 
 class BatchScanScreen extends StatefulWidget {
@@ -41,36 +40,30 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     Assessment assessment,
   ) async {
     setState(() => _isProcessing = true);
-    final ocr = OcrService();
-    await ocr.initialize();
+    final grading = HybridGradingService();
 
-    for (int i = 0; i < images.length; i++) {
-      try {
-        final result = await ocr.processScannedPaper(
-          imagePath: images[i],
-          assessment: assessment,
-          studentId: 'student_${i + 1}',
-          studentName: 'Student ${i + 1}',
-        );
-
+    final results = await grading.gradeBatch(
+      imagePaths: images,
+      assessment: assessment,
+      onProgress: (processed, total) {
         setState(() {
-          _results.add(result);
-          _processedCount = i + 1;
+          _processedCount = processed;
         });
-      } catch (e) {
-        debugPrint('Batch scan error on image $i: $e');
-      }
-    }
+      },
+    );
 
-    // Compute analytics
-    if (mounted) {
+    setState(() {
+      _results.addAll(results);
+      _isProcessing = false;
+    });
+
+    // Compute analytics after batch completes
+    if (mounted && _results.isNotEmpty) {
       context.read<AnalyticsProvider>().computeAnalytics(
         assessment: assessment,
         results: _results,
       );
     }
-
-    setState(() => _isProcessing = false);
   }
 
   @override
