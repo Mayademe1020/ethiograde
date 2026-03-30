@@ -9,7 +9,7 @@ class AppTheme {
   static const Color deepBlue = Color(0xFF1A365D);
   static const Color warmGray = Color(0xFFF5F0EB);
   static const Color darkText = Color(0xFF1A202C);
-  static const Color lightText = Color(0xFF718096);
+  static const Color lightText = Color(0xFF6B7280);
   static const Color cardBg = Color(0xFFFFFFFF);
   static const Color scaffoldBg = Color(0xFFF7FAFC);
   static const Color success = Color(0xFF38A169);
