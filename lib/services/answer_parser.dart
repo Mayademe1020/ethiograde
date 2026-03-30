@@ -3,17 +3,56 @@
 /// Extracted from OcrService for testability. Handles:
 /// - English MCQ: "1. A", "2-B", "3) C"
 /// - Amharic MCQ: "1. ሀ", "2. ለ"
+/// - Amharic numerals: "፩. A", "፪፫. B" (Ge'ez question numbers)
 /// - True/False: "1. True", "2. እውነት", "3. F"
 /// - Concatenated: "1A", "2B" (no delimiter, common in bubbled sheets)
 /// - Noisy OCR: extra spaces, mixed case, trailing punctuation
 class AnswerParser {
   const AnswerParser();
 
+  /// Ge'ez/Amharic numeral to integer map.
+  /// ፩=1, ፪=2, ፫=3, ፬=4, ፭=5, ፮=6, ፯=7, ፰=8, ፱=9
+  static const _amharicDigits = {
+    '፩': 1, '፪': 2, '፫': 3, '፬': 4,
+    '፭': 5, '፮': 6, '፯': 7, '፰': 8, '፱': 9,
+  };
+
+  /// Pattern matching Amharic Ge'ez digits (፩ through ፱).
+  static final _amharicDigitPattern = RegExp(r'[፩፪፫፬፭፮፯፰፱]+');
+
+  /// Convert an Amharic numeral string to an integer.
+  /// "፩" → 1, "፪፫" → 23, "፱፱" → 99
+  /// Returns null if the string is empty or contains non-digit characters.
+  static int? _amharicToInt(String s) {
+    if (s.isEmpty) return null;
+    int result = 0;
+    for (int i = 0; i < s.length; i++) {
+      final digit = _amharicDigits[s[i]];
+      if (digit == null) return null;
+      result = result * 10 + digit;
+    }
+    return result > 0 ? result : null;
+  }
+
+  /// Replace all Amharic numeral sequences in [text] with Latin digits.
+  /// "፩. A" → "1. A", "፪፫. B" → "23. B"
+  static String _amharicToLatinNumerals(String text) {
+    return text.replaceAllMapped(_amharicDigitPattern, (match) {
+      final amharicNum = match.group(0)!;
+      final intVal = _amharicToInt(amharicNum);
+      return intVal?.toString() ?? amharicNum;
+    });
+  }
+
   /// Parse question number and answer from a single OCR text line.
   /// Returns null if the line doesn't match any known format.
   (int, String)? parseQuestionAnswer(String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return null;
+
+    // Pre-process: convert Amharic numerals to Latin before pattern matching.
+    // This lets existing regex patterns handle ፩፪፫ etc. transparently.
+    final normalized = _amharicToLatinNumerals(trimmed);
 
     // Order matters: try most specific patterns first
     final patterns = <RegExp>[
@@ -27,12 +66,17 @@ class AnswerParser {
     ];
 
     for (final pattern in patterns) {
-      final match = pattern.firstMatch(trimmed);
+      // Try Latin-normalized text first (handles Amharic numerals),
+      // then fall back to original (preserves Amharic answer letters).
+      var match = pattern.firstMatch(normalized);
+      final usedNormalized = match != null;
+      match ??= pattern.firstMatch(trimmed);
       if (match == null) continue;
 
       final number = int.tryParse(match.group(1)!);
       if (number == null || number <= 0 || number > 200) continue;
 
+      // Use original text for answer extraction (preserves Amharic letters)
       final rawAnswer = match.group(match.groupCount)!.trim();
       final answer = normalizeAnswer(rawAnswer);
       if (answer.isEmpty) continue;

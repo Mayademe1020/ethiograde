@@ -158,6 +158,127 @@ void main() {
     });
   });
 
+  group('parseQuestionAnswer — Amharic numerals as question numbers', () {
+    test('"፩. A" → Q1 answer A', () {
+      final result = parser.parseQuestionAnswer('፩. A');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'A');
+    });
+
+    test('"፪. B" → Q2 answer B', () {
+      final result = parser.parseQuestionAnswer('፪. B');
+      expect(result, isNotNull);
+      expect(result!.$1, 2);
+      expect(result.$2, 'B');
+    });
+
+    test('"፫. C" → Q3 answer C', () {
+      final result = parser.parseQuestionAnswer('፫. C');
+      expect(result, isNotNull);
+      expect(result!.$1, 3);
+      expect(result.$2, 'C');
+    });
+
+    test('"፬. D" → Q4 answer D', () {
+      final result = parser.parseQuestionAnswer('፬. D');
+      expect(result, isNotNull);
+      expect(result!.$1, 4);
+      expect(result.$2, 'D');
+    });
+
+    test('"፭. E" → Q5 answer E', () {
+      final result = parser.parseQuestionAnswer('፭. E');
+      expect(result, isNotNull);
+      expect(result!.$1, 5);
+      expect(result.$2, 'E');
+    });
+
+    test('"፮-True" → Q6 True (dash delimiter)', () {
+      final result = parser.parseQuestionAnswer('፮-True');
+      expect(result, isNotNull);
+      expect(result!.$1, 6);
+      expect(result.$2, 'True');
+    });
+
+    test('"፯) False" → Q7 False', () {
+      final result = parser.parseQuestionAnswer('፯) False');
+      expect(result, isNotNull);
+      expect(result!.$1, 7);
+      expect(result.$2, 'False');
+    });
+
+    test('"፰: A" → Q8 answer A (colon delimiter)', () {
+      final result = parser.parseQuestionAnswer('፰: A');
+      expect(result, isNotNull);
+      expect(result!.$1, 8);
+      expect(result.$2, 'A');
+    });
+
+    test('"፱. B" → Q9 answer B', () {
+      final result = parser.parseQuestionAnswer('፱. B');
+      expect(result, isNotNull);
+      expect(result!.$1, 9);
+      expect(result.$2, 'B');
+    });
+
+    test('"፩፪. C" → Q12 answer C (multi-digit Amharic)', () {
+      final result = parser.parseQuestionAnswer('፩፪. C');
+      expect(result, isNotNull);
+      expect(result!.$1, 12);
+      expect(result.$2, 'C');
+    });
+
+    test('"፪፫. D" → Q23 answer D', () {
+      final result = parser.parseQuestionAnswer('፪፫. D');
+      expect(result, isNotNull);
+      expect(result!.$1, 23);
+      expect(result.$2, 'D');
+    });
+
+    test('"፱፱. A" → Q99 answer A (max 2-digit Amharic)', () {
+      final result = parser.parseQuestionAnswer('፱፱. A');
+      expect(result, isNotNull);
+      expect(result!.$1, 99);
+      expect(result.$2, 'A');
+    });
+
+    test('"፩፩፩. B" → Q111 answer B (3-digit Amharic)', () {
+      final result = parser.parseQuestionAnswer('፩፩፩. B');
+      expect(result, isNotNull);
+      expect(result!.$1, 111);
+      expect(result.$2, 'B');
+    });
+
+    test('concatenated Amharic: "፩A" → Q1 answer A', () {
+      final result = parser.parseQuestionAnswer('፩A');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'A');
+    });
+
+    test('concatenated Amharic: "፪፫B" → Q23 answer B', () {
+      final result = parser.parseQuestionAnswer('፪፫B');
+      expect(result, isNotNull);
+      expect(result!.$1, 23);
+      expect(result.$2, 'B');
+    });
+
+    test('Amharic numeral with Amharic answer: "፩. ሀ" → Q1 A', () {
+      final result = parser.parseQuestionAnswer('፩. ሀ');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'A');
+    });
+
+    test('Amharic numeral with Amharic T/F: "፪. እውነት" → Q2 True', () {
+      final result = parser.parseQuestionAnswer('፪. እውነት');
+      expect(result, isNotNull);
+      expect(result!.$1, 2);
+      expect(result.$2, 'True');
+    });
+  });
+
   group('parseQuestionAnswer — trailing punctuation (OCR artifacts)', () {
     test('"2. A."', () {
       final result = parser.parseQuestionAnswer('2. A.');
