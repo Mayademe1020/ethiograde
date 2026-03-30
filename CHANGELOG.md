@@ -15,6 +15,14 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Stack traces in critical service catch blocks**
+  - catch (e) blocks in grading and persistence only logged error type, not stack traces
+  - Changed catch (e) → catch (e, st) in 20 catch blocks across 4 services
+  - ocr_service: 3 catches (enhanceImage, correctRotation, extractTextRegions)
+  - hybrid_grading_service: 7 catches (save, retry, flush, load, get, delete)
+  - student_provider: 5 catches (CRUD operations)
+  - assessment_provider: 5 catches (CRUD operations)
+  - Cleanup catches (catch (_)) left unchanged — intentionally ignore errors
 - **Image cleanup for captured and enhanced files**
   - 50-paper scan sessions left 50+ temp images on disk forever
   - OcrService: `cleanupEnhancedImages()` deletes `*_enhanced.jpg` + `*_corrected.jpg`
