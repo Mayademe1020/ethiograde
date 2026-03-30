@@ -7,6 +7,7 @@ import '../models/scan_result.dart';
 import '../models/assessment.dart';
 import 'answer_parser.dart';
 import 'scoring_service.dart';
+import 'image_hash_service.dart';
 
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
@@ -24,6 +25,7 @@ class OcrService {
   late final TextRecognizer _textRecognizer;
   final AnswerParser _parser = const AnswerParser();
   final ScoringService _scoring = const ScoringService();
+  final ImageHashService _hasher = ImageHashService();
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
@@ -109,6 +111,9 @@ class OcrService {
   }) async {
     await initialize();
 
+    // 0. Compute perceptual hash for duplicate detection (before enhancement)
+    final imageHash = _hasher.computeHash(imagePath);
+
     // 1. Enhance image (downscale + grayscale + contrast)
     final enhancedPath = await enhanceImage(imagePath);
 
@@ -158,6 +163,7 @@ class OcrService {
       grade: _scoring.calculateGrade(percentage.toDouble(), assessment.rubricType),
       status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
       confidence: overallConfidence,
+      imageHash: imageHash,
       metadata: metadata,
     );
   }
@@ -279,6 +285,27 @@ class OcrService {
       _isInitialized = false;
     }
   }
+
+  /// Check if an image is a duplicate of any existing scan results.
+  ///
+  /// Computes the hash of [imagePath] and compares it against the
+  /// `imageHash` field of each scan in [existingScans].
+  ///
+  /// Returns the index of the duplicate in [existingScans], or -1 if no
+  /// duplicate found. Returns -2 if the hash couldn't be computed (file
+  /// missing, corrupt) — caller should treat this as "no duplicate" and
+  /// proceed normally.
+  ///
+  /// This is intentionally non-blocking: hash failure never stops scanning.
+  int checkDuplicate(String imagePath, List<ScanResult> existingScans) {
+    final hash = _hasher.computeHash(imagePath);
+    if (hash == null) return -2; // Can't compute — skip check
+    final hashes = existingScans.map((s) => s.imageHash).toList();
+    return _hasher.findDuplicate(hash, hashes);
+  }
+
+  /// Expose the hasher for UI-level duplicate checking.
+  ImageHashService get hasher => _hasher;
 }
 
 /// A detected text region from OCR.
