@@ -42,6 +42,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     List<String> images,
     Assessment assessment,
   ) async {
+    if (!mounted) return;
     setState(() => _isProcessing = true);
     final grading = HybridGradingService();
 
@@ -49,12 +50,15 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
       imagePaths: images,
       assessment: assessment,
       onProgress: (processed, total) {
-        setState(() {
-          _processedCount = processed;
-        });
+        if (mounted) {
+          setState(() {
+            _processedCount = processed;
+          });
+        }
       },
     );
 
+    if (!mounted) return;
     setState(() {
       _results.addAll(results);
       _isProcessing = false;
