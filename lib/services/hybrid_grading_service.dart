@@ -335,6 +335,19 @@ class HybridGradingService {
 
   // ── Persistence ───────────────────────────────────────────────────
 
+  /// Public save method for external callers (e.g., review screen overrides).
+  /// Persists an updated ScanResult to Hive with retry logic.
+  /// Call after teacher overrides scores, edits comments, or adds voice notes.
+  Future<bool> saveScanResult(ScanResult result) async {
+    try {
+      await _saveWithRetry(result);
+      return true;
+    } catch (e) {
+      debugPrint('HybridGrading: saveScanResult failed (${e.runtimeType})');
+      return false;
+    }
+  }
+
   /// Persist a ScanResult to the encrypted lazy box.
   /// On failure: retry once after 500ms, then queue for later.
   Future<void> _saveWithRetry(ScanResult result) async {

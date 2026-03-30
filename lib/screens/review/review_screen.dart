@@ -9,6 +9,7 @@ import '../../services/locale_provider.dart';
 import '../../services/scoring_service.dart';
 import '../../services/voice_service.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/hybrid_grading_service.dart';
 
 // ──── Review List ────
 
@@ -22,6 +23,8 @@ class ReviewScreen extends StatefulWidget {
 class _ReviewScreenState extends State<ReviewScreen> {
   List<ScanResult>? _results;
   _SortMode _sortMode = _SortMode.highestFirst;
+  bool _hasUnsavedChanges = false;
+  bool _isSaving = false;
 
   @override
   void didChangeDependencies() {
@@ -55,7 +58,45 @@ class _ReviewScreenState extends State<ReviewScreen> {
   void _updateResult(int index, ScanResult updated) {
     setState(() {
       _results![index] = updated;
+      _hasUnsavedChanges = true;
     });
+  }
+
+  /// Save all reviewed results to Hive.
+  Future<void> _saveAll(bool isAm) async {
+    if (_results == null || _results!.isEmpty) return;
+    setState(() => _isSaving = true);
+
+    final grading = HybridGradingService();
+    int saved = 0;
+    int failed = 0;
+
+    for (final result in _results!) {
+      // Only save results that were reviewed/overridden
+      if (result.status == ScanStatus.reviewed) {
+        final ok = await grading.saveScanResult(result);
+        if (ok) saved++;
+        else failed++;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+        _hasUnsavedChanges = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failed == 0
+                ? (isAm ? '$saved ተቀምጧል' : '$saved result(s) saved')
+                : (isAm
+                    ? '$saved ተቀምጧል፣ $failed አልተቻለም'
+                    : '$saved saved, $failed failed'),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -67,6 +108,24 @@ class _ReviewScreenState extends State<ReviewScreen> {
       appBar: AppBar(
         title: Text(isAm ? 'ውጤቶችን ይገምግሙ' : 'Review Results'),
         actions: [
+          if (_hasUnsavedChanges && !_isSaving)
+            TextButton.icon(
+              onPressed: () => _saveAll(isAm),
+              icon: const Icon(Icons.save, size: 18),
+              label: Text(isAm ? 'ሁሉን አስቀምጥ' : 'Save All'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primaryGreen,
+              ),
+            ),
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.sort),
             onPressed: () => _showSortOptions(context, isAm),
@@ -572,13 +631,30 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      // Persist comment into the result and pop it back.
+                    onPressed: () async {
+                      // Persist comment into the result
                       final finalResult = _result.copyWith(
                         teacherComment: _commentController.text,
                         status: ScanStatus.reviewed,
                       );
-                      Navigator.pop(context, finalResult);
+
+                      // Auto-save to Hive — teacher overrides must persist
+                      final saved = await HybridGradingService()
+                          .saveScanResult(finalResult);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              saved
+                                  ? (isAm ? 'ተቀምጧል' : 'Saved')
+                                  : (isAm ? 'ማስቀመጥ አልተቻለም' : 'Save failed'),
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      }
+
+                      if (mounted) Navigator.pop(context, finalResult);
                     },
                     icon: const Icon(Icons.check),
                     label: Text(isAm ? 'አረጋግጥ' : 'Confirm'),
