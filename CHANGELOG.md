@@ -15,6 +15,12 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Persist score overrides to Hive on confirm/save**
+  - `HybridGradingService.saveScanResult()`: public save method for external callers (review screen)
+  - SideBySideReview Confirm button: auto-saves to Hive with retry before popping back, shows "Saved" snackbar
+  - ReviewScreen: "Save All" / "ሁሉን አስቀምጥ" button appears when overrides exist, persists all reviewed results
+  - Unsaved-changes indicator in app bar, loading spinner during save
+  - Non-blocking: teacher can keep reviewing while save runs in background
 - **Enhanced score override in review screen (answer type-aware editing)**
   - Fix: `_recalculateAndRefresh()` no longer hardcodes 'moe_national' — looks up actual
     assessment rubric type via AssessmentProvider using ScanResult.assessmentId

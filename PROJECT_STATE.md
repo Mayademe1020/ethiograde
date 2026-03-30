@@ -48,7 +48,7 @@
 | F06 | Scoring engine | ✅ Done | Backend | F05 | Low | MoE, international, university scales |
 | F07 | Student model + storage | ✅ Done | Backend | — | Low | Hive adapters generated |
 | F08 | Assessment CRUD | ✅ Done | Mobile | F07 | Low | Create, edit, answer key |
-| F09 | Review screen | ✅ Done | UX | F06 | Low | Side-by-side, manual overrides |
+| F09 | Review screen | ✅ Done | UX | F06 | Low | Side-by-side, manual overrides, answer-type pickers, auto-persist |
 | F10 | PDF reports | ✅ Done | Mobile | F06 | Low | Student + class reports |
 | F11 | Excel import | ✅ Done | Mobile | F07 | Low | .xlsx via file_picker |
 | F12 | **Font assets** | ✅ Done | Design | — | Low | NotoSansEthiopic Regular + Bold (OFL) |
@@ -111,7 +111,7 @@
 | Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
 | Pure Dart perspective correction | 📋 Pending | ML | — | Sprint 1 task 3 |
 | Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
-| Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric (not hardcoded). |
+| Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric. Auto-saves to Hive on confirm. Save All for batch overrides. |
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
 | End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
 | Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |
