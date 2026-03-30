@@ -468,6 +468,25 @@ class HybridGradingService {
   /// Count of items waiting to be saved.
   int get pendingSaveCount => _pendingSaves.length;
 
+  // ── Batch Duplicate Detection ─────────────────────────────────────
+
+  /// Detect answer-pattern duplicates across graded batch results.
+  ///
+  /// Call after [gradeBatch] completes. Compares answer fingerprints
+  /// (sorted Q#:Answer pairs) between all results. Returns entries for
+  /// pairs that match ≥ 90% of their answers.
+  ///
+  /// This catches what dHash can't: different photos of different students
+  /// who gave the same answers, and same-paper re-scans where image hashing
+  /// was inconclusive due to MCQ format similarity.
+  ///
+  /// Returns empty list if no duplicates found.
+  List<AnswerDuplicate> detectBatchDuplicates(List<ScanResult> results) {
+    if (results.length < 2) return [];
+    final allAnswers = results.map((r) => r.answers).toList();
+    return _scoring.detectAnswerDuplicates(allAnswers);
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────
 
   /// Create a failed ScanResult when processing cannot complete.
