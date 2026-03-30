@@ -14,6 +14,16 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Fixed
+- **EXIF orientation correction in `enhanceImage()`**
+  - Camera photos carry EXIF orientation metadata (phone in landscape, front camera, etc.)
+  - ML Kit reads raw pixels without applying EXIF — rotated images produced incorrect text region coordinates and reduced OCR accuracy
+  - Added `img.bakeOrientation(image)` before downscale step
+  - Single native operation, zero pixel loops, zero latency impact on 2GB devices
+  - Most common case: orientation 6 (90° CW, phone held landscape) now produces correct upright image
+  - Added unit test validating orientation 6 swaps dimensions correctly (200×400 → 400×200)
+  - Graceful: if EXIF data is missing or corrupt, `bakeOrientation` returns image unchanged
+
 ### Added
 - `PaperGuideOverlay` widget for camera paper alignment
   - Extracted from inline `_ScanGuidePainter` in camera_screen.dart

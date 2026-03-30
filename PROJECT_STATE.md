@@ -19,7 +19,7 @@
 | **Accessibility** | 🟡 Partial | Theme contrast not verified, no screen reader tests |
 | **i18n coverage** | 🟡 Partial | UI strings bilingual, but no extraction/validation tool |
 
-**Overall Status:** 🟠 Pre-Alpha — Scaffold complete, core features are mock data
+**Overall Status:** 🟠 Pre-Alpha — Core pipeline real, EXIF orientation fix applied
 
 ---
 
