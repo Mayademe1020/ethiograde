@@ -290,4 +290,106 @@ void main() {
       expect(result.status, ScanStatus.needsRescan);
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // detectBatchDuplicates — answer-pattern detection
+  // ══════════════════════════════════════════════════════════════════
+
+  group('detectBatchDuplicates', () {
+    test('returns empty for single result', () {
+      final service = HybridGradingService();
+      final result = ScanResult(
+        assessmentId: 'a1',
+        studentId: 's1',
+        studentName: 'Test',
+        imagePath: '/test.jpg',
+        answers: [
+          AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'A',
+            correctAnswer: 'A',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9,
+          ),
+        ],
+      );
+
+      expect(service.detectBatchDuplicates([result]), isEmpty);
+    });
+
+    test('returns empty for empty list', () {
+      final service = HybridGradingService();
+      expect(service.detectBatchDuplicates([]), isEmpty);
+    });
+
+    test('detects identical answer patterns', () {
+      final service = HybridGradingService();
+
+      AnswerMatch am(int q, String ans) => AnswerMatch(
+            questionNumber: q,
+            detectedAnswer: ans,
+            correctAnswer: ans,
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9,
+          );
+
+      final r1 = ScanResult(
+        assessmentId: 'a1',
+        studentId: 's1',
+        studentName: 'Abebe',
+        imagePath: '/a.jpg',
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
+      final r2 = ScanResult(
+        assessmentId: 'a1',
+        studentId: 's2',
+        studentName: 'Kebede',
+        imagePath: '/b.jpg',
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
+
+      final dupes = service.detectBatchDuplicates([r1, r2]);
+
+      expect(dupes.length, 1);
+      expect(dupes[0].scanIndexA, 0);
+      expect(dupes[0].scanIndexB, 1);
+      expect(dupes[0].matchRatio, closeTo(1.0, 0.001));
+    });
+
+    test('different answer patterns → no duplicate', () {
+      final service = HybridGradingService();
+
+      AnswerMatch am(int q, String ans) => AnswerMatch(
+            questionNumber: q,
+            detectedAnswer: ans,
+            correctAnswer: '',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            confidence: 0.9,
+          );
+
+      final r1 = ScanResult(
+        assessmentId: 'a1',
+        studentId: 's1',
+        studentName: 'Abebe',
+        imagePath: '/a.jpg',
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
+      final r2 = ScanResult(
+        assessmentId: 'a1',
+        studentId: 's2',
+        studentName: 'Kebede',
+        imagePath: '/b.jpg',
+        answers: [am(1, 'D'), am(2, 'E'), am(3, 'A')],
+      );
+
+      final dupes = service.detectBatchDuplicates([r1, r2]);
+      expect(dupes, isEmpty);
+    });
+  });
 }

@@ -703,4 +703,322 @@ void main() {
       expect(scoring.calculateGrade(85, 'university'), 'A-');
     });
   });
+
+  // ════════════════════════════════════════════════════════════════
+  // generateAnswerFingerprint
+  // ════════════════════════════════════════════════════════════════
+
+  group('generateAnswerFingerprint', () {
+    test('basic MCQ answers', () {
+      final answers = [
+        AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'A',
+            correctAnswer: 'A',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+        AnswerMatch(
+            questionNumber: 2,
+            detectedAnswer: 'B',
+            correctAnswer: 'B',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.8),
+        AnswerMatch(
+            questionNumber: 3,
+            detectedAnswer: 'C',
+            correctAnswer: 'C',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.85),
+      ];
+
+      expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
+    });
+
+    test('answers sorted by question number regardless of input order', () {
+      final answers = [
+        AnswerMatch(
+            questionNumber: 3,
+            detectedAnswer: 'C',
+            correctAnswer: 'C',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+        AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'A',
+            correctAnswer: 'A',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+        AnswerMatch(
+            questionNumber: 2,
+            detectedAnswer: 'B',
+            correctAnswer: 'B',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+      ];
+
+      expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
+    });
+
+    test('answers uppercased for comparison', () {
+      final answers = [
+        AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'a',
+            correctAnswer: 'A',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+      ];
+
+      expect(scoring.generateAnswerFingerprint(answers), '1:A');
+    });
+
+    test('True/False answers normalized', () {
+      final answers = [
+        AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'True',
+            correctAnswer: 'True',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+        AnswerMatch(
+            questionNumber: 2,
+            detectedAnswer: 'false',
+            correctAnswer: 'False',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+      ];
+
+      expect(scoring.generateAnswerFingerprint(answers), '1:TRUE|2:FALSE');
+    });
+
+    test('MISSING answers excluded from fingerprint', () {
+      final answers = [
+        AnswerMatch(
+            questionNumber: 1,
+            detectedAnswer: 'A',
+            correctAnswer: 'A',
+            isCorrect: true,
+            score: 1,
+            maxScore: 1,
+            confidence: 0.9),
+        AnswerMatch(
+            questionNumber: 2,
+            detectedAnswer: '[MISSING]',
+            correctAnswer: 'B',
+            isCorrect: false,
+            score: 0,
+            maxScore: 1,
+            confidence: 0),
+      ];
+
+      expect(scoring.generateAnswerFingerprint(answers), '1:A');
+    });
+
+    test('empty answers → empty string', () {
+      expect(scoring.generateAnswerFingerprint([]), '');
+    });
+
+    test('deterministic — same input always produces same output', () {
+      final answers = [det(1, 'A'), det(2, 'B')];
+      final fp1 = scoring.generateAnswerFingerprint(answers);
+      final fp2 = scoring.generateAnswerFingerprint(answers);
+      expect(fp1, fp2);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // compareFingerprints
+  // ════════════════════════════════════════════════════════════════
+
+  group('compareFingerprints', () {
+    test('identical fingerprints → 1.0', () {
+      final ratio = scoring.compareFingerprints('1:A|2:B|3:C', '1:A|2:B|3:C');
+      expect(ratio, closeTo(1.0, 0.001));
+    });
+
+    test('all different → 0.0', () {
+      final ratio = scoring.compareFingerprints('1:A|2:B', '1:D|2:E');
+      expect(ratio, closeTo(0.0, 0.001));
+    });
+
+    test('partial match — 2 of 3 same', () {
+      final ratio = scoring.compareFingerprints('1:A|2:B|3:C', '1:A|2:B|3:D');
+      expect(ratio, closeTo(2.0 / 3.0, 0.001));
+    });
+
+    test('empty fingerprint → 0.0', () {
+      expect(scoring.compareFingerprints('', '1:A'), 0.0);
+      expect(scoring.compareFingerprints('1:A', ''), 0.0);
+      expect(scoring.compareFingerprints('', ''), 0.0);
+    });
+
+    test('different question sets — only common compared', () {
+      // fp1 has Q1,Q2; fp2 has Q1,Q3 — only Q1 is common
+      final ratio = scoring.compareFingerprints('1:A|2:B', '1:A|3:C');
+      expect(ratio, closeTo(1.0, 0.001)); // 1/1 common questions match
+    });
+
+    test('case-insensitive comparison (fingerprints are uppercased)', () {
+      final ratio = scoring.compareFingerprints('1:A|2:B', '1:a|2:b');
+      // Both should be uppercased by the fingerprint generator,
+      // but if passed raw they'd be compared as-is
+      expect(ratio, closeTo(1.0, 0.001));
+    });
+
+    test('no common questions → 0.0', () {
+      final ratio = scoring.compareFingerprints('1:A|2:B', '3:C|4:D');
+      expect(ratio, 0.0);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // detectAnswerDuplicates
+  // ════════════════════════════════════════════════════════════════
+
+  group('detectAnswerDuplicates', () {
+    test('identical answer sets → detected', () {
+      final answers1 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
+      final answers2 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2]);
+
+      expect(result.length, 1);
+      expect(result[0].scanIndexA, 0);
+      expect(result[0].scanIndexB, 1);
+      expect(result[0].matchRatio, closeTo(1.0, 0.001));
+    });
+
+    test('different answer sets → no duplicate', () {
+      final answers1 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
+      final answers2 = [det(1, 'D'), det(2, 'E'), det(3, 'A')];
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2]);
+
+      expect(result, isEmpty);
+    });
+
+    test('90% match (threshold default) → detected', () {
+      // 10 questions, 9 match, 1 different
+      final answers1 = List.generate(10, (i) => det(i + 1, 'A'));
+      final answers2 = List.generate(9, (i) => det(i + 1, 'A'))
+        ..add(det(10, 'B'));
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2]);
+
+      expect(result.length, 1);
+      expect(result[0].matchRatio, closeTo(0.9, 0.001));
+    });
+
+    test('89% match (below threshold) → not detected', () {
+      // 9 questions: 8 match, 1 different → 8/9 ≈ 88.9%
+      final answers1 = List.generate(9, (i) => det(i + 1, 'A'));
+      final answers2 = List.generate(8, (i) => det(i + 1, 'A'))
+        ..add(det(9, 'B'));
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2]);
+
+      expect(result, isEmpty);
+    });
+
+    test('custom threshold works', () {
+      // 50% match
+      final answers1 = [det(1, 'A'), det(2, 'B')];
+      final answers2 = [det(1, 'A'), det(2, 'Z')];
+
+      // At 50% threshold → detected
+      final result50 = scoring.detectAnswerDuplicates(
+        [answers1, answers2],
+        threshold: 0.5,
+      );
+      expect(result50.length, 1);
+
+      // At 51% threshold → not detected
+      final result51 = scoring.detectAnswerDuplicates(
+        [answers1, answers2],
+        threshold: 0.51,
+      );
+      expect(result51, isEmpty);
+    });
+
+    test('3 scans, 2 duplicates → 1 pair detected', () {
+      final answers1 = [det(1, 'A'), det(2, 'B')];
+      final answers2 = [det(1, 'A'), det(2, 'B')]; // dup of 1
+      final answers3 = [det(1, 'D'), det(2, 'E')]; // different
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2, answers3]);
+
+      expect(result.length, 1);
+      expect(result[0].scanIndexA, 0);
+      expect(result[0].scanIndexB, 1);
+    });
+
+    test('3 scans, all identical → 3 pairs detected', () {
+      final answers = [det(1, 'A'), det(2, 'B')];
+
+      final result = scoring.detectAnswerDuplicates([answers, answers, answers]);
+
+      // Pairs: (0,1), (0,2), (1,2)
+      expect(result.length, 3);
+    });
+
+    test('empty list → no duplicates', () {
+      expect(scoring.detectAnswerDuplicates([]), isEmpty);
+    });
+
+    test('single scan → no duplicates', () {
+      final answers = [det(1, 'A')];
+      expect(scoring.detectAnswerDuplicates([answers]), isEmpty);
+    });
+
+    test('empty answers in one scan → skipped', () {
+      final answers1 = [det(1, 'A')];
+      final answers2 = <DetectedAnswer>[];
+
+      final result = scoring.detectAnswerDuplicates([answers1, answers2]);
+
+      expect(result, isEmpty);
+    });
+
+    test('matchPercent helper', () {
+      const dup = AnswerDuplicate(
+        scanIndexA: 0,
+        scanIndexB: 1,
+        matchRatio: 0.975,
+      );
+      expect(dup.matchPercent, closeTo(97.5, 0.001));
+    });
+
+    test('re-scans with slight OCR variance still detected', () {
+      // Same paper re-scanned: most answers match, one OCR reads "B" instead of "A"
+      final original = [det(1, 'A'), det(2, 'B'), det(3, 'C'), det(4, 'A'),
+                        det(5, 'B'), det(6, 'C'), det(7, 'A'), det(8, 'B'),
+                        det(9, 'C'), det(10, 'A')];
+      final rescan = [det(1, 'A'), det(2, 'B'), det(3, 'C'), det(4, 'A'),
+                      det(5, 'B'), det(6, 'C'), det(7, 'B'), // 1 error
+                      det(8, 'B'), det(9, 'C'), det(10, 'A')];
+
+      final result = scoring.detectAnswerDuplicates([original, rescan]);
+
+      expect(result.length, 1);
+      expect(result[0].matchRatio, closeTo(0.9, 0.001)); // 9/10
+    });
+  });
 }
