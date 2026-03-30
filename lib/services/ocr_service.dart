@@ -61,6 +61,12 @@ class OcrService {
       img.Image? image = img.decodeImage(bytes);
       if (image == null) return imagePath;
 
+    // ── EXIF rotation correction ──
+    // Camera photos often have orientation metadata (phone held landscape,
+    // front camera mirror, etc.). ML Kit reads raw pixels, not EXIF, so we
+    // must bake the orientation into the pixel data first.
+    image = img.bakeOrientation(image);
+
     // Downscale — protects memory on cheap phones, speeds up ML Kit
     if (image.width > _maxImageDimension || image.height > _maxImageDimension) {
       final longer = image.width > image.height ? image.width : image.height;

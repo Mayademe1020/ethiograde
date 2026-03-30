@@ -209,6 +209,44 @@ void main() {
       }
     });
 
+    test('corrects EXIF orientation (rotated 90° image becomes upright)', () async {
+      final ocr = OcrService();
+      // Create a 200x400 image (tall/portrait)
+      final image = img.Image(width: 200, height: 400);
+      img.fill(image, color: img.ColorRgb8(255, 255, 255));
+      // Add text-like marks in the top half
+      for (int y = 30; y < 200; y += 30) {
+        for (int x = 20; x < 150; x++) {
+          image.setPixelRgba(x, y, 0, 0, 0, 255);
+        }
+      }
+
+      // Encode with EXIF orientation 6 (rotated 90° CW — phone held landscape)
+      final tempDir = Directory.systemTemp;
+      final inputPath = '${tempDir.path}/rotated_test.jpg';
+      final encoded = img.encodeJpg(image, quality: 92);
+
+      // Decode and re-encode with explicit EXIF orientation tag
+      final exifImage = img.decodeJpg(encoded)!;
+      exifImage.exif.orientation = 6; // 90° CW rotation
+      final rotatedBytes = img.encodeJpg(exifImage, quality: 92);
+      await File(inputPath).writeAsBytes(rotatedBytes);
+
+      try {
+        final enhancedPath = await ocr.enhanceImage(inputPath);
+        final enhancedBytes = await File(enhancedPath).readAsBytes();
+        final enhanced = img.decodeJpg(enhancedBytes);
+
+        expect(enhanced, isNotNull);
+        // After bakeOrientation, the image dimensions should reflect the
+        // rotation: 200x400 with orientation 6 → 400x200
+        expect(enhanced!.width, 400);
+        expect(enhanced.height, 200);
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
+
     test('handles PNG input (converts to JPEG output)', () async {
       final ocr = OcrService();
       final inputPath = await createTestImage(suffix: '.png');
