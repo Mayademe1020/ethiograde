@@ -14,6 +14,39 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Added
+- **Amharic numeral support for question numbers**
+  - Ethiopian exam papers use Ge'ez numerals (፩፪፫፬፭፮፯፰፱) as question numbers
+  - Previous regex only matched Latin digits (0-9), silently dropping Amharic-numbered questions
+  - Added `_amharicToInt()` — converts Ge'ez digit strings to integers (፩=1, ፪=2...፱=9)
+  - Added `_amharicToLatinNumerals()` preprocessing — runs before pattern matching
+  - Supports multi-digit: ፩፪=12, ፪፫=23, ፱፱=99
+  - Preserves Amharic answer letters (ሀ-ሠ) untouched — only numerals are converted
+  - Works with all delimiters: ፩. A, ፪-B, ፫) C, ፬A (concatenated)
+  - Works with Amharic answers: "፩. ሀ" → Q1/A, "፪. እውነት" → Q2/True
+  - 16 new unit tests covering all 9 numerals + multi-digit + mixed formats
+  - Silent data loss bug fix — teacher previously saw empty results, thought OCR failed
+- **OutOfMemoryError retry at 1080p in enhanceImage()**
+  - 2GB phones scanning 5MP images could OOM and crash with no recovery
+  - Extracted `_enhanceImageAtDimension(imagePath, maxDim)` as core logic
+  - `enhanceImage()` now wraps call in try-catch for OutOfMemoryError
+  - On OOM: logs warning, retries at `_oomRetryDimension` (1080p — ~4x less memory)
+  - On second failure: returns original path, never crashes pipeline
+  - Crash-proof principle: grading pipeline never breaks on memory pressure
+
+### Fixed
+- **setState() called after dispose in batch scan screen**
+  - `_processBatch()` called setState after `await gradeBatch()` without checking mounted
+  - `onProgress` callback also called setState without mounted guard
+  - Teacher navigating away during processing → Flutter crash "setState() called after dispose"
+  - Added `if (!mounted) return;` before all post-await setState calls
+  - Wrapped onProgress setState in mounted guard
+- **Voice service using print() instead of debugPrint()**
+  - 2 raw `print()` calls in `voice_service.dart` speech error/status callbacks
+  - print() can leak PII in debug logs and pollute production crash reports
+  - Replaced with `debugPrint()`, added `flutter/foundation.dart` import
+  - Verified: `grep -Prn "\bprint\(" lib/` returns zero hits
+
 ### Fixed
 - **PDF reports now use real scan results instead of hardcoded data**
   - Student report: loads actual ScanResult from Hive via HybridGradingService.loadScanResults()
