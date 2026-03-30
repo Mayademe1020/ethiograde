@@ -86,6 +86,15 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
         title: Text(isAm ? 'የጅምላ ስካኒንግ' : 'Batch Scan'),
         actions: [
           if (_results.isNotEmpty && !_isProcessing)
+            IconButton(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                AppRoutes.reports,
+              ),
+              icon: const Icon(Icons.picture_as_pdf),
+              tooltip: isAm ? 'ሪፖርት' : 'Report',
+            ),
+          if (_results.isNotEmpty && !_isProcessing)
             TextButton.icon(
               onPressed: () => Navigator.pushNamed(
                 context,
