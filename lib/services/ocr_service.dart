@@ -38,6 +38,10 @@ class OcrService {
   /// Skew angle threshold — beyond this, we warn the teacher.
   static const double _skewWarningDegrees = 8.0;
 
+  /// Minimum skew angle to trigger automatic rotation correction (degrees).
+  /// Below this, correction isn't worth the processing cost.
+  static const double _skewCorrectionThreshold = 3.0;
+
   Future<void> initialize() async {
     if (_isInitialized) return;
     _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -101,6 +105,39 @@ class OcrService {
   }
   }
 
+  /// Correct paper rotation by rotating the image by -[angleDegrees].
+  ///
+  /// Called after ML Kit detects significant skew (> [_skewCorrectionThreshold]).
+  /// Uses the `image` package's native copyRotate — pure Dart, no pixel loops.
+  ///
+  /// Returns the path to the corrected image, or the original path if
+  /// correction fails (never crashes the grading pipeline).
+  Future<String> correctRotation(String imagePath, double angleDegrees) async {
+    try {
+      final file = File(imagePath);
+      if (!await file.exists()) return imagePath;
+
+      final bytes = await file.readAsBytes();
+      img.Image? image = img.decodeImage(bytes);
+      if (image == null) return imagePath;
+
+      // Rotate by negative angle (undo the skew)
+      image = img.copyRotate(image, angle: -angleDegrees);
+
+      // Save corrected image alongside the original
+      final dotIndex = imagePath.lastIndexOf('.');
+      final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+      final correctedPath = '${basePath}_corrected.jpg';
+      await File(correctedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
+
+      debugPrint('OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°');
+      return correctedPath;
+    } catch (e) {
+      debugPrint('OCR: correctRotation failed (${e.runtimeType})');
+      return imagePath;
+    }
+  }
+
   /// Process a scanned paper and extract answers.
   /// Returns answers matched against the assessment's answer key.
   Future<ScanResult> processScannedPaper({
@@ -120,8 +157,30 @@ class OcrService {
     // 2. Extract text regions using ML Kit (on-device, offline)
     final extractionResult = await extractTextRegions(enhancedPath);
 
+    // 2b. Rotation correction pass — if paper is tilted, correct and re-OCR
+    // This improves accuracy on papers photographed at an angle (common on
+    // cheap phones without OIS). Only re-run if skew is significant AND
+    // correction might actually help (not already near-perfect).
+    var workingPath = enhancedPath;
+    var workingResult = extractionResult;
+    if (extractionResult.skewAngle.abs() > _skewCorrectionThreshold) {
+      final correctedPath = await correctRotation(
+        enhancedPath,
+        extractionResult.skewAngle,
+      );
+      // Only re-OCR if the file was actually changed
+      if (correctedPath != enhancedPath) {
+        final reOcrResult = await extractTextRegions(correctedPath);
+        // Use corrected result if it found more regions (better detection)
+        if (reOcrResult.regions.length >= workingResult.regions.length) {
+          workingPath = correctedPath;
+          workingResult = reOcrResult;
+        }
+      }
+    }
+
     // 3. Parse question numbers and answers
-    final parsedAnswers = _parseAnswers(extractionResult.regions, assessment);
+    final parsedAnswers = _parseAnswers(workingResult.regions, assessment);
 
     // 4. Deduplicate — if ML Kit reads the same Q# twice, keep highest confidence
     final deduplicated = _scoring.deduplicateAnswers(parsedAnswers);
@@ -143,11 +202,12 @@ class OcrService {
 
     // 7. Build metadata with quality signals
     final metadata = <String, dynamic>{
-      'textLinesDetected': extractionResult.regions.length,
+      'textLinesDetected': workingResult.regions.length,
       'questionsDetected': deduplicated.length,
       'duplicatesRemoved': parsedAnswers.length - deduplicated.length,
-      'skewAngle': extractionResult.skewAngle,
-      'skewWarning': extractionResult.skewAngle.abs() > _skewWarningDegrees,
+      'skewAngle': workingResult.skewAngle,
+      'skewWarning': workingResult.skewAngle.abs() > _skewWarningDegrees,
+      'rotationCorrected': workingPath != enhancedPath,
     };
 
     return ScanResult(
@@ -155,7 +215,7 @@ class OcrService {
       studentId: studentId,
       studentName: studentName,
       imagePath: imagePath,
-      enhancedImagePath: enhancedPath,
+      enhancedImagePath: workingPath,
       answers: scoredAnswers,
       totalScore: totalScore,
       maxScore: maxScore,
