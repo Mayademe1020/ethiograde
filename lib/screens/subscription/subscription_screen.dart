@@ -217,12 +217,18 @@ class SubscriptionScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c),
+            onPressed: () {
+              nameCtrl.dispose();
+              phoneCtrl.dispose();
+              Navigator.pop(c);
+            },
             child: Text(isAm ? 'ሰርዝ' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               // TODO: Add teacher to school
+              nameCtrl.dispose();
+              phoneCtrl.dispose();
               Navigator.pop(c);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

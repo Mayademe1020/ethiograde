@@ -389,12 +389,16 @@ class _AnswerKeyCard extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c),
+            onPressed: () {
+              ctrl.dispose();
+              Navigator.pop(c);
+            },
             child: Text(isAmharic ? 'ሰርዝ' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               onChanged(ctrl.text);
+              ctrl.dispose();
               Navigator.pop(c);
             },
             child: Text(isAmharic ? 'አስቀምጥ' : 'Save'),

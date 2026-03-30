@@ -232,6 +232,20 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
     final sectionCtrl = TextEditingController();
     final idCtrl = TextEditingController();
 
+    // Track if controllers were already disposed via Add button.
+    bool disposed = false;
+    void disposeAll() {
+      if (disposed) return;
+      disposed = true;
+      firstNameCtrl.dispose();
+      lastNameCtrl.dispose();
+      firstNameAmCtrl.dispose();
+      lastNameAmCtrl.dispose();
+      classCtrl.dispose();
+      sectionCtrl.dispose();
+      idCtrl.dispose();
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -341,6 +355,7 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                       studentId: idCtrl.text,
                     );
                     setState(() => _importedStudents.add(student));
+                    disposeAll();
                     Navigator.pop(c);
                   },
                   child: Text(isAm ? 'ጨምር' : 'Add'),
@@ -351,7 +366,7 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
           ),
         ),
       ),
-    );
+    ).whenComplete(disposeAll);
   }
 
   Future<void> _saveImportedStudents() async {
