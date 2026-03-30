@@ -24,6 +24,13 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - Crash-proof principle: grading pipeline never breaks on memory pressure
 
 ### Fixed
+- **TextEditingControllers leaked in dialog builders**
+  - subscription_screen.dart: 2 controllers created in dialog, never disposed
+  - import_excel_screen.dart: 7 controllers in bottom sheet, never disposed
+  - answer_key_screen.dart: 1 controller in dialog, never disposed
+  - On 2GB phones: every dialog open leaked memory, compounding over time
+  - Added dispose calls in all close paths (Cancel, Save, Add)
+  - import_excel_screen: added disposeAll() with guard flag + whenComplete for swipe-dismiss
 - **setState() called after dispose in batch scan screen**
   - `_processBatch()` called setState after `await gradeBatch()` without checking mounted
   - `onProgress` callback also called setState without mounted guard

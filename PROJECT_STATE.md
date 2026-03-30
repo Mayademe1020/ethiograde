@@ -126,6 +126,7 @@
 | OutOfMemoryError handling in enhanceImage | ✅ Done | ML | 2 | OOM retry at 1080p, crash-proof pipeline; 2 new tests |
 | setState mounted guard in batch scan | ✅ Done | QA | 1 | Prevents crash on navigation during batch processing |
 | Replace print() with debugPrint() in voice service | ✅ Done | QA | 1 | Zero print() calls in lib/ verified |
+| Fix TextEditingControllers leaked in dialogs | ✅ Done | QA | 2 | subscription (2), import_excel (7), answer_key (1) controllers now disposed |
 
 ### Completed Sprint 0
 
