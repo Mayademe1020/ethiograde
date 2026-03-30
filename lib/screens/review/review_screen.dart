@@ -2,19 +2,64 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../models/scan_result.dart';
-import '../../models/assessment.dart';
 import '../../services/locale_provider.dart';
+import '../../services/scoring_service.dart';
 import '../../services/voice_service.dart';
 
-class ReviewScreen extends StatelessWidget {
+// ──── Review List ────
+
+class ReviewScreen extends StatefulWidget {
   const ReviewScreen({super.key});
+
+  @override
+  State<ReviewScreen> createState() => _ReviewScreenState();
+}
+
+class _ReviewScreenState extends State<ReviewScreen> {
+  List<ScanResult>? _results;
+  _SortMode _sortMode = _SortMode.highestFirst;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Capture route args once so we can sort a local copy.
+    _results ??=
+        (ModalRoute.of(context)?.settings.arguments as List<ScanResult>? ?? [])
+            .toList();
+  }
+
+  void _applySort() {
+    setState(() {
+      switch (_sortMode) {
+        case _SortMode.lowestFirst:
+          _results!.sort((a, b) => a.percentage.compareTo(b.percentage));
+        case _SortMode.highestFirst:
+          _results!.sort((a, b) => b.percentage.compareTo(a.percentage));
+        case _SortMode.needsReviewFirst:
+          _results!.sort((a, b) {
+            // needs-review first, then lowest score
+            if (a.needsReview != b.needsReview) {
+              return a.needsReview ? -1 : 1;
+            }
+            return a.percentage.compareTo(b.percentage);
+          });
+      }
+    });
+  }
+
+  /// Replace a single result after teacher overrides scores.
+  void _updateResult(int index, ScanResult updated) {
+    setState(() {
+      _results![index] = updated;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final isAm = context.watch<LocaleProvider>().isAmharic;
-    final results =
-        ModalRoute.of(context)?.settings.arguments as List<ScanResult>? ?? [];
+    final results = _results ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -48,11 +93,16 @@ class ReviewScreen extends StatelessWidget {
                 return _ResultCard(
                   result: result,
                   isAmharic: isAm,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/review/side-by-side',
-                    arguments: result,
-                  ),
+                  onTap: () async {
+                    final updated = await Navigator.pushNamed(
+                      context,
+                      AppRoutes.sideBySide,
+                      arguments: result,
+                    );
+                    if (updated is ScanResult) {
+                      _updateResult(index, updated);
+                    }
+                  },
                 );
               },
             ),
@@ -69,17 +119,38 @@ class ReviewScreen extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.arrow_downward),
               title: Text(isAm ? 'ከዝቅተኛ ወደ ከፍተኛ' : 'Lowest to Highest'),
-              onTap: () => Navigator.pop(c),
+              trailing: _sortMode == _SortMode.lowestFirst
+                  ? const Icon(Icons.check, color: AppTheme.primaryGreen)
+                  : null,
+              onTap: () {
+                _sortMode = _SortMode.lowestFirst;
+                _applySort();
+                Navigator.pop(c);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.arrow_upward),
               title: Text(isAm ? 'ከከፍተኛ ወደ ዝቅተኛ' : 'Highest to Lowest'),
-              onTap: () => Navigator.pop(c),
+              trailing: _sortMode == _SortMode.highestFirst
+                  ? const Icon(Icons.check, color: AppTheme.primaryGreen)
+                  : null,
+              onTap: () {
+                _sortMode = _SortMode.highestFirst;
+                _applySort();
+                Navigator.pop(c);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.warning),
               title: Text(isAm ? 'ማረሚያ የሚያስፈልጉ' : 'Needs Review First'),
-              onTap: () => Navigator.pop(c),
+              trailing: _sortMode == _SortMode.needsReviewFirst
+                  ? const Icon(Icons.check, color: AppTheme.primaryGreen)
+                  : null,
+              onTap: () {
+                _sortMode = _SortMode.needsReviewFirst;
+                _applySort();
+                Navigator.pop(c);
+              },
             ),
           ],
         ),
@@ -87,6 +158,10 @@ class ReviewScreen extends StatelessWidget {
     );
   }
 }
+
+enum _SortMode { lowestFirst, highestFirst, needsReviewFirst }
+
+// ──── Result Card ────
 
 class _ResultCard extends StatelessWidget {
   final ScanResult result;
@@ -288,19 +363,56 @@ class SideBySideReview extends StatefulWidget {
 
 class _SideBySideReviewState extends State<SideBySideReview> {
   final VoiceService _voice = VoiceService();
-  final TextEditingController _commentController = TextEditingController();
+  late TextEditingController _commentController;
+
+  // Mutable copy of the result — override buttons modify this.
+  late ScanResult _result;
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _result = ModalRoute.of(context)?.settings.arguments as ScanResult ??
+          ScanResult(
+            assessmentId: '',
+            studentId: '',
+            studentName: 'Unknown',
+            imagePath: '',
+          );
+      _commentController =
+          TextEditingController(text: _result.teacherComment ?? '');
+      _initialized = true;
+    }
+  }
+
+  /// Recalculate totals after an answer override, then rebuild.
+  void _recalculateAndRefresh() {
+    final scoring = const ScoringService();
+    final newTotal = scoring.calculateTotalScore(_result.answers);
+    final newPct = scoring.calculatePercentage(
+      totalScore: newTotal,
+      maxScore: _result.maxScore,
+    );
+    final newGrade = scoring.calculateGrade(newPct, 'moe_national');
+    final newConfidence = scoring.calculateConfidence(_result.answers);
+
+    setState(() {
+      _result = _result.copyWith(
+        answers: _result.answers,
+        totalScore: newTotal,
+        percentage: newPct,
+        grade: newGrade,
+        status: ScanStatus.reviewed,
+        confidence: newConfidence,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final isAm = context.watch<LocaleProvider>().isAmharic;
-    final result =
-        ModalRoute.of(context)?.settings.arguments as ScanResult? ??
-            ScanResult(
-              assessmentId: '',
-              studentId: '',
-              studentName: 'Unknown',
-              imagePath: '',
-            );
+    final result = _result;
 
     return Scaffold(
       appBar: AppBar(
@@ -377,10 +489,10 @@ class _SideBySideReviewState extends State<SideBySideReview> {
             ),
             const SizedBox(height: 8),
             ...result.answers.map((answer) => _AnswerTile(
-              answer: answer,
-              isAmharic: isAm,
-              onOverride: () => _overrideScore(answer, isAm),
-            )),
+                  answer: answer,
+                  isAmharic: isAm,
+                  onOverride: () => _overrideScore(answer, isAm),
+                )),
 
             const SizedBox(height: 16),
 
@@ -435,7 +547,12 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      // TODO: Re-scan this paper
+                      // Re-scan: go back to camera with the assessment context.
+                      Navigator.popUntil(
+                        context,
+                        (route) => route.settings.name == AppRoutes.dashboard,
+                      );
+                      Navigator.pushNamed(context, AppRoutes.camera);
                     },
                     icon: const Icon(Icons.camera_alt),
                     label: Text(isAm ? 'እንደገና ስል' : 'Re-Scan'),
@@ -445,8 +562,12 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      // Save and mark as reviewed
-                      Navigator.pop(context);
+                      // Persist comment into the result and pop it back.
+                      final finalResult = _result.copyWith(
+                        teacherComment: _commentController.text,
+                        status: ScanStatus.reviewed,
+                      );
+                      Navigator.pop(context, finalResult);
                     },
                     icon: const Icon(Icons.check),
                     label: Text(isAm ? 'አረጋግጥ' : 'Confirm'),
@@ -459,6 +580,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
       ),
     );
   }
+
+  // ── Score override ──────────────────────────────────────────────
 
   void _overrideScore(AnswerMatch answer, bool isAm) {
     showModalBottomSheet(
@@ -474,15 +597,18 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
-              Text('${isAm ? 'የተገኘ' : 'Detected'}: ${answer.detectedAnswer}'),
-              Text('${isAm ? 'ትክክል' : 'Correct'}: ${answer.correctAnswer}'),
+              Text(
+                  '${isAm ? 'የተገኘ' : 'Detected'}: ${answer.detectedAnswer}'),
+              Text(
+                  '${isAm ? 'ትክክል' : 'Correct'}: ${answer.correctAnswer}'),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () {
-                        // Mark as correct
+                        _applyOverride(answer.questionNumber,
+                            markCorrect: true);
                         Navigator.pop(c);
                       },
                       child: Text(isAm ? 'ትክክል ነው' : 'Mark Correct'),
@@ -492,7 +618,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        // Mark as incorrect
+                        _applyOverride(answer.questionNumber,
+                            markCorrect: false);
                         Navigator.pop(c);
                       },
                       style: ElevatedButton.styleFrom(
@@ -510,13 +637,52 @@ class _SideBySideReviewState extends State<SideBySideReview> {
     );
   }
 
+  /// Flip isCorrect for [questionNumber], recalculate totals, rebuild.
+  void _applyOverride(int questionNumber, {required bool markCorrect}) {
+    final updatedAnswers = _result.answers.map((a) {
+      if (a.questionNumber != questionNumber) return a;
+      return AnswerMatch(
+        questionNumber: a.questionNumber,
+        detectedAnswer: a.detectedAnswer,
+        correctAnswer: a.correctAnswer,
+        isCorrect: markCorrect,
+        score: markCorrect ? a.maxScore : 0,
+        maxScore: a.maxScore,
+        confidence: 1.0, // teacher verified → max confidence
+        ocrRawText: a.ocrRawText,
+        boundingBox: a.boundingBox,
+      );
+    }).toList();
+
+    // Replace answers, then recalc totals.
+    setState(() {
+      _result = _result.copyWith(answers: updatedAnswers);
+    });
+    _recalculateAndRefresh();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(markCorrect
+            ? 'Q$questionNumber → Correct'
+            : 'Q$questionNumber → Wrong'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  // ── Voice note ──────────────────────────────────────────────────
+
   void _recordVoiceNote(bool isAm) async {
     if (_voice.isRecording) {
       final path = await _voice.stopRecording();
       if (path != null && mounted) {
+        setState(() {
+          _result = _result.copyWith(voiceNotePath: path);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isAm ? 'የድምጽ ማስታወሻ ተቀምጧል' : 'Voice note saved'),
+            content:
+                Text(isAm ? 'የድምጽ ማስታወሻ ተቀምጧል' : 'Voice note saved'),
           ),
         );
       }
@@ -530,7 +696,6 @@ class _SideBySideReviewState extends State<SideBySideReview> {
         );
       }
     }
-    setState(() {});
   }
 
   @override
@@ -539,6 +704,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
     super.dispose();
   }
 }
+
+// ──── Shared widgets ────
 
 class _ScoreItem extends StatelessWidget {
   final String label;
@@ -595,17 +762,13 @@ class _AnswerTile extends StatelessWidget {
             ),
           ),
         ),
-        title: Row(
-          children: [
-            Text(
-              '${isAmharic ? 'ተገኘ' : 'Detected'}: ${answer.detectedAnswer}',
-              style: TextStyle(
-                color: answer.isCorrect
-                    ? AppTheme.darkText
-                    : AppTheme.primaryRed,
-              ),
-            ),
-          ],
+        title: Text(
+          '${isAmharic ? 'ተገኘ' : 'Detected'}: ${answer.detectedAnswer}',
+          style: TextStyle(
+            color: answer.isCorrect
+                ? AppTheme.darkText
+                : AppTheme.primaryRed,
+          ),
         ),
         subtitle: Text(
           '${isAmharic ? 'ትክክል' : 'Correct'}: ${answer.correctAnswer}',
