@@ -14,6 +14,15 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Fixed
+- **PDF reports now use real scan results instead of hardcoded data**
+  - Student report: loads actual ScanResult from Hive via HybridGradingService.loadScanResults()
+    instead of creating a dummy ScanResult with score 75/B for every student
+  - Class report: passes real scan results list instead of empty [] — student list table now shows actual data
+  - Added bilingual error messages when no scan results exist for the selected assessment
+  - Added Report (PDF) shortcut icon in BatchScanScreen app bar — scan → PDF in one tap
+  - Added Student model import for type safety
+
 ### Added
 - **Persist score overrides to Hive on confirm/save**
   - `HybridGradingService.saveScanResult()`: public save method for external callers (review screen)

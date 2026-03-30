@@ -49,7 +49,7 @@
 | F07 | Student model + storage | ✅ Done | Backend | — | Low | Hive adapters generated |
 | F08 | Assessment CRUD | ✅ Done | Mobile | F07 | Low | Create, edit, answer key |
 | F09 | Review screen | ✅ Done | UX | F06 | Low | Side-by-side, manual overrides, answer-type pickers, auto-persist |
-| F10 | PDF reports | ✅ Done | Mobile | F06 | Low | Student + class reports |
+| F10 | PDF reports | ✅ Done | Mobile | F06 | Low | Student + class reports, real data from Hive, shortcut from batch scan |
 | F11 | Excel import | ✅ Done | Mobile | F07 | Low | .xlsx via file_picker |
 | F12 | **Font assets** | ✅ Done | Design | — | Low | NotoSansEthiopic Regular + Bold (OFL) |
 | F13 | **Splash screen** | ✅ Done | Design | — | Low | 512x512 PNG, Ethiopian green + checkmark |
@@ -102,7 +102,7 @@
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
-| Template-to-PDF flow | 📋 Pending | — | — | Sprint 1 task 1 |
+| Template-to-PDF flow | ✅ Done | Mobile | 3 | Reports use real scan results from Hive, not hardcoded data. Report shortcut from batch scan screen. |
 | Wire batch_scan_screen to HybridGradingService | ✅ Done | Backend | 3 | Replaced OcrService direct calls with HybridGradingService |
 | Wire camera_screen to HybridGradingService | ✅ Done | Backend | 2 | Single-paper grading also uses HybridGradingService now |
 | Convert camera to continuous batch capture | ✅ Done | UX | 3 | Capture-only loop, no per-scan processing, 'Done Scanning' navigates to BatchScanScreen |
