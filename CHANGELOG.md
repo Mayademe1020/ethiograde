@@ -31,6 +31,12 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - Crash-proof principle: grading pipeline never breaks on memory pressure
 
 ### Fixed
+- **WCAG AA contrast failure on lightText**
+  - `lightText` (#718096) on `scaffoldBg` (#F7FAFC) = 3.83:1 — failed AA for normal text
+  - Changed to #6B7280 = 4.61:1 — passes AA
+  - Minimal visual shift, fixes all 10+ references via single theme constant
+  - Verified: primaryGreen on white (5.37:1 ✅), white on primaryGreen button (5.37:1 ✅)
+  - Yellow only used as background (darkText on yellow = 10.07:1 ✅), never as text color
 - **TextEditingControllers leaked in dialog builders**
   - subscription_screen.dart: 2 controllers created in dialog, never disposed
   - import_excel_screen.dart: 7 controllers in bottom sheet, never disposed
