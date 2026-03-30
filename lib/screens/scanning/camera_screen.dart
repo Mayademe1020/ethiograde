@@ -8,6 +8,8 @@ import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/image_hash_service.dart';
+import '../../services/hybrid_grading_service.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Camera screen with continuous batch capture flow.
@@ -32,6 +34,9 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isCapturing = false;
   bool _isFlashOn = false;
   final List<String> _capturedImages = [];
+  final List<int?> _capturedHashes = []; // Parallel hash cache for batch
+  List<int?> _existingHashes = []; // Hashes from previously saved scans
+  bool _existingHashesLoaded = false;
   Assessment? _selectedAssessment;
   PaperGuideState _guideState = PaperGuideState.idle;
 
@@ -91,6 +96,11 @@ class _CameraScreenState extends State<CameraScreen>
 
     _selectedAssessment ??=
         ModalRoute.of(context)?.settings.arguments as Assessment?;
+
+    // Load existing hashes once when assessment is known
+    if (_selectedAssessment != null && !_existingHashesLoaded) {
+      _loadExistingHashes(_selectedAssessment!);
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -229,6 +239,7 @@ class _CameraScreenState extends State<CameraScreen>
                                 .toList(),
                             onChanged: (a) {
                               setState(() => _selectedAssessment = a);
+                              if (a != null) _loadExistingHashes(a);
                             },
                           ),
                         ],
@@ -440,7 +451,25 @@ class _CameraScreenState extends State<CameraScreen>
 
     try {
       final image = await _cameraController!.takePicture();
+      final hash = ImageHashService().computeHash(image.path);
+
+      // Check for duplicates against current batch + existing scans
+      if (hash != null) {
+        final allHashes = [..._existingHashes, ..._capturedHashes];
+        final dupIndex = ImageHashService().findDuplicate(hash, allHashes);
+
+        if (dupIndex >= 0) {
+          final isDuplicate = await _showDuplicateDialog();
+          if (!isDuplicate) {
+            // Teacher chose to skip — delete the captured file
+            try { await File(image.path).delete(); } catch (_) {}
+            return;
+          }
+        }
+      }
+
       _capturedImages.add(image.path);
+      _capturedHashes.add(hash);
     } catch (e) {
       debugPrint('Capture error: $e');
       if (mounted) {
@@ -503,6 +532,51 @@ class _CameraScreenState extends State<CameraScreen>
         ),
       ),
     );
+  }
+
+  /// Load hashes from previously saved scan results for this assessment.
+  Future<void> _loadExistingHashes(Assessment assessment) async {
+    if (_existingHashesLoaded) return;
+    _existingHashesLoaded = true;
+    try {
+      final grading = HybridGradingService();
+      final existingScans = await grading.loadScanResults(assessment.id);
+      _existingHashes = existingScans.map((s) => s.imageHash).toList();
+    } catch (_) {
+      _existingHashes = [];
+    }
+  }
+
+  /// Show bilingual duplicate warning. Returns true if teacher wants to keep.
+  Future<bool> _showDuplicateDialog() async {
+    final isAm = context.read<LocaleProvider>().isAmharic;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          isAm ? 'የተጻፈ ወረቀት' : 'Duplicate Paper',
+        ),
+        content: Text(
+          isAm
+              ? 'ይህ ወረቀት አስቀድሞ እንደተሰካን ይመስላል። ዝለሉት?'
+              : 'This looks like a paper you already scanned. Skip?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),  // Keep
+            child: Text(isAm ? 'ይሁን ተቀምጥ' : 'Keep'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, false), // Skip
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryRed,
+            ),
+            child: Text(isAm ? 'ዝለል' : 'Skip'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false; // Default: keep (safe default)
   }
 
   /// Navigate to BatchScanScreen for batch processing.
