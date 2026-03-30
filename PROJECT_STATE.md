@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring (incl. answer-pattern duplicate detection), 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
+| **Tests** | 🟡 Partial | 45+ tests for answer parser (incl. Amharic numerals), 70+ tests for scoring (incl. answer-pattern duplicate detection), 20+ tests for analytics, 40+ tests for OCR service (incl. OOM recovery), 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -44,7 +44,7 @@
 | F02 | Image enhancement | ✅ Done | ML | — | Medium | Lean pipeline: downscale + grayscale + contrast. Zero pixel loops. |
 | F03 | **Real OCR extraction** | ✅ Done | ML | F02 | Medium | ML Kit + confidence filter + skew detection + dedup |
 | F04 | **Amharic handwriting model** | ❌ Missing | ML | F03 | 🔴 High | No model trained or sourced |
-| F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | AnswerParser extracted, concatenated format, 30+ tests |
+| F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | AnswerParser extracted, concatenated format, Amharic numerals (፩-፱), 45+ tests |
 | F06 | Scoring engine | ✅ Done | Backend | F05 | Low | MoE, international, university scales |
 | F07 | Student model + storage | ✅ Done | Backend | — | Low | Hive adapters generated |
 | F08 | Assessment CRUD | ✅ Done | Mobile | F07 | Low | Create, edit, answer key |
@@ -123,6 +123,10 @@
 | BackupService | ✅ Done | Backend | 3 | JSON export/import with validation, share_plus, auto-backup every 10 scans, pruning |
 | Persistence test suite | ✅ Done | QA | 3 | 25 tests: happy path, validation, edge cases, error handling, backup, migration |
 | Answer-pattern duplicate detection (T8) | ✅ Done | ML | 3 | ScoringService fingerprint + compare + detectAnswerDuplicates; HybridGradingService.detectBatchDuplicates; BatchScanScreen bilingual warning banner; 28 new tests (70 total for scoring) |
+| Amharic numeral support for question numbers | ✅ Done | ML | 2 | Ge'ez numerals ፩-፱ as question numbers in AnswerParser; 16 new tests; silent data loss fix |
+| OutOfMemoryError handling in enhanceImage | ✅ Done | ML | 2 | OOM retry at 1080p, crash-proof pipeline; 2 new tests |
+| setState mounted guard in batch scan | ✅ Done | QA | 1 | Prevents crash on navigation during batch processing |
+| Replace print() with debugPrint() in voice service | ✅ Done | QA | 1 | Zero print() calls in lib/ verified |
 
 ### Completed Sprint 0
 
