@@ -308,6 +308,89 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════
+  // correctRotation — rotation correction for tilted papers
+  // ══════════════════════════════════════════════════════════════════
+
+  group('correctRotation', () {
+    test('rotates image and saves corrected version', () async {
+      // Create a wider-than-tall image (simulates landscape photo)
+      final image = img.Image(width: 400, height: 200);
+      img.fill(image, color: img.ColorRgb8(255, 255, 255));
+      final tempDir = Directory.systemTemp;
+      final inputPath = '${tempDir.path}/rot_test.jpg';
+      await File(inputPath).writeAsBytes(img.encodeJpg(image));
+
+      try {
+        final correctedPath = await ocr.correctRotation(inputPath, 5.0);
+
+        // Should return a different path (_corrected suffix)
+        expect(correctedPath, contains('_corrected'));
+        expect(correctedPath, isNot(equals(inputPath)));
+
+        // File should exist
+        expect(await File(correctedPath).exists(), isTrue);
+
+        // Cleanup corrected file
+        await cleanupFile(correctedPath);
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
+
+    test('returns original path for nonexistent file', () async {
+      final result = await ocr.correctRotation('/nonexistent/img.jpg', 5.0);
+      expect(result, '/nonexistent/img.jpg');
+    });
+
+    test('returns original path for corrupt data', () async {
+      final tempDir = Directory.systemTemp;
+      final inputPath = '${tempDir.path}/corrupt_rot.jpg';
+      await File(inputPath).writeAsBytes([1, 2, 3, 4]);
+
+      try {
+        final result = await ocr.correctRotation(inputPath, 5.0);
+        expect(result, inputPath);
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
+
+    test('zero angle still produces corrected file', () async {
+      final image = img.Image(width: 100, height: 100);
+      img.fill(image, color: img.ColorRgb8(128, 128, 128));
+      final tempDir = Directory.systemTemp;
+      final inputPath = '${tempDir.path}/zero_rot.jpg';
+      await File(inputPath).writeAsBytes(img.encodeJpg(image));
+
+      try {
+        final correctedPath = await ocr.correctRotation(inputPath, 0.0);
+        expect(correctedPath, contains('_corrected'));
+        expect(await File(correctedPath).exists(), isTrue);
+        await cleanupFile(correctedPath);
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
+
+    test('negative angle rotates opposite direction', () async {
+      final image = img.Image(width: 200, height: 100);
+      img.fill(image, color: img.ColorRgb8(200, 200, 200));
+      final tempDir = Directory.systemTemp;
+      final inputPath = '${tempDir.path}/neg_rot.jpg';
+      await File(inputPath).writeAsBytes(img.encodeJpg(image));
+
+      try {
+        final correctedPath = await ocr.correctRotation(inputPath, -3.5);
+        expect(correctedPath, contains('_corrected'));
+        expect(await File(correctedPath).exists(), isTrue);
+        await cleanupFile(correctedPath);
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
   // _parseAnswers integration — AnswerParser + TextRegion → DetectedAnswer
   // ══════════════════════════════════════════════════════════════════
 
