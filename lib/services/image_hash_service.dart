@@ -101,10 +101,11 @@ class ImageHashService {
 
   /// Threshold: images with Hamming distance ≤ this are "the same paper."
   ///
-  /// 10 out of 64 bits = ~15% tolerance.
-  /// Conservative enough to avoid false positives (different papers),
-  /// loose enough to handle minor lighting/crop/focus differences.
-  static const int duplicateThreshold = 10;
+  /// 6 out of 64 bits = ~9% tolerance.
+  /// Catches: re-scans with noise (±20px), slight crop (3px), minor brightness.
+  /// Rejects: different-answer papers, different layouts.
+  /// False positives are low-cost: teacher taps "Keep" once.
+  static const int duplicateThreshold = 6;
 
   /// Check if two hashes represent the same paper.
   bool isDuplicate(int? hash1, int? hash2) {

@@ -117,23 +117,23 @@ void main() {
     });
 
     test('15. Hashes within threshold are duplicate', () {
-      // Create two hashes with exactly 10 bits difference
+      // Create two hashes with exactly 6 bits difference
       final h1 = 0;
       int h2 = 0;
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 6; i++) {
         h2 |= (1 << i);
       }
-      expect(hasher.hammingDistance(h1, h2), equals(10));
+      expect(hasher.hammingDistance(h1, h2), equals(6));
       expect(hasher.isDuplicate(h1, h2), isTrue);
     });
 
     test('16. Hashes beyond threshold are NOT duplicate', () {
       final h1 = 0;
       int h2 = 0;
-      for (int i = 0; i < 11; i++) {
+      for (int i = 0; i < 7; i++) {
         h2 |= (1 << i);
       }
-      expect(hasher.hammingDistance(h1, h2), equals(11));
+      expect(hasher.hammingDistance(h1, h2), equals(7));
       expect(hasher.isDuplicate(h1, h2), isFalse);
     });
 
