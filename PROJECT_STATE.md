@@ -108,7 +108,7 @@
 | Unit tests for OcrService | ✅ Done | QA | 5 | 40+ tests: TextRegion model, enhanceImage (downscale/grayscale/contrast/edge cases), parseAnswers integration, deduplication, scoring pipeline, ScanResult serialization |
 | Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
 | Pure Dart perspective correction | 📋 Pending | ML | — | Sprint 1 task 3 |
-| Camera guidance overlay | 📋 Pending | UX | — | Sprint 1 task 4 |
+| Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
 | Score override/edit flow | 📋 Pending | UX | — | Sprint 1 task 5 |
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
 | End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
@@ -223,4 +223,4 @@
 
 ---
 
-*Last Updated: 2026-03-29*
+*Last Updated: 2026-03-30*

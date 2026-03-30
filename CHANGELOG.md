@@ -15,6 +15,15 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- `PaperGuideOverlay` widget for camera paper alignment
+  - Extracted from inline `_ScanGuidePainter` in camera_screen.dart
+  - `PaperGuideState` enum: `idle` (white), `detected` (yellow), `aligned` (green)
+  - Semi-transparent centered rect: 80% viewport width, 3:4 portrait aspect ratio
+  - Four L-shaped corner brackets, 24dp arm length, proportional to screen width
+  - Bilingual hint text: Amharic/English (idle+detected: "Align paper within the frame" / "ወረቀቱን በአገባቡ ያስተካክሉ", aligned: "Hold steady" / "የያዙትን ይቆዩ")
+  - Zero allocations in `paint()` — pre-allocated Paint objects, no state changes
+  - Scales proportionally on 480p–1440p screens
+  - No new dependencies — pure CustomPainter
 - Encrypted Hive initialization in `main.dart`
   - AES-256 encryption for all Hive boxes via `HiveAesCipher`
   - 32-byte key generated on first launch via `dart:math` `Random.secure()`
@@ -52,7 +61,6 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 - Unit tests for PDF service
 - Widget tests for dashboard, create assessment, review screens
 - Pure Dart perspective correction
-- Camera guidance overlay
 - Score override/edit flow
 
 ### Changed
