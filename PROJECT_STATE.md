@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 40+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 10+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring (incl. answer-pattern duplicate detection), 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -122,6 +122,7 @@
 | MigrationService | ✅ Done | Backend | 2 | Schema versioning in metadata box, ordered migration runner, wired to main.dart |
 | BackupService | ✅ Done | Backend | 3 | JSON export/import with validation, share_plus, auto-backup every 10 scans, pruning |
 | Persistence test suite | ✅ Done | QA | 3 | 25 tests: happy path, validation, edge cases, error handling, backup, migration |
+| Answer-pattern duplicate detection (T8) | ✅ Done | ML | 3 | ScoringService fingerprint + compare + detectAnswerDuplicates; HybridGradingService.detectBatchDuplicates; BatchScanScreen bilingual warning banner; 28 new tests (70 total for scoring) |
 
 ### Completed Sprint 0
 
@@ -225,4 +226,4 @@
 
 ---
 
-*Last Updated: 2026-03-30*
+*Last Updated: 2026-03-31*

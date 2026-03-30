@@ -14,6 +14,28 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Added
+- **Answer-pattern duplicate detection for batch scans**
+  - Solves the fundamental dHash limitation: 64-bit perceptual hashing can't distinguish
+    same-format MCQ papers (different students, same layout). Only ~10% of pixels differ
+    (bubble fills), which averages out at 9×8 resolution.
+  - `ScoringService.generateAnswerFingerprint()`: normalizes detected answers into a
+    sorted "Q#:ANSWER" string (e.g., "1:A|2:B|3:TRUE"). Excludes [MISSING] entries.
+    Case-insensitive, deterministic, ~O(n) on answer count.
+  - `ScoringService.compareFingerprints()`: compares two fingerprints question-by-question.
+    Only counts questions present in both (avoids penalizing partial scans). Returns 0.0–1.0 ratio.
+  - `ScoringService.detectAnswerDuplicates()`: compares all pairs in a batch. Returns
+    `AnswerDuplicate` entries for pairs matching ≥ 90% (configurable threshold).
+  - `HybridGradingService.detectBatchDuplicates()`: high-level API for screens. Takes
+    graded ScanResult list, returns duplicate pairs.
+  - `BatchScanScreen`: bilingual warning banner after batch processing completes.
+    Shows "Possible Duplicates" / "ሊመሰሉ የሚችሉ ቅጂዎች" with student name pairs and match %.
+  - 28 new unit tests: fingerprint generation (7), fingerprint comparison (7),
+    duplicate detection (11), HybridGradingService integration (3). Total: 70+ scoring tests.
+  - Stage 2 of two-stage duplicate detection: dHash (camera, instant, catches same-image
+    re-scans) + answer-pattern (batch, post-OCR, catches same-answers duplicates).
+  - Works offline, pure Dart, zero new dependencies.
+
 ### Fixed
 - **EXIF orientation correction in `enhanceImage()`**
   - Camera photos carry EXIF orientation metadata (phone in landscape, front camera, etc.)
