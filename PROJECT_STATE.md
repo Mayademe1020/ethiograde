@@ -70,7 +70,7 @@
 | F16 | Re-scan paper | ❌ Stub | Mobile | F01 | Low | Button exists, no logic |
 | F17 | Dashboard search | ❌ Stub | Mobile | F07 | Low | Icon visible, no implementation |
 | F18 | Voice recording playback | ❌ Placeholder | Mobile | F14 | Low | Speaks "playing voice note" |
-| F19 | Batch scan flow | ✅ Done | Mobile | F01, F03 | Medium | UI done, depends on real OCR |
+| F19 | Batch scan flow (continuous capture) | ✅ Done | Mobile | F01, F03 | Medium | Capture-only loop, batch process on 'Done Scanning' |
 
 ### School & Monetization (v0.3.0+)
 
@@ -104,6 +104,7 @@
 | Template-to-PDF flow | 📋 Pending | — | — | Sprint 1 task 1 |
 | Wire batch_scan_screen to HybridGradingService | ✅ Done | Backend | 3 | Replaced OcrService direct calls with HybridGradingService |
 | Wire camera_screen to HybridGradingService | ✅ Done | Backend | 2 | Single-paper grading also uses HybridGradingService now |
+| Convert camera to continuous batch capture | ✅ Done | UX | 3 | Capture-only loop, no per-scan processing, 'Done Scanning' navigates to BatchScanScreen |
 | Create HybridGradingService | ✅ Done | Backend | 3 | Orchestrates OcrService + ScoringService; error handling, batch with progress callback |
 | Unit tests for OcrService | ✅ Done | QA | 5 | 40+ tests: TextRegion model, enhanceImage (downscale/grayscale/contrast/edge cases), parseAnswers integration, deduplication, scoring pipeline, ScanResult serialization |
 | Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |

@@ -66,6 +66,20 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - `saveAssessment` kept as backward-compatible wrapper (add-or-update)
   - `Result<T>` type matching StudentProvider pattern
 
+### Changed
+- **Camera scan flow: continuous capture instead of per-scan processing**
+  - Previous flow: tap capture → process immediately → show result → dismiss → tap capture again
+  - New flow: tap capture → store image → tap capture → store image → ... → tap "Done Scanning" → batch process all
+  - Removed `gradePaper()` call and `_showQuickResult()` bottom sheet from `_captureImage()`
+  - Camera screen now purely captures — no grading, no result display
+  - Paper counter shows "N papers captured" (bilingual Amharic/English)
+  - Hint text below capture row guides first-time users
+  - "Done Scanning" (✓ button) navigates to BatchScanScreen with all captured images
+  - BatchScanScreen processes all images in one batch via `HybridGradingService.gradeBatch()`
+  - Removed unused imports: `scan_result.dart`, `hybrid_grading_service.dart`
+  - Benefits: faster capture on 2GB devices, no processing interruptions, crash-proof (no mid-scan failure)
+  - Works offline — all processing is deferred until batch, runs entirely on-device
+
 ### Planned (Sprint 1)
 - Real device testing on 2GB phone with actual exam papers
 - Unit tests for PDF service
