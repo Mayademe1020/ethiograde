@@ -65,6 +65,18 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - `getRecentAssessments(limit)`: returns N most recent
   - `saveAssessment` kept as backward-compatible wrapper (add-or-update)
   - `Result<T>` type matching StudentProvider pattern
+- **Duplicate scan detection via perceptual image hashing**
+  - New `ImageHashService`: pure Dart dHash using existing `image` package (zero new deps)
+  - Algorithm: resize to 9×8 grayscale, compare adjacent pixels → 64-bit hash
+  - Hamming distance ≤ 10 bits (out of 64) = same paper (~15% tolerance)
+  - ~1-2ms compute per image on 2GB devices — no isolate needed
+  - `ScanResult.imageHash` field added for storage alongside scan data
+  - `OcrService.processScannedPaper` computes hash before enhancement
+  - `OcrService.checkDuplicate()` and `OcrService.hasher` exposed for UI use
+  - `CameraScreen` checks new captures against batch hashes + existing Hive scans
+  - Bilingual warning dialog: "Duplicate Paper" / "የተጻፈ ወረቀት" — Skip (red) or Keep
+  - Hash failure never blocks scanning (returns null → skip check)
+  - 26 unit tests: dHash computation, Hamming distance, thresholds, findDuplicate, edge cases
 
 ### Changed
 - **Camera scan flow: continuous capture instead of per-scan processing**
