@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/scan_result.dart';
+import '../../models/assessment.dart';
 import '../../services/locale_provider.dart';
 import '../../services/scoring_service.dart';
 import '../../services/voice_service.dart';
+import '../../services/assessment_provider.dart';
 
 // ──── Review List ────
 
@@ -389,12 +391,21 @@ class _SideBySideReviewState extends State<SideBySideReview> {
   /// Recalculate totals after an answer override, then rebuild.
   void _recalculateAndRefresh() {
     final scoring = const ScoringService();
+
+    // Look up the actual assessment for correct rubric type
+    final assessments = context.read<AssessmentProvider>().assessments;
+    final assessment = assessments.cast<Assessment?>().firstWhere(
+          (a) => a?.id == _result.assessmentId,
+          orElse: () => null,
+        );
+    final rubricType = assessment?.rubricType ?? 'moe_national';
+
     final newTotal = scoring.calculateTotalScore(_result.answers);
     final newPct = scoring.calculatePercentage(
       totalScore: newTotal,
       maxScore: _result.maxScore,
     );
-    final newGrade = scoring.calculateGrade(newPct, 'moe_national');
+    final newGrade = scoring.calculateGrade(newPct, rubricType);
     final newConfidence = scoring.calculateConfidence(_result.answers);
 
     setState(() {
@@ -584,48 +595,129 @@ class _SideBySideReviewState extends State<SideBySideReview> {
   // ── Score override ──────────────────────────────────────────────
 
   void _overrideScore(AnswerMatch answer, bool isAm) {
+    // Look up question type from assessment for appropriate edit UI
+    final assessments = context.read<AssessmentProvider>().assessments;
+    final assessment = assessments.cast<Assessment?>().firstWhere(
+          (a) => a?.id == _result.assessmentId,
+          orElse: () => null,
+        );
+    final question = assessment?.questions.cast<Question?>().firstWhere(
+          (q) => q?.number == answer.questionNumber,
+          orElse: () => null,
+        );
+    final questionType = question?.type ?? QuestionType.mcq;
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (c) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 '${isAm ? 'ጥያቄ' : 'Question'} ${answer.questionNumber}',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Text(
-                  '${isAm ? 'የተገኘ' : 'Detected'}: ${answer.detectedAnswer}'),
-              Text(
-                  '${isAm ? 'ትክክል' : 'Correct'}: ${answer.correctAnswer}'),
+                '${isAm ? 'የተገኘ' : 'Detected'}: ${answer.detectedAnswer}',
+                style: TextStyle(color: AppTheme.lightText),
+              ),
               const SizedBox(height: 16),
+
+              // Change answer section
+              Text(
+                isAm ? 'ትክክለኛው መልስ' : 'Change Answer',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              if (questionType == QuestionType.mcq)
+                _McqAnswerPicker(
+                  currentAnswer: answer.detectedAnswer,
+                  correctAnswer: answer.correctAnswer,
+                  isAmharic: isAm,
+                  onSelected: (newAnswer) {
+                    _applyAnswerChange(
+                      answer.questionNumber,
+                      newAnswer: newAnswer,
+                      correctAnswer: answer.correctAnswer,
+                    );
+                    Navigator.pop(c);
+                  },
+                )
+              else if (questionType == QuestionType.trueFalse)
+                _TfAnswerPicker(
+                  currentAnswer: answer.detectedAnswer,
+                  isAmharic: isAm,
+                  onSelected: (newAnswer) {
+                    _applyAnswerChange(
+                      answer.questionNumber,
+                      newAnswer: newAnswer,
+                      correctAnswer: answer.correctAnswer,
+                    );
+                    Navigator.pop(c);
+                  },
+                )
+              else
+                _ShortAnswerEditor(
+                  currentAnswer: answer.detectedAnswer,
+                  isAmharic: isAm,
+                  onSubmitted: (newAnswer) {
+                    _applyAnswerChange(
+                      answer.questionNumber,
+                      newAnswer: newAnswer,
+                      correctAnswer: answer.correctAnswer,
+                    );
+                    Navigator.pop(c);
+                  },
+                ),
+
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+
+              // Quick correct/wrong toggle
+              Text(
+                isAm ? 'ወይም ቀጥታ' : 'Or Quick Toggle',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: OutlinedButton.icon(
                       onPressed: () {
                         _applyOverride(answer.questionNumber,
                             markCorrect: true);
                         Navigator.pop(c);
                       },
-                      child: Text(isAm ? 'ትክክል ነው' : 'Mark Correct'),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: Text(isAm ? 'ትክክል ነው' : 'Correct'),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: ElevatedButton(
+                    child: OutlinedButton.icon(
                       onPressed: () {
                         _applyOverride(answer.questionNumber,
                             markCorrect: false);
                         Navigator.pop(c);
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryRed,
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryRed,
                       ),
-                      child: Text(isAm ? 'ስህተት ነው' : 'Mark Wrong'),
+                      label: Text(isAm ? 'ስህተት ነው' : 'Wrong'),
                     ),
                   ),
                 ],
@@ -633,6 +725,41 @@ class _SideBySideReviewState extends State<SideBySideReview> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Change the actual detected answer for a question, then recalculate.
+  void _applyAnswerChange(
+    int questionNumber, {
+    required String newAnswer,
+    required String correctAnswer,
+  }) {
+    final updatedAnswers = _result.answers.map((a) {
+      if (a.questionNumber != questionNumber) return a;
+      final isCorrect = newAnswer.toUpperCase() == correctAnswer.toUpperCase();
+      return AnswerMatch(
+        questionNumber: a.questionNumber,
+        detectedAnswer: newAnswer,
+        correctAnswer: a.correctAnswer,
+        isCorrect: isCorrect,
+        score: isCorrect ? a.maxScore : 0,
+        maxScore: a.maxScore,
+        confidence: 1.0, // teacher corrected → max confidence
+        ocrRawText: '(manual: $newAnswer)',
+        boundingBox: a.boundingBox,
+      );
+    }).toList();
+
+    setState(() {
+      _result = _result.copyWith(answers: updatedAnswers);
+    });
+    _recalculateAndRefresh();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Q$questionNumber → $newAnswer'),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -702,6 +829,208 @@ class _SideBySideReviewState extends State<SideBySideReview> {
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+}
+
+// ──── Answer picker widgets ────
+
+/// MCQ answer selector: A, B, C, D, E as tappable chips.
+class _McqAnswerPicker extends StatelessWidget {
+  final String currentAnswer;
+  final String correctAnswer;
+  final bool isAmharic;
+  final ValueChanged<String> onSelected;
+
+  const _McqAnswerPicker({
+    required this.currentAnswer,
+    required this.correctAnswer,
+    required this.isAmharic,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = ['A', 'B', 'C', 'D', 'E'];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((opt) {
+        final isCurrent = opt.toUpperCase() == currentAnswer.toUpperCase();
+        final isCorrect = opt.toUpperCase() == correctAnswer.toUpperCase();
+        return ChoiceChip(
+          label: Text(
+            opt,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isCurrent ? Colors.white : null,
+            ),
+          ),
+          selected: isCurrent,
+          selectedColor: AppTheme.primaryGreen,
+          avatar: isCorrect
+              ? const Icon(Icons.check, size: 16, color: AppTheme.primaryGreen)
+              : null,
+          onSelected: (_) => onSelected(opt),
+        );
+      }).toList(),
+    );
+  }
+}
+
+/// True/False answer selector: two large tappable buttons.
+class _TfAnswerPicker extends StatelessWidget {
+  final String currentAnswer;
+  final bool isAmharic;
+  final ValueChanged<String> onSelected;
+
+  const _TfAnswerPicker({
+    required this.currentAnswer,
+    required this.isAmharic,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isTrue = currentAnswer.toUpperCase() == 'TRUE';
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onSelected('True'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: isTrue
+                    ? AppTheme.primaryGreen.withOpacity(0.15)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isTrue ? AppTheme.primaryGreen : Colors.grey.shade300,
+                  width: isTrue ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    isTrue ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: isTrue ? AppTheme.primaryGreen : Colors.grey,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isAmharic ? 'እውነት' : 'True',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isTrue ? AppTheme.primaryGreen : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onSelected('False'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: !isTrue
+                    ? AppTheme.primaryRed.withOpacity(0.15)
+                    : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: !isTrue ? AppTheme.primaryRed : Colors.grey.shade300,
+                  width: !isTrue ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    !isTrue ? Icons.cancel : Icons.radio_button_unchecked,
+                    color: !isTrue ? AppTheme.primaryRed : Colors.grey,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isAmharic ? 'ሐሰት' : 'False',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: !isTrue ? AppTheme.primaryRed : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Short answer text editor with submit button.
+class _ShortAnswerEditor extends StatefulWidget {
+  final String currentAnswer;
+  final bool isAmharic;
+  final ValueChanged<String> onSubmitted;
+
+  const _ShortAnswerEditor({
+    required this.currentAnswer,
+    required this.isAmharic,
+    required this.onSubmitted,
+  });
+
+  @override
+  State<_ShortAnswerEditor> createState() => _ShortAnswerEditorState();
+}
+
+class _ShortAnswerEditorState extends State<_ShortAnswerEditor> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentAnswer);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: widget.isAmharic ? 'መልስ ይጻፉ...' : 'Type answer...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+            onSubmitted: widget.onSubmitted,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.filled(
+          onPressed: () => widget.onSubmitted(_controller.text.trim()),
+          icon: const Icon(Icons.check, size: 20),
+          style: IconButton.styleFrom(
+            backgroundColor: AppTheme.primaryGreen,
+            foregroundColor: Colors.white,
+          ),
+        ),
+      ],
+    );
   }
 }
 
