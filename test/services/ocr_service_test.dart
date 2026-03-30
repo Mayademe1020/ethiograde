@@ -305,6 +305,28 @@ void main() {
         await cleanupFile(inputPath);
       }
     });
+
+    test('returns original path for non-existent file', () async {
+      final ocr = OcrService();
+      final result = await ocr.enhanceImage('/nonexistent/image.jpg');
+      expect(result, '/nonexistent/image.jpg');
+    });
+
+    test('enhanced image exists and is valid JPEG after processing', () async {
+      final ocr = OcrService();
+      final inputPath = await createTestImage(width: 800, height: 600);
+
+      try {
+        final enhancedPath = await ocr.enhanceImage(inputPath);
+        // Verify the enhanced file is valid and readable
+        final enhancedBytes = await File(enhancedPath).readAsBytes();
+        final enhanced = img.decodeJpg(enhancedBytes);
+        expect(enhanced, isNotNull);
+        expect(enhanced!.width, lessThanOrEqualTo(1600));
+      } finally {
+        await cleanupFile(inputPath);
+      }
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════

@@ -35,6 +35,10 @@ class OcrService {
   /// Scales down to protect 2GB devices and speed up processing.
   static const int _maxImageDimension = 1600;
 
+  /// Fallback dimension when OOM occurs during enhancement.
+  /// 1080p is still readable by ML Kit while using ~4x less memory than 1600px.
+  static const int _oomRetryDimension = 1080;
+
   /// Skew angle threshold — beyond this, we warn the teacher.
   static const double _skewWarningDegrees = 8.0;
 
@@ -58,14 +62,37 @@ class OcrService {
   ///
   /// No pixel loops. No binarization. No sharpening. No denoising.
   /// All operations use the `image` package's native-compiled routines.
+  ///
+  /// On [OutOfMemoryError], retries at [_oomRetryDimension] (1080p).
+  /// Returns original path on total failure — never crashes the pipeline.
   Future<String> enhanceImage(String imagePath) async {
     try {
-      final file = File(imagePath);
-      if (!await file.exists()) return imagePath;
+      final result = await _enhanceImageAtDimension(imagePath, _maxImageDimension);
+      return result;
+    } on OutOfMemoryError {
+      debugPrint('OCR: OOM at ${_maxImageDimension}px, retrying at ${_oomRetryDimension}px');
+      try {
+        final result = await _enhanceImageAtDimension(imagePath, _oomRetryDimension);
+        return result;
+      } catch (e) {
+        debugPrint('OCR: enhanceImage OOM retry failed (${e.runtimeType})');
+        return imagePath;
+      }
+    } catch (e) {
+      debugPrint('OCR: enhanceImage failed (${e.runtimeType})');
+      return imagePath;
+    }
+  }
 
-      final bytes = await file.readAsBytes();
-      img.Image? image = img.decodeImage(bytes);
-      if (image == null) return imagePath;
+  /// Core image enhancement at a given max dimension.
+  /// Extracted so [enhanceImage] can retry at lower resolution on OOM.
+  Future<String> _enhanceImageAtDimension(String imagePath, int maxDim) async {
+    final file = File(imagePath);
+    if (!await file.exists()) return imagePath;
+
+    final bytes = await file.readAsBytes();
+    img.Image? image = img.decodeImage(bytes);
+    if (image == null) return imagePath;
 
     // ── EXIF rotation correction ──
     // Camera photos often have orientation metadata (phone held landscape,
@@ -74,9 +101,9 @@ class OcrService {
     image = img.bakeOrientation(image);
 
     // Downscale — protects memory on cheap phones, speeds up ML Kit
-    if (image.width > _maxImageDimension || image.height > _maxImageDimension) {
+    if (image.width > maxDim || image.height > maxDim) {
       final longer = image.width > image.height ? image.width : image.height;
-      final ratio = _maxImageDimension / longer;
+      final ratio = maxDim / longer;
       image = img.copyResize(
         image,
         width: (image.width * ratio).round(),
@@ -99,10 +126,6 @@ class OcrService {
     await File(enhancedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
 
     return enhancedPath;
-  } catch (e) {
-    debugPrint('OCR: enhanceImage failed (${e.runtimeType})');
-    return imagePath;
-  }
   }
 
   /// Correct paper rotation by rotating the image by -[angleDegrees].
