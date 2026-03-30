@@ -17,6 +17,7 @@ class ScanResult {
   final String? voiceNotePath;
   final String? teacherComment;
   final double confidence; // Overall OCR confidence 0.0 - 1.0
+  final int? imageHash; // dHash for duplicate scan detection
   final Map<String, dynamic> metadata;
 
   ScanResult({
@@ -36,6 +37,7 @@ class ScanResult {
     this.voiceNotePath,
     this.teacherComment,
     this.confidence = 0,
+    this.imageHash,
     this.metadata = const {},
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
@@ -60,6 +62,7 @@ class ScanResult {
     'voiceNotePath': voiceNotePath,
     'teacherComment': teacherComment,
     'confidence': confidence,
+    'imageHash': imageHash,
     'metadata': metadata,
   };
 
@@ -82,6 +85,7 @@ class ScanResult {
     voiceNotePath: map['voiceNotePath'],
     teacherComment: map['teacherComment'],
     confidence: (map['confidence'] ?? 0).toDouble(),
+    imageHash: map['imageHash'] as int?,
     metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
   );
 
@@ -93,6 +97,7 @@ class ScanResult {
     ScanStatus? status,
     String? voiceNotePath,
     String? teacherComment,
+    int? imageHash,
   }) => ScanResult(
     id: id,
     assessmentId: assessmentId,
@@ -110,6 +115,7 @@ class ScanResult {
     voiceNotePath: voiceNotePath ?? this.voiceNotePath,
     teacherComment: teacherComment ?? this.teacherComment,
     confidence: confidence,
+    imageHash: imageHash ?? this.imageHash,
     metadata: metadata,
   );
 }
