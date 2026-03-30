@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring (incl. answer-pattern duplicate detection), 20+ tests for analytics, 40+ tests for OCR service (incl. OOM recovery), 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence layer; zero coverage for PDF and Excel |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel; zero widget tests |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
