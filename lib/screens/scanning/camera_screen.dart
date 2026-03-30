@@ -547,24 +547,30 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  /// Show bilingual duplicate warning. Returns true if teacher wants to keep.
+  /// Show bilingual possible-duplicate warning. Returns true if teacher wants to keep.
   Future<bool> _showDuplicateDialog() async {
     final isAm = context.read<LocaleProvider>().isAmharic;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          isAm ? 'የተጻፈ ወረቀት' : 'Duplicate Paper',
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: AppTheme.primaryYellow, size: 22),
+            const SizedBox(width: 8),
+            Text(isAm ? 'ሊመሰሉ የሚችሉ ቅጂዎች' : 'Possible Duplicate'),
+          ],
         ),
         content: Text(
           isAm
-              ? 'ይህ ወረቀት አስቀድሞ እንደተሰካን ይመስላል። ዝለሉት?'
-              : 'This looks like a paper you already scanned. Skip?',
+              ? 'ይህ ወረቀት አስቀድሞ እንደተሰካን ይመስላል። እርግጠኛ አይደሉም? መልሶቹ ከተሰሩ በኋላ እንደገና ይመረመራሉ።'
+              : 'This looks similar to a paper already captured. Not sure? '
+                  'Answers will be double-checked after processing.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),  // Keep
-            child: Text(isAm ? 'ይሁን ተቀምጥ' : 'Keep'),
+            child: Text(isAm ? 'ተቀምጥ' : 'Keep'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, false), // Skip
