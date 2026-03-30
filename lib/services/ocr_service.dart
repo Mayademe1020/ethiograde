@@ -74,12 +74,12 @@ class OcrService {
       try {
         final result = await _enhanceImageAtDimension(imagePath, _oomRetryDimension);
         return result;
-      } catch (e) {
-        debugPrint('OCR: enhanceImage OOM retry failed (${e.runtimeType})');
+      } catch (e, st) {
+        debugPrint('OCR: enhanceImage OOM retry failed ($e)\n$st');
         return imagePath;
       }
-    } catch (e) {
-      debugPrint('OCR: enhanceImage failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('OCR: enhanceImage failed ($e)\n$st');
       return imagePath;
     }
   }
@@ -155,8 +155,8 @@ class OcrService {
 
       debugPrint('OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°');
       return correctedPath;
-    } catch (e) {
-      debugPrint('OCR: correctRotation failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('OCR: correctRotation failed ($e)\n$st');
       return imagePath;
     }
   }
@@ -332,8 +332,8 @@ class OcrService {
 
       debugPrint('OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°');
       return (regions: regions, skewAngle: skewDegrees);
-    } catch (e) {
-      debugPrint('OCR: recognition failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('OCR: recognition failed ($e)\n$st');
       return (regions: <TextRegion>[], skewAngle: 0.0);
     }
   }

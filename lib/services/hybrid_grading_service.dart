@@ -168,7 +168,8 @@ class HybridGradingService {
 
       return result;
     } catch (e, stackTrace) {
-      debugPrint('HybridGrading: grading failed for $studentName (${e.runtimeType})');
+      debugPrint('HybridGrading: grading failed for $studentName ($e)
+$st');
       debugPrint('Stack: $stackTrace');
       return _failedResult(
         assessmentId: assessment.id,
@@ -342,8 +343,9 @@ class HybridGradingService {
     try {
       await _saveWithRetry(result);
       return true;
-    } catch (e) {
-      debugPrint('HybridGrading: saveScanResult failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('HybridGrading: saveScanResult failed ($e)
+$st');
       return false;
     }
   }
@@ -365,7 +367,7 @@ class HybridGradingService {
 
       // Opportunistically flush pending saves
       await flushPendingSaves();
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('HybridGrading: save failed (${e.runtimeType}), retrying in 500ms…');
       await Future.delayed(const Duration(milliseconds: 500));
       try {
@@ -392,8 +394,9 @@ class HybridGradingService {
       try {
         await box.put(result.id, result.toMap());
         succeeded.add(result);
-      } catch (e) {
-        debugPrint('HybridGrading: flush failed for ${result.id} (${e.runtimeType})');
+      } catch (e, st) {
+        debugPrint('HybridGrading: flush failed for ${result.id} ($e)
+$st');
       }
     }
 
@@ -423,8 +426,9 @@ class HybridGradingService {
 
       results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
       return results;
-    } catch (e) {
-      debugPrint('HybridGrading: loadScanResults failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('HybridGrading: loadScanResults failed ($e)
+$st');
       return [];
     }
   }
@@ -436,8 +440,9 @@ class HybridGradingService {
       final data = await box.get(id);
       if (data == null) return null;
       return ScanResult.fromMap(Map<String, dynamic>.from(data as Map));
-    } catch (e) {
-      debugPrint('HybridGrading: getScanResultById failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('HybridGrading: getScanResultById failed ($e)
+$st');
       return null;
     }
   }
@@ -448,8 +453,9 @@ class HybridGradingService {
       final box = Hive.lazyBox(_scanResultsBoxName);
       await box.delete(id);
       return true;
-    } catch (e) {
-      debugPrint('HybridGrading: deleteScanResult failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('HybridGrading: deleteScanResult failed ($e)
+$st');
       return false;
     }
   }
@@ -472,8 +478,9 @@ class HybridGradingService {
 
       results.sort((a, b) => b.scannedAt.compareTo(a.scannedAt));
       return results;
-    } catch (e) {
-      debugPrint('HybridGrading: getResultsForStudent failed (${e.runtimeType})');
+    } catch (e, st) {
+      debugPrint('HybridGrading: getResultsForStudent failed ($e)
+$st');
       return [];
     }
   }

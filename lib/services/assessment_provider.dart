@@ -58,7 +58,7 @@ class AssessmentProvider extends ChangeNotifier {
           .map((data) => Assessment.fromMap(Map<String, dynamic>.from(data)))
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[AssessmentProvider] loadAssessments failed: $e');
       _assessments = [];
     }
@@ -85,7 +85,7 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       await box.put(assessment.id, assessment.toMap());
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[AssessmentProvider] addAssessment Hive write failed: $e');
       return Result.failure('Failed to save assessment');
     }
@@ -112,7 +112,7 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       await box.put(assessment.id, assessment.toMap());
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[AssessmentProvider] updateAssessment Hive write failed: $e');
       return Result.failure('Failed to update assessment');
     }
@@ -139,7 +139,7 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       await box.delete(assessmentId);
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[AssessmentProvider] deleteAssessment Hive delete failed: $e');
       return Result.failure('Failed to delete assessment');
     }
@@ -221,7 +221,7 @@ class AssessmentProvider extends ChangeNotifier {
     try {
       final box = Hive.box(AppConstants.assessmentsBox);
       await box.clear();
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[AssessmentProvider] clearAll failed: $e');
     }
     _assessments.clear();

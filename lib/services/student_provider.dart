@@ -65,7 +65,7 @@ class StudentProvider extends ChangeNotifier {
         ..sort((a, b) => a.fullName.toLowerCase().compareTo(
               b.fullName.toLowerCase(),
             ));
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[StudentProvider] loadStudents failed: $e');
       _students = [];
     }
@@ -112,7 +112,7 @@ class StudentProvider extends ChangeNotifier {
     // Persist
     try {
       await box.put(withId.id, withId.toMap());
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[StudentProvider] addStudent Hive write failed: $e');
       return Result.failure('Failed to save student');
     }
@@ -141,7 +141,7 @@ class StudentProvider extends ChangeNotifier {
 
     try {
       await box.put(student.id, student.toMap());
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[StudentProvider] updateStudent Hive write failed: $e');
       return Result.failure('Failed to update student');
     }
@@ -165,7 +165,7 @@ class StudentProvider extends ChangeNotifier {
 
     try {
       await box.delete(studentId);
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[StudentProvider] deleteStudent Hive delete failed: $e');
       return Result.failure('Failed to delete student');
     }
@@ -231,7 +231,7 @@ class StudentProvider extends ChangeNotifier {
     try {
       final box = Hive.box(AppConstants.studentsBox);
       await box.clear();
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('[StudentProvider] clearAll failed: $e');
     }
     _students.clear();
