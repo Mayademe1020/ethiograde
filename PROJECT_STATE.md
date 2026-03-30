@@ -127,6 +127,7 @@
 | setState mounted guard in batch scan | ✅ Done | QA | 1 | Prevents crash on navigation during batch processing |
 | Replace print() with debugPrint() in voice service | ✅ Done | QA | 1 | Zero print() calls in lib/ verified |
 | Fix TextEditingControllers leaked in dialogs | ✅ Done | QA | 2 | subscription (2), import_excel (7), answer_key (1) controllers now disposed |
+| Image cleanup for captured/enhanced files | ✅ Done | QA | 2 | OcrService cleanup methods, CameraScreen + BatchScanScreen dispose cleanup |
 
 ### Completed Sprint 0
 

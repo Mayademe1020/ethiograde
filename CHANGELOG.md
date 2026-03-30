@@ -15,6 +15,13 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Image cleanup for captured and enhanced files**
+  - 50-paper scan sessions left 50+ temp images on disk forever
+  - OcrService: `cleanupEnhancedImages()` deletes `*_enhanced.jpg` + `*_corrected.jpg`
+  - OcrService: `cleanupImages()` batch-deletes originals + enhanced variants
+  - CameraScreen: `_batchStarted` flag tracks if images were handed to batch; cleans up on dispose if teacher backs out
+  - BatchScanScreen: cleans up enhanced images in `dispose()` after grading
+  - Best-effort cleanup, never crashes the pipeline
 - **OutOfMemoryError retry at 1080p in enhanceImage()**
   - 2GB phones scanning 5MP images could OOM and crash with no recovery
   - Extracted `_enhanceImageAtDimension(imagePath, maxDim)` as core logic
