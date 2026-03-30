@@ -7,6 +7,7 @@ import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../services/locale_provider.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../services/ocr_service.dart';
 import '../../services/analytics_provider.dart';
 import '../../services/scoring_service.dart';
 
@@ -23,6 +24,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
   bool _isProcessing = false;
   int _processedCount = 0;
   int _totalCount = 0;
+  List<String> _imagePaths = [];
 
   @override
   void didChangeDependencies() {
@@ -32,6 +34,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
       final images = args['images'] as List<String>;
       final assessment = args['assessment'] as Assessment?;
       if (assessment != null) {
+        _imagePaths = List<String>.from(images);
         _totalCount = images.length;
         _processBatch(images, assessment);
       }
@@ -375,6 +378,18 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     if (_results.isEmpty) return 0;
     final passed = _results.where((r) => r.percentage >= 50).length;
     return passed / _results.length * 100;
+  }
+
+  @override
+  void dispose() {
+    // Clean up enhanced/corrected images after grading completes.
+    // Original captured images are managed by CameraScreen.
+    if (_imagePaths.isNotEmpty) {
+      for (final path in _imagePaths) {
+        OcrService().cleanupEnhancedImages(path);
+      }
+    }
+    super.dispose();
   }
 }
 

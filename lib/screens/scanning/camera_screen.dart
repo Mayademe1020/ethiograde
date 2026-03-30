@@ -10,6 +10,7 @@ import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../services/ocr_service.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Camera screen with continuous batch capture flow.
@@ -37,6 +38,9 @@ class _CameraScreenState extends State<CameraScreen>
   final List<int?> _capturedHashes = []; // Parallel hash cache for batch
   List<int?> _existingHashes = []; // Hashes from previously saved scans
   bool _existingHashesLoaded = false;
+  /// Track whether images were handed off to batch processing.
+  /// If teacher backs out without scanning, clean up captured files.
+  bool _batchStarted = false;
   Assessment? _selectedAssessment;
   PaperGuideState _guideState = PaperGuideState.idle;
 
@@ -587,6 +591,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   /// Navigate to BatchScanScreen for batch processing.
   void _finishBatch() {
+    _batchStarted = true;
     Navigator.pushNamed(
       context,
       AppRoutes.batchScan,
@@ -609,6 +614,10 @@ class _CameraScreenState extends State<CameraScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _cameraController?.dispose();
+    // Clean up captured images if teacher backed out without scanning
+    if (!_batchStarted && _capturedImages.isNotEmpty) {
+      OcrService().cleanupImages(_capturedImages);
+    }
     super.dispose();
   }
 

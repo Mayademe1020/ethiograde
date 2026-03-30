@@ -369,6 +369,38 @@ class OcrService {
     }
   }
 
+  /// Delete enhanced/corrected images created during processing.
+  ///
+  /// Cleans up *_enhanced.jpg and *_corrected.jpg files alongside
+  /// the original [imagePath]. Safe to call on any path — silently
+  /// ignores missing files. Never throws.
+  Future<void> cleanupEnhancedImages(String imagePath) async {
+    try {
+      final dotIndex = imagePath.lastIndexOf('.');
+      final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+      final enhanced = File('${basePath}_enhanced.jpg');
+      if (await enhanced.exists()) await enhanced.delete();
+      final corrected = File('${basePath}_corrected.jpg');
+      if (await corrected.exists()) await corrected.delete();
+    } catch (_) {
+      // Never block the pipeline on cleanup failure
+    }
+  }
+
+  /// Delete a list of image files and their enhanced variants.
+  /// Safe to call on any paths — silently ignores missing files.
+  Future<void> cleanupImages(List<String> imagePaths) async {
+    for (final path in imagePaths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+        await cleanupEnhancedImages(path);
+      } catch (_) {
+        // Continue cleaning other files
+      }
+    }
+  }
+
   /// Check if an image is a duplicate of any existing scan results.
   ///
   /// Computes the hash of [imagePath] and compares it against the
