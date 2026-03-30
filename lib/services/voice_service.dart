@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:record/record.dart';
@@ -26,8 +27,8 @@ class VoiceService {
 
     // Init speech recognition
     final available = await _speech.initialize(
-      onError: (error) => print('Speech error: $error'),
-      onStatus: (status) => print('Speech status: $status'),
+      onError: (error) => debugPrint('Speech error: $error'),
+      onStatus: (status) => debugPrint('Speech status: $status'),
     );
 
     // Init TTS
