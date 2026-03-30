@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -7,6 +8,7 @@ import '../../models/scan_result.dart';
 import '../../services/locale_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/analytics_provider.dart';
+import '../../services/scoring_service.dart';
 
 class BatchScanScreen extends StatefulWidget {
   const BatchScanScreen({super.key});
@@ -17,6 +19,7 @@ class BatchScanScreen extends StatefulWidget {
 
 class _BatchScanScreenState extends State<BatchScanScreen> {
   final List<ScanResult> _results = [];
+  List<AnswerDuplicate> _duplicates = [];
   bool _isProcessing = false;
   int _processedCount = 0;
   int _totalCount = 0;
@@ -56,6 +59,14 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
       _results.addAll(results);
       _isProcessing = false;
     });
+
+    // Detect answer-pattern duplicates (post-OCR)
+    if (_results.length >= 2) {
+      _duplicates = grading.detectBatchDuplicates(_results);
+      if (_duplicates.isNotEmpty) {
+        debugPrint('BatchScan: ${_duplicates.length} answer-pattern duplicate(s) detected');
+      }
+    }
 
     // Compute analytics after batch completes
     if (mounted && _results.isNotEmpty) {
@@ -187,6 +198,52 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                       color: AppTheme.success,
                     ),
                   ),
+                ],
+              ),
+            ),
+
+          // Duplicate warnings (answer-pattern detection)
+          if (_duplicates.isNotEmpty && !_isProcessing)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryYellow.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.primaryYellow.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          color: AppTheme.primaryYellow, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        isAm ? 'ሊመሰሉ የሚችሉ ቅጂዎች' : 'Possible Duplicates',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...(_duplicates.map((d) {
+                    final nameA = d.scanIndexA < _results.length
+                        ? _results[d.scanIndexA].studentName
+                        : '#${d.scanIndexA + 1}';
+                    final nameB = d.scanIndexB < _results.length
+                        ? _results[d.scanIndexB].studentName
+                        : '#${d.scanIndexB + 1}';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        isAm
+                            ? '  #$nameA እና #$nameB — መልሶች ${d.matchPercent.toStringAsFixed(0)}% ተመሳሰሉ'
+                            : '  #$nameA & #$nameB — answers ${d.matchPercent.toStringAsFixed(0)}% match',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    );
+                  })),
                 ],
               ),
             ),
