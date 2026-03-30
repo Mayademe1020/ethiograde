@@ -4,30 +4,36 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
 import 'ocr_service.dart';
+import 'omr_service.dart';
+import 'bubble_template.dart';
 import 'scoring_service.dart';
 import 'validation_service.dart';
+import 'answer_parser.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.
 ///
 /// This is the service that screens should call — not OcrService directly.
-/// It provides a stable API while we iterate on the underlying OCR and
-/// (future) OMR implementations.
 ///
-/// Design rationale:
-/// - OcrService handles low-level image processing and text extraction
-/// - ScoringService handles answer matching and grade calculation
-/// - HybridGradingService orchestrates both and adds business logic
-///   (error handling, retry logic, batch processing, progress reporting)
-///   and now auto-persists every graded result to the encrypted Hive box.
+/// Architecture:
+/// - OcrService: image enhancement + ML Kit text extraction
+/// - OmrService: template-based bubble detection (pixel sampling)
+/// - ScoringService: answer matching + grade calculation
+/// - HybridGradingService: orchestrates all three, merges OCR+OMR results,
+///   adds business logic (error handling, retry, batch, persistence)
 ///
-/// Future: when OMR (bubble detection) is added, this service will run
-/// both OCR and OMR in parallel and merge results — hence "Hybrid".
+/// Hybrid merge strategy:
+/// - MCQ / TrueFalse → OMR wins (bubbles are the source of truth)
+/// - Short answer → OCR wins (OMR can't read free text)
+/// - Both detect → keep OMR for objective, OCR for subjective
+/// - Neither detects → mark MISSING
+/// - OMR confidence < 0.5 → fall back to OCR even for MCQ
 class HybridGradingService {
   static final HybridGradingService _instance = HybridGradingService._();
   factory HybridGradingService() => _instance;
   HybridGradingService._();
 
   final OcrService _ocr = OcrService();
+  final OmrService _omr = OmrService();
   final ScoringService _scoring = const ScoringService();
   static const ValidationService _validator = ValidationService();
   bool _isInitialized = false;
@@ -49,14 +55,8 @@ class HybridGradingService {
   /// Grade a single paper image against an assessment.
   ///
   /// This is the primary entry point for single-paper grading.
-  /// Handles the full pipeline:
-  /// 1. Enhance image (downscale, grayscale, contrast)
-  /// 2. Extract text via ML Kit (offline, on-device)
-  /// 3. Parse question-answer pairs
-  /// 4. Deduplicate duplicate detections
-  /// 5. Score against assessment answer key
-  /// 6. Calculate grade and confidence
-  /// 7. Auto-save to encrypted Hive box (with retry)
+  /// Runs both OCR and OMR on the enhanced image, merges results,
+  /// scores against the answer key, and auto-persists.
   ///
   /// Returns a ScanResult with status set to graded or needsRescan.
   /// Never throws — returns a failed ScanResult on error so the UI
@@ -66,6 +66,7 @@ class HybridGradingService {
     required Assessment assessment,
     required String studentId,
     required String studentName,
+    BubbleTemplate? template,
   }) async {
     await initialize();
 
@@ -83,17 +84,83 @@ class HybridGradingService {
     }
 
     try {
-      final result = await _ocr.processScannedPaper(
-        imagePath: imagePath,
+      // ── Step 1: Enhance image (once) ──
+      // Both OCR and OMR work on the same enhanced image
+      final enhancedPath = await _ocr.enhanceImage(imagePath);
+
+      // ── Step 2: Run OCR and OMR ──
+      // No parallelism — sequential is safe for 2GB devices
+      final extractionResult = await _ocr.extractTextRegions(enhancedPath);
+
+      final ocrAnswers = _parseOcrAnswers(extractionResult.regions, assessment);
+      final omrAnswers = await _omr.detectAndParse(
+        enhancedImagePath: enhancedPath,
         assessment: assessment,
+        template: template,
+      );
+
+      // ── Step 3: Merge OCR + OMR results ──
+      final mergedAnswers = _mergeAnswers(
+        ocrAnswers: ocrAnswers,
+        omrAnswers: omrAnswers,
+        assessment: assessment,
+      );
+
+      // ── Step 4: Deduplicate (same Q# detected twice) ──
+      final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
+
+      // ── Step 5: Score against answer key ──
+      final scoredAnswers = _scoring.scoreAnswers(
+        detected: deduplicated,
+        assessment: assessment,
+      );
+
+      // ── Step 6: Calculate totals ──
+      final totalScore = _scoring.calculateTotalScore(scoredAnswers);
+      final maxScore = assessment.maxScore;
+      final percentage = _scoring.calculatePercentage(
+        totalScore: totalScore,
+        maxScore: maxScore,
+      );
+      final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
+
+      // ── Step 7: Build metadata ──
+      final metadata = <String, dynamic>{
+        'textLinesDetected': extractionResult.regions.length,
+        'ocrAnswersDetected': ocrAnswers.length,
+        'omrAnswersDetected': omrAnswers.length,
+        'questionsMerged': mergedAnswers.length,
+        'questionsDeduplicated': deduplicated.length,
+        'duplicatesRemoved': mergedAnswers.length - deduplicated.length,
+        'skewAngle': extractionResult.skewAngle,
+        'skewWarning': extractionResult.skewAngle.abs() > 8.0,
+        'omrConfidence': omrAnswers.isEmpty
+            ? 0.0
+            : omrAnswers.fold(0.0, (s, a) => s + a.confidence) / omrAnswers.length,
+        'detectedMethod': omrAnswers.isNotEmpty ? 'hybrid' : 'ocr-only',
+      };
+
+      final result = ScanResult(
+        assessmentId: assessment.id,
         studentId: studentId,
         studentName: studentName,
+        imagePath: imagePath,
+        enhancedImagePath: enhancedPath,
+        answers: scoredAnswers,
+        totalScore: totalScore,
+        maxScore: maxScore,
+        percentage: percentage,
+        grade: _scoring.calculateGrade(percentage.toDouble(), assessment.rubricType),
+        status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
+        confidence: overallConfidence,
+        metadata: metadata,
       );
 
       debugPrint(
         'HybridGrading: ${result.studentName} → '
         '${result.totalScore}/${result.maxScore} '
-        '(${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf)',
+        '(${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, '
+        '${metadata['detectedMethod']})',
       );
 
       // Auto-save with retry — never let persistence break the grading flow
@@ -122,6 +189,7 @@ class HybridGradingService {
   /// [assessment] — the assessment with answer key
   /// [studentNames] — optional list of student names (same length as images).
   ///   If null, auto-generates "Student 1", "Student 2", etc.
+  /// [template] — optional OMR template override; auto-selected if null
   /// [onProgress] — called after each image with (processed, total)
   ///
   /// Returns all results, including failed ones (check status field).
@@ -129,6 +197,7 @@ class HybridGradingService {
     required List<String> imagePaths,
     required Assessment assessment,
     List<String>? studentNames,
+    BubbleTemplate? template,
     void Function(int processed, int total)? onProgress,
   }) async {
     await initialize();
@@ -145,6 +214,7 @@ class HybridGradingService {
         assessment: assessment,
         studentId: 'student_${i + 1}',
         studentName: name,
+        template: template,
       );
 
       results.add(result);
@@ -161,12 +231,12 @@ class HybridGradingService {
   }
 
   /// Re-grade a single paper (e.g., after teacher manually adjusts image).
-  /// Same as [gradePaper] but logs differently for debugging.
   Future<ScanResult> regradePaper({
     required String imagePath,
     required Assessment assessment,
     required String studentId,
     required String studentName,
+    BubbleTemplate? template,
   }) async {
     debugPrint('HybridGrading: re-grading $studentName');
     return gradePaper(
@@ -174,7 +244,93 @@ class HybridGradingService {
       assessment: assessment,
       studentId: studentId,
       studentName: studentName,
+      template: template,
     );
+  }
+
+  // ── Answer Merging ────────────────────────────────────────────────
+
+  /// Merge OCR and OMR results using the hybrid strategy.
+  ///
+  /// For each question in the assessment:
+  /// - MCQ / TrueFalse → prefer OMR (bubbles are source of truth)
+  ///   - Fall back to OCR if OMR confidence < 0.5
+  /// - ShortAnswer → always use OCR (OMR can't read free text)
+  /// - Essay → always use OCR
+  ///
+  /// If both have the answer with similar confidence, OMR wins for objective.
+  List<DetectedAnswer> _mergeAnswers({
+    required List<DetectedAnswer> ocrAnswers,
+    required List<DetectedAnswer> omrAnswers,
+    required Assessment assessment,
+  }) {
+    final merged = <DetectedAnswer>[];
+
+    // Index by question number for fast lookup
+    final ocrByQ = <int, DetectedAnswer>{};
+    for (final a in ocrAnswers) {
+      ocrByQ[a.questionNumber] = a;
+    }
+
+    final omrByQ = <int, DetectedAnswer>{};
+    for (final a in omrAnswers) {
+      omrByQ[a.questionNumber] = a;
+    }
+
+    for (final question in assessment.questions) {
+      final ocr = ocrByQ[question.number];
+      final omr = omrByQ[question.number];
+
+      final isObjective = question.type == QuestionType.mcq ||
+          question.type == QuestionType.trueFalse;
+
+      if (isObjective) {
+        // Objective questions: OMR preferred
+        if (omr != null && omr.confidence >= 0.5) {
+          merged.add(omr);
+        } else if (ocr != null) {
+          // OMR absent or low-confidence — use OCR
+          merged.add(ocr);
+        } else if (omr != null) {
+          // OMR below 0.5 but nothing else — still use it
+          merged.add(omr);
+        }
+        // else: neither detected → skip (will show as MISSING in scoring)
+      } else {
+        // Subjective questions: OCR always
+        if (ocr != null) {
+          merged.add(ocr);
+        }
+      }
+    }
+
+    return merged;
+  }
+
+  /// Parse OCR text regions into DetectedAnswers.
+  List<DetectedAnswer> _parseOcrAnswers(
+    List<TextRegion> regions,
+    Assessment assessment,
+  ) {
+    final parser = const AnswerParser();
+    final inputs = regions
+        .map((r) => TextRegionInput(
+              text: r.text,
+              confidence: r.confidence,
+              x: r.x,
+              y: r.y,
+            ))
+        .toList();
+
+    return parser
+        .parseAnswers(inputs)
+        .map((p) => DetectedAnswer(
+              questionNumber: p.questionNumber,
+              answer: p.answer,
+              confidence: p.confidence,
+              rawText: p.rawText,
+            ))
+        .toList();
   }
 
   // ── Persistence ───────────────────────────────────────────────────

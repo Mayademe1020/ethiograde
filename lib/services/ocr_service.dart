@@ -113,7 +113,7 @@ class OcrService {
     final enhancedPath = await enhanceImage(imagePath);
 
     // 2. Extract text regions using ML Kit (on-device, offline)
-    final extractionResult = await _extractTextRegions(enhancedPath);
+    final extractionResult = await extractTextRegions(enhancedPath);
 
     // 3. Parse question numbers and answers
     final parsedAnswers = _parseAnswers(extractionResult.regions, assessment);
@@ -162,9 +162,12 @@ class OcrService {
     );
   }
 
-  /// Extract text regions from an image using ML Kit.
+  /// Extract text regions from an enhanced image using ML Kit.
   /// Also estimates paper skew angle from text block alignment.
-  Future<({List<TextRegion> regions, double skewAngle})> _extractTextRegions(
+  ///
+  /// Public so HybridGradingService can run OCR and OMR on the same
+  /// enhanced image without double-enhancing.
+  Future<({List<TextRegion> regions, double skewAngle})> extractTextRegions(
     String imagePath,
   ) async {
     await initialize();
