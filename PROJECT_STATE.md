@@ -111,7 +111,7 @@
 | Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
 | Pure Dart perspective correction | 📋 Pending | ML | — | Sprint 1 task 3 |
 | Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
-| Score override/edit flow | 📋 Pending | UX | — | Sprint 1 task 5 |
+| Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric (not hardcoded). |
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
 | End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
 | Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |

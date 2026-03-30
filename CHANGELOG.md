@@ -15,6 +15,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Enhanced score override in review screen (answer type-aware editing)**
+  - Fix: `_recalculateAndRefresh()` no longer hardcodes 'moe_national' — looks up actual
+    assessment rubric type via AssessmentProvider using ScanResult.assessmentId
+  - New override dialog with question-type-specific answer pickers:
+    - MCQ: tappable A/B/C/D/E chips, highlights current + shows correct-answer indicator
+    - True/False: large visual buttons with Ethiopian green/red colors + Amharic labels (እውነት/ሐሰት)
+    - Short answer: inline text editor with submit button (works with Amharic input)
+  - `_applyAnswerChange()`: replaces the detected answer, auto-checks correctness against answer key,
+    sets confidence to 1.0 (teacher verified), recalculates total/grade/percentage
+  - Kept quick correct/wrong toggle as fallback for all question types
+  - All bilingual (Amharic/English)
 - **Answer-pattern duplicate detection for batch scans**
   - Solves the fundamental dHash limitation: 64-bit perceptual hashing can't distinguish
     same-format MCQ papers (different students, same layout). Only ~10% of pixels differ
