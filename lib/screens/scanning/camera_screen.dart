@@ -10,6 +10,7 @@ import '../../models/scan_result.dart';
 import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../widgets/paper_guide_overlay.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -28,6 +29,7 @@ class _CameraScreenState extends State<CameraScreen>
   int _scanCount = 0;
   final List<String> _capturedImages = [];
   Assessment? _selectedAssessment;
+  PaperGuideState _guideState = PaperGuideState.idle;
 
   @override
   void initState() {
@@ -97,9 +99,7 @@ class _CameraScreenState extends State<CameraScreen>
 
                 // Scan guide overlay
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _ScanGuidePainter(),
-                  ),
+                  child: PaperGuideOverlay(state: _guideState, isAmharic: isAm),
                 ),
 
                 // Top bar
@@ -572,88 +572,4 @@ class _CameraScreenState extends State<CameraScreen>
       _initializeCamera();
     }
   }
-}
-
-class _ScanGuidePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    // Draw guide rectangle
-    final rect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2 - 40),
-      width: size.width * 0.85,
-      height: size.height * 0.55,
-    );
-
-    // Corner brackets
-    const cornerLen = 30.0;
-    final cornerPaint = Paint()
-      ..color = AppTheme.primaryGreen
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-
-    // Top-left
-    canvas.drawLine(
-        Offset(rect.left, rect.top + cornerLen),
-        Offset(rect.left, rect.top),
-        cornerPaint);
-    canvas.drawLine(
-        Offset(rect.left, rect.top),
-        Offset(rect.left + cornerLen, rect.top),
-        cornerPaint);
-
-    // Top-right
-    canvas.drawLine(
-        Offset(rect.right - cornerLen, rect.top),
-        Offset(rect.right, rect.top),
-        cornerPaint);
-    canvas.drawLine(
-        Offset(rect.right, rect.top),
-        Offset(rect.right, rect.top + cornerLen),
-        cornerPaint);
-
-    // Bottom-left
-    canvas.drawLine(
-        Offset(rect.left, rect.bottom - cornerLen),
-        Offset(rect.left, rect.bottom),
-        cornerPaint);
-    canvas.drawLine(
-        Offset(rect.left, rect.bottom),
-        Offset(rect.left + cornerLen, rect.bottom),
-        cornerPaint);
-
-    // Bottom-right
-    canvas.drawLine(
-        Offset(rect.right - cornerLen, rect.bottom),
-        Offset(rect.right, rect.bottom),
-        cornerPaint);
-    canvas.drawLine(
-        Offset(rect.right, rect.bottom - cornerLen),
-        Offset(rect.right, rect.bottom),
-        cornerPaint);
-
-    // Center crosshair
-    final center = rect.center;
-    final crossPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(center.dx - 20, center.dy),
-      Offset(center.dx + 20, center.dy),
-      crossPaint,
-    );
-    canvas.drawLine(
-      Offset(center.dx, center.dy - 20),
-      Offset(center.dx, center.dy + 20),
-      crossPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
