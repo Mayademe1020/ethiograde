@@ -6,6 +6,7 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
+import '../../models/student.dart';
 import '../../models/class_info.dart';
 import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
@@ -13,6 +14,7 @@ import '../../services/analytics_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/settings_provider.dart';
 import '../../services/pdf_service.dart';
+import '../../services/hybrid_grading_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -212,41 +214,55 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     try {
       final students = context.read<StudentProvider>().students;
+      final grading = HybridGradingService();
+      final scanResults = await grading.loadScanResults(_selectedAssessment!.id);
       final pdf = PdfService();
 
-      // Generate first student report as example
-      if (students.isNotEmpty) {
-        final result = ScanResult(
-          assessmentId: _selectedAssessment!.id,
-          studentId: students.first.id,
-          studentName: students.first.fullName,
-          imagePath: '',
-          totalScore: 75,
-          maxScore: 100,
-          percentage: 75,
-          grade: 'B',
-          answers: _selectedAssessment!.questions.map((q) => AnswerMatch(
-            questionNumber: q.number,
-            detectedAnswer: 'A',
-            correctAnswer: q.correctAnswer?.toString() ?? 'A',
-            isCorrect: true,
-            score: q.points,
-            maxScore: q.points,
-          )).toList(),
-        );
-
-        final file = await pdf.generateStudentReport(
-          student: students.first,
-          assessment: _selectedAssessment!,
-          result: result,
-          schoolName: settings.schoolName,
-          teacherName: settings.teacherName,
-          rubricType: _selectedAssessment!.rubricType,
-          isAmharic: isAm,
-        );
-
-        setState(() => _generatedPdf = file);
+      if (scanResults.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isAm
+                    ? 'ለዚህ ፈተና ውጤት የለም — መጀመሪያ ይስካኩ'
+                    : 'No scan results for this assessment — scan papers first',
+              ),
+            ),
+          );
+        }
+        return;
       }
+
+      // Generate report for the first student with a matching scan result
+      final student = students.cast<Student?>().firstWhere(
+            (s) => s?.id == scanResults.first.studentId,
+            orElse: () => students.isNotEmpty ? students.first : null,
+          );
+
+      if (student == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isAm ? 'ተማሪ አልተገኘም' : 'No student found for scan results',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final file = await pdf.generateStudentReport(
+        student: student,
+        assessment: _selectedAssessment!,
+        result: scanResults.first,
+        schoolName: settings.schoolName,
+        teacherName: settings.teacherName,
+        rubricType: _selectedAssessment!.rubricType,
+        isAmharic: isAm,
+      );
+
+      setState(() => _generatedPdf = file);
     } catch (e) {
       debugPrint('PDF generation error: $e');
     } finally {
@@ -264,21 +280,36 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     try {
       final analytics = context.read<AnalyticsProvider>().currentAnalytics;
+      final grading = HybridGradingService();
+      final scanResults = await grading.loadScanResults(_selectedAssessment!.id);
       final pdf = PdfService();
 
-      if (analytics != null) {
-        final file = await pdf.generateClassReport(
-          assessment: _selectedAssessment!,
-          results: [],
-          analytics: analytics,
-          schoolName: settings.schoolName,
-          teacherName: settings.teacherName,
-          rubricType: _selectedAssessment!.rubricType,
-          isAmharic: isAm,
-        );
-
-        setState(() => _generatedPdf = file);
+      if (analytics == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isAm
+                    ? 'ትንተና የለም — መጀመሪያ ይስካኩ'
+                    : 'No analytics — scan papers first',
+              ),
+            ),
+          );
+        }
+        return;
       }
+
+      final file = await pdf.generateClassReport(
+        assessment: _selectedAssessment!,
+        results: scanResults, // Real data from Hive
+        analytics: analytics,
+        schoolName: settings.schoolName,
+        teacherName: settings.teacherName,
+        rubricType: _selectedAssessment!.rubricType,
+        isAmharic: isAm,
+      );
+
+      setState(() => _generatedPdf = file);
     } catch (e) {
       debugPrint('PDF generation error: $e');
     } finally {
