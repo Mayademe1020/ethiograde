@@ -455,13 +455,21 @@ class _AssessmentsTab extends StatelessWidget {
   }
 }
 
-class _StudentsTab extends StatelessWidget {
+class _StudentsTab extends StatefulWidget {
   final bool isAmharic;
   const _StudentsTab({required this.isAmharic});
 
   @override
+  State<_StudentsTab> createState() => _StudentsTabState();
+}
+
+class _StudentsTabState extends State<_StudentsTab> {
+  String _searchQuery = '';
+
+  @override
   Widget build(BuildContext context) {
     final students = context.watch<StudentProvider>();
+    final isAmharic = widget.isAmharic;
 
     return SafeArea(
       child: Column(
@@ -510,7 +518,7 @@ class _StudentsTab extends StatelessWidget {
                 prefixIcon: const Icon(Icons.search),
               ),
               onChanged: (q) {
-                // TODO: Implement search
+                setState(() => _searchQuery = q.trim().toLowerCase());
               },
             ),
           ),
@@ -557,35 +565,62 @@ class _StudentsTab extends StatelessWidget {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: students.studentsByClass.length,
-                    itemBuilder: (context, index) {
-                      final student = students.studentsByClass[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
-                          child: Text(
-                            student.firstName[0],
-                            style: const TextStyle(
-                              color: AppTheme.primaryGreen,
-                              fontWeight: FontWeight.bold,
-                            ),
+                : Builder(
+                    builder: (context) {
+                      final filtered = _searchQuery.isEmpty
+                          ? students.studentsByClass
+                          : students.studentsByClass
+                              .where((s) => s.fullName.toLowerCase().contains(_searchQuery))
+                              .toList();
+                      if (filtered.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search_off,
+                                  size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 12),
+                              Text(
+                                isAmharic
+                                    ? '"$_searchQuery" አልተገኘም'
+                                    : 'No match for "$_searchQuery"',
+                                style: TextStyle(color: AppTheme.lightText),
+                              ),
+                            ],
                           ),
-                        ),
-                        title: Text(student.fullName),
-                        subtitle: Text(
-                          '${student.className} ${student.section}'.trim(),
-                        ),
-                        trailing: student.studentId.isNotEmpty
-                            ? Text(
-                                student.studentId,
-                                style: TextStyle(
-                                  color: AppTheme.lightText,
-                                  fontSize: 12,
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final student = filtered[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                              child: Text(
+                                student.firstName[0],
+                                style: const TextStyle(
+                                  color: AppTheme.primaryGreen,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              )
-                            : null,
+                              ),
+                            ),
+                            title: Text(student.fullName),
+                            subtitle: Text(
+                              '${student.className} ${student.section}'.trim(),
+                            ),
+                            trailing: student.studentId.isNotEmpty
+                                ? Text(
+                                    student.studentId,
+                                    style: TextStyle(
+                                      color: AppTheme.lightText,
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
+                          );
+                        },
                       );
                     },
                   ),
