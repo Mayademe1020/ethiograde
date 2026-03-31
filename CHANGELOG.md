@@ -15,6 +15,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Pure Dart perspective correction for document images**
+  - PerspectiveCorrectionService: detects document corners using edge detection (Sobel gradient)
+  - Computes 3x3 homography matrix via Direct Linear Transform (DLT)
+  - Warps source image to flat rectangle using inverse mapping + bilinear interpolation
+  - Corner detection runs at 400px resolution for speed on 2GB devices
+  - Confidence scoring: convexity check, area ratio, edge proximity
+  - Graceful fallback: returns original image if detection fails or confidence < 0.4
+  - Integrated into OcrService.processScannedPaper: tries perspective correction first when skew detected, falls back to simple rotation if perspective doesn't improve results
+  - New metadata field: `perspectiveCorrected` tracks whether correction was applied
+  - Cleanup handles `_perspective.jpg` temp files alongside `_enhanced.jpg` and `_corrected.jpg`
+  - 9 unit tests: missing file, corrupt image, corner detection, warp output, confidence, no-throw guarantee
 - **Stack traces in critical service catch blocks**
   - catch (e) blocks in grading and persistence only logged error type, not stack traces
   - Changed catch (e) → catch (e, st) in 20 catch blocks across 4 services

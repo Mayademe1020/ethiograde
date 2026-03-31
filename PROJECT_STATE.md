@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel; zero widget tests |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction; zero widget tests |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -109,7 +109,7 @@
 | Create HybridGradingService | ✅ Done | Backend | 3 | Orchestrates OcrService + ScoringService; error handling, batch with progress callback |
 | Unit tests for OcrService | ✅ Done | QA | 5 | 40+ tests: TextRegion model, enhanceImage (downscale/grayscale/contrast/edge cases), parseAnswers integration, deduplication, scoring pipeline, ScanResult serialization |
 | Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
-| Pure Dart perspective correction | 📋 Pending | ML | — | Sprint 1 task 3 |
+| Pure Dart perspective correction | ✅ Done | ML | 5 | PerspectiveCorrectionService: corner detection, homography, bilinear warp. Integrated into OCR pipeline as primary correction before fallback to simple rotation. 9 tests. |
 | Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
 | Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric. Auto-saves to Hive on confirm. Save All for batch overrides. |
 | Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
