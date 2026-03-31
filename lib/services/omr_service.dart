@@ -244,13 +244,51 @@ class OmrService {
 
   // ── Internal ──────────────────────────────────────────────────────
 
-  /// Sample the fill ratio at a specific position.
+  /// Sample the fill ratio at a specific position with adaptive thresholding.
   ///
-  /// Returns 0.0 (empty) to 1.0 (fully filled).
-  /// Uses a square sampling region centered at (cx, cy) with the
-  /// given radius. Counts pixels below a brightness threshold.
+  /// Instead of a hardcoded brightness threshold, this samples the background
+  /// brightness from a ring around the bubble and sets the threshold relative
+  /// to it. This handles bright sunlight (paper at 0.9+), dim classrooms
+  /// (paper at 0.5), and everything in between.
+  ///
+  /// Algorithm:
+  /// 1. Sample an outer ring (radius*2 to radius*3) for background brightness
+  /// 2. Set threshold = backgroundBrightness - 0.25 (ink is ~25% darker than paper)
+  /// 3. Count pixels inside the bubble that are darker than threshold
+  /// 4. Return fill ratio (0.0 = empty, 1.0 = fully filled)
   double _sampleFillRatio(img.Image image, int cx, int cy, int radius) {
     final halfSize = radius;
+
+    // ── Step 1: Sample background brightness from outer ring ──
+    // Ring between radius*2 and radius*3 from center — this is paper, not bubble
+    int bgBrightnessSum = 0;
+    int bgCount = 0;
+    final innerR = (radius * 2).clamp(1, 50);
+    final outerR = (radius * 3).clamp(2, 80);
+
+    for (int dy = -outerR; dy <= outerR; dy++) {
+      for (int dx = -outerR; dx <= outerR; dx++) {
+        final dist2 = dx * dx + dy * dy;
+        if (dist2 < innerR * innerR || dist2 > outerR * outerR) continue;
+        final px = cx + dx;
+        final py = cy + dy;
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height) continue;
+        bgBrightnessSum += image.getPixel(px, py).r.toInt();
+        bgCount++;
+      }
+    }
+
+    // Fallback if ring is out of bounds
+    final bgBrightness = bgCount > 0
+        ? bgBrightnessSum / (bgCount * 255.0)
+        : 0.85; // assume white paper
+
+    // ── Step 2: Adaptive threshold ──
+    // Ink/pencil is typically 0.2-0.4 darker than paper
+    // Use adaptive delta: higher background → larger gap needed
+    final adaptiveThreshold = (bgBrightness - 0.25).clamp(0.15, 0.85);
+
+    // ── Step 3: Count dark pixels inside bubble ──
     int darkCount = 0;
     int totalCount = 0;
 
@@ -262,10 +300,9 @@ class OmrService {
         if (px < 0 || px >= image.width || py < 0 || py >= image.height) continue;
 
         final pixel = image.getPixel(px, py);
-        // Grayscale image — all channels equal, use red
         final brightness = pixel.r / 255.0;
 
-        if (brightness < 0.4) darkCount++; // darker than 40% = likely filled
+        if (brightness < adaptiveThreshold) darkCount++;
         totalCount++;
       }
     }

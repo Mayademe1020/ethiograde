@@ -117,8 +117,16 @@ class OcrService {
     // Grayscale — text recognition is about luminance, not color
     image = img.grayscale(image);
 
-    // Contrast boost — helps in dim classrooms, fluorescent lighting
-    // Moderate values: too aggressive destroys subtle ink differences
+    // Histogram normalization — stretches pixel range to full 0-255.
+    // In bright sunlight, paper is ~200-255 (narrow range). In dim light,
+    // paper is ~0-150. normalize() stretches whatever range exists to use
+    // the full brightness spectrum, making ink/paper separation consistent
+    // regardless of lighting. This is NOT pixel-level binarization — it's
+    // a global contrast stretch that preserves grayscale gradients.
+    img.normalize(image, min: 0, max: 255);
+
+    // Contrast boost — further separates ink from paper after normalization.
+    // Moderate values: too aggressive destroys subtle ink differences.
     image = img.adjustColor(image, contrast: 1.2);
 
     // Save as JPEG (smaller than PNG, faster to load for ML Kit)

@@ -15,6 +15,19 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Lighting normalization (Task 14)**
+  - OMR adaptive threshold: _sampleFillRatio now samples background brightness
+    from outer ring (2-3× radius) around each bubble, computes local paper
+    brightness, sets adaptive threshold = bgBrightness - 0.25
+  - Replaces hardcoded 0.4 threshold that failed in bright sunlight (bg 0.9+)
+    and dim classrooms (bg 0.5) — same physical ink mark, different readings
+  - Threshold clamped to [0.15, 0.85] to prevent extreme values
+  - OCR histogram normalization: img.normalize(image, min: 0, max: 255)
+    after grayscale, before contrast boost. Stretches whatever pixel range
+    exists to use the full 0-255 spectrum. Bright images (200-255 range)
+    and dim images (0-150 range) both get consistent ink/paper separation
+  - 2 synthetic image tests: bright background (230/255 paper), dim background
+    (120/255 paper) — both detect filled bubbles correctly
 - **Dynamic template calibration (Task 12)**
   - OmrService._calibrateTemplate(): auto-detects actual bubble positions
     and adjusts template coordinates before OMR scanning

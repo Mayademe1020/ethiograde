@@ -639,3 +639,83 @@ Assessment _makeAssessment(int questionCount) {
     });
   });
 }
+
+  group('Adaptive threshold', () {
+    test('OMR detects filled bubbles on bright background', () async {
+      // Bright paper (background ~230/255) with dark filled bubble (~50/255)
+      final image = img.Image(width: 200, height: 200, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(230, 230, 230)); // bright white bg
+
+      // Draw a dark filled bubble at center
+      for (int dy = -6; dy <= 6; dy++) {
+        for (int dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy <= 36) {
+            image.setPixelRgb(100 + dx, 100 + dy, 50, 50, 50);
+          }
+        }
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('omr_bright');
+      final path = '${tempDir.path}/bright.png';
+      await File(path).writeAsBytes(img.encodePng(image));
+
+      final template = BubbleTemplate(
+        name: 'bright-test',
+        questionCount: 1,
+        startX: 100,
+        startY: 100,
+        columnSpacing: 50,
+        rowSpacing: 50,
+        bubbleRadius: 6,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: path,
+        template: template,
+      );
+
+      // Should detect at least 1 answer (the filled bubble)
+      expect(result.answers.length, greaterThanOrEqualTo(1));
+
+      await tempDir.delete(recursive: true);
+    });
+
+    test('OMR detects filled bubbles on dim background', () async {
+      // Dim paper (background ~120/255) with dark filled bubble (~30/255)
+      final image = img.Image(width: 200, height: 200, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(120, 120, 120)); // dim gray bg
+
+      // Draw a dark filled bubble at center
+      for (int dy = -6; dy <= 6; dy++) {
+        for (int dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy <= 36) {
+            image.setPixelRgb(100 + dx, 100 + dy, 30, 30, 30);
+          }
+        }
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('omr_dim');
+      final path = '${tempDir.path}/dim.png';
+      await File(path).writeAsBytes(img.encodePng(image));
+
+      final template = BubbleTemplate(
+        name: 'dim-test',
+        questionCount: 1,
+        startX: 100,
+        startY: 100,
+        columnSpacing: 50,
+        rowSpacing: 50,
+        bubbleRadius: 6,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: path,
+        template: template,
+      );
+
+      expect(result.answers.length, greaterThanOrEqualTo(1));
+
+      await tempDir.delete(recursive: true);
+    });
+  });
+}
