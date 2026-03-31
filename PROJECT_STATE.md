@@ -67,7 +67,7 @@
 | # | Feature | Status | Owner | Depends On | Risk | Notes |
 |---|---------|--------|-------|------------|------|-------|
 | F15 | Teacher management | ❌ Stub | Backend | F07 | Medium | Dialog exists, no persistence |
-| F16 | Re-scan paper | ❌ Stub | Mobile | F01 | Low | Button exists, no logic |
+| F16 | Re-scan paper | ✅ Done | Mobile | F01 | Low | Single-capture re-scan, immediate regrade, returns updated result |
 | F17 | Dashboard search | ✅ Done | Mobile | F07 | Low | Real-time filter by student name, bilingual empty state |
 | F18 | Voice recording playback | ❌ Placeholder | Mobile | F14 | Low | Speaks "playing voice note" |
 | F19 | Batch scan flow (continuous capture) | ✅ Done | Mobile | F01, F03 | Medium | Capture-only loop, batch process on 'Done Scanning' |
