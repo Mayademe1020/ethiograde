@@ -848,12 +848,16 @@ class _SettingsTab extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c),
+            onPressed: () {
+              controller.dispose();
+              Navigator.pop(c);
+            },
             child: Text(isAm ? 'ሰርዝ' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               s.updateSchoolInfo(teacher: controller.text);
+              controller.dispose();
               Navigator.pop(c);
             },
             child: Text(isAm ? 'አስቀምጥ' : 'Save'),
@@ -877,12 +881,16 @@ class _SettingsTab extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(c),
+            onPressed: () {
+              controller.dispose();
+              Navigator.pop(c);
+            },
             child: Text(isAm ? 'ሰርዝ' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               s.updateSchoolInfo(name: controller.text);
+              controller.dispose();
               Navigator.pop(c);
             },
             child: Text(isAm ? 'አስቀምጥ' : 'Save'),

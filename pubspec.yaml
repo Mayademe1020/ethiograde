@@ -1,7 +1,7 @@
 name: ethiograde
 description: AI-powered offline grading tool for Ethiopian teachers (Grades 1-12 & Universities).
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.1.0+1
 
 environment:
   sdk: '>=3.1.0 <4.0.0'

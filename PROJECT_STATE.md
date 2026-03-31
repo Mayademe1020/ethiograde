@@ -9,9 +9,9 @@
 
 | Signal | Status | Detail |
 |--------|--------|--------|
-| **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 20+ tests for PDF (student/class/answer sheet/edge cases), 25+ tests for Excel (decode/column detection/Student model/edge cases), 9+ tests for perspective correction, 8 integration test groups for E2E flow; 7 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard, Accessibility, Dashboard 18 tests, Review 15+ tests — 78+ widget tests total); 5 tests for voice service; 7 tests for teacher model; ScanResult/AlignmentCheck model tests
-| **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
+| **Build** | 🟢 Ready | All assets wired; CI builds APK + AAB; needs first real device build |
+| **Tests** | 🟢 Good | 200+ tests across 25 test files; 7 widget test groups; integration tests for E2E + perf benchmarks
+| **CI/CD** | 🟢 Ready | GitHub Actions: lint → test → build APK/AAB → size check → metrics summary |
 | **Crash-free rate** | 🟢 Protected | Session auto-save + resume dialog; zero data loss on crash |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
 | **Security audit** | ⚫ None | No audit performed |
@@ -19,7 +19,7 @@
 | **Accessibility** | 🟢 Good | Touch targets ≥40dp verified, semantic labels on key interactive elements, contrast fixes applied, screen reader tests added |
 | **i18n coverage** | 🟢 Good | All screens bilingual, no hardcoded strings found; no extraction tool yet |
 
-**Overall Status:** 🟠 Pre-Alpha — Core pipeline real, EXIF orientation fix applied
+**Overall Status:** 🟡 v0.1.0 Ready — Core pipeline complete, needs device validation before release
 
 ---
 
@@ -27,7 +27,7 @@
 
 | Version | Codename | Status | Target | Scope |
 |---------|----------|--------|--------|-------|
-| **0.1.0** | መጀመሪያ (Genesis) | 🔨 Building | TBD | Buildable app: real OCR, real assets, working scan flow |
+| **0.1.0** | መጀመሪያ (Genesis) | 🚀 Ready for device test | v0.1.0+1 | Buildable app: real OCR, real assets, working scan flow |
 | **0.2.0** | ትምህርት (Teaching) | 📋 Planned | — | Teacher management, re-scan, search, voice playback |
 | **0.3.0** | ሪፖርት (Report) | 📋 Planned | — | Telebirr payment, advanced analytics, PDF improvements |
 | **1.0.0** | ንጉሥ (King) | 📋 Planned | — | Production release: tested, optimized, localized, shipped |

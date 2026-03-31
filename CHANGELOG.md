@@ -12,6 +12,38 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ---
 
+## [0.1.0] — 2026-04-01 — መጀመሪያ (Genesis)
+
+First buildable release. Core grading pipeline functional: scan → OCR → score → review → export.
+
+### What's in this release
+- **Camera capture** with paper guide overlay (3 color states, bilingual hints)
+- **Image enhancement** pipeline: downscale + grayscale + contrast + histogram normalization
+- **OCR extraction** via ML Kit with confidence filtering, skew detection, deduplication
+- **OMR bubble detection** with adaptive threshold, dynamic template calibration, eraser/multi-mark handling
+- **Answer parsing** (English A/B/C + Amharic ሀ/ለ/ሐ + True/False)
+- **Scoring engine**: MoE National (50% pass), Private/International (60%), University scales
+- **Review screen**: side-by-side view, manual overrides, answer-type-aware editing, auto-save
+- **Batch scan flow**: continuous capture loop, batch process on 'Done Scanning'
+- **PDF reports**: student report card + class summary, bilingual, Ethiopian calendar dates
+- **Excel import**: .xlsx student import with column detection (EN + Amharic headers)
+- **Ethiopian calendar**: Gregorian→Ethiopian conversion, 13 months, bilingual month names
+- **Encrypted storage**: AES-256 Hive boxes, flutter_secure_storage key, corrupt-box recovery
+- **Validation service**: Student/Assessment/ScanResult validation, 25+ tests
+- **Data migration**: schema versioning, ordered migrations
+- **Backup & export**: JSON export/import, auto-backup every 10 scans
+- **Duplicate detection**: dHash + Hamming distance, answer-pattern fingerprint
+- **Crash resilience**: session auto-save + resume dialog, zero data loss
+- **Accessibility**: touch targets ≥40dp, semantic labels, contrast fixes
+- **Bilingual**: all 11 screens in Amharic + English, Ethiopian calendar, NotoSansEthiopic fonts
+- **CI/CD**: lint → test → build APK/AAB → size check → metrics summary
+- **200+ tests**: unit, widget, integration, performance benchmarks
+
+### Known limitations
+- Amharic handwriting model (F04) not yet trained — uses ML Kit's built-in Latin recognition
+- Telebirr payment not integrated (v0.3.0)
+- Tested on emulator only — needs real-device validation before public release
+
 ## [Unreleased]
 
 ### Fixed
