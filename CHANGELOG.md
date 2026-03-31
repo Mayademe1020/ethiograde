@@ -15,6 +15,15 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Eraser / multi-mark handling (Task 13)**
+  - Gap-based fill analysis replaces count-based threshold check in detectBubbles()
+  - Sorts all option fills by ratio, computes gap between 1st and 2nd highest
+  - Large gap (>0.20): eraser residue scenario — pick top with high confidence
+    (previously: both above threshold → confidence 0.5 even when A was clearly filled)
+  - Small gap (<0.10) with multiple above threshold: truly ambiguous, confidence 0.5
+  - Pencil marks below threshold: gap >0.15 → confidence 0.5, else 0.3
+  - Cleaned up unused bestOption/bestFill variables
+  - 3 synthetic image tests: eraser residue + clear fill, two ambiguous fills, empty bubbles
 - **Lighting normalization (Task 14)**
   - OMR adaptive threshold: _sampleFillRatio now samples background brightness
     from outer ring (2-3× radius) around each bubble, computes local paper

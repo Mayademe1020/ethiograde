@@ -76,8 +76,6 @@ class OmrService {
       for (int qi = 0; qi < calibratedTemplate.questionCount; qi++) {
         final optionFills = <String, double>{};
         double maxFill = 0;
-        String? bestOption;
-        double bestFill = 0;
 
         for (int oi = 0; oi < calibratedTemplate.optionCount; oi++) {
           final (cx, cy) = calibratedTemplate.bubbleCenter(qi, oi);
@@ -94,51 +92,78 @@ class OmrService {
           if (fillRatio > maxFill) {
             maxFill = fillRatio;
           }
-
-          if (fillRatio > calibratedTemplate.fillThreshold && fillRatio > bestFill) {
-            bestOption = option;
-            bestFill = fillRatio;
-          }
         }
 
         fillMatrix[qi + 1] = optionFills;
 
-        if (bestOption != null) {
-          // Check if multiple options are close to the threshold — ambiguous
-          final filledOptions = optionFills.entries
+        if (maxFill > 0) {
+          // Gap-based fill analysis: handles eraser residue and multi-marks
+          //
+          // Instead of counting how many options exceed a threshold (which treats
+          // eraser residue the same as a second real mark), we look at the gap
+          // between the highest and second-highest fill ratios.
+          //
+          // Large gap (>0.20): clear answer, other marks are eraser residue
+          //   → pick highest with high confidence
+          // Small gap (<0.10): genuinely ambiguous (student marked two options)
+          //   → pick highest with low confidence, flag for review
+          // Medium gap: normal case — single fill, others clean
+          //
+          // This handles the most common real-world scenario:
+          //   Student marks B → erases → marks A
+          //   B has residual marks (fill ~0.25-0.40), A is clear (fill ~0.70+)
+          //   Current code: both above threshold → confidence 0.5 (wrong!)
+          //   Fixed code: large gap → confidence based on A's fill (correct!)
+
+          final sorted = optionFills.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+
+          final topFill = sorted[0].value;
+          final secondFill = sorted.length > 1 ? sorted[1].value : 0.0;
+          final gap = topFill - secondFill;
+
+          // Count options significantly above threshold (real marks, not noise)
+          final realMarksAboveThreshold = optionFills.entries
               .where((e) => e.value > calibratedTemplate.fillThreshold)
               .length;
 
+          String answer;
           double confidence;
-          if (filledOptions > 1) {
-            // Multiple filled → lower confidence, might be eraser marks or smudges
-            confidence = 0.5;
-          } else {
-            // Single clear fill — confidence based on how decisively above threshold
-            confidence = _fillConfidence(bestFill, calibratedTemplate.fillThreshold);
-          }
 
-          detectedAnswers.add(OmrAnswer(
-            questionNumber: qi + 1,
-            answer: bestOption,
-            confidence: confidence,
-            fillRatio: bestFill,
-          ));
-        } else {
-          // No option clearly filled — student may have skipped or used pencil
-          // Check if there's a "most filled" option even below threshold
-          // (pencil marks are lighter than pen)
-          final mostFilled = optionFills.entries.reduce(
-            (a, b) => a.value > b.value ? a : b,
-          );
+          if (topFill > calibratedTemplate.fillThreshold) {
+            // At least one option above threshold
+            answer = sorted[0].key;
 
-          if (mostFilled.value > calibratedTemplate.fillThreshold * 0.6) {
-            // Possibly pencil — flag with low confidence
+            if (gap > 0.20) {
+              // Large gap — clear answer with eraser residue or noise elsewhere
+              confidence = _fillConfidence(topFill, calibratedTemplate.fillThreshold);
+            } else if (realMarksAboveThreshold > 1 && gap < 0.10) {
+              // Small gap, multiple options above threshold — truly ambiguous
+              confidence = 0.5;
+            } else {
+              // Normal case — single fill
+              confidence = _fillConfidence(topFill, calibratedTemplate.fillThreshold);
+            }
+
             detectedAnswers.add(OmrAnswer(
               questionNumber: qi + 1,
-              answer: mostFilled.key,
-              confidence: 0.4,
-              fillRatio: mostFilled.value,
+              answer: answer,
+              confidence: confidence,
+              fillRatio: topFill,
+            ));
+          } else if (topFill > calibratedTemplate.fillThreshold * 0.6) {
+            // Below threshold but not empty — possibly pencil or light pen
+            // Use gap to decide if it's a real mark or noise
+            answer = sorted[0].key;
+            final pencilConfidence = gap > 0.15
+                ? 0.5  // clear pencil mark, gap from noise
+                : 0.3; // ambiguous pencil
+
+            detectedAnswers.add(OmrAnswer(
+              questionNumber: qi + 1,
+              answer: answer,
+              confidence: pencilConfidence,
+              fillRatio: topFill,
               flagged: true,
             ));
           }

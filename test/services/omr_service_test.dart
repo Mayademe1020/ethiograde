@@ -719,3 +719,139 @@ Assessment _makeAssessment(int questionCount) {
     });
   });
 }
+
+  group('Eraser / multi-mark handling', () {
+    test('eraser residue + clear fill → picks correct answer with high confidence', () async {
+      // Simulate: student marked B, erased, now marks A
+      // A has high fill (~80%), B has residual fill (~30%)
+      final image = img.Image(width: 400, height: 100, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(230, 230, 230)); // bright bg
+
+      // A (x=100) — fully filled dark bubble
+      for (int dy = -6; dy <= 6; dy++) {
+        for (int dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy <= 36) {
+            image.setPixelRgb(100 + dx, 50 + dy, 30, 30, 30);
+          }
+        }
+      }
+
+      // B (x=200) — partially filled (eraser residue) — only center pixels dark
+      for (int dy = -2; dy <= 2; dy++) {
+        for (int dx = -2; dx <= 2; dx++) {
+          if (dx * dx + dy * dy <= 4) {
+            image.setPixelRgb(200 + dx, 50 + dy, 60, 60, 60);
+          }
+        }
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('omr_eraser');
+      final path = '${tempDir.path}/eraser.png';
+      await File(path).writeAsBytes(img.encodePng(image));
+
+      final template = BubbleTemplate(
+        name: 'eraser-test',
+        questionCount: 1,
+        options: ['A', 'B', 'C', 'D', 'E'],
+        startX: 100,
+        startY: 50,
+        columnSpacing: 100,
+        rowSpacing: 50,
+        bubbleRadius: 6,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: path,
+        template: template,
+      );
+
+      expect(result.answers.length, 1);
+      expect(result.answers[0].answer, 'A');
+      // Should have reasonably high confidence (not 0.5 ambiguous)
+      expect(result.answers[0].confidence, greaterThan(0.5));
+
+      await tempDir.delete(recursive: true);
+    });
+
+    test('two similarly filled options → low confidence ambiguous', () async {
+      // Simulate: student genuinely marked two options similarly
+      final image = img.Image(width: 400, height: 100, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(230, 230, 230));
+
+      // A (x=100) — half filled
+      for (int dy = -6; dy <= 6; dy++) {
+        for (int dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy <= 36 && dy < 0) {
+            image.setPixelRgb(100 + dx, 50 + dy, 40, 40, 40);
+          }
+        }
+      }
+
+      // B (x=200) — similarly half filled
+      for (int dy = -6; dy <= 6; dy++) {
+        for (int dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy <= 36 && dy > 0) {
+            image.setPixelRgb(200 + dx, 50 + dy, 40, 40, 40);
+          }
+        }
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('omr_ambiguous');
+      final path = '${tempDir.path}/ambiguous.png';
+      await File(path).writeAsBytes(img.encodePng(image));
+
+      final template = BubbleTemplate(
+        name: 'ambiguous-test',
+        questionCount: 1,
+        options: ['A', 'B', 'C', 'D', 'E'],
+        startX: 100,
+        startY: 50,
+        columnSpacing: 100,
+        rowSpacing: 50,
+        bubbleRadius: 6,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: path,
+        template: template,
+      );
+
+      // Should detect something (not skip both)
+      expect(result.answers.length, greaterThanOrEqualTo(1));
+      // But confidence should be low (ambiguous)
+      expect(result.answers[0].confidence, lessThanOrEqualTo(0.6));
+
+      await tempDir.delete(recursive: true);
+    });
+
+    test('empty bubbles → no answers detected', () async {
+      final image = img.Image(width: 400, height: 100, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(230, 230, 230)); // blank paper
+
+      final tempDir = await Directory.systemTemp.createTemp('omr_empty');
+      final path = '${tempDir.path}/empty.png';
+      await File(path).writeAsBytes(img.encodePng(image));
+
+      final template = BubbleTemplate(
+        name: 'empty-test',
+        questionCount: 1,
+        options: ['A', 'B', 'C', 'D', 'E'],
+        startX: 100,
+        startY: 50,
+        columnSpacing: 100,
+        rowSpacing: 50,
+        bubbleRadius: 6,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: path,
+        template: template,
+      );
+
+      // No bubbles filled → no answers detected
+      expect(result.answers.length, 0);
+
+      await tempDir.delete(recursive: true);
+    });
+  });
+}
