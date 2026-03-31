@@ -5,6 +5,8 @@ import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/settings_provider.dart';
+import '../../services/ethiopian_calendar.dart';
 
 class AssessmentCard extends StatelessWidget {
   final Assessment assessment;
@@ -142,6 +144,20 @@ class AssessmentCard extends StatelessWidget {
                     ),
                 ],
               ),
+              const SizedBox(height: 8),
+              // Created date
+              Builder(builder: (context) {
+                final useEth = context.watch<SettingsProvider>().useEthiopianCalendar;
+                final dateStr = EthiopianCalendar.formatDate(
+                  assessment.createdAt,
+                  useEthiopian: useEth,
+                  isAmharic: isAmharic,
+                );
+                return Text(
+                  '${isAmharic ? 'የተፈጠረ' : 'Created'}: $dateStr',
+                  style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                );
+              }),
             ],
           ),
         ),

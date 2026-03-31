@@ -755,6 +755,18 @@ class _SettingsTab extends StatelessWidget {
                 activeColor: AppTheme.primaryGreen,
               ),
               SwitchListTile(
+                secondary: const Icon(Icons.calendar_month),
+                title: Text(isAmharic ? 'የኢትዮጵያ ዘመን አቆጣጠር' : 'Ethiopian Calendar'),
+                subtitle: Text(
+                  isAmharic
+                      ? 'ቀኖናዊ ቀን ወደ ኢትዮጵያዊ ቀይር'
+                      : 'Display dates in Ethiopian calendar',
+                ),
+                value: settings.useEthiopianCalendar,
+                onChanged: (_) => settings.toggleEthiopianCalendar(),
+                activeColor: AppTheme.primaryGreen,
+              ),
+              SwitchListTile(
                 secondary: const Icon(Icons.auto_fix_high),
                 title: Text(isAmharic ? 'ስዕል ማሻሻል' : 'Auto-enhance Images'),
                 value: settings.autoEnhanceImages,

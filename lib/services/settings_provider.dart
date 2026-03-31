@@ -10,6 +10,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _autoEnhanceImages = true;
   bool _voiceFeedbackEnabled = true;
   bool _darkMode = false;
+  bool _useEthiopianCalendar = true; // default: Ethiopian for Ethiopian teachers
   String _telegramHandle = '';
   String _whatsappNumber = '';
 
@@ -22,6 +23,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get autoEnhanceImages => _autoEnhanceImages;
   bool get voiceFeedbackEnabled => _voiceFeedbackEnabled;
   bool get darkMode => _darkMode;
+  bool get useEthiopianCalendar => _useEthiopianCalendar;
   String get telegramHandle => _telegramHandle;
   String get whatsappNumber => _whatsappNumber;
 
@@ -39,6 +41,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoEnhanceImages = prefs.getBool('auto_enhance') ?? true;
     _voiceFeedbackEnabled = prefs.getBool('voice_feedback') ?? true;
     _darkMode = prefs.getBool('dark_mode') ?? false;
+    _useEthiopianCalendar = prefs.getBool('ethiopian_calendar') ?? true;
     _telegramHandle = prefs.getString('telegram_handle') ?? '';
     _whatsappNumber = prefs.getString('whatsapp_number') ?? '';
     notifyListeners();
@@ -97,6 +100,13 @@ class SettingsProvider extends ChangeNotifier {
     _darkMode = !_darkMode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dark_mode', _darkMode);
+    notifyListeners();
+  }
+
+  Future<void> toggleEthiopianCalendar() async {
+    _useEthiopianCalendar = !_useEthiopianCalendar;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('ethiopian_calendar', _useEthiopianCalendar);
     notifyListeners();
   }
 

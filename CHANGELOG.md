@@ -15,6 +15,18 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Ethiopian calendar support (Task 23)**
+  - EthiopianCalendar utility: pure Dart, zero dependencies
+  - Gregorian → Ethiopian conversion via Julian Day Number algorithm
+  - 13 months: 12 × 30 days + Pagume (5-6 days), leap year every 4 years
+  - Bilingual month names: Amharic (መስከረም, ጥቅምት, ...) + English (Meskerem, Tikimt, ...)
+  - formatDate() helper: renders in Ethiopian or Gregorian based on user preference
+  - Formats: 'd MMMM yyyy', 'dd/MM/yyyy', 'MMMM yyyy'
+  - SettingsProvider: useEthiopianCalendar toggle (default: true for Ethiopian teachers)
+  - Settings screen: Ethiopian Calendar switch in Preferences section
+  - AssessmentCard: shows created date in preferred calendar
+  - ReviewScreen result cards: shows scan date in preferred calendar
+  - 17 unit tests: new year dates, month boundaries, format variants, leap year, edge cases
 - **Eraser / multi-mark handling (Task 13)**
   - Gap-based fill analysis replaces count-based threshold check in detectBubbles()
   - Sorts all option fills by ratio, computes gap between 1st and 2nd highest

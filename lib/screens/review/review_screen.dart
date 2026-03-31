@@ -10,6 +10,8 @@ import '../../services/scoring_service.dart';
 import '../../services/voice_service.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../services/settings_provider.dart';
+import '../../services/ethiopian_calendar.dart';
 
 // ──── Review List ────
 
@@ -439,6 +441,22 @@ class _ResultCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Scan date
+              Builder(builder: (context) {
+                final useEth = context.watch<SettingsProvider>().useEthiopianCalendar;
+                final dateStr = EthiopianCalendar.formatDate(
+                  result.scannedAt,
+                  useEthiopian: useEth,
+                  isAmharic: isAmharic,
+                );
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${isAmharic ? 'ተሰልቷል' : 'Scanned'}: $dateStr',
+                    style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                  ),
+                );
+              }),
             ],
           ),
         ),
