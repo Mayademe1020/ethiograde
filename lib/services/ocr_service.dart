@@ -8,6 +8,7 @@ import '../models/assessment.dart';
 import 'answer_parser.dart';
 import 'scoring_service.dart';
 import 'image_hash_service.dart';
+import 'perspective_correction_service.dart';
 
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
@@ -26,6 +27,7 @@ class OcrService {
   final AnswerParser _parser = const AnswerParser();
   final ScoringService _scoring = const ScoringService();
   final ImageHashService _hasher = ImageHashService();
+  final PerspectiveCorrectionService _perspective = PerspectiveCorrectionService();
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
@@ -180,24 +182,35 @@ class OcrService {
     // 2. Extract text regions using ML Kit (on-device, offline)
     final extractionResult = await extractTextRegions(enhancedPath);
 
-    // 2b. Rotation correction pass — if paper is tilted, correct and re-OCR
-    // This improves accuracy on papers photographed at an angle (common on
-    // cheap phones without OIS). Only re-run if skew is significant AND
-    // correction might actually help (not already near-perfect).
+    // 2b. Perspective + rotation correction pass — if paper is tilted or
+    // photographed at an angle, correct and re-OCR. Tries perspective
+    // correction first (handles keystone distortion from angled photos),
+    // falls back to simple rotation if perspective detection fails.
     var workingPath = enhancedPath;
     var workingResult = extractionResult;
     if (extractionResult.skewAngle.abs() > _skewCorrectionThreshold) {
-      final correctedPath = await correctRotation(
-        enhancedPath,
-        extractionResult.skewAngle,
-      );
-      // Only re-OCR if the file was actually changed
-      if (correctedPath != enhancedPath) {
-        final reOcrResult = await extractTextRegions(correctedPath);
-        // Use corrected result if it found more regions (better detection)
-        if (reOcrResult.regions.length >= workingResult.regions.length) {
-          workingPath = correctedPath;
-          workingResult = reOcrResult;
+      // Try perspective correction first (handles angled photos on cheap phones)
+      final perspectivePath = await _perspective.correctPerspective(enhancedPath);
+      if (perspectivePath != enhancedPath) {
+        final perspOcrResult = await extractTextRegions(perspectivePath);
+        if (perspOcrResult.regions.length >= workingResult.regions.length) {
+          workingPath = perspectivePath;
+          workingResult = perspOcrResult;
+        }
+      }
+
+      // Fallback: simple rotation correction if perspective didn't help
+      if (workingPath == enhancedPath) {
+        final correctedPath = await correctRotation(
+          enhancedPath,
+          extractionResult.skewAngle,
+        );
+        if (correctedPath != enhancedPath) {
+          final reOcrResult = await extractTextRegions(correctedPath);
+          if (reOcrResult.regions.length >= workingResult.regions.length) {
+            workingPath = correctedPath;
+            workingResult = reOcrResult;
+          }
         }
       }
     }
@@ -231,6 +244,7 @@ class OcrService {
       'skewAngle': workingResult.skewAngle,
       'skewWarning': workingResult.skewAngle.abs() > _skewWarningDegrees,
       'rotationCorrected': workingPath != enhancedPath,
+      'perspectiveCorrected': workingPath.contains('_perspective'),
     };
 
     return ScanResult(
@@ -382,6 +396,8 @@ class OcrService {
       if (await enhanced.exists()) await enhanced.delete();
       final corrected = File('${basePath}_corrected.jpg');
       if (await corrected.exists()) await corrected.delete();
+      final perspective = File('${basePath}_perspective.jpg');
+      if (await perspective.exists()) await perspective.delete();
     } catch (_) {
       // Never block the pipeline on cleanup failure
     }
