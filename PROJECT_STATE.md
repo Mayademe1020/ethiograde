@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 5 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard, Accessibility — 45+ widget tests total); 5 tests for voice service; 7 tests for teacher model |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 20+ tests for PDF (student/class/answer sheet/edge cases), 25+ tests for Excel (decode/column detection/Student model/edge cases), 9+ tests for perspective correction, 8 integration test groups for E2E flow; 7 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard, Accessibility, Dashboard 18 tests, Review 15+ tests — 78+ widget tests total); 5 tests for voice service; 7 tests for teacher model; ScanResult/AlignmentCheck model tests
 | **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
 | **Crash-free rate** | 🟢 Protected | Session auto-save + resume dialog; zero data loss on crash |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |

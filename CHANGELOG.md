@@ -33,6 +33,38 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
     - Mode cards in Subscription screen (2 cards)
   - Added 12 accessibility widget tests (touch targets, semantic labels, text sizing)
 
+### Test
+- **Expanded PDF service tests (7→20+)**
+  - Answer sheet template: single student, multi-student (3 pages), empty list, prefillNames=false
+  - Mixed question types (MCQ+T/F+short+essay) in answer sheet
+  - All-correct (100%) and all-wrong (0%) score PDFs
+  - Private/international and university rubric types
+  - Long student names, empty Amharic names, Amharic assessment title
+  - Class report: Amharic mode, multiple students, topic scores, empty results
+  - Multiple sequential PDF generation (no file collision)
+  - getPdfBytes returns valid bytes
+- **Expanded Excel service tests (7→25+)**
+  - Column detection: standard English headers, Amharic headers, "Name" as first name
+  - Single header row (no data), mixed valid/empty rows, extra columns (6+)
+  - Student model: fullName/fullNameAmharic, getDisplayName locale, toMap/fromMap round-trip, missing optional fields, fromMap missing keys
+  - Edge cases: very long cell values (500 chars), special characters, 100-row file, numeric-like strings
+  - ExcelImportResult: success and failure state capture
+- **New Dashboard widget tests (18 tests)**
+  - Rendering: 4 tabs, Amharic tab labels, welcome message, stat cards, language toggle
+  - Home tab: empty state (EN+AM), quick actions (EN+AM), Recent Assessments section
+  - Navigation: switching to Assess/Students/Settings tabs
+  - FAB: visible on home, Amharic text, hidden on other tabs
+  - Settings tab: profile, language switch, Ethiopian calendar, subscription
+- **New Review widget tests (15+ tests)**
+  - Rendering: student names, scores, grades, confidence
+  - Empty state (EN+AM)
+  - Amharic: app bar title, confidence label, needs-review badge
+  - Needs-review badge for low-confidence results
+  - Sort button + sort options (EN+AM)
+  - Scan date display
+  - ScanResult model: needsReview, copyWith, toMap/fromMap round-trip
+  - AlignmentCheck: missing detection, pass/fail threshold, zero expected count
+
 ### Added
 - **Ethiopian calendar support (Task 23)**
   - EthiopianCalendar utility: pure Dart, zero dependencies
