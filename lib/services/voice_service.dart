@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:record/record.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
 class VoiceService {
@@ -13,13 +14,26 @@ class VoiceService {
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
   final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _player = AudioPlayer();
 
   bool _isListening = false;
   bool _isRecording = false;
+  bool _isPlaying = false;
   String _currentLocale = 'en_US';
+  String? _currentPlayingPath;
 
   bool get isListening => _isListening;
   bool get isRecording => _isRecording;
+  bool get isPlaying => _isPlaying;
+  String? get currentPlayingPath => _currentPlayingPath;
+
+  /// Stream of playback state changes (true = playing, false = stopped).
+  Stream<bool> get playingStateStream => _player.playerStateStream.map(
+        (state) => state.playing,
+      );
+
+  /// Whether audio playback is supported on this device.
+  bool get isPlaybackSupported => true;
 
   /// Initialize voice services
   Future<bool> initialize({String locale = 'en_US'}) async {
@@ -135,11 +149,73 @@ class VoiceService {
     return amplitude.current;
   }
 
-  /// Play a recorded voice note
+  /// Play a recorded voice note.
+  /// Returns a Future that completes when playback starts, or throws on error.
   Future<void> playRecording(String path) async {
-    // Use TTS or a player like just_audio
-    // For now, we'll use a simple approach
-    await _tts.speak('Playing voice note');
+    final file = File(path);
+    if (!await file.exists()) {
+      throw VoicePlaybackException('Voice note file not found');
+    }
+
+    // Stop any current playback first.
+    if (_isPlaying) {
+      await stopPlayback();
+    }
+
+    try {
+      _currentPlayingPath = path;
+      _isPlaying = true;
+      await _player.setFilePath(path);
+      await _player.play();
+
+      // Listen for completion to reset state.
+      _player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          _isPlaying = false;
+          _currentPlayingPath = null;
+        }
+      });
+    } catch (e) {
+      _isPlaying = false;
+      _currentPlayingPath = null;
+      debugPrint('[Voice] Playback error: $e');
+      rethrow;
+    }
+  }
+
+  /// Stop current playback.
+  Future<void> stopPlayback() async {
+    _isPlaying = false;
+    _currentPlayingPath = null;
+    await _player.stop();
+  }
+
+  /// Pause current playback.
+  Future<void> pausePlayback() async {
+    _isPlaying = false;
+    await _player.pause();
+  }
+
+  /// Resume paused playback.
+  Future<void> resumePlayback() async {
+    _isPlaying = true;
+    await _player.play();
+  }
+
+  /// Get playback duration of a voice note file.
+  Future<Duration?> getRecordingDuration(String path) async {
+    final file = File(path);
+    if (!await file.exists()) return null;
+    try {
+      final source = AudioSource.uri(Uri.file(path));
+      await _player.setAudioSource(source);
+      final duration = _player.duration;
+      await _player.stop();
+      return duration;
+    } catch (e) {
+      debugPrint('[Voice] Duration query error: $e');
+      return null;
+    }
   }
 
   // ──── Convenience ────
@@ -171,5 +247,15 @@ class VoiceService {
     _speech.cancel();
     _tts.stop();
     _recorder.dispose();
+    _player.dispose();
   }
+}
+
+/// Exception thrown when voice playback fails.
+class VoicePlaybackException implements Exception {
+  final String message;
+  VoicePlaybackException(this.message);
+
+  @override
+  String toString() => 'VoicePlaybackException: $message';
 }

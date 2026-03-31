@@ -429,6 +429,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
   // Mutable copy of the result — override buttons modify this.
   late ScanResult _result;
   bool _initialized = false;
+  bool _isPlayingVoice = false;
 
   @override
   void didChangeDependencies() {
@@ -590,6 +591,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
             const SizedBox(height: 16),
 
             // Voice note indicator
+            // Voice note indicator with playback
             if (result.voiceNotePath != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -599,11 +601,27 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.mic, color: AppTheme.info),
+                    Icon(
+                      _isPlayingVoice ? Icons.mic : Icons.mic,
+                      color: AppTheme.info,
+                    ),
                     const SizedBox(width: 8),
-                    Text(
-                      isAm ? 'የድምጽ ማስታወሻ ተቀምጧል' : 'Voice note recorded',
-                      style: const TextStyle(color: AppTheme.info),
+                    Expanded(
+                      child: Text(
+                        isAm ? 'የድምጽ ማስታወሻ ተቀምጧል' : 'Voice note recorded',
+                        style: const TextStyle(color: AppTheme.info),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isPlayingVoice ? Icons.stop_circle : Icons.play_circle,
+                        color: AppTheme.primaryGreen,
+                        size: 32,
+                      ),
+                      tooltip: _isPlayingVoice
+                          ? (isAm ? 'አቁም' : 'Stop')
+                          : (isAm ? 'አሰምጥ' : 'Play'),
+                      onPressed: () => _toggleVoicePlayback(isAm),
                     ),
                   ],
                 ),
@@ -928,8 +946,40 @@ class _SideBySideReviewState extends State<SideBySideReview> {
     }
   }
 
+  /// Toggle voice note playback.
+  Future<void> _toggleVoicePlayback(bool isAm) async {
+    final path = _result.voiceNotePath;
+    if (path == null) return;
+
+    if (_isPlayingVoice) {
+      await _voice.stopPlayback();
+      if (mounted) setState(() => _isPlayingVoice = false);
+    } else {
+      try {
+        setState(() => _isPlayingVoice = true);
+        await _voice.playRecording(path);
+        // Playback completes — reset state.
+        if (mounted) setState(() => _isPlayingVoice = false);
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isPlayingVoice = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(isAm
+                  ? 'የድምጽ ማስታወሻ ማጫወት አልተሳካም' : 'Could not play voice note'),
+              backgroundColor: AppTheme.primaryRed,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
+    if (_isPlayingVoice) {
+      _voice.stopPlayback();
+    }
     _commentController.dispose();
     super.dispose();
   }

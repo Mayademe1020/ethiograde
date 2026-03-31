@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard) |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard); 5 tests for voice service |
 | **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -69,7 +69,7 @@
 | F15 | Teacher management | ❌ Stub | Backend | F07 | Medium | Dialog exists, no persistence |
 | F16 | Re-scan paper | ✅ Done | Mobile | F01 | Low | Single-capture re-scan, immediate regrade, returns updated result |
 | F17 | Dashboard search | ✅ Done | Mobile | F07 | Low | Real-time filter by student name, bilingual empty state |
-| F18 | Voice recording playback | ❌ Placeholder | Mobile | F14 | Low | Speaks "playing voice note" |
+| F18 | Voice recording playback | ✅ Done | Mobile | F14 | Low | just_audio wired, play/stop in review screen, bilingual errors |
 | F19 | Batch scan flow (continuous capture) | ✅ Done | Mobile | F01, F03 | Medium | Capture-only loop, batch process on 'Done Scanning' |
 | F36 | **Duplicate scan detection** | ✅ Done | Mobile | F01 | Medium | dHash (pure Dart), Hamming distance ≤10, bilingual warning dialog, offline-safe |
 
@@ -96,9 +96,17 @@
 
 ## 🏃 Sprint Board
 
-**Current Sprint:** Sprint 1 — Integration
-**Goal:** Wire services to screens, add test coverage, build HybridGradingService
-**Velocity:** Sprint 1 complete ✅ (all tasks done)
+**Current Sprint:** Sprint 2 — v0.2.0 Teacher Features
+**Goal:** Wire teacher management to persistence, fix voice playback, improve UX polish
+**Velocity:** Sprint 1 complete ✅ (all 30 tasks done)
+
+| Task | Status | Assignee | Points | Notes |
+|------|--------|----------|--------|-------|
+| Fix F18: Real voice note playback | ✅ Done | Mobile | 2 | just_audio wired, play/stop controls in review screen, bilingual errors, 5 tests |
+| Teacher management persistence (F15) | 📋 Pending | Backend | 3 | Wire teacher CRUD to Hive, eliminate stub |
+| Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
+| i18n string extraction audit | 📋 Pending | QA | 2 | Verify all screens bilingual, no hardcoded strings |
+| Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
@@ -220,6 +228,8 @@
 | `provider` | ^6.1.1 | State mgmt | Standard Flutter pattern |
 | `speech_to_text` | ^6.6.0 | STT | Platform-dependent accuracy |
 | `flutter_tts` | ^3.8.5 | TTS | Amharic voice quality unknown |
+| `record` | ^5.0.4 | Audio recording | Stable |
+| `just_audio` | ^0.9.36 | Audio playback | Stable, well-maintained, cross-platform |
 | `excel` | ^4.0.3 | Import | Stable |
 
 ---

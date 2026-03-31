@@ -15,6 +15,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Real voice note playback (F18)**
+  - VoiceService.playRecording() now plays recorded .m4a files via just_audio instead of
+    TTS placeholder that just said "Playing voice note"
+  - Added AudioPlayer to VoiceService singleton with proper lifecycle management
+  - Play/Stop toggle button in review screen voice note indicator (32dp icon, bilingual tooltip)
+  - Playback state tracking: isPlaying, currentPlayingPath, playingStateStream
+  - stopPlayback(), pausePlayback(), resumePlayback(), getRecordingDuration() methods
+  - VoicePlaybackException for clear error handling (file not found, codec error)
+  - Bilingual error snackbar on playback failure (Amharic/English)
+  - VoiceService.dispose() now also disposes AudioPlayer
+  - 5 unit tests: exception class, singleton, initial state, playback support, missing file error
 - **End-to-end integration test suite**
   - 8 test groups covering the full teacher workflow:
     App Launch & Navigation, Bilingual Support (EN↔AM toggle),
