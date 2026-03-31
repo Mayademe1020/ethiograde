@@ -17,7 +17,7 @@
 | **Security audit** | ⚫ None | No audit performed |
 | **Data encryption** | 🟢 Done | AES-256 Hive boxes, key in flutter_secure_storage |
 | **Accessibility** | 🟡 Partial | Theme contrast not verified, no screen reader tests |
-| **i18n coverage** | 🟡 Partial | UI strings bilingual, but no extraction/validation tool |
+| **i18n coverage** | 🟢 Good | All screens bilingual, no hardcoded strings found; no extraction tool yet |
 
 **Overall Status:** 🟠 Pre-Alpha — Core pipeline real, EXIF orientation fix applied
 
@@ -105,7 +105,7 @@
 | Fix F18: Real voice note playback | ✅ Done | Mobile | 2 | just_audio wired, play/stop controls in review screen, bilingual errors, 5 tests |
 | Teacher management persistence (F15) | ✅ Done | Backend | 3 | Teacher model, TeacherProvider with Hive CRUD, validation, bilingual UI, teacher list with delete, 7 model tests + 12 validation tests |
 | Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
-| i18n string extraction audit | 📋 Pending | QA | 2 | Verify all screens bilingual, no hardcoded strings |
+| i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
 | Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
 
 | Task | Status | Assignee | Points | Notes |

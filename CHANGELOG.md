@@ -15,6 +15,11 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **i18n audit: bilingual empty states in analytics**
+  - _GradeDistributionChart and _QuestionHeatmap now accept isAmharic parameter
+  - Empty state 'No data' → 'ውሂብ የለም' / 'No data'
+  - Empty state 'No question data' → 'የጥያቄ ውሂብ የለም' / 'No question data'
+  - Full audit of all 11 screens, widgets, services: no other hardcoded strings found
 - **Real voice note playback (F18)**
   - VoiceService.playRecording() now plays recorded .m4a files via just_audio instead of
     TTS placeholder that just said "Playing voice note"

@@ -98,6 +98,7 @@ class AnalyticsScreen extends StatelessWidget {
                     height: 200,
                     child: _GradeDistributionChart(
                       distribution: analytics.gradeDistribution,
+                      isAmharic: isAm,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -119,6 +120,7 @@ class AnalyticsScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _QuestionHeatmap(
                     analytics: analytics.questionAnalytics,
+                    isAmharic: isAm,
                   ),
                   const SizedBox(height: 24),
 
@@ -245,12 +247,13 @@ class _StatBigCard extends StatelessWidget {
 
 class _GradeDistributionChart extends StatelessWidget {
   final Map<String, int> distribution;
-  const _GradeDistributionChart({required this.distribution});
+  final bool isAmharic;
+  const _GradeDistributionChart({required this.distribution, required this.isAmharic});
 
   @override
   Widget build(BuildContext context) {
     if (distribution.isEmpty) {
-      return const Center(child: Text('No data'));
+      return Center(child: Text(isAmharic ? 'ውሂብ የለም' : 'No data'));
     }
 
     final entries = distribution.entries.toList()
@@ -326,12 +329,13 @@ class _GradeDistributionChart extends StatelessWidget {
 
 class _QuestionHeatmap extends StatelessWidget {
   final List<QuestionAnalytics> analytics;
-  const _QuestionHeatmap({required this.analytics});
+  final bool isAmharic;
+  const _QuestionHeatmap({required this.analytics, required this.isAmharic});
 
   @override
   Widget build(BuildContext context) {
     if (analytics.isEmpty) {
-      return const Center(child: Text('No question data'));
+      return Center(child: Text(isAmharic ? 'የጥያቄ ውሂብ የለም' : 'No question data'));
     }
 
     return Wrap(
