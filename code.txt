@@ -1,0 +1,143 @@
+You are MiMo Claw, working on a Flutter app called "SmartExam" — an offline exam grading app for Ethiopian teachers. It scans paper-based bubble sheets using the phone camera, grades them with OMR, and exports results as PDF/Excel. Target device: 2GB RAM Android phone. Bilingual: Amharic + English.
+
+PROJECT RULES — READ BEFORE EVERY TASK:
+1. Every feature must be production-grade. No placeholders, no TODOs, no "for now" logic.
+2. Every file you touch gets unit tests or widget tests. No exceptions.
+3. Code must work on a 2GB phone — no heavy dependencies, no memory leaks, no large allocations in hot paths.
+4. All UI strings must support both Amharic and English via the existing localization system.
+5. Never break existing features. If you need to refactor, do it incrementally.
+6. After completing each task, list what you changed and what tests you added.
+
+WORKING METHOD:
+We work ONE task at a time. I will tell you which task number to do. You do not jump ahead. You do not "also fix" adjacent things. You do not suggest the next task. You complete the current task, show me the result, and wait for my next instruction.
+
+---
+
+TASK QUEUE (in priority order):
+
+### PHASE 1 — CRITICAL FIXES (v0.1.0 blockers)
+
+**Task 1: Crash recovery / mid-scan state persistence**
+If the app crashes or the teacher kills it during a scanning session, all scanned papers should be saved. Implement atomic save after each paper scan. On app restart, if an incomplete session exists, show a dialog: "You have 23 of 30 papers scanned. Resume?" The teacher can resume or discard.
+
+**Task 2: Batch scan flow (continuous capture)**
+Current flow forces scan → process → scan → process. Change to: scan, scan, scan... → batch process all at the end. Teacher taps "Done Scanning" when finished. Show a counter (e.g., "7 papers captured") during scanning. Processing happens in one batch when the teacher is done.
+
+**Task 3: Duplicate scan detection**
+If the teacher photographs the same paper twice, detect it. Use perceptual image hashing or structural similarity. On duplicate, warn: "This looks like a paper you already scanned. Skip?" Don't silently create duplicate scores.
+
+**Task 4: PDF export test coverage**
+Write unit tests for the PDF export feature. Test: empty assessment (0 students), single student, 40 students, assessment with missing scores, assessment with all perfect scores. Verify the PDF is generated without crashes and contains expected data.
+
+**Task 5: Excel export test coverage**
+Same as Task 4 but for Excel export. Verify .xlsx file is valid, headers are correct, scores match.
+
+**Task 6: Widget tests — Dashboard screen**
+Write widget tests for the dashboard. Test: empty state (no assessments), assessment list renders, tap on assessment navigates correctly, search icon exists (even if search isn't functional yet).
+
+**Task 7: Widget tests — Review screen**
+Write widget tests for the review screen. Test: student list renders, score displays correctly, tapping a student shows their answers, voice note button exists.
+
+**Task 8: Score override / manual edit flow**
+The review screen should let a teacher tap a score and manually change it. Save the override. Show an indicator (icon or color) that the score was manually edited. Store original OMR score + override score + timestamp.
+
+**Task 9: Re-scan logic (F16)**
+Wire the existing re-scan button. Tapping it should: discard the current scan for that paper, open camera for re-capture, re-process, update the score. Preserve other already-scanned papers.
+
+**Task 10: Dashboard search (F17)**
+Wire the existing search icon on the dashboard. Filter assessments by name. Filter students within an assessment by name. Real-time filtering as the teacher types.
+
+---
+
+### PHASE 2 — ACCURACY (v0.2.0)
+
+**Task 11: Perspective correction**
+Implement perspective distortion correction. When the teacher holds the phone at an angle, the captured image is a trapezoid. Detect the four corners of the paper, compute a homography matrix, warp the image to a flat rectangle. Use pure Dart or a lightweight library — no OpenCV. Must work on a 2GB phone without frame drops.
+
+**Task 12: Dynamic template calibration**
+OMR templates currently have hardcoded pixel positions for bubbles. Different phones = different image resolutions = bubbles in different places. Implement auto-calibration: detect paper edges, compute scale factor, adjust all bubble positions proportionally. The template should define positions as percentages of paper dimensions, not absolute pixels.
+
+**Task 13: Eraser / multi-mark handling**
+Current OMR sees a filled + erased bubble as ambiguous. Implement smarter fill analysis: not just threshold, but peak detection within the bubble region. If a bubble has a clear peak (student's final answer) and a faint secondary mark (eraser residue), take the peak. Only flag as ambiguous if two bubbles have similar fill levels.
+
+**Task 14: Lighting normalization**
+Before OMR processing, normalize the image brightness. Implement histogram equalization or adaptive binarization so that OMR thresholds work consistently in bright sunlight, indoor lighting, and dim conditions.
+
+**Task 15: Paper detection robustness**
+Current paper detection assumes clean white sheet on dark surface. Improve to handle: paper on wooden desk, paper on top of other papers, slightly wrinkled paper. Use adaptive edge detection with fallback heuristics.
+
+**Task 16: Confidence scoring per bubble**
+Instead of binary filled/empty, each bubble gets a confidence score (0.0 to 1.0). Bubbles below a configurable threshold get flagged for teacher review. Store confidence scores in the database. Show low-confidence answers in the review screen with a warning icon.
+
+**Task 17: Answer key alignment verification**
+After OMR processing, verify that detected answers make sense against the answer key. If the answer key says 50 questions but only 30 bubbles were detected, or if answers are offset by one row, warn the teacher instead of silently grading wrong.
+
+---
+
+### PHASE 3 — TEACHER WORKFLOW
+
+**Task 18: Exam template creation UI**
+Build a screen where the teacher defines their exam template: number of questions, number of choices per question (A-D or A-E), where the answer section starts. Save templates for reuse. This replaces developer-defined templates.
+
+**Task 19: Student roster import**
+Allow importing a student list from CSV or pasting from clipboard. Parse names, optionally student IDs. Validate no duplicates. Allow manual add/edit/delete after import.
+
+**Task 20: Class / section grouping**
+Add a "class" or "section" concept. A teacher can have multiple sections of the same subject. Assessments are grouped by section. Dashboard shows sections as top-level navigation.
+
+**Task 21: Item analysis / comparative analytics**
+For each assessment, show: which questions most students got wrong, average score per question, score distribution histogram. Teachers use this to decide what to re-teach. This is the most valuable analytics feature.
+
+**Task 22: Grade history / audit trail**
+When a teacher changes a score, log: original score, new score, timestamp, reason (optional text). Show history on the student's detail screen. Never delete audit records.
+
+**Task 23: Ethiopian calendar support**
+All dates in the app must support Ethiopian calendar display. Store dates internally as timestamps, display in Ethiopian calendar format. Allow teacher to toggle between Ethiopian and Gregorian. This is non-negotiable for Ethiopian teachers.
+
+**Task 24: Amharic string completeness audit**
+Scan every screen and every code path. Verify every user-visible string has an Amharic translation. Generate a report of missing translations. Then fill them in.
+
+---
+
+### PHASE 4 — PLATFORM HARDENING
+
+**Task 25: Crash reporting integration**
+Integrate Firebase Crashlytics or equivalent. Catch unhandled exceptions. Report to a dashboard. Verify it works by triggering a test crash.
+
+**Task 26: Permission flow polish**
+Handle camera, storage, and microphone permissions gracefully. If denied, show a clear explanation of why the permission is needed and how to enable it in settings. Never silently fail.
+
+**Task 27: Local backup and restore**
+Implement periodic SQLite database export to device storage. Allow teacher to trigger manual backup. Allow restore from backup. Test: backup, uninstall, reinstall, restore — all data intact.
+
+**Task 28: APK size audit and optimization**
+Measure current APK size. Identify the largest contributors. If TFLite Amharic model is included, apply quantization (INT8). Target: under 50MB APK. If model is too large, implement on-demand download.
+
+**Task 29: Performance benchmarks**
+Measure and document: cold start time, camera-to-result scan time per paper, PDF export time for 40 students, memory usage during batch scan. Compare against the KPI targets. If any target is missed, profile and optimize.
+
+**Task 30: CI/CD pipeline**
+Set up GitHub Actions or equivalent. On every push: run all unit tests, run all widget tests, build APK. On merge to main: build release APK and upload to Play Store internal testing track.
+
+---
+
+### PHASE 5 — NICE TO HAVE (POST-1.0)
+
+**Task 31: Short-answer keyword matching (F25)**
+OCR reads short-answer text, matches against teacher-defined keywords, assigns partial credit.
+
+**Task 32: QR code student ID (F27)**
+Scan a QR code on the exam paper to auto-identify the student. Wire the existing QR package.
+
+**Task 33: Result distribution**
+Let teachers share results with students via: PDF export, WhatsApp share, or in-app student view.
+
+**Task 34: Annotation on review**
+Let teachers add text annotations to specific answers on the review screen. "See chapter 3," "Common mistake," etc.
+
+**Task 35: i18n extraction tool**
+Build a script that scans the codebase for all user-visible strings, checks if both Amharic and English translations exist, and generates a missing-translations report.
+
+---
+
+START WITH TASK 1. Confirm you understand the task, then implement it. Show me the files changed and tests added when done. Wait for my go-ahead before starting Task 2.

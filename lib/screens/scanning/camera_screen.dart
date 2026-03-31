@@ -11,6 +11,7 @@ import '../../services/assessment_provider.dart';
 import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/session_service.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Camera screen with continuous batch capture flow.
@@ -115,6 +116,20 @@ class _CameraScreenState extends State<CameraScreen>
         _reScanStudentName = args['studentName'] as String?;
         if (_reScanStudentId != null && _reScanStudentName != null) {
           _isReScanMode = true;
+        }
+        // Resume: pre-populate captured images from incomplete session
+        final existingImages = args['existingImages'] as List<String>?;
+        if (existingImages != null && existingImages.isNotEmpty && _capturedImages.isEmpty) {
+          _capturedImages.addAll(existingImages);
+          // Look up assessment by ID if not already set
+          final assessmentId = args['assessmentId'] as String?;
+          if (assessmentId != null && _selectedAssessment == null) {
+            _selectedAssessment = context
+                .read<AssessmentProvider>()
+                .assessments
+                .cast<Assessment?>()
+                .firstWhere((a) => a?.id == assessmentId, orElse: () => null);
+          }
         }
       }
     }
@@ -493,9 +508,20 @@ class _CameraScreenState extends State<CameraScreen>
       _capturedImages.add(image.path);
       _capturedHashes.add(hash);
 
+      // Persist scan session to Hive immediately (minimizes crash window)
+      if (_selectedAssessment != null) {
+        await SessionService().saveSession(
+          assessmentId: _selectedAssessment!.id,
+          assessmentTitle: '${_selectedAssessment!.title} (${_selectedAssessment!.subject})',
+          imagePaths: List<String>.from(_capturedImages),
+        );
+      }
+
       // Re-scan mode: process immediately and return result
       if (_isReScanMode && _selectedAssessment != null) {
         await _processReScan(image.path);
+        // Re-scan done — clean up session (single paper, not a batch)
+        await SessionService().completeSession();
         return;
       }
     } catch (e) {
@@ -655,8 +681,11 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   /// Navigate to BatchScanScreen for batch processing.
-  void _finishBatch() {
+  Future<void> _finishBatch() async {
     _batchStarted = true;
+    // Session is complete — batch processing will handle results
+    await SessionService().completeSession();
+    if (!mounted) return;
     Navigator.pushNamed(
       context,
       AppRoutes.batchScan,

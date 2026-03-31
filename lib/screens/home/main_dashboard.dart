@@ -6,6 +6,7 @@ import '../../services/locale_provider.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/settings_provider.dart';
+import '../../services/session_service.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/assessment_card.dart';
 import '../../widgets/language_toggle.dart';
@@ -19,6 +20,71 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for incomplete scan session after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForResume());
+  }
+
+  /// Check if an incomplete scan session exists and show resume dialog.
+  Future<void> _checkForResume() async {
+    final session = await SessionService().getActiveSession();
+    if (session == null || !mounted) return;
+
+    final isAm = context.read<LocaleProvider>().isAmharic;
+    final shouldResume = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.restore, color: AppTheme.primaryGreen, size: 24),
+            const SizedBox(width: 8),
+            Text(isAm ? 'ማሰስ ይቀጥሉ?' : 'Resume Scanning?'),
+          ],
+        ),
+        content: Text(
+          isAm
+              ? '${session.imageCount} ወረቀቶች ተይዘዋል። ለ "${session.assessmentTitle}" ፈተና። ማሰስ ይቀጥላሉ?'
+              : 'You have ${session.imageCount} paper${session.imageCount == 1 ? '' : 's'} captured for "${session.assessmentTitle}". Continue scanning?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isAm ? 'ሰርዝ' : 'Discard'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.play_arrow, size: 18),
+            label: Text(isAm ? 'ቀጥል' : 'Resume'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (shouldResume == true) {
+      // Navigate to camera with existing images
+      Navigator.pushNamed(
+        context,
+        AppRoutes.camera,
+        arguments: {
+          'assessmentId': session.assessmentId,
+          'existingImages': session.imagePaths,
+        },
+      );
+    } else {
+      // Discard session and clean up images
+      await SessionService().discardSession();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

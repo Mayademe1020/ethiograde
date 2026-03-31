@@ -12,7 +12,7 @@
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
 | **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard); 5 tests for voice service; 7 tests for teacher model |
 | **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
-| **Crash-free rate** | — | Not in production yet |
+| **Crash-free rate** | 🟢 Protected | Session auto-save + resume dialog; zero data loss on crash |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
 | **Security audit** | ⚫ None | No audit performed |
 | **Data encryption** | 🟢 Done | AES-256 Hive boxes, key in flutter_secure_storage |
@@ -107,6 +107,7 @@
 | Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
 | i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
 | Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
+| Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|

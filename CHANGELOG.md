@@ -15,6 +15,16 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Crash recovery resume dialog**
+  - SessionService: persists active scan session to Hive metadata box after each capture
+  - Stores: assessmentId, assessmentTitle, imagePaths, capturedAt
+  - On app restart: MainDashboard checks for active session, shows bilingual dialog
+  - Resume → navigates to CameraScreen with existing images pre-loaded
+  - Discard → deletes session + cleans up captured image files
+  - Auto-cleanup: validates image files still exist, removes stale sessions
+  - Re-scan mode: session completed after single re-grade
+  - Batch start: session completed when processing begins
+  - 7 unit tests: saveSession, completeSession, getActiveSession (no session, completed, existing images, missing images, all-gone), discardSession
 - **i18n audit: bilingual empty states in analytics**
   - _GradeDistributionChart and _QuestionHeatmap now accept isAmharic parameter
   - Empty state 'No data' → 'ውሂብ የለም' / 'No data'
