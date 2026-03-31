@@ -10,13 +10,13 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard); 5 tests for voice service; 7 tests for teacher model |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 5 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard, Accessibility — 45+ widget tests total); 5 tests for voice service; 7 tests for teacher model |
 | **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
 | **Crash-free rate** | 🟢 Protected | Session auto-save + resume dialog; zero data loss on crash |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
 | **Security audit** | ⚫ None | No audit performed |
 | **Data encryption** | 🟢 Done | AES-256 Hive boxes, key in flutter_secure_storage |
-| **Accessibility** | 🟡 Partial | Theme contrast not verified, no screen reader tests |
+| **Accessibility** | 🟢 Good | Touch targets ≥40dp verified, semantic labels on key interactive elements, contrast fixes applied, screen reader tests added |
 | **i18n coverage** | 🟢 Good | All screens bilingual, no hardcoded strings found; no extraction tool yet |
 
 **Overall Status:** 🟠 Pre-Alpha — Core pipeline real, EXIF orientation fix applied
@@ -106,7 +106,7 @@
 | Teacher management persistence (F15) | ✅ Done | Backend | 3 | Teacher model, TeacherProvider with Hive CRUD, validation, bilingual UI, teacher list with delete, 7 model tests + 12 validation tests |
 | Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
 | i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
-| Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
+| Accessibility audit | ✅ Done | UX | 2 | Audited all 11 screens + 4 widgets. Fixed: (1) MCQ answer buttons 32→48dp, answer bubbles 32→40dp with semantic wrapper, heatmap cells 40→48dp with Semantics. (2) Camera overlay contrast: white60→white+14sp. (3) _TypeChip 10→11sp. (4) Added Semantics(button:true) to QuickAction, camera capture/done/thumbnail, ReportTypeCard, language chip, subscription options, mode cards. (5) Added semantic labels to heatmap cells and answer summary in review. 12 accessibility widget tests added. |
 | Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
 | Answer key alignment verification | ✅ Done | QA | 3 | ScanResult.checkAlignment() counts [MISSING] answers, warns if >20% missing. Warning shown in: ReviewScreen result cards (per-student), SideBySideReview (prominent banner at top), BatchScanScreen (summary of misaligned papers). Bilingual text. 6 unit tests. |
 | Dynamic template calibration | ✅ Done | ML | 5 | OmrService._calibrateTemplate(): samples 3 rows (first, middle, last) of bubble grid, detects actual bubble centers via horizontal sweep, computes per-axis scale + offset corrections, returns calibrated template. Applied before OMR detection loop. Sanity checks reject corrections >3× columnSpacing. Graceful fallback to original template. 1 synthetic image test. |

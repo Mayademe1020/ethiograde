@@ -313,8 +313,8 @@ class _CameraScreenState extends State<CameraScreen>
                                     ? 'ወረቀቱን ካሜራው ውስጥ ካስተካከሉ በኋላ ይያዙ'
                                     : 'Align paper in frame, then tap capture',
                                 style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 13,
+                                  color: Colors.white,
+                                  fontSize: 14,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -325,90 +325,106 @@ class _CameraScreenState extends State<CameraScreen>
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               // Thumbnail of last captured image
-                              GestureDetector(
-                                onTap: _capturedImages.isNotEmpty
-                                    ? _showCapturedImages
-                                    : null,
-                                child: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white24,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.white38,
+                              Semantics(
+                                label: isAm
+                                    ? 'የተያዙ ወረቀቶች ዝርዝር'
+                                    : 'View captured papers',
+                                button: true,
+                                child: GestureDetector(
+                                  onTap: _capturedImages.isNotEmpty
+                                      ? _showCapturedImages
+                                      : null,
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white24,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.white38,
+                                      ),
                                     ),
-                                  ),
-                                  child: _capturedImages.isNotEmpty
-                                      ? ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: Image.file(
-                                            File(_capturedImages.last),
-                                            fit: BoxFit.cover,
+                                    child: _capturedImages.isNotEmpty
+                                        ? ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: Image.file(
+                                              File(_capturedImages.last),
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.photo_library,
+                                            color: Colors.white54,
                                           ),
-                                        )
-                                      : const Icon(
-                                          Icons.photo_library,
-                                          color: Colors.white54,
-                                        ),
+                                  ),
                                 ),
                               ),
 
                               // Capture button
-                              GestureDetector(
-                                onTap: _isCapturing ? null : _captureImage,
-                                child: Container(
-                                  width: 72,
-                                  height: 72,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 4,
-                                    ),
-                                  ),
+                              Semantics(
+                                label: isAm ? 'ወረቀት ያዙ' : 'Capture photo',
+                                button: true,
+                                child: GestureDetector(
+                                  onTap: _isCapturing ? null : _captureImage,
                                   child: Container(
-                                    margin: const EdgeInsets.all(4),
+                                    width: 72,
+                                    height: 72,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: _isCapturing
-                                          ? Colors.grey
-                                          : AppTheme.primaryGreen,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 4,
+                                      ),
                                     ),
-                                    child: _isCapturing
-                                        ? const CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          )
-                                        : const Icon(
-                                            Icons.camera,
-                                            color: Colors.white,
-                                            size: 32,
-                                          ),
+                                    child: Container(
+                                      margin: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: _isCapturing
+                                            ? Colors.grey
+                                            : AppTheme.primaryGreen,
+                                      ),
+                                      child: _isCapturing
+                                          ? const CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            )
+                                          : const Icon(
+                                              Icons.camera,
+                                              color: Colors.white,
+                                              size: 32,
+                                            ),
+                                    ),
                                   ),
                                 ),
                               ),
 
                               // Done Scanning button
-                              GestureDetector(
-                                onTap: _capturedImages.isNotEmpty
-                                    ? _finishBatch
-                                    : null,
-                                child: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: _capturedImages.isNotEmpty
-                                        ? AppTheme.primaryGreen
-                                        : Colors.white24,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.check,
-                                    color: _capturedImages.isNotEmpty
-                                        ? Colors.white
-                                        : Colors.white54,
+                              Semantics(
+                                label: isAm
+                                    ? 'ማሰስ ጨርስ'
+                                    : 'Done scanning',
+                                button: true,
+                                child: GestureDetector(
+                                  onTap: _capturedImages.isNotEmpty
+                                      ? _finishBatch
+                                      : null,
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: _capturedImages.isNotEmpty
+                                          ? AppTheme.primaryGreen
+                                          : Colors.white24,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.check,
+                                      color: _capturedImages.isNotEmpty
+                                          ? Colors.white
+                                          : Colors.white54,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -447,8 +463,8 @@ class _CameraScreenState extends State<CameraScreen>
                                         ? 'ይዘት ካለ ማሰስ ያልቁ'
                                         : 'Tap ✓ when done scanning',
                                     style: const TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 12,
+                                      color: Colors.white,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ],

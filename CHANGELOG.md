@@ -14,6 +14,25 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 
 ## [Unreleased]
 
+### Fixed
+- **Accessibility audit — touch targets, contrast, screen reader support (Sprint 2)**
+  - MCQ answer buttons in Answer Key screen: 32×32dp → 48×48dp (InkWell, proper touch target)
+  - Answer summary bubbles in ReviewScreen: 32×32dp → 40×40dp container with semantic wrapper
+    describing correct/wrong counts for screen readers
+  - Question heatmap cells in AnalyticsScreen: 40×40dp → 48×48dp with Semantics label
+    (e.g. "Question 3: 75% correct")
+  - Camera overlay hint text: `Colors.white60` (fails WCAG AA) → `Colors.white` at 14sp
+  - Camera "done scanning" hint: `Colors.white60`/12sp → `Colors.white`/14sp
+  - Question type chips (_TypeChip): fontSize 10 → 11sp, padding 2→3 vertical
+  - Added `Semantics(button:true)` wrappers to:
+    - QuickAction buttons on dashboard (4 buttons)
+    - Camera capture, thumbnail, and done buttons (3 buttons)
+    - Report type cards in Reports screen (3 cards)
+    - Language selection chips in onboarding (2 chips)
+    - Subscription mode options in onboarding (2 options)
+    - Mode cards in Subscription screen (2 cards)
+  - Added 12 accessibility widget tests (touch targets, semantic labels, text sizing)
+
 ### Added
 - **Ethiopian calendar support (Task 23)**
   - EthiopianCalendar utility: pure Dart, zero dependencies

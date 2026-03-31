@@ -359,21 +359,25 @@ class _ModeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final features = isAmharic ? featuresAm : featuresEn;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.primaryGreen.withOpacity(0.05)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
-            width: isSelected ? 2 : 1,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: isAmharic ? titleAm : titleEn,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppTheme.primaryGreen.withOpacity(0.05)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
+              width: isSelected ? 2 : 1,
+            ),
           ),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

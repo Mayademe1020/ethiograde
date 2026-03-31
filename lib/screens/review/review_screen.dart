@@ -381,45 +381,56 @@ class _ResultCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               // Answer summary
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: result.answers.map((a) {
-                  return Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: a.isCorrect
-                          ? AppTheme.primaryGreen.withOpacity(0.15)
-                          : a.detectedAnswer == '[MISSING]'
-                              ? Colors.grey.shade200
-                              : AppTheme.primaryRed.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: a.isCorrect
-                            ? AppTheme.primaryGreen
-                            : a.detectedAnswer == '[MISSING]'
-                                ? Colors.grey
-                                : AppTheme.primaryRed,
-                        width: 1,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${a.questionNumber}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: a.isCorrect
-                              ? AppTheme.primaryGreen
-                              : a.detectedAnswer == '[MISSING]'
-                                  ? Colors.grey
-                                  : AppTheme.primaryRed,
+              Semantics(
+                label: isAmharic
+                    ? '${result.answers.where((a) => a.isCorrect).length} ትክክል፣ ${result.answers.where((a) => !a.isCorrect).length} ስህተት'
+                    : '${result.answers.where((a) => a.isCorrect).length} correct, ${result.answers.where((a) => !a.isCorrect).length} wrong',
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: result.answers.map((a) {
+                    return SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Center(
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: a.isCorrect
+                                ? AppTheme.primaryGreen.withOpacity(0.15)
+                                : a.detectedAnswer == '[MISSING]'
+                                    ? Colors.grey.shade200
+                                    : AppTheme.primaryRed.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: a.isCorrect
+                                  ? AppTheme.primaryGreen
+                                  : a.detectedAnswer == '[MISSING]'
+                                      ? Colors.grey
+                                      : AppTheme.primaryRed,
+                              width: 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${a.questionNumber}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: a.isCorrect
+                                    ? AppTheme.primaryGreen
+                                    : a.detectedAnswer == '[MISSING]'
+                                        ? Colors.grey
+                                        : AppTheme.primaryRed,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
               const SizedBox(height: 8),
               Row(

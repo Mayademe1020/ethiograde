@@ -261,31 +261,36 @@ class _AnswerKeyCard extends StatelessWidget {
                       children: question.options.map((opt) {
                         final isSelected =
                             question.correctAnswer == opt;
-                        return GestureDetector(
-                          onTap: () => onChanged(opt),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppTheme.primaryGreen
-                                  : Colors.white,
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: InkWell(
+                              onTap: () => onChanged(opt),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppTheme.primaryGreen
-                                    : Colors.grey.shade300,
-                              ),
-                            ),
-                            child: Center(
-                              child: Text(
-                                opt,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
+                              child: Container(
+                                decoration: BoxDecoration(
                                   color: isSelected
-                                      ? Colors.white
-                                      : AppTheme.darkText,
+                                      ? AppTheme.primaryGreen
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? AppTheme.primaryGreen
+                                        : Colors.grey.shade300,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    opt,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : AppTheme.darkText,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

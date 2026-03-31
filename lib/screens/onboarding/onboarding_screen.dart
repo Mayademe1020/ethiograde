@@ -285,27 +285,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _languageChip(String label, String code) {
     final isSelected = _selectedLanguage == code;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedLanguage = code);
-        context.read<LocaleProvider>().setLocale(code);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryGreen : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade300,
-            width: 1.5,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedLanguage = code);
+          context.read<LocaleProvider>().setLocale(code);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.primaryGreen : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade300,
+              width: 1.5,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppTheme.darkText,
-            fontWeight: FontWeight.w600,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : AppTheme.darkText,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -321,48 +326,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required String value,
   }) {
     final isAm = context.watch<LocaleProvider>().isAmharic;
-    // Track selection locally for UI highlighting
-    return GestureDetector(
-      onTap: () {},
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+    return Semantics(
+      button: true,
+      label: isAm ? titleAm : titleEn,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: AppTheme.primaryGreen),
               ),
-              child: Icon(icon, color: AppTheme.primaryGreen),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isAm ? titleAm : titleEn,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    isAm ? descAm : descEn,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.lightText,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isAm ? titleAm : titleEn,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                ],
+                    Text(
+                      isAm ? descAm : descEn,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.lightText,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400),
-          ],
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            ],
+          ),
         ),
       ),
     );

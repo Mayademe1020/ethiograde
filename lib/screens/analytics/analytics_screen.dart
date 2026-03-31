@@ -339,8 +339,8 @@ class _QuestionHeatmap extends StatelessWidget {
     }
 
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: 4,
+      runSpacing: 4,
       children: analytics.map((q) {
         final rate = q.correctRate;
         final color = Color.lerp(
@@ -351,21 +351,26 @@ class _QuestionHeatmap extends StatelessWidget {
 
         return Tooltip(
           message: 'Q${q.questionNumber}: ${(rate * 100).toStringAsFixed(0)}%',
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color, width: 1.5),
-            ),
-            child: Center(
-              child: Text(
-                '${q.questionNumber}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: color,
+          child: Semantics(
+            label: isAmharic
+                ? 'ጥያቄ ${q.questionNumber}: ${(rate * 100).toStringAsFixed(0)}% ትክክል'
+                : 'Question ${q.questionNumber}: ${(rate * 100).toStringAsFixed(0)}% correct',
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color, width: 1.5),
+              ),
+              child: Center(
+                child: Text(
+                  '${q.questionNumber}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
                 ),
               ),
             ),
