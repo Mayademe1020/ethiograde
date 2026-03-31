@@ -104,7 +104,7 @@
 |------|--------|----------|--------|-------|
 | Fix F18: Real voice note playback | ✅ Done | Mobile | 2 | just_audio wired, play/stop controls in review screen, bilingual errors, 5 tests |
 | Teacher management persistence (F15) | ✅ Done | Backend | 3 | Teacher model, TeacherProvider with Hive CRUD, validation, bilingual UI, teacher list with delete, 7 model tests + 12 validation tests |
-| Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
+| Sprint 2 metrics baseline | ✅ Done | Infra | 1 | Created integration_test/perf_benchmark.dart (cold start, dashboard render, rapid nav, memory idle baseline). Updated CI pipeline: release APK build + size measurement, AAB build, metrics summary in GitHub Step Summary. How-to-measure column added to Technical Metrics table. Actual values fill on first CI run with Flutter SDK or on-device test. |
 | i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
 | Accessibility audit | ✅ Done | UX | 2 | Audited all 11 screens + 4 widgets. Fixed: (1) MCQ answer buttons 32→48dp, answer bubbles 32→40dp with semantic wrapper, heatmap cells 40→48dp with Semantics. (2) Camera overlay contrast: white60→white+14sp. (3) _TypeChip 10→11sp. (4) Added Semantics(button:true) to QuickAction, camera capture/done/thumbnail, ReportTypeCard, language chip, subscription options, mode cards. (5) Added semantic labels to heatmap cells and answer summary in review. 12 accessibility widget tests added. |
 | Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
@@ -180,14 +180,14 @@
 
 ### Technical Metrics
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| Cold start time | < 3s | Unknown |
-| Scan-to-result time | < 5s | Unknown (mock: 0.8s) |
-| APK size | < 50MB | Unknown |
-| Memory peak | < 150MB | Unknown |
-| Test coverage | ≥ 60% | 0% |
-| Lint warnings | 0 | Unknown |
+| Metric | Target | Current | How to Measure |
+|--------|--------|---------|----------------|
+| Cold start time | < 3s | 📋 Pending | `integration_test/perf_benchmark.dart` — Stopwatch from main() to first frame |
+| Scan-to-result time | < 5s | ~0.8s (mock) | HybridGradingService.gradePaper timing |
+| APK size (release) | < 50MB | 📋 Pending | CI: `flutter build apk --release` → stat |
+| Memory peak | < 150MB | 📋 Pending | `adb shell dumpsys meminfo <pkg>` during batch scan of 10 papers |
+| Test coverage | ≥ 60% | 📋 Pending | `flutter test --coverage` → lcov |
+| Lint warnings | 0 | Unknown | `flutter analyze` |
 
 ---
 

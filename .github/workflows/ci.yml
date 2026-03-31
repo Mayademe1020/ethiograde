@@ -44,7 +44,7 @@ jobs:
           fi
 
   build:
-    name: Build APK
+    name: Build & Measure APK
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main'
@@ -55,16 +55,51 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
+
+      # ── Debug APK (fast feedback) ──
       - run: flutter build apk --debug
-      - name: Check APK size
+      - name: Measure Debug APK size
         run: |
-          APK_SIZE=$(stat -f%z build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null || stat -c%s build/app/outputs/flutter-apk/app-debug.apk)
-          APK_SIZE_MB=$((APK_SIZE / 1048576))
-          echo "APK size: ${APK_SIZE_MB}MB"
-          if (( APK_SIZE_MB > 50 )); then
-            echo "::warning::APK is ${APK_SIZE_MB}MB — target is <50MB"
+          APK_PATH=build/app/outputs/flutter-apk/app-debug.apk
+          APK_SIZE=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
+          APK_SIZE_MB=$(echo "scale=1; $APK_SIZE / 1048576" | bc)
+          echo "📦 Debug APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
+          if (( APK_SIZE > 52428800 )); then
+            echo "::warning::Debug APK is ${APK_SIZE_MB}MB — target is <50MB"
           fi
+
+      # ── Release APK (production metrics) ──
+      - run: flutter build apk --release
+      - name: Measure Release APK size
+        run: |
+          APK_PATH=build/app/outputs/flutter-apk/app-release.apk
+          APK_SIZE=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
+          APK_SIZE_MB=$(echo "scale=1; $APK_SIZE / 1048576" | bc)
+          echo "📦 Release APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
+          if (( APK_SIZE > 52428800 )); then
+            echo "::warning::Release APK is ${APK_SIZE_MB}MB — target is <50MB"
+          fi
+          # Write metrics summary
+          echo "## 📊 Build Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value | Target | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Release APK Size | ${APK_SIZE_MB}MB | <50MB | $([ $(echo "$APK_SIZE_MB < 50" | bc) -eq 1 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
+
       - uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      # ── App Bundle (Play Store) ──
+      - run: flutter build appbundle --release
+      - name: Measure AAB size
+        run: |
+          AAB_PATH=build/app/outputs/bundle/release/app-release.aab
+          AAB_SIZE=$(stat -c%s "$AAB_PATH" 2>/dev/null || stat -f%z "$AAB_PATH")
+          AAB_SIZE_MB=$(echo "scale=1; $AAB_SIZE / 1048576" | bc)
+          echo "📦 AAB: ${AAB_SIZE_MB}MB"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-aab
+          path: build/app/outputs/bundle/release/app-release.aab

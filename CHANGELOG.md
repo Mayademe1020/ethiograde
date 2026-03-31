@@ -34,7 +34,18 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - Added 12 accessibility widget tests (touch targets, semantic labels, text sizing)
 
 ### Test
-- **Expanded PDF service tests (7→20+)**
+- **Sprint 2 metrics baseline (infra)**
+  - Created `integration_test/perf_benchmark.dart` with 4 benchmarks:
+    - Cold start time (target: <3s, Stopwatch from main() to first frame)
+    - Dashboard render time (target: <500ms after tab switch)
+    - Memory idle baseline (verifies no crash, documents adb measurement steps)
+    - Rapid navigation stress test (15 tab switches, targets <200ms each)
+  - Updated CI pipeline (`.github/workflows/ci.yml`):
+    - Added release APK build + size measurement (target: <50MB)
+    - Added AAB build for Play Store readiness
+    - Added GitHub Step Summary with metrics table
+    - Debug + release APK size reporting with warnings
+  - Updated PROJECT_STATE.md Technical Metrics table with "How to Measure" column
   - Answer sheet template: single student, multi-student (3 pages), empty list, prefillNames=false
   - Mixed question types (MCQ+T/F+short+essay) in answer sheet
   - All-correct (100%) and all-wrong (0%) score PDFs
