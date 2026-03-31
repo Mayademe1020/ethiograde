@@ -15,6 +15,18 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **End-to-end integration test suite**
+  - 8 test groups covering the full teacher workflow:
+    App Launch & Navigation, Bilingual Support (EN↔AM toggle),
+    Assessment Creation (form + validation), Scanning Flow (camera load),
+    Review Screen (empty state), Reports & Export, Crash Resilience
+    (rapid back, lifecycle), Accessibility (48dp touch targets)
+  - `integration_test/app_flow_test.dart` — runnable via `flutter drive`
+  - `integration_test/driver.dart` — test driver
+  - Added `integration_test` SDK to dev_dependencies in pubspec.yaml
+  - Tests verify no crashes on: empty data, permission denied, rapid nav,
+    backgrounding/resuming
+  - Bilingual: tests check both EN and AM string presence on key screens
 - **Pure Dart perspective correction for document images**
   - PerspectiveCorrectionService: detects document corners using edge detection (Sobel gradient)
   - Computes 3x3 homography matrix via Direct Linear Transform (DLT)

@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction; zero widget tests |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; zero widget tests |
 | **CI/CD** | ⚫ None | No pipeline configured |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -112,8 +112,8 @@
 | Pure Dart perspective correction | ✅ Done | ML | 5 | PerspectiveCorrectionService: corner detection, homography, bilinear warp. Integrated into OCR pipeline as primary correction before fallback to simple rotation. 9 tests. |
 | Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
 | Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric. Auto-saves to Hive on confirm. Save All for batch overrides. |
-| Student persistence (Hive) | 📋 Pending | Backend | — | Sprint 1 task 6 |
-| End-to-end integration test | 📋 Pending | QA | — | Sprint 1 task 7 |
+| Student persistence (Hive) | ✅ Done | Backend | — | F31 completed: StudentProvider real Hive CRUD with validation, UUID, Result type |
+| End-to-end integration test | ✅ Done | QA | — | 8 test groups: app launch, bilingual, assessment creation, scanning, review, reports, crash resilience, accessibility. Flutter driver runnable. |
 | Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |
 | ValidationService | ✅ Done | Backend | 3 | Pure Dart student/assessment/scan validation, 25+ unit tests |
 | Rewrite StudentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, UUID gen, Result type, Amharic search |
