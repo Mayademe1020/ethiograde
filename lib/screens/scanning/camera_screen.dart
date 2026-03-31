@@ -43,6 +43,11 @@ class _CameraScreenState extends State<CameraScreen>
   bool _batchStarted = false;
   Assessment? _selectedAssessment;
   PaperGuideState _guideState = PaperGuideState.idle;
+  // Re-scan mode: single capture → immediate regrade → return result
+  String? _reScanStudentId;
+  String? _reScanStudentName;
+  bool _isReScanMode = false;
+  bool _isReScanning = false;
 
   @override
   void initState() {
@@ -100,6 +105,19 @@ class _CameraScreenState extends State<CameraScreen>
 
     _selectedAssessment ??=
         ModalRoute.of(context)?.settings.arguments as Assessment?;
+
+    // Check for re-scan mode via Map arguments
+    if (!_isReScanMode) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        _selectedAssessment ??= args['assessment'] as Assessment?;
+        _reScanStudentId = args['studentId'] as String?;
+        _reScanStudentName = args['studentName'] as String?;
+        if (_reScanStudentId != null && _reScanStudentName != null) {
+          _isReScanMode = true;
+        }
+      }
+    }
 
     // Load existing hashes once when assessment is known
     if (_selectedAssessment != null && !_existingHashesLoaded) {
@@ -474,6 +492,12 @@ class _CameraScreenState extends State<CameraScreen>
 
       _capturedImages.add(image.path);
       _capturedHashes.add(hash);
+
+      // Re-scan mode: process immediately and return result
+      if (_isReScanMode && _selectedAssessment != null) {
+        await _processReScan(image.path);
+        return;
+      }
     } catch (e) {
       debugPrint('Capture error: $e');
       if (mounted) {
@@ -587,6 +611,47 @@ class _CameraScreenState extends State<CameraScreen>
       ),
     );
     return result ?? false; // Default: keep (safe default)
+  }
+
+  /// Re-scan mode: process single image immediately and return to review.
+  Future<void> _processReScan(String imagePath) async {
+    setState(() => _isReScanning = true);
+    try {
+      final result = await HybridGradingService().regradePaper(
+        imagePath: imagePath,
+        assessment: _selectedAssessment!,
+        studentId: _reScanStudentId!,
+        studentName: _reScanStudentName!,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<LocaleProvider>().isAmharic
+                  ? 'ድጋሜ ተሰልቷል — ውጤቱ ተዘምኗል'
+                  : 'Re-scan complete — score updated',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context, result);
+      }
+    } catch (e) {
+      debugPrint('Re-scan error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<LocaleProvider>().isAmharic
+                  ? 'ስህተት ተከስቷል፣ እንደገና ይሞክሩ'
+                  : 'Re-scan failed — try again',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isReScanning = false);
+    }
   }
 
   /// Navigate to BatchScanScreen for batch processing.

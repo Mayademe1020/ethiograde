@@ -616,13 +616,40 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // Re-scan: go back to camera with the assessment context.
-                      Navigator.popUntil(
-                        context,
-                        (route) => route.settings.name == AppRoutes.dashboard,
+                    onPressed: () async {
+                      // Re-scan: open camera in single-capture mode for this student.
+                      final assessments = context.read<AssessmentProvider>().assessments;
+                      final assessment = assessments.cast<Assessment?>().firstWhere(
+                        (a) => a?.id == _result.assessmentId,
+                        orElse: () => null,
                       );
-                      Navigator.pushNamed(context, AppRoutes.camera);
+                      if (assessment == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isAm ? 'ፈተና አልተገኘም' : 'Assessment not found',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final updatedResult = await Navigator.pushNamed(
+                        context,
+                        AppRoutes.camera,
+                        arguments: <String, dynamic>{
+                          'assessment': assessment,
+                          'studentId': _result.studentId,
+                          'studentName': _result.studentName,
+                        },
+                      );
+
+                      if (updatedResult is ScanResult && mounted) {
+                        setState(() {
+                          _result = updatedResult;
+                          _commentController.text = updatedResult.teacherComment ?? '';
+                        });
+                      }
                     },
                     icon: const Icon(Icons.camera_alt),
                     label: Text(isAm ? 'እንደገና ስል' : 'Re-Scan'),
