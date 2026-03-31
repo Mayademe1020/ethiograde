@@ -16,6 +16,7 @@ import 'services/assessment_provider.dart';
 import 'services/student_provider.dart';
 import 'services/analytics_provider.dart';
 import 'services/settings_provider.dart';
+import 'services/teacher_provider.dart';
 import 'services/migration_service.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home/main_dashboard.dart';
@@ -25,6 +26,7 @@ class _BoxNames {
   static const String students = 'students';
   static const String assessments = 'assessments';
   static const String scanResults = 'scan_results';
+  static const String teachers = 'teachers';
   static const String metadata = 'metadata';
 }
 
@@ -111,10 +113,16 @@ Future<_InitStatus> _initEncryptedHive() async {
     cipher: cipher,
   );
 
+  final teachers = await _openBoxSafe(
+    _BoxNames.teachers,
+    cipher: cipher,
+  );
+
   // ── 4. Compact ────────────────────────────────────────────────────
   await students.compact();
   await assessments.compact();
   await scanResults.compact();
+  await teachers.compact();
 
   // ── 5. Metadata box (for schema versioning) ───────────────────────
   final metadata = await _openBoxSafe(
@@ -128,7 +136,8 @@ Future<_InitStatus> _initEncryptedHive() async {
 
   debugPrint('[Hive] Boxes open — students: ${students.length}, '
       'assessments: ${assessments.length}, '
-      'scan_results: ${scanResults.length}');
+      'scan_results: ${scanResults.length}, '
+      'teachers: ${teachers.length}');
 
   return _InitStatus.ok;
 }
@@ -181,6 +190,7 @@ class EthioGradeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => TeacherProvider()),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {

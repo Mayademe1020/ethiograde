@@ -1,6 +1,7 @@
 import '../models/student.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
+import '../models/teacher.dart';
 
 /// Result of a validation check.
 /// [isValid] is true when [errors] is empty.
@@ -49,6 +50,41 @@ class ValidationService {
     if (student.grade < 0 || student.grade > 12) {
       errors.add('Grade must be between 1 and 12, or 0 for University '
           '(${student.grade} given)');
+    }
+
+    return errors.isEmpty
+        ? const ValidationResult.valid()
+        : ValidationResult.invalid(errors);
+  }
+
+  // ── Teacher ────────────────────────────────────────────────────────
+
+  /// Validate a [Teacher] before persisting.
+  ValidationResult validateTeacher(Teacher teacher) {
+    final errors = <String>[];
+
+    // Name: not empty, not whitespace-only
+    if (teacher.name.trim().isEmpty) {
+      errors.add('Teacher name cannot be empty');
+    } else if (teacher.name.trim().length > _maxNameLength) {
+      errors.add('Teacher name cannot exceed $_maxNameLength characters '
+          '(${teacher.name.trim().length} given)');
+    }
+
+    // Phone: if provided, must look like a phone number
+    if (teacher.phone.trim().isNotEmpty) {
+      final digits = teacher.phone.replaceAll(RegExp(r'[\s\-\+]'), '');
+      if (digits.length < 7 || digits.length > 15) {
+        errors.add('Phone number must be 7–15 digits');
+      }
+    }
+
+    // Email: if provided, basic format check
+    if (teacher.email.trim().isNotEmpty) {
+      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+      if (!emailRegex.hasMatch(teacher.email.trim())) {
+        errors.add('Invalid email format');
+      }
     }
 
     return errors.isEmpty

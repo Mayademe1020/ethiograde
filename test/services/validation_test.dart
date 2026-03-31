@@ -3,6 +3,7 @@ import 'package:ethiograde/services/validation_service.dart';
 import 'package:ethiograde/models/student.dart';
 import 'package:ethiograde/models/assessment.dart';
 import 'package:ethiograde/models/scan_result.dart';
+import 'package:ethiograde/models/teacher.dart';
 
 void main() {
   const validator = ValidationService();
@@ -280,6 +281,95 @@ void main() {
           validator.validateScanResult(_scanResult(studentId: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('Student ID'));
+    });
+  });
+
+  // ── Teacher ───────────────────────────────────────────────────────
+
+  Teacher _teacher({
+    String name = 'Abebe Kebede',
+    String phone = '',
+    String email = '',
+  }) =>
+      Teacher(
+        name: name,
+        phone: phone,
+        email: email,
+      );
+
+  group('Teacher validation', () {
+    test('valid teacher passes', () {
+      final result = validator.validateTeacher(_teacher());
+      expect(result.isValid, isTrue);
+    });
+
+    test('empty name fails', () {
+      final result = validator.validateTeacher(_teacher(name: ''));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('name'));
+    });
+
+    test('whitespace-only name fails', () {
+      final result = validator.validateTeacher(_teacher(name: '   '));
+      expect(result.isValid, isFalse);
+    });
+
+    test('long name fails', () {
+      final result = validator.validateTeacher(
+          _teacher(name: 'A' * 101));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('exceed'));
+    });
+
+    test('valid phone passes', () {
+      final result =
+          validator.validateTeacher(_teacher(phone: '+251911223344'));
+      expect(result.isValid, isTrue);
+    });
+
+    test('short phone fails', () {
+      final result = validator.validateTeacher(_teacher(phone: '123'));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('Phone'));
+    });
+
+    test('long phone fails', () {
+      final result =
+          validator.validateTeacher(_teacher(phone: '1234567890123456'));
+      expect(result.isValid, isFalse);
+    });
+
+    test('empty phone is valid', () {
+      final result = validator.validateTeacher(_teacher(phone: ''));
+      expect(result.isValid, isTrue);
+    });
+
+    test('valid email passes', () {
+      final result =
+          validator.validateTeacher(_teacher(email: 'abebe@school.et'));
+      expect(result.isValid, isTrue);
+    });
+
+    test('invalid email fails', () {
+      final result =
+          validator.validateTeacher(_teacher(email: 'not-an-email'));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('email'));
+    });
+
+    test('empty email is valid', () {
+      final result = validator.validateTeacher(_teacher(email: ''));
+      expect(result.isValid, isTrue);
+    });
+
+    test('multiple errors collected', () {
+      final result = validator.validateTeacher(_teacher(
+        name: '',
+        phone: '12',
+        email: 'bad',
+      ));
+      expect(result.isValid, isFalse);
+      expect(result.errors.length, greaterThanOrEqualTo(3));
     });
   });
 }

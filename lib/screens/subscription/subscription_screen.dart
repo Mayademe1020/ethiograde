@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../services/locale_provider.dart';
 import '../../services/settings_provider.dart';
+import '../../services/teacher_provider.dart';
+import '../../models/teacher.dart';
 
 class SubscriptionScreen extends StatelessWidget {
   const SubscriptionScreen({super.key});
@@ -162,6 +164,10 @@ class SubscriptionScreen extends StatelessWidget {
                 subtitle: isAm ? 'በቴሌብር ይክፈሉ' : 'Pay with Telebirr',
                 onTap: () => _showPaymentInfo(context, isAm),
               ),
+
+              // Teacher list
+              const SizedBox(height: 16),
+              _TeacherListSection(isAm: isAm),
             ],
 
             // Individual features
@@ -191,49 +197,87 @@ class SubscriptionScreen extends StatelessWidget {
   void _showAddTeacherDialog(BuildContext context, bool isAm) {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
+    final subjectCtrl = TextEditingController();
 
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(isAm ? 'መምህር ጨምር' : 'Add Teacher'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: isAm ? 'የመምህር ስም' : 'Teacher Name',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: isAm ? 'የመምህር ስም' : 'Teacher Name',
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: phoneCtrl,
-              decoration: InputDecoration(
-                labelText: isAm ? 'ስልክ' : 'Phone',
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                decoration: InputDecoration(
+                  labelText: isAm ? 'ስልክ' : 'Phone',
+                ),
+                keyboardType: TextInputType.phone,
               ),
-              keyboardType: TextInputType.phone,
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: subjectCtrl,
+                decoration: InputDecoration(
+                  labelText: isAm ? 'ትምህርት አይነት' : 'Subject',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () {
               nameCtrl.dispose();
               phoneCtrl.dispose();
+              subjectCtrl.dispose();
               Navigator.pop(c);
             },
             child: Text(isAm ? 'ሰርዝ' : 'Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              // TODO: Add teacher to school
+            onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      isAm ? 'ስም ያስፈልጋል' : 'Name is required',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              final teacher = Teacher(
+                name: name,
+                phone: phoneCtrl.text.trim(),
+                subject: subjectCtrl.text.trim(),
+              );
+
+              final provider =
+                  Provider.of<TeacherProvider>(context, listen: false);
+              final result = await provider.addTeacher(teacher);
+
               nameCtrl.dispose();
               phoneCtrl.dispose();
+              subjectCtrl.dispose();
               Navigator.pop(c);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    isAm ? 'መምህር ተመዝግቧል' : 'Teacher added',
+                    result.success
+                        ? (isAm ? 'መምህር ተመዝግቧል' : 'Teacher added')
+                        : (isAm
+                            ? 'ስህተት: ${result.error}'
+                            : 'Error: ${result.error}'),
                   ),
                 ),
               );
@@ -422,6 +466,116 @@ class _AdminTile extends StatelessWidget {
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _TeacherListSection extends StatelessWidget {
+  final bool isAm;
+  const _TeacherListSection({required this.isAm});
+
+  @override
+  Widget build(BuildContext context) {
+    final teachers = context.watch<TeacherProvider>().teachers;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isAm ? 'የተመዘገቡ መምህራን' : 'Registered Teachers',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        if (teachers.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Text(
+                isAm
+                    ? 'ምንም መምህር ገና ተመዝግቧል የለም'
+                    : 'No teachers registered yet',
+                style: TextStyle(color: AppTheme.lightText),
+              ),
+            ),
+          )
+        else
+          ...teachers.map((teacher) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        AppTheme.primaryGreen.withOpacity(0.1),
+                    child: Text(
+                      teacher.name.isNotEmpty
+                          ? teacher.name[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    isAm && teacher.nameAmharic.isNotEmpty
+                        ? teacher.nameAmharic
+                        : teacher.name,
+                  ),
+                  subtitle: Text(
+                    [
+                      if (teacher.subject.isNotEmpty) teacher.subject,
+                      if (teacher.phone.isNotEmpty) teacher.phone,
+                    ].join(' · '),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: AppTheme.primaryRed.withOpacity(0.7),
+                    ),
+                    onPressed: () =>
+                        _confirmDelete(context, teacher, isAm),
+                  ),
+                ),
+              )),
+      ],
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Teacher teacher, bool isAm) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(isAm ? 'መምህር ሰርዝ' : 'Delete Teacher'),
+        content: Text(
+          isAm
+              ? '"${teacher.name}" ለመሰረዝ እርግጠኛ ነዎት?'
+              : 'Remove "${teacher.name}" from the school?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: Text(isAm ? 'ሰርዝ' : 'Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryRed,
+            ),
+            onPressed: () async {
+              await Provider.of<TeacherProvider>(context, listen: false)
+                  .deleteTeacher(teacher.id);
+              Navigator.pop(c);
+            },
+            child: Text(isAm ? 'አዎ ሰርዝ' : 'Yes, Delete'),
+          ),
+        ],
       ),
     );
   }

@@ -10,7 +10,7 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard); 5 tests for voice service |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service (incl. 12 teacher validation), 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard); 5 tests for voice service; 7 tests for teacher model |
 | **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
@@ -66,7 +66,7 @@
 
 | # | Feature | Status | Owner | Depends On | Risk | Notes |
 |---|---------|--------|-------|------------|------|-------|
-| F15 | Teacher management | ❌ Stub | Backend | F07 | Medium | Dialog exists, no persistence |
+| F15 | Teacher management persistence (F15) | ✅ Done | Backend | F07, F30 | Medium | Teacher model + TeacherProvider with full Hive CRUD, validation, bilingual search, active toggle, delete confirmation. Dialog wired to persistence, teacher list visible in school mode. |
 | F16 | Re-scan paper | ✅ Done | Mobile | F01 | Low | Single-capture re-scan, immediate regrade, returns updated result |
 | F17 | Dashboard search | ✅ Done | Mobile | F07 | Low | Real-time filter by student name, bilingual empty state |
 | F18 | Voice recording playback | ✅ Done | Mobile | F14 | Low | just_audio wired, play/stop in review screen, bilingual errors |
@@ -103,7 +103,7 @@
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
 | Fix F18: Real voice note playback | ✅ Done | Mobile | 2 | just_audio wired, play/stop controls in review screen, bilingual errors, 5 tests |
-| Teacher management persistence (F15) | 📋 Pending | Backend | 3 | Wire teacher CRUD to Hive, eliminate stub |
+| Teacher management persistence (F15) | ✅ Done | Backend | 3 | Teacher model, TeacherProvider with Hive CRUD, validation, bilingual UI, teacher list with delete, 7 model tests + 12 validation tests |
 | Sprint 2 metrics baseline | 📋 Pending | Infra | 1 | Measure cold start, APK size, memory peak |
 | i18n string extraction audit | 📋 Pending | QA | 2 | Verify all screens bilingual, no hardcoded strings |
 | Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
@@ -247,4 +247,4 @@
 
 ---
 
-*Last Updated: 2026-03-31*
+*Last Updated: 2026-04-01*

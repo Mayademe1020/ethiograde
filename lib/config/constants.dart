@@ -10,6 +10,7 @@ class AppConstants {
   static const String studentsBox = 'students';
   static const String assessmentsBox = 'assessments';
   static const String scanResultsBox = 'scan_results';
+  static const String teachersBox = 'teachers';
   static const String metadataBox = 'metadata';
 
   // Shared Pref Keys

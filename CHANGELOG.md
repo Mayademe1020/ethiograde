@@ -296,6 +296,21 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 - Pure Dart perspective correction
 - Camera guidance overlay
 - Score override/edit flow
+- **Teacher management persistence (F15)**
+  - New `Teacher` model: id, name, nameAmharic, phone, email, subject, isActive, createdAt, metadata
+    with toMap/fromMap/copyWith/getDisplayName (bilingual)
+  - `TeacherProvider`: Hive-backed CRUD (add, update, delete, toggleActive, search, filter by subject,
+    bulk add, clearAll). Follows StudentProvider pattern — Result type, try/catch, never crashes
+  - `ValidationService.validateTeacher()`: name required (≤100 chars), phone format (7–15 digits if provided),
+    email format check if provided. 12 new validation tests
+  - New `teachers` encrypted Hive box in main.dart (_BoxNames + openBoxSafe + compact)
+  - `TeacherProvider` registered in MultiProvider in main.dart
+  - `AppConstants.teachersBox` constant added
+  - SubscriptionScreen: `_showAddTeacherDialog` wired to TeacherProvider.addTeacher() — real persistence,
+    validation error feedback, bilingual snackbar. Subject field added. Controllers properly disposed
+  - New `_TeacherListSection` widget: shows registered teachers with avatar, subject, phone, delete
+    confirmation dialog (bilingual). Empty state when no teachers
+  - 7 unit tests for Teacher model: auto-ID, round-trip, missing fields, copyWith, bilingual display
 
 ## [0.1.0-hybrid-grading] — 2026-03-30
 
