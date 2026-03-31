@@ -15,6 +15,16 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Answer key alignment verification (Task 17)**
+  - ScanResult.checkAlignment(expectedObjectiveCount): counts [MISSING] answers,
+    computes missing ratio, warns if >20% of objective answers not detected
+  - AlignmentCheck class: detectedObjective, expectedObjective, missingCount,
+    needsWarning, missingRatio
+  - ReviewScreen result cards: per-student warning badge when alignment off
+  - SideBySideReview: prominent red banner at top when many answers missing
+    with bilingual text explaining the mismatch and suggesting to check alignment
+  - BatchScanScreen: summary banner showing how many students had alignment issues
+  - 6 unit tests: no missing, few missing, many missing, all missing, zero expected, empty
 - **Crash recovery resume dialog**
   - SessionService: persists active scan session to Hive metadata box after each capture
   - Stores: assessmentId, assessmentTitle, imagePaths, capturedAt

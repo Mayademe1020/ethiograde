@@ -1022,3 +1022,80 @@ void main() {
     });
   });
 }
+
+  group('ScanResult.checkAlignment', () {
+    ScanResult _makeResult(List<AnswerMatch> answers) {
+      return ScanResult(
+        assessmentId: 'test',
+        studentId: 's1',
+        studentName: 'Test',
+        imagePath: '',
+        answers: answers,
+      );
+    }
+
+    AnswerMatch _match(int num, String detected) => AnswerMatch(
+          questionNumber: num,
+          detectedAnswer: detected,
+          correctAnswer: 'A',
+          isCorrect: detected == 'A',
+          score: detected == 'A' ? 1 : 0,
+          maxScore: 1,
+        );
+
+    test('no missing answers — no warning', () {
+      final result = _makeResult([
+        _match(1, 'A'), _match(2, 'B'), _match(3, 'A'),
+      ]);
+      final check = result.checkAlignment(3);
+      expect(check.needsWarning, false);
+      expect(check.missingCount, 0);
+      expect(check.detectedObjective, 3);
+    });
+
+    test('few missing (< 20%) — no warning', () {
+      final result = _makeResult([
+        _match(1, 'A'), _match(2, 'B'), _match(3, 'A'),
+        _match(4, '[MISSING]'), _match(5, 'C'),
+      ]);
+      final check = result.checkAlignment(5);
+      expect(check.needsWarning, false);
+      expect(check.missingCount, 1);
+    });
+
+    test('many missing (> 20%) — warning', () {
+      final result = _makeResult([
+        _match(1, 'A'), _match(2, 'B'),
+        _match(3, '[MISSING]'), _match(4, '[MISSING]'),
+        _match(5, '[MISSING]'),
+      ]);
+      final check = result.checkAlignment(5);
+      expect(check.needsWarning, true);
+      expect(check.missingCount, 3);
+      expect(check.detectedObjective, 2);
+      expect(check.missingRatio, 0.6);
+    });
+
+    test('all missing — warning', () {
+      final result = _makeResult([
+        _match(1, '[MISSING]'), _match(2, '[MISSING]'),
+      ]);
+      final check = result.checkAlignment(2);
+      expect(check.needsWarning, true);
+      expect(check.missingCount, 2);
+      expect(check.missingRatio, 1.0);
+    });
+
+    test('zero expected — no warning', () {
+      final result = _makeResult([_match(1, 'A')]);
+      final check = result.checkAlignment(0);
+      expect(check.needsWarning, false);
+    });
+
+    test('empty answers — no warning', () {
+      final result = _makeResult([]);
+      final check = result.checkAlignment(10);
+      expect(check.needsWarning, false);
+    });
+  });
+}

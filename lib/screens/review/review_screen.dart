@@ -241,6 +241,18 @@ class _ResultCard extends StatelessWidget {
     final passed = result.percentage >= passMark;
     final needsReview = result.needsReview;
 
+    // Check answer key alignment
+    final assessments = context.read<AssessmentProvider>().assessments;
+    final assessment = assessments.cast<Assessment?>().firstWhere(
+          (a) => a?.id == result.assessmentId,
+          orElse: () => null,
+        );
+    final objectiveCount = assessment != null
+        ? assessment.mcqCount + assessment.trueFalseCount
+        : 0;
+    final alignment = result.checkAlignment(objectiveCount);
+    final hasAlignmentWarning = alignment.needsWarning;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -298,6 +310,28 @@ class _ResultCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 11,
                                 color: AppTheme.warning,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        if (hasAlignmentWarning)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryRed.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isAmharic
+                                  ? '⚠️ ${alignment.missingCount} መልሶች አልተገኙም — የወረቀቱ ቦታ ያረጋግጡ'
+                                  : '⚠️ ${alignment.missingCount} answers missing — check paper alignment',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.primaryRed,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -501,6 +535,61 @@ class _SideBySideReviewState extends State<SideBySideReview> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Alignment warning: many answers missing
+            Builder(builder: (context) {
+              final assessments = context.read<AssessmentProvider>().assessments;
+              final assessment = assessments.cast<Assessment?>().firstWhere(
+                    (a) => a?.id == result.assessmentId,
+                    orElse: () => null,
+                  );
+              final objCount = assessment != null
+                  ? assessment.mcqCount + assessment.trueFalseCount
+                  : 0;
+              final alignment = result.checkAlignment(objCount);
+              if (!alignment.needsWarning) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryRed.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryRed.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: AppTheme.primaryRed, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isAm
+                                ? 'የመልስ ቁልፍ ግምታዊ አለመመሳሰል'
+                                : 'Answer Key Mismatch',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryRed,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isAm
+                                ? '${alignment.missingCount} መልሶች አልተገኙም (${alignment.detectedObjective}/${alignment.expectedObjective} ተገኙ)። ወረቀቱ በትክክል እንዳለ ያረጋግጡ።'
+                                : '${alignment.missingCount} answers not detected (${alignment.detectedObjective}/${alignment.expectedObjective} found). Check if the paper was aligned correctly.',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+
             // Score summary
             Container(
               padding: const EdgeInsets.all(16),

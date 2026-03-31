@@ -108,6 +108,7 @@
 | i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
 | Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
 | Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
+| Answer key alignment verification | ✅ Done | QA | 3 | ScanResult.checkAlignment() counts [MISSING] answers, warns if >20% missing. Warning shown in: ReviewScreen result cards (per-student), SideBySideReview (prominent banner at top), BatchScanScreen (summary of misaligned papers). Bilingual text. 6 unit tests. |
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|

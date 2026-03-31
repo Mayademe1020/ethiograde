@@ -118,6 +118,63 @@ class ScanResult {
     imageHash: imageHash ?? this.imageHash,
     metadata: metadata,
   );
+
+  /// Check if answer detection is aligned with the expected key length.
+  ///
+  /// Returns alignment details: how many answers were detected vs expected,
+  /// how many are [MISSING], and whether the mismatch is significant enough
+  /// to warn the teacher.
+  ///
+  /// [expectedObjectiveCount] — number of MCQ + True/False questions in the
+  /// assessment's answer key. Pass 0 for subjective-only assessments.
+  AlignmentCheck checkAlignment(int expectedObjectiveCount) {
+    if (expectedObjectiveCount <= 0 || answers.isEmpty) {
+      return AlignmentCheck(
+        detectedObjective: 0,
+        expectedObjective: expectedObjectiveCount,
+        missingCount: 0,
+        needsWarning: false,
+      );
+    }
+
+    final detectedObjective = answers
+        .where((a) => a.detectedAnswer != '[MISSING]')
+        .length;
+    final missingCount = answers
+        .where((a) => a.detectedAnswer == '[MISSING]')
+        .length;
+
+    // Warn if more than 20% of objective answers are missing
+    // (e.g., paper misaligned, wrong template, partial scan)
+    final missingRatio = missingCount / expectedObjectiveCount;
+    final needsWarning = missingRatio > 0.2;
+
+    return AlignmentCheck(
+      detectedObjective: detectedObjective,
+      expectedObjective: expectedObjectiveCount,
+      missingCount: missingCount,
+      needsWarning: needsWarning,
+    );
+  }
+}
+
+/// Result of checking answer key alignment after scanning.
+class AlignmentCheck {
+  final int detectedObjective;
+  final int expectedObjective;
+  final int missingCount;
+  final bool needsWarning;
+
+  const AlignmentCheck({
+    required this.detectedObjective,
+    required this.expectedObjective,
+    required this.missingCount,
+    required this.needsWarning,
+  });
+
+  /// Ratio of missing answers (0.0 = none missing, 1.0 = all missing).
+  double get missingRatio =>
+      expectedObjective > 0 ? missingCount / expectedObjective : 0.0;
 }
 
 enum ScanStatus { pending, processing, graded, reviewed, needsRescan }

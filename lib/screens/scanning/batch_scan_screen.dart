@@ -10,6 +10,7 @@ import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/analytics_provider.dart';
 import '../../services/scoring_service.dart';
+import '../../services/assessment_provider.dart';
 
 class BatchScanScreen extends StatefulWidget {
   const BatchScanScreen({super.key});
@@ -263,6 +264,63 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 ],
               ),
             ),
+
+          // Alignment warnings (answer key mismatch)
+          Builder(builder: (context) {
+            if (_results.isEmpty || _isProcessing) return const SizedBox.shrink();
+            final assessments = context.read<AssessmentProvider>().assessments;
+            final assessment = assessments.cast<Assessment?>().firstWhere(
+                  (a) => a?.id == _results.first.assessmentId,
+                  orElse: () => null,
+                );
+            final objCount = assessment != null
+                ? assessment.mcqCount + assessment.trueFalseCount
+                : 0;
+            if (objCount <= 0) return const SizedBox.shrink();
+
+            final misaligned = _results
+                .where((r) => r.checkAlignment(objCount).needsWarning)
+                .toList();
+            if (misaligned.isEmpty) return const SizedBox.shrink();
+
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryRed.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: AppTheme.primaryRed.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: AppTheme.primaryRed, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        isAm
+                            ? 'የመልስ ቁልፍ ግምታዊ አለመመሳሰል'
+                            : 'Answer Key Mismatch',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primaryRed),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isAm
+                        ? '${misaligned.length} ተማሪዎች ${objCount} ጥያቄዎች ከሚጠበቁ በአነስተኛ መልሶች ተገኙ። ወረቀቶቹ በትክክል መሆናቸውን ያረጋግጡ።'
+                        : '${misaligned.length} student${misaligned.length == 1 ? '' : 's'} had fewer than expected answers (expected $objCount questions). Check paper alignment.',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            );
+          }),
 
           // Results list
           Expanded(
