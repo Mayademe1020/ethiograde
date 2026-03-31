@@ -6,12 +6,11 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const String companyName = 'EthioGrade Education Technology';
 
-  // Hive Box Names
-  static const String settingsBox = 'settings';
+  // Hive Box Names — single source of truth (keep in sync with main.dart _BoxNames)
   static const String studentsBox = 'students';
   static const String assessmentsBox = 'assessments';
-  static const String resultsBox = 'results';
-  static const String syncQueueBox = 'sync_queue';
+  static const String scanResultsBox = 'scan_results';
+  static const String metadataBox = 'metadata';
 
   // Shared Pref Keys
   static const String prefFirstLaunch = 'first_launch';
@@ -72,11 +71,11 @@ class AppConstants {
     },
   };
 
-  // Check first launch
-  static bool get isFirstLaunch {
-    return SharedPreferences.getInstance().then(
-      (prefs) => prefs.getBool(prefFirstLaunch) ?? true,
-    ) as bool;
+  /// Check first launch. Must be called with [await] before [runApp].
+  /// Returns true if this is the first time the app is launched.
+  static Future<bool> checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(prefFirstLaunch) ?? true;
   }
 
   // Supported languages

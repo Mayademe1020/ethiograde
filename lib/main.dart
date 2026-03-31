@@ -46,7 +46,14 @@ void main() async {
     status = _InitStatus.fallback;
   }
 
-  runApp(EthioGradeApp(initStatus: status));
+  // isFirstLaunch is async — resolve before runApp so MaterialApp
+  // can pick the correct initialRoute synchronously.
+  final isFirstLaunch = await AppConstants.checkFirstLaunch();
+
+  runApp(EthioGradeApp(
+    initStatus: status,
+    isFirstLaunch: isFirstLaunch,
+  ));
 }
 
 /// Initialise Hive with AES-256 encryption.
@@ -157,10 +164,12 @@ Future<LazyBox<List>> _openLazyBoxSafe(
 
 class EthioGradeApp extends StatelessWidget {
   final _InitStatus initStatus;
+  final bool isFirstLaunch;
 
   const EthioGradeApp({
     super.key,
     required this.initStatus,
+    required this.isFirstLaunch,
   });
 
   @override
@@ -191,7 +200,7 @@ class EthioGradeApp extends StatelessWidget {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-            initialRoute: AppConstants.isFirstLaunch
+            initialRoute: isFirstLaunch
                 ? AppRoutes.onboarding
                 : AppRoutes.dashboard,
             onGenerateRoute: AppRoutes.onGenerateRoute,

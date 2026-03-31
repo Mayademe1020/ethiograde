@@ -10,8 +10,8 @@
 | Signal | Status | Detail |
 |--------|--------|--------|
 | **Build** | 🟡 Partial | Fonts + splash + OCR wired; needs real-paper validation |
-| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; zero widget tests |
-| **CI/CD** | ⚫ None | No pipeline configured |
+| **Tests** | 🟡 Partial | 30+ tests for answer parser, 70+ tests for scoring, 20+ tests for analytics, 40+ tests for OCR service, 13+ tests for HybridGradingService, 25+ tests for validation service, 25+ tests for persistence, 12+ tests for PDF/Excel, 9+ tests for perspective correction, 8 integration test groups for E2E flow; 4 widget test groups (StatCard, LanguageToggle, PaperGuideOverlay, AssessmentCard) |
+| **CI/CD** | 🟡 Partial | GitHub Actions: lint → test → build APK with size check |
 | **Crash-free rate** | — | Not in production yet |
 | **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
 | **Security audit** | ⚫ None | No audit performed |
@@ -98,7 +98,7 @@
 
 **Current Sprint:** Sprint 1 — Integration
 **Goal:** Wire services to screens, add test coverage, build HybridGradingService
-**Velocity:** In progress
+**Velocity:** Sprint 1 complete ✅ (all tasks done)
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
@@ -128,6 +128,10 @@
 | Replace print() with debugPrint() in voice service | ✅ Done | QA | 1 | Zero print() calls in lib/ verified |
 | Fix TextEditingControllers leaked in dialogs | ✅ Done | QA | 2 | subscription (2), import_excel (7), answer_key (1) controllers now disposed |
 | Image cleanup for captured/enhanced files | ✅ Done | QA | 2 | OcrService cleanup methods, CameraScreen + BatchScanScreen dispose cleanup |
+| Fix isFirstLaunch crash bug | ✅ Done | Backend | 2 | Future<bool> cast to bool in constants.dart — crashed on app launch. Changed to async checkFirstLaunch() called before runApp, passed as param to EthioGradeApp |
+| Align Hive box constants | ✅ Done | Backend | 1 | constants.dart had dead/mismatched box names (settings, results, sync_queue). Updated to match main.dart: students, assessments, scan_results, metadata |
+| Widget test scaffolding | ✅ Done | QA | 3 | 4 test groups: StatCard (5), LanguageToggle (5), PaperGuideOverlay (8), AssessmentCard (15) — 33 widget tests total |
+| GitHub Actions CI pipeline | ✅ Done | Infra | 2 | Lint → test with coverage → build APK with size check. Triggers on push to main/dev and PRs to main |
 
 ### Completed Sprint 0
 
@@ -198,6 +202,8 @@
 | R5 | Font licensing issues | 🟡 Medium | Low | NotoSansEthiopic is OFL — free to use |
 | R6 | Google Play rejection (permissions) | 🟡 Medium | Medium | Camera + storage only; justify in store listing |
 | R7 | Offline data loss on app crash | 🟡 Medium | Medium | Auto-save after each scan; Hive is crash-safe |
+| R8 | No runtime test verification | 🟡 Medium | Medium | CI pipeline added but needs Flutter runner verification on first push |
+| R9 | Constants.dart isFirstLaunch was crashing at runtime | ✅ Mitigated | — | Fixed: async checkFirstLaunch() resolved before runApp |
 
 ---
 

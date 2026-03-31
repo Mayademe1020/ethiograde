@@ -60,6 +60,20 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - On OOM: logs warning, retries at `_oomRetryDimension` (1080p — ~4x less memory)
   - On second failure: returns original path, never crashes pipeline
   - Crash-proof principle: grading pipeline never breaks on memory pressure
+- **Widget test scaffolding**
+  - 4 widget test groups with 33 total tests:
+    - StatCard: renders value/label, handles long labels, color verification, zero-value rendering
+    - LanguageToggle: EN↔AM label switching, tap toggle callback, AnimatedContainer presence
+    - PaperGuideOverlay: all 3 states render without error, bilingual hint text, small-screen overflow safety
+    - AssessmentCard: bilingual title (with fallback), status labels, question-type chips, class name, custom onTap, empty questions safety
+  - `test/widgets/stat_card_test.dart`, `language_toggle_test.dart`, `paper_guide_overlay_test.dart`, `assessment_card_test.dart`
+- **GitHub Actions CI pipeline**
+  - `.github/workflows/ci.yml`: 3-stage pipeline — Lint → Test → Build
+  - Stage 1 (analyze): `flutter analyze` + `dart format` check
+  - Stage 2 (test): `flutter test --coverage` with threshold warning at <50%
+  - Stage 3 (build): Debug APK build with size check (warns if >50MB), uploads artifact
+  - Triggers: push to main/dev, PRs to main
+  - Uses `subosito/flutter-action@v2` with caching
 
 ### Fixed
 - **WCAG AA contrast failure on lightText**
@@ -86,6 +100,17 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
   - print() can leak PII in debug logs and pollute production crash reports
   - Replaced with `debugPrint()`, added `flutter/foundation.dart` import
   - Verified: `grep -Prn "\bprint\(" lib/` returns zero hits
+- **isFirstLaunch crash bug**
+  - `AppConstants.isFirstLaunch` cast a `Future<bool>` to `bool` with `as bool` — runtime TypeError
+  - App either crashed or always showed onboarding (first-launch detection broken)
+  - Changed to async `checkFirstLaunch()` method, called before `runApp()`, passed as constructor param
+  - Fixes onboarding flow: teachers now see onboarding exactly once, then go straight to dashboard
+  - Principle at risk: Crash-proof (launch crash), Fast (broken first-run detection)
+- **Dead/mismatched Hive box constants**
+  - constants.dart had `settingsBox='settings'`, `resultsBox='results'`, `syncQueueBox='sync_queue'` — never referenced
+  - main.dart used `_BoxNames` with `scan_results`, `metadata` — not in constants
+  - Updated constants.dart to single source of truth: students, assessments, scan_results, metadata
+  - Providers already referenced AppConstants.studentsBox and assessmentsBox — values unchanged, still match
 
 ### Fixed
 - **PDF reports now use real scan results instead of hardcoded data**
