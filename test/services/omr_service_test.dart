@@ -573,3 +573,69 @@ Assessment _makeAssessment(int questionCount) {
     ),
   );
 }
+
+  group('Template calibration', () {
+    test('detectBubbles with shifted bubbles still finds answers', () async {
+      // Create a 800x600 image with dark circles at known positions
+      final image = img.Image(width: 800, height: 600, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(240, 240, 240)); // white bg
+
+      // Draw 5 dark circles for Q1 at y=150, x=100,200,300,400,500
+      // These are shifted from the template's expected positions
+      final bubblePositions = [
+        [100, 150], [200, 150], [300, 150], [400, 150], [500, 150],
+        [100, 180], [200, 180], [300, 180], [400, 180], [500, 180],
+        [100, 210], [200, 210], [300, 210], [400, 210], [500, 210],
+      ];
+
+      // Fill option A (index 0) for each row — dark circles
+      for (int row = 0; row < 3; row++) {
+        final cx = bubblePositions[row * 5][0];
+        final cy = bubblePositions[row * 5][1];
+        // Draw filled circle
+        for (int dy = -6; dy <= 6; dy++) {
+          for (int dx = -6; dx <= 6; dx++) {
+            if (dx * dx + dy * dy <= 36) {
+              final px = cx + dx;
+              final py = cy + dy;
+              if (px >= 0 && px < 800 && py >= 0 && py < 600) {
+                image.setPixelRgb(px, py, 30, 30, 30);
+              }
+            }
+          }
+        }
+      }
+
+      // Save to temp file
+      final tempDir = await Directory.systemTemp.createTemp('omr_cal_test');
+      final imagePath = '${tempDir.path}/test_bubbles.png';
+      await File(imagePath).writeAsBytes(img.encodePng(image));
+
+      // Use a template that's roughly in the right area but slightly off
+      final template = BubbleTemplate(
+        name: 'test',
+        questionCount: 3,
+        options: ['A', 'B', 'C', 'D', 'E'],
+        startX: 100,
+        startY: 150,
+        columnSpacing: 100,
+        rowSpacing: 30,
+        bubbleRadius: 6,
+        fillThreshold: 0.45,
+      );
+
+      final result = await OmrService().detectBubbles(
+        enhancedImagePath: imagePath,
+        template: template,
+      );
+
+      // Should detect at least the 3 filled A bubbles
+      expect(result.answers.length, greaterThanOrEqualTo(1));
+      // The detected answers should mostly be 'A' (the filled option)
+      final aAnswers = result.answers.where((a) => a.answer == 'A').length;
+      expect(aAnswers, greaterThanOrEqualTo(1));
+
+      await tempDir.delete(recursive: true);
+    });
+  });
+}

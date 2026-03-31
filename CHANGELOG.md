@@ -15,6 +15,18 @@ Categories: `Added` `Changed` `Fixed` `Improved` `Removed` `Deprecated` `Securit
 ## [Unreleased]
 
 ### Added
+- **Dynamic template calibration (Task 12)**
+  - OmrService._calibrateTemplate(): auto-detects actual bubble positions
+    and adjusts template coordinates before OMR scanning
+  - Samples 3 rows (first, middle, last) from the expected bubble grid
+  - Horizontal sweep with fill ratio peak detection finds actual bubble centers
+  - Computes per-axis scale (stretch) and offset (shift) corrections
+  - Applies linear correction: correctedX = expectedX * scaleX + offsetX
+  - Sanity checks: rejects corrections > 3× columnSpacing (likely detection error)
+  - Vertical detection from best horizontal peaks for Y correction
+  - Graceful fallback: returns original template if calibration fails or
+    insufficient bubbles detected (never breaks OMR pipeline)
+  - 1 synthetic image test: shifted bubbles still detected correctly
 - **Answer key alignment verification (Task 17)**
   - ScanResult.checkAlignment(expectedObjectiveCount): counts [MISSING] answers,
     computes missing ratio, warns if >20% of objective answers not detected

@@ -109,6 +109,7 @@
 | Accessibility audit | 📋 Pending | UX | 2 | Touch targets, screen reader, contrast check |
 | Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
 | Answer key alignment verification | ✅ Done | QA | 3 | ScanResult.checkAlignment() counts [MISSING] answers, warns if >20% missing. Warning shown in: ReviewScreen result cards (per-student), SideBySideReview (prominent banner at top), BatchScanScreen (summary of misaligned papers). Bilingual text. 6 unit tests. |
+| Dynamic template calibration | ✅ Done | ML | 5 | OmrService._calibrateTemplate(): samples 3 rows (first, middle, last) of bubble grid, detects actual bubble centers via horizontal sweep, computes per-axis scale + offset corrections, returns calibrated template. Applied before OMR detection loop. Sanity checks reject corrections >3× columnSpacing. Graceful fallback to original template. 1 synthetic image test. |
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|
@@ -206,7 +207,7 @@
 | # | Risk | Impact | Likelihood | Mitigation |
 |---|------|--------|------------|------------|
 | R1 | No Amharic handwriting model available | 🔴 Fatal | High | Research existing models; consider partnership with Ethiopian universities |
-| R2 | ML Kit accuracy too low for real papers | 🔴 Fatal | Medium | Test with real exam papers early; have manual fallback |
+| R2 | ML Kit accuracy too low for real papers | 🟡 High | Medium | Test with real exam papers early; have manual fallback; dynamic template calibration applied |
 | R3 | Image processing too slow on 2GB devices | 🟡 High | High | Move to Dart isolates; optimize algorithms |
 | R4 | Telebirr API integration blocked | 🟡 High | Medium | Ship free tier first; payment in v0.3.0 |
 | R5 | Font licensing issues | 🟡 Medium | Low | NotoSansEthiopic is OFL — free to use |

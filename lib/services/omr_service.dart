@@ -67,32 +67,35 @@ class OmrService {
           ? _scaleTemplate(template, scaleFactor)
           : template;
 
+      // Auto-calibrate: detect actual bubble positions and adjust template
+      final calibratedTemplate = _calibrateTemplate(image, scaledTemplate);
+
       final detectedAnswers = <OmrAnswer>[];
       final fillMatrix = <int, Map<String, double>>{};
 
-      for (int qi = 0; qi < scaledTemplate.questionCount; qi++) {
+      for (int qi = 0; qi < calibratedTemplate.questionCount; qi++) {
         final optionFills = <String, double>{};
         double maxFill = 0;
         String? bestOption;
         double bestFill = 0;
 
-        for (int oi = 0; oi < scaledTemplate.optionCount; oi++) {
-          final (cx, cy) = scaledTemplate.bubbleCenter(qi, oi);
+        for (int oi = 0; oi < calibratedTemplate.optionCount; oi++) {
+          final (cx, cy) = calibratedTemplate.bubbleCenter(qi, oi);
           final fillRatio = _sampleFillRatio(
             image,
             cx.toInt(),
             cy.toInt(),
-            scaledTemplate.bubbleRadius.toInt(),
+            calibratedTemplate.bubbleRadius.toInt(),
           );
 
-          final option = scaledTemplate.options[oi];
+          final option = calibratedTemplate.options[oi];
           optionFills[option] = fillRatio;
 
           if (fillRatio > maxFill) {
             maxFill = fillRatio;
           }
 
-          if (fillRatio > scaledTemplate.fillThreshold && fillRatio > bestFill) {
+          if (fillRatio > calibratedTemplate.fillThreshold && fillRatio > bestFill) {
             bestOption = option;
             bestFill = fillRatio;
           }
@@ -103,7 +106,7 @@ class OmrService {
         if (bestOption != null) {
           // Check if multiple options are close to the threshold — ambiguous
           final filledOptions = optionFills.entries
-              .where((e) => e.value > scaledTemplate.fillThreshold)
+              .where((e) => e.value > calibratedTemplate.fillThreshold)
               .length;
 
           double confidence;
@@ -112,7 +115,7 @@ class OmrService {
             confidence = 0.5;
           } else {
             // Single clear fill — confidence based on how decisively above threshold
-            confidence = _fillConfidence(bestFill, scaledTemplate.fillThreshold);
+            confidence = _fillConfidence(bestFill, calibratedTemplate.fillThreshold);
           }
 
           detectedAnswers.add(OmrAnswer(
@@ -129,7 +132,7 @@ class OmrService {
             (a, b) => a.value > b.value ? a : b,
           );
 
-          if (mostFilled.value > scaledTemplate.fillThreshold * 0.6) {
+          if (mostFilled.value > calibratedTemplate.fillThreshold * 0.6) {
             // Possibly pencil — flag with low confidence
             detectedAnswers.add(OmrAnswer(
               questionNumber: qi + 1,
@@ -144,14 +147,14 @@ class OmrService {
       }
 
       debugPrint(
-        'OMR: ${detectedAnswers.length}/${scaledTemplate.questionCount} detected, '
+        'OMR: ${detectedAnswers.length}/${calibratedTemplate.questionCount} detected, '
         'avg confidence: ${detectedAnswers.isEmpty ? 0 : (detectedAnswers.fold(0.0, (s, a) => s + a.confidence) / detectedAnswers.length).toStringAsFixed(2)}',
       );
 
       return OmrResult(
         answers: detectedAnswers,
         fillMatrix: fillMatrix,
-        templateName: scaledTemplate.name,
+        templateName: calibratedTemplate.name,
         scaleFactor: scaleFactor,
       );
     } catch (e) {
@@ -280,7 +283,186 @@ class OmrService {
     return 0.5 + excess * 0.5; // 0.5 at threshold, 1.0 at full fill
   }
 
-  /// Scale all coordinates in a template by a factor.
+  /// Auto-calibrate template positions by detecting actual bubble locations.
+  ///
+  /// Scans 3 rows (first, middle, last) of the answer grid to find where
+  /// bubbles actually are vs where the template expects them. Computes
+  /// per-axis scale and offset corrections, returns a calibrated template.
+  ///
+  /// Algorithm:
+  /// 1. For each calibration row, sample a horizontal band at the expected Y
+  /// 2. Slide a small window across, counting dark pixels at each X
+  /// 3. Find the N darkest peaks (= bubble centers)
+  /// 4. Compare detected positions vs expected
+  /// 5. Compute linear correction: correctedX = expectedX * scaleX + offsetX
+  ///    Same for Y across rows
+  /// 6. Return calibrated template
+  ///
+  /// Returns the original template if calibration fails (never breaks OMR).
+  BubbleTemplate _calibrateTemplate(img.Image image, BubbleTemplate template) {
+    try {
+      final scaleFactor = image.width / 1600.0;
+      final scaled = scaleFactor != 1.0
+          ? _scaleTemplate(template, scaleFactor)
+          : template;
+
+      final optCount = scaled.optionCount;
+      final sampleRadius = scaled.bubbleRadius.toInt().clamp(4, 12);
+      final halfBand = (scaled.rowSpacing * 0.4).round().clamp(3, 15);
+
+      // Sample rows: first, middle, last
+      final sampleIndices = <int>[0];
+      if (scaled.questionCount > 2) {
+        sampleIndices.add(scaled.questionCount ~/ 2);
+      }
+      if (scaled.questionCount > 1) {
+        sampleIndices.add(scaled.questionCount - 1);
+      }
+
+      final detectedCenters = <double, double>{}; // detectedX → expectedX
+      final detectedYs = <double, double>{};       // row index → detectedY
+
+      for (final qi in sampleIndices) {
+        final expectedY = scaled.startY + qi * scaled.rowSpacing;
+        final yInt = expectedY.round();
+
+        // Scan horizontally for each expected option position
+        for (int oi = 0; oi < optCount; oi++) {
+          final expectedX = scaled.startX + oi * scaled.columnSpacing;
+          final xInt = expectedX.round();
+
+          // Search window: ±columnSpacing/2 around expected position
+          final searchRadius = (scaled.columnSpacing * 0.5).round().clamp(10, 100);
+          final startX = (xInt - searchRadius).clamp(sampleRadius, image.width - sampleRadius - 1);
+          final endX = (xInt + searchRadius).clamp(sampleRadius, image.width - sampleRadius - 1);
+
+          double bestFill = 0;
+          int bestX = xInt;
+
+          // Scan with step size for speed (every 2-3 pixels)
+          final step = (sampleRadius / 2).ceil().clamp(1, 4);
+          for (int sx = startX; sx <= endX; sx += step) {
+            final fill = _sampleFillRatio(
+              image, sx, yInt, sampleRadius,
+            );
+            if (fill > bestFill) {
+              bestFill = fill;
+              bestX = sx;
+            }
+          }
+
+          // Only use if fill is meaningful (> 0.1 — some dark pixels exist)
+          if (bestFill > 0.1) {
+            detectedCenters[bestX.toDouble()] = expectedX;
+          }
+        }
+
+        // Also detect the actual Y by scanning vertically at the best X
+        if (detectedCenters.isNotEmpty) {
+          final sampleX = detectedCenters.keys.first.round();
+          double bestYFill = 0;
+          int bestY = yInt;
+          for (int sy = (yInt - halfBand).clamp(1, image.height - 2);
+               sy <= (yInt + halfBand).clamp(1, image.height - 2);
+               sy++) {
+            final fill = _sampleFillRatio(image, sampleX, sy, sampleRadius);
+            if (fill > bestYFill) {
+              bestYFill = fill;
+              bestY = sy;
+            }
+          }
+          if (bestYFill > 0.1) {
+            detectedYs[qi.toDouble()] = bestY.toDouble();
+          }
+        }
+      }
+
+      // Compute corrections
+      if (detectedCenters.length < optCount) {
+        // Not enough detections — use original template
+        return scaled;
+      }
+
+      // X correction: linear fit (detectedX = expectedX * scaleX + offsetX)
+      final xEntries = detectedCenters.entries.toList();
+      double sumDetX = 0, sumExpX = 0;
+      for (final e in xEntries) {
+        sumDetX += e.key;
+        sumExpX += e.value;
+      }
+      final avgDetX = sumDetX / xEntries.length;
+      final avgExpX = sumExpX / xEntries.length;
+
+      // Compute X scale from first and last detected option
+      double xScale = 1.0;
+      if (xEntries.length >= 2) {
+        final detRange = xEntries.last.key - xEntries.first.key;
+        final expRange = xEntries.last.value - xEntries.first.value;
+        if (expRange.abs() > 1) {
+          xScale = detRange / expRange;
+        }
+      }
+      final xOffset = avgDetX - avgExpX * xScale;
+
+      // Y correction: from detected row positions
+      double yScale = 1.0;
+      double yOffset = 0;
+      if (detectedYs.length >= 2) {
+        final yEntries = detectedYs.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+        final detRange = yEntries.last.value - yEntries.first.value;
+        final expRange = yEntries.last.key - yEntries.first.key;
+        if (expRange.abs() > 1) {
+          yScale = detRange / expRange;
+        }
+        final avgDetY = yEntries.fold(0.0, (s, e) => s + e.value) / yEntries.length;
+        final avgExpY = yEntries.fold(0.0, (s, e) => s + e.key) / yEntries.length;
+        yOffset = avgDetY - avgExpY * yScale;
+      } else if (detectedYs.length == 1) {
+        final entry = detectedYs.entries.first;
+        final expectedY = scaled.startY + entry.key * scaled.rowSpacing;
+        yOffset = entry.value - expectedY;
+      }
+
+      // Apply corrections: newStart = oldStart * scale + offset
+      final correctedStartX = scaled.startX * xScale + xOffset;
+      final correctedStartY = scaled.startY * yScale + yOffset;
+      final correctedColSpacing = scaled.columnSpacing * xScale;
+      final correctedRowSpacing = scaled.rowSpacing * yScale;
+
+      // Sanity check: corrections should be reasonable
+      final xCorrectionMagnitude = (correctedStartX - scaled.startX).abs();
+      final yCorrectionMagnitude = (correctedStartY - scaled.startY).abs();
+      if (xCorrectionMagnitude > scaled.columnSpacing * 3 ||
+          yCorrectionMagnitude > scaled.rowSpacing * scaled.questionCount * 0.5) {
+        // Correction too large — likely a detection error, use original
+        debugPrint('OMR: calibration rejected — corrections too large '
+            '(dx=${xCorrectionMagnitude.toStringAsFixed(0)}, '
+            'dy=${yCorrectionMagnitude.toStringAsFixed(0)})');
+        return scaled;
+      }
+
+      debugPrint(
+        'OMR: calibrated — offset(${xOffset.toStringAsFixed(1)}, '
+        '${yOffset.toStringAsFixed(1)}), scale(${xScale.toStringAsFixed(3)}, '
+        '${yScale.toStringAsFixed(3)})',
+      );
+
+      return BubbleTemplate(
+        name: '${scaled.name} [calibrated]',
+        questionCount: scaled.questionCount,
+        options: scaled.options,
+        startX: correctedStartX,
+        startY: correctedStartY,
+        columnSpacing: correctedColSpacing,
+        rowSpacing: correctedRowSpacing,
+        bubbleRadius: scaled.bubbleRadius,
+        fillThreshold: scaled.fillThreshold,
+      );
+    } catch (e) {
+      debugPrint('OMR: calibration failed ($e), using original template');
+      return template;
+    }
+  }
   BubbleTemplate _scaleTemplate(BubbleTemplate t, double factor) {
     return BubbleTemplate(
       name: t.name,
