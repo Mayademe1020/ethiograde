@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../config/constants.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../services/locale_provider.dart';
@@ -824,7 +825,7 @@ class _SettingsTab extends StatelessWidget {
               _SettingsTile(
                 icon: Icons.info_outline,
                 title: 'EthioGrade',
-                subtitle: 'v1.0.0',
+                subtitle: 'v${AppConstants.appVersion}',
                 onTap: () {},
               ),
             ],

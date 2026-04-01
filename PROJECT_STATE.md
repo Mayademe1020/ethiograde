@@ -19,7 +19,7 @@
 | **Accessibility** | 🟢 Good | Touch targets ≥40dp verified, semantic labels on key interactive elements, contrast fixes applied, screen reader tests added |
 | **i18n coverage** | 🟢 Good | All screens bilingual, no hardcoded strings found; no extraction tool yet |
 
-**Overall Status:** 🟡 v0.1.0 Ready — Core pipeline complete, needs device validation before release
+**Overall Status:** 🟡 v0.1.0 Ready — Core pipeline complete, version mismatch fixed, needs device validation before release
 
 ---
 
@@ -96,9 +96,21 @@
 
 ## 🏃 Sprint Board
 
-**Current Sprint:** Sprint 2 — v0.2.0 Teacher Features
-**Goal:** Wire teacher management to persistence, fix voice playback, improve UX polish
-**Velocity:** Sprint 1 complete ✅ (all 30 tasks done)
+**Current Sprint:** Sprint 3 — Pre-Release Stabilization
+**Goal:** Fix version mismatch, code quality sweep, prepare for first device test
+**Velocity:** Sprint 1 ✅ (30 pts) · Sprint 2 ✅ (47 pts)
+
+### Sprint 3 — Pre-Release Stabilization
+
+| Task | Status | Assignee | Points | Notes |
+|------|--------|----------|--------|-------|
+| Fix appVersion mismatch | ✅ Done | QA | 1 | constants.dart had '1.0.0' instead of '0.1.0'. main_dashboard.dart hardcoded 'v1.0.0' — now uses AppConstants.appVersion |
+| Code quality sweep | 📋 Pending | QA | 3 | Review large files (review_screen 1392L, dashboard 1011L), verify dispose patterns, check for leaked controllers |
+| Analytics screen test coverage | 📋 Pending | QA | 2 | analytics_screen.dart has 0 dedicated widget tests; needs rendering + empty state coverage |
+| Pre-release checklist verification | 📋 Pending | Infra | 2 | Verify lint clean, all tests pass, APK builds, Amharic mode works — document gaps |
+| Version bump coordination | 📋 Pending | Backend | 1 | Sync pubspec.yaml, constants.dart appVersion, CHANGELOG version header before release |
+
+**Sprint 3 Burndown:** 1/9 points complete
 
 | Task | Status | Assignee | Points | Notes |
 |------|--------|----------|--------|-------|

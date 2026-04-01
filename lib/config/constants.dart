@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppConstants {
   // App Info
   static const String appName = 'EthioGrade';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '0.1.0';
   static const String companyName = 'EthioGrade Education Technology';
 
   // Hive Box Names — single source of truth (keep in sync with main.dart _BoxNames)

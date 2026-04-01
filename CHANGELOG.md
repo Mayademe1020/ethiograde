@@ -47,6 +47,12 @@ First buildable release. Core grading pipeline functional: scan → OCR → scor
 ## [Unreleased]
 
 ### Fixed
+- **Version mismatch in constants.dart and main_dashboard.dart (Sprint 3)**
+  - `AppConstants.appVersion` was `'1.0.0'` instead of `'0.1.0'` (pubspec.yaml is `0.1.0+1`)
+  - Dashboard "About" section hardcoded `'v1.0.0'` — now uses `AppConstants.appVersion` dynamically
+  - Added missing `constants.dart` import to main_dashboard.dart
+
+### Fixed
 - **Accessibility audit — touch targets, contrast, screen reader support (Sprint 2)**
   - MCQ answer buttons in Answer Key screen: 32×32dp → 48×48dp (InkWell, proper touch target)
   - Answer summary bubbles in ReviewScreen: 32×32dp → 40×40dp container with semantic wrapper
