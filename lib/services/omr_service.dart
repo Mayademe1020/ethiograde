@@ -67,121 +67,92 @@ class OmrService {
           ? _scaleTemplate(template, scaleFactor)
           : template;
 
-      // Auto-calibrate: detect actual bubble positions and adjust template
-      final calibratedTemplate = _calibrateTemplate(image, scaledTemplate);
-
       final detectedAnswers = <OmrAnswer>[];
       final fillMatrix = <int, Map<String, double>>{};
 
-      for (int qi = 0; qi < calibratedTemplate.questionCount; qi++) {
+      for (int qi = 0; qi < scaledTemplate.questionCount; qi++) {
         final optionFills = <String, double>{};
         double maxFill = 0;
+        String? bestOption;
+        double bestFill = 0;
 
-        for (int oi = 0; oi < calibratedTemplate.optionCount; oi++) {
-          final (cx, cy) = calibratedTemplate.bubbleCenter(qi, oi);
+        for (int oi = 0; oi < scaledTemplate.optionCount; oi++) {
+          final (cx, cy) = scaledTemplate.bubbleCenter(qi, oi);
           final fillRatio = _sampleFillRatio(
             image,
             cx.toInt(),
             cy.toInt(),
-            calibratedTemplate.bubbleRadius.toInt(),
-          );
+            scaledTemplate.bubbleRadius.toInt());
 
-          final option = calibratedTemplate.options[oi];
+          final option = scaledTemplate.options[oi];
           optionFills[option] = fillRatio;
 
           if (fillRatio > maxFill) {
             maxFill = fillRatio;
           }
+
+          if (fillRatio > scaledTemplate.fillThreshold &&
+              fillRatio > bestFill) {
+            bestOption = option;
+            bestFill = fillRatio;
+          }
         }
 
         fillMatrix[qi + 1] = optionFills;
 
-        if (maxFill > 0) {
-          // Gap-based fill analysis: handles eraser residue and multi-marks
-          //
-          // Instead of counting how many options exceed a threshold (which treats
-          // eraser residue the same as a second real mark), we look at the gap
-          // between the highest and second-highest fill ratios.
-          //
-          // Large gap (>0.20): clear answer, other marks are eraser residue
-          //   → pick highest with high confidence
-          // Small gap (<0.10): genuinely ambiguous (student marked two options)
-          //   → pick highest with low confidence, flag for review
-          // Medium gap: normal case — single fill, others clean
-          //
-          // This handles the most common real-world scenario:
-          //   Student marks B → erases → marks A
-          //   B has residual marks (fill ~0.25-0.40), A is clear (fill ~0.70+)
-          //   Current code: both above threshold → confidence 0.5 (wrong!)
-          //   Fixed code: large gap → confidence based on A's fill (correct!)
-
-          final sorted = optionFills.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
-
-          final topFill = sorted[0].value;
-          final secondFill = sorted.length > 1 ? sorted[1].value : 0.0;
-          final gap = topFill - secondFill;
-
-          // Count options significantly above threshold (real marks, not noise)
-          final realMarksAboveThreshold = optionFills.entries
-              .where((e) => e.value > calibratedTemplate.fillThreshold)
+        if (bestOption != null) {
+          // Check if multiple options are close to the threshold — ambiguous
+          final filledOptions = optionFills.entries
+              .where((e) => e.value > scaledTemplate.fillThreshold)
               .length;
 
-          String answer;
           double confidence;
+          if (filledOptions > 1) {
+            // Multiple filled → lower confidence, might be eraser marks or smudges
+            confidence = 0.5;
+          } else {
+            // Single clear fill — confidence based on how decisively above threshold
+            confidence = _fillConfidence(
+              bestFill,
+              scaledTemplate.fillThreshold);
+          }
 
-          if (topFill > calibratedTemplate.fillThreshold) {
-            // At least one option above threshold
-            answer = sorted[0].key;
-
-            if (gap > 0.20) {
-              // Large gap — clear answer with eraser residue or noise elsewhere
-              confidence = _fillConfidence(topFill, calibratedTemplate.fillThreshold);
-            } else if (realMarksAboveThreshold > 1 && gap < 0.10) {
-              // Small gap, multiple options above threshold — truly ambiguous
-              confidence = 0.5;
-            } else {
-              // Normal case — single fill
-              confidence = _fillConfidence(topFill, calibratedTemplate.fillThreshold);
-            }
-
-            detectedAnswers.add(OmrAnswer(
+          detectedAnswers.add(
+            OmrAnswer(
               questionNumber: qi + 1,
-              answer: answer,
+              answer: bestOption,
               confidence: confidence,
-              fillRatio: topFill,
-            ));
-          } else if (topFill > calibratedTemplate.fillThreshold * 0.6) {
-            // Below threshold but not empty — possibly pencil or light pen
-            // Use gap to decide if it's a real mark or noise
-            answer = sorted[0].key;
-            final pencilConfidence = gap > 0.15
-                ? 0.5  // clear pencil mark, gap from noise
-                : 0.3; // ambiguous pencil
+              fillRatio: bestFill));
+        } else {
+          // No option clearly filled — student may have skipped or used pencil
+          // Check if there's a "most filled" option even below threshold
+          // (pencil marks are lighter than pen)
+          final mostFilled = optionFills.entries.reduce(
+            (a, b) => a.value > b.value ? a : b);
 
-            detectedAnswers.add(OmrAnswer(
-              questionNumber: qi + 1,
-              answer: answer,
-              confidence: pencilConfidence,
-              fillRatio: topFill,
-              flagged: true,
-            ));
+          if (mostFilled.value > scaledTemplate.fillThreshold * 0.6) {
+            // Possibly pencil — flag with low confidence
+            detectedAnswers.add(
+              OmrAnswer(
+                questionNumber: qi + 1,
+                answer: mostFilled.key,
+                confidence: 0.4,
+                fillRatio: mostFilled.value,
+                flagged: true));
           }
           // else: truly empty, skip — will show as MISSING in scoring
         }
       }
 
       debugPrint(
-        'OMR: ${detectedAnswers.length}/${calibratedTemplate.questionCount} detected, '
-        'avg confidence: ${detectedAnswers.isEmpty ? 0 : (detectedAnswers.fold(0.0, (s, a) => s + a.confidence) / detectedAnswers.length).toStringAsFixed(2)}',
-      );
+        'OMR: ${detectedAnswers.length}/${scaledTemplate.questionCount} detected, '
+        'avg confidence: ${detectedAnswers.isEmpty ? 0 : (detectedAnswers.fold(0.0, (s, a) => s + a.confidence) / detectedAnswers.length).toStringAsFixed(2)}');
 
       return OmrResult(
         answers: detectedAnswers,
         fillMatrix: fillMatrix,
-        templateName: calibratedTemplate.name,
-        scaleFactor: scaleFactor,
-      );
+        templateName: scaledTemplate.name,
+        scaleFactor: scaleFactor);
     } catch (e) {
       debugPrint('OMR: detection failed (${e.runtimeType})');
       return OmrResult.empty;
@@ -198,24 +169,24 @@ class OmrService {
     BubbleTemplate? template,
   }) async {
     // Auto-select template based on assessment if not provided
-    final effectiveTemplate = template ??
+    final effectiveTemplate =
+        template ??
         StandardTemplates.matchAssessment(
           questionCount: assessment.questionCount,
-          isTrueFalse: assessment.mcqCount == 0 && assessment.trueFalseCount > 0,
-        );
+          isTrueFalse:
+              assessment.mcqCount == 0 && assessment.trueFalseCount > 0);
 
     final result = await detectBubbles(
       enhancedImagePath: enhancedImagePath,
-      template: effectiveTemplate,
-    );
+      template: effectiveTemplate);
 
     return result.answers
-        .map((a) => DetectedAnswer(
-              questionNumber: a.questionNumber,
-              answer: a.answer,
-              confidence: a.confidence,
-              rawText: '[OMR] fill=${(a.fillRatio * 100).toStringAsFixed(0)}%',
-            ))
+        .map(
+          (a) => DetectedAnswer(
+            questionNumber: a.questionNumber,
+            answer: a.answer,
+            confidence: a.confidence,
+            rawText: '[OMR] fill=${(a.fillRatio * 100).toStringAsFixed(0)}%'))
         .toList();
   }
 
@@ -241,7 +212,7 @@ class OmrService {
       // mostly white/light background with dark marks
       final avgBrightness = _averageBrightness(image);
       if (avgBrightness < 0.3) return false; // too dark — probably not a paper
-      if (avgBrightness > 0.98) return false; // pure white — blank page
+      // No upper brightness check — a valid sheet with sparse marks is mostly white
 
       // Check that at least some dark spots exist at expected bubble positions
       final testTemplate = template ?? StandardTemplates.moe20x5;
@@ -255,7 +226,11 @@ class OmrService {
       for (int qi = 0; qi < sampleCount; qi++) {
         for (int oi = 0; oi < scaled.optionCount; oi++) {
           final (cx, cy) = scaled.bubbleCenter(qi, oi);
-          final fill = _sampleFillRatio(image, cx.toInt(), cy.toInt(), scaled.bubbleRadius.toInt());
+          final fill = _sampleFillRatio(
+            image,
+            cx.toInt(),
+            cy.toInt(),
+            scaled.bubbleRadius.toInt());
           if (fill > 0.1) bubblesWithMarks++;
         }
       }
@@ -269,51 +244,13 @@ class OmrService {
 
   // ── Internal ──────────────────────────────────────────────────────
 
-  /// Sample the fill ratio at a specific position with adaptive thresholding.
+  /// Sample the fill ratio at a specific position.
   ///
-  /// Instead of a hardcoded brightness threshold, this samples the background
-  /// brightness from a ring around the bubble and sets the threshold relative
-  /// to it. This handles bright sunlight (paper at 0.9+), dim classrooms
-  /// (paper at 0.5), and everything in between.
-  ///
-  /// Algorithm:
-  /// 1. Sample an outer ring (radius*2 to radius*3) for background brightness
-  /// 2. Set threshold = backgroundBrightness - 0.25 (ink is ~25% darker than paper)
-  /// 3. Count pixels inside the bubble that are darker than threshold
-  /// 4. Return fill ratio (0.0 = empty, 1.0 = fully filled)
+  /// Returns 0.0 (empty) to 1.0 (fully filled).
+  /// Uses a square sampling region centered at (cx, cy) with the
+  /// given radius. Counts pixels below a brightness threshold.
   double _sampleFillRatio(img.Image image, int cx, int cy, int radius) {
     final halfSize = radius;
-
-    // ── Step 1: Sample background brightness from outer ring ──
-    // Ring between radius*2 and radius*3 from center — this is paper, not bubble
-    int bgBrightnessSum = 0;
-    int bgCount = 0;
-    final innerR = (radius * 2).clamp(1, 50);
-    final outerR = (radius * 3).clamp(2, 80);
-
-    for (int dy = -outerR; dy <= outerR; dy++) {
-      for (int dx = -outerR; dx <= outerR; dx++) {
-        final dist2 = dx * dx + dy * dy;
-        if (dist2 < innerR * innerR || dist2 > outerR * outerR) continue;
-        final px = cx + dx;
-        final py = cy + dy;
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height) continue;
-        bgBrightnessSum += image.getPixel(px, py).r.toInt();
-        bgCount++;
-      }
-    }
-
-    // Fallback if ring is out of bounds
-    final bgBrightness = bgCount > 0
-        ? bgBrightnessSum / (bgCount * 255.0)
-        : 0.85; // assume white paper
-
-    // ── Step 2: Adaptive threshold ──
-    // Ink/pencil is typically 0.2-0.4 darker than paper
-    // Use adaptive delta: higher background → larger gap needed
-    final adaptiveThreshold = (bgBrightness - 0.25).clamp(0.15, 0.85);
-
-    // ── Step 3: Count dark pixels inside bubble ──
     int darkCount = 0;
     int totalCount = 0;
 
@@ -322,12 +259,14 @@ class OmrService {
         final px = cx + dx;
         final py = cy + dy;
 
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height) continue;
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height)
+          continue;
 
         final pixel = image.getPixel(px, py);
+        // Grayscale image — all channels equal, use red
         final brightness = pixel.r / 255.0;
 
-        if (brightness < adaptiveThreshold) darkCount++;
+        if (brightness < 0.4) darkCount++; // darker than 40% = likely filled
         totalCount++;
       }
     }
@@ -345,186 +284,7 @@ class OmrService {
     return 0.5 + excess * 0.5; // 0.5 at threshold, 1.0 at full fill
   }
 
-  /// Auto-calibrate template positions by detecting actual bubble locations.
-  ///
-  /// Scans 3 rows (first, middle, last) of the answer grid to find where
-  /// bubbles actually are vs where the template expects them. Computes
-  /// per-axis scale and offset corrections, returns a calibrated template.
-  ///
-  /// Algorithm:
-  /// 1. For each calibration row, sample a horizontal band at the expected Y
-  /// 2. Slide a small window across, counting dark pixels at each X
-  /// 3. Find the N darkest peaks (= bubble centers)
-  /// 4. Compare detected positions vs expected
-  /// 5. Compute linear correction: correctedX = expectedX * scaleX + offsetX
-  ///    Same for Y across rows
-  /// 6. Return calibrated template
-  ///
-  /// Returns the original template if calibration fails (never breaks OMR).
-  BubbleTemplate _calibrateTemplate(img.Image image, BubbleTemplate template) {
-    try {
-      final scaleFactor = image.width / 1600.0;
-      final scaled = scaleFactor != 1.0
-          ? _scaleTemplate(template, scaleFactor)
-          : template;
-
-      final optCount = scaled.optionCount;
-      final sampleRadius = scaled.bubbleRadius.toInt().clamp(4, 12);
-      final halfBand = (scaled.rowSpacing * 0.4).round().clamp(3, 15);
-
-      // Sample rows: first, middle, last
-      final sampleIndices = <int>[0];
-      if (scaled.questionCount > 2) {
-        sampleIndices.add(scaled.questionCount ~/ 2);
-      }
-      if (scaled.questionCount > 1) {
-        sampleIndices.add(scaled.questionCount - 1);
-      }
-
-      final detectedCenters = <double, double>{}; // detectedX → expectedX
-      final detectedYs = <double, double>{};       // row index → detectedY
-
-      for (final qi in sampleIndices) {
-        final expectedY = scaled.startY + qi * scaled.rowSpacing;
-        final yInt = expectedY.round();
-
-        // Scan horizontally for each expected option position
-        for (int oi = 0; oi < optCount; oi++) {
-          final expectedX = scaled.startX + oi * scaled.columnSpacing;
-          final xInt = expectedX.round();
-
-          // Search window: ±columnSpacing/2 around expected position
-          final searchRadius = (scaled.columnSpacing * 0.5).round().clamp(10, 100);
-          final startX = (xInt - searchRadius).clamp(sampleRadius, image.width - sampleRadius - 1);
-          final endX = (xInt + searchRadius).clamp(sampleRadius, image.width - sampleRadius - 1);
-
-          double bestFill = 0;
-          int bestX = xInt;
-
-          // Scan with step size for speed (every 2-3 pixels)
-          final step = (sampleRadius / 2).ceil().clamp(1, 4);
-          for (int sx = startX; sx <= endX; sx += step) {
-            final fill = _sampleFillRatio(
-              image, sx, yInt, sampleRadius,
-            );
-            if (fill > bestFill) {
-              bestFill = fill;
-              bestX = sx;
-            }
-          }
-
-          // Only use if fill is meaningful (> 0.1 — some dark pixels exist)
-          if (bestFill > 0.1) {
-            detectedCenters[bestX.toDouble()] = expectedX;
-          }
-        }
-
-        // Also detect the actual Y by scanning vertically at the best X
-        if (detectedCenters.isNotEmpty) {
-          final sampleX = detectedCenters.keys.first.round();
-          double bestYFill = 0;
-          int bestY = yInt;
-          for (int sy = (yInt - halfBand).clamp(1, image.height - 2);
-               sy <= (yInt + halfBand).clamp(1, image.height - 2);
-               sy++) {
-            final fill = _sampleFillRatio(image, sampleX, sy, sampleRadius);
-            if (fill > bestYFill) {
-              bestYFill = fill;
-              bestY = sy;
-            }
-          }
-          if (bestYFill > 0.1) {
-            detectedYs[qi.toDouble()] = bestY.toDouble();
-          }
-        }
-      }
-
-      // Compute corrections
-      if (detectedCenters.length < optCount) {
-        // Not enough detections — use original template
-        return scaled;
-      }
-
-      // X correction: linear fit (detectedX = expectedX * scaleX + offsetX)
-      final xEntries = detectedCenters.entries.toList();
-      double sumDetX = 0, sumExpX = 0;
-      for (final e in xEntries) {
-        sumDetX += e.key;
-        sumExpX += e.value;
-      }
-      final avgDetX = sumDetX / xEntries.length;
-      final avgExpX = sumExpX / xEntries.length;
-
-      // Compute X scale from first and last detected option
-      double xScale = 1.0;
-      if (xEntries.length >= 2) {
-        final detRange = xEntries.last.key - xEntries.first.key;
-        final expRange = xEntries.last.value - xEntries.first.value;
-        if (expRange.abs() > 1) {
-          xScale = detRange / expRange;
-        }
-      }
-      final xOffset = avgDetX - avgExpX * xScale;
-
-      // Y correction: from detected row positions
-      double yScale = 1.0;
-      double yOffset = 0;
-      if (detectedYs.length >= 2) {
-        final yEntries = detectedYs.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
-        final detRange = yEntries.last.value - yEntries.first.value;
-        final expRange = yEntries.last.key - yEntries.first.key;
-        if (expRange.abs() > 1) {
-          yScale = detRange / expRange;
-        }
-        final avgDetY = yEntries.fold(0.0, (s, e) => s + e.value) / yEntries.length;
-        final avgExpY = yEntries.fold(0.0, (s, e) => s + e.key) / yEntries.length;
-        yOffset = avgDetY - avgExpY * yScale;
-      } else if (detectedYs.length == 1) {
-        final entry = detectedYs.entries.first;
-        final expectedY = scaled.startY + entry.key * scaled.rowSpacing;
-        yOffset = entry.value - expectedY;
-      }
-
-      // Apply corrections: newStart = oldStart * scale + offset
-      final correctedStartX = scaled.startX * xScale + xOffset;
-      final correctedStartY = scaled.startY * yScale + yOffset;
-      final correctedColSpacing = scaled.columnSpacing * xScale;
-      final correctedRowSpacing = scaled.rowSpacing * yScale;
-
-      // Sanity check: corrections should be reasonable
-      final xCorrectionMagnitude = (correctedStartX - scaled.startX).abs();
-      final yCorrectionMagnitude = (correctedStartY - scaled.startY).abs();
-      if (xCorrectionMagnitude > scaled.columnSpacing * 3 ||
-          yCorrectionMagnitude > scaled.rowSpacing * scaled.questionCount * 0.5) {
-        // Correction too large — likely a detection error, use original
-        debugPrint('OMR: calibration rejected — corrections too large '
-            '(dx=${xCorrectionMagnitude.toStringAsFixed(0)}, '
-            'dy=${yCorrectionMagnitude.toStringAsFixed(0)})');
-        return scaled;
-      }
-
-      debugPrint(
-        'OMR: calibrated — offset(${xOffset.toStringAsFixed(1)}, '
-        '${yOffset.toStringAsFixed(1)}), scale(${xScale.toStringAsFixed(3)}, '
-        '${yScale.toStringAsFixed(3)})',
-      );
-
-      return BubbleTemplate(
-        name: '${scaled.name} [calibrated]',
-        questionCount: scaled.questionCount,
-        options: scaled.options,
-        startX: correctedStartX,
-        startY: correctedStartY,
-        columnSpacing: correctedColSpacing,
-        rowSpacing: correctedRowSpacing,
-        bubbleRadius: scaled.bubbleRadius,
-        fillThreshold: scaled.fillThreshold,
-      );
-    } catch (e) {
-      debugPrint('OMR: calibration failed ($e), using original template');
-      return template;
-    }
-  }
+  /// Scale all coordinates in a template by a factor.
   BubbleTemplate _scaleTemplate(BubbleTemplate t, double factor) {
     return BubbleTemplate(
       name: t.name,
@@ -535,8 +295,7 @@ class OmrService {
       columnSpacing: t.columnSpacing * factor,
       rowSpacing: t.rowSpacing * factor,
       bubbleRadius: t.bubbleRadius * factor,
-      fillThreshold: t.fillThreshold,
-    );
+      fillThreshold: t.fillThreshold);
   }
 
   /// Average brightness of the entire image (0.0 = black, 1.0 = white).
@@ -594,8 +353,7 @@ class OmrResult {
   static const OmrResult empty = OmrResult(
     answers: [],
     fillMatrix: {},
-    templateName: 'none',
-  );
+    templateName: 'none');
 
   /// Average confidence across all detected answers.
   double get averageConfidence {

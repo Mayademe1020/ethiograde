@@ -1,268 +1,262 @@
-# EthioGrade — Project State
+# PROJECT_STATE.md
 
-> The single source of truth. Read this before touching anything.
-> Updated with every meaningful change. Stale = broken.
+## Health: 🟢 Active Development — v0.1.0 stable. Sprint board complete. v0.2.0 roadmap created (Voice, Camera Mock, Polish).
 
----
+| Metric | Value |
+|--------|-------|
+| Version | 0.1.0+1 |
+| Flutter SDK | >=3.41.6 |
+| Compile/Target SDK | 36 (Android 16) — required by camera, shared_preferences, integration_test plugins |
+| Dart SDK | >=3.8.0 <4.0.0 |
+| Lib LOC | ~24,500 (incl. generated Hive adapters) |
+| Test LOC | ~14,900 |
+| Files | 74 lib + 56 test + 3 integration |
+| Hive Boxes | students, assessments, scan_results (lazy), settings_pii, metadata, audit_trail, grading_drafts, student_transfers, weighted_scales |
+| Encryption | AES-256 via HiveAesCipher + FlutterSecureStorage |
 
-## 📡 Project Health
+## Feature Matrix
 
-| Signal | Status | Detail |
-|--------|--------|--------|
-| **Build** | 🟢 Ready | All assets wired; CI builds APK + AAB; needs first real device build |
-| **Tests** | 🟢 Good | 200+ tests across 25 test files; 7 widget test groups; integration tests for E2E + perf benchmarks
-| **CI/CD** | 🟢 Ready | GitHub Actions: lint → test → build APK/AAB → size check → metrics summary |
-| **Crash-free rate** | 🟢 Protected | Session auto-save + resume dialog; zero data loss on crash |
-| **Performance** | 🟢 Good | Enhancement: 4 native ops, zero pixel loops. Scan target <3s |
-| **Security audit** | ⚫ None | No audit performed |
-| **Data encryption** | 🟢 Done | AES-256 Hive boxes, key in flutter_secure_storage |
-| **Accessibility** | 🟢 Good | Touch targets ≥40dp verified, semantic labels on key interactive elements, contrast fixes applied, screen reader tests added |
-| **i18n coverage** | 🟢 Good | All screens bilingual, no hardcoded strings found; no extraction tool yet |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Onboarding | ✅ Done | English-only, 4 feature pages (Scan & Grade, Offline, Quick Enter, Track Grades) + setup |
+| Dashboard | ✅ Done | Stats, classes, quick actions |
+| Class Management | ✅ Done | Create, detail, roster, multi-class students |
+| Student CRUD | ✅ Done | Add, edit, import CSV, search, class filter |
+| Assessment Create | ✅ Done | MCQ, T/F, short answer, essay types |
+| Answer Key | ✅ Done | Per-question correct answers |
+| Camera Scanning | ✅ Done | ML Kit OCR, perspective correction, rotation |
+| OMR Bubbles | ✅ Done | Template-based, auto-scale, pencil detection |
+| Hybrid Grading | ✅ Done | OCR + OMR parallel, best-result selection |
+| Batch Scan | ✅ Done | Multi-paper, duplicate detection |
+| Quick Grade | ✅ Done | No assessment needed, fast one-off grading |
+| Quick Enter | ✅ Done | Manual score entry for calculation-heavy subjects |
+| Review Screen | ✅ Done | Score overview, side-by-side, rescan |
+| Analytics | 🗑️ Removed | Screen + service deleted. Topic mastery service kept. |
+| Reports | 🗑️ Removed | Screen + PDF report generation deleted. Answer sheet PDF extracted to AnswerSheetPdfService. |
+| Attendance | 🗑️ Removed | Screen + service deleted. CSV roster parsing still strips attendance marks. |
+| Exam Scheduling | 🗑️ Removed | Screen, provider, model, and Hive adapter all deleted. |
+| Excel Import/Export | ✅ Done | CSV-based (pure Dart, no native deps) |
+| Backup/Restore | ✅ Done | Encrypted JSON export/import |
+| Custom Grading Scales | ✅ Done | Teacher/school-specific rubrics |
+| ~~Bilingual (Am/En)~~ | 🗑️ Removed | English-only. LocaleProvider deleted, all Amharic fields stripped. |
+| **Amharic Removal** | ✅ Done | All Amharic fields, labels, locale provider, and toggle fully stripped. 0 refs in lib/. English-only codebase. |
+| Voice Feedback | 🔶 Stub | Deferred to v0.2.0 |
+| Correction Learner | ✅ Done | Adaptive pattern matching |
+| **Audit Trail** | ✅ Done | Who/when/what/why for every grade change + UI viewer. Includes scale_change entries for grading rubric modifications. |
+| **Undo/Revert** | ✅ Done | Audit trail enables revert; confirmation dialog pattern |
+| **Auto-Save Drafts** | ✅ Done | Per-session grading drafts, recover on restart + dashboard banner |
+| **Weighted Grades** | ✅ Fixed | Composite scoring + per-paper weighted scoring now linked. Components auto-populate assessmentIds on save. HybridGradingService applies weights during scan. |
+| **Student Transfers** | ✅ Fixed | Transfer dialog now updates ClassProvider rosters + uses correct student state on undo |
+| **Scale Recalculation** | ✅ Done | Recompute letter grades on rubric change |
+| **Grade Review Screen** | ✅ Done | Summary table, class stats, edit per row, confirm & save |
+| **Per-Question Review** | ✅ Done | Side-by-side view, detected vs correct, raw OCR text, confidence indicator, edit per question |
+| **Fix Wrong Mode** | ✅ Done | Step-through wrong/MISSING answers one at a time with quick-entry buttons |
+| **MISSING Answer Recovery** | ✅ Done | Prominent card for unread questions with A/B/C/D/E or T/F quick-entry |
+| **Grading Scale Confirmation** | ✅ Done | Confirmation dialog before saving scale changes. Explains impact on future sessions. Audit trail entry recorded via AuditService.recordScaleChange(). |
+| **Matching Question Type** | ✅ Done | New QuestionType.matching + answer parser detects letter sequences (G D → MATCH:G-D) + scoring supports exact match and partial credit |
+| **Worksheet Format Parsing** | ✅ Done | AnswerParser extracts answers from mixed question+answer lines ("What is the greeting? A" → A). Spatial-aware parsing groups answers by position. |
+| **Handwritten T/F Detection** | ✅ Done | AnswerParser handles True/False/እውነት/ሐሰτ at end of question lines. Amharic + English. |
+| **Demo Data on First Launch** | ✅ Done | Seeds Grade 5A Math class + 5 students (bilingual) + 10-question MCQ/TF assessment on first launch. Idempotent. |
+| **Answer Sheet PDF + Coordinate Map** | ✅ Done | Full 4-phase OMR pipeline + integration. Phase 1: AnswerSheetGenerator + CoordinateMap. Phase 2: Setup screen. Phase 3: Answer key gate. Phase 4: CoordinateMapOmrService. Integration: coordinateMapPath on Assessment, BatchScanScreen routes to coordinate-map OMR when available, falls back to hybrid grading. Batch tracking + undo + duplicate detection working. |
+| **Half-Sheet Paper Saving** | ✅ Done | SheetLayout.halfSheet — two answer sheets per A4 with table bubbles (│ 1 │ ○ │ ○ │ ○ │ ○ │), 5 MCQ options, answer key checkbox, cut line. 50% paper savings. Setup screen toggle. |
 
-**Overall Status:** 🟡 v0.1.0 Ready — Core pipeline complete, version mismatch fixed, needs device validation before release
+## Known Issues
 
----
+**→ See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) — the single source of truth for all bugs and friction.**
 
-## 🚂 Release Train
+### Recently Fixed
+- **BUG-013: Onboarding language page broken** — Amharic removal left the "language" `_OnboardingPage` with missing `titleEn` and `descEn` assigned a `_OnboardingPage` constructor instead of a String. Duplicate offline page. Extra closing brace. Fixed: replaced with 4 accurate feature pages (Scan & Grade, Offline, Quick Enter, Track Grades).
+- **BUG-014: Roster preview SnackBar truncated** — `_saveAll()` in `roster_preview_screen.dart` had broken ternary string from Amharic removal: `"$saved saved${failed > 0 ? "` — missing else branch and closing paren. Fixed: completed ternary expression.
+- **BUG-015: Dashboard truncated mid-expression** — `main_dashboard.dart` was missing ~124 lines after `_showPrivacyPolicy` method declaration. `_confirmClearData`, `_clearAllData`, `_SettingsSection`, `_SettingsTile` all deleted during Amharic removal. Restored English-only versions. All 74 lib files now brace-balanced (verified).
+- **BUG-012: Weighted grading crashes HybridGradingService** — `metadata` map referenced before declaration in `gradePaper()` (lines 181-182 before 187). When weighted scale was active, `NoSuchMethodError` on null map. Fixed by moving metadata declaration before weighted scoring block. Pilot-blocking for any teacher using weighted grades.
 
-| Version | Codename | Status | Target | Scope |
-|---------|----------|--------|--------|-------|
-| **0.1.0** | መጀመሪያ (Genesis) | 🚀 Ready for device test | v0.1.0+1 | Buildable app: real OCR, real assets, working scan flow |
-| **0.2.0** | ትምህርት (Teaching) | 📋 Planned | — | Teacher management, re-scan, search, voice playback |
-| **0.3.0** | ሪፖርት (Report) | 📋 Planned | — | Telebirr payment, advanced analytics, PDF improvements |
-| **1.0.0** | ንጉሥ (King) | 📋 Planned | — | Production release: tested, optimized, localized, shipped |
+Every session reads KNOWN_ISSUES.md first. Every bug found goes there. Every fix removes it. No re-discovery.
 
----
+## Sprint Board
 
-## 🧩 Feature Matrix
+### Sprint: Governance & Stability ✅ Complete
 
-### Core Pipeline (Must Work for v0.1.0)
+| Task | Status | Priority |
+|------|--------|----------|
+| Create PROJECT_STATE.md | ✅ Done | P0 |
+| Create CHANGELOG.md | ✅ Done | P0 |
+| Create OPERATIONS.md | ✅ Done | P0 |
+| Fix OcrService resource leak (dispose) | ✅ Done | P1 |
+| Close Hive boxes on app exit | ✅ Done | P2 |
+| Add GitHub Actions CI | ✅ Done | P2 |
+| Hive type adapters (type-safe serialization) | ✅ Done | P3 |
 
-| # | Feature | Status | Owner | Depends On | Risk | Notes |
-|---|---------|--------|-------|------------|------|-------|
-| F01 | Camera capture | ✅ Done | Mobile | — | Low | Working with guide overlay |
-| F02 | Image enhancement | ✅ Done | ML | — | Medium | Lean pipeline: downscale + grayscale + contrast. Zero pixel loops. |
-| F03 | **Real OCR extraction** | ✅ Done | ML | F02 | Medium | ML Kit + confidence filter + skew detection + dedup |
-| F04 | **Amharic handwriting model** | ❌ Missing | ML | F03 | 🔴 High | No model trained or sourced |
-| F05 | Answer parsing (EN+AM) | ✅ Done | ML | F03 | Medium | AnswerParser extracted, concatenated format, 30+ tests |
-| F06 | Scoring engine | ✅ Done | Backend | F05 | Low | MoE, international, university scales |
-| F07 | Student model + storage | ✅ Done | Backend | — | Low | Hive adapters generated |
-| F08 | Assessment CRUD | ✅ Done | Mobile | F07 | Low | Create, edit, answer key |
-| F09 | Review screen | ✅ Done | UX | F06 | Low | Side-by-side, manual overrides, answer-type pickers, auto-persist |
-| F10 | PDF reports | ✅ Done | Mobile | F06 | Low | Student + class reports, real data from Hive, shortcut from batch scan |
-| F11 | Excel import | ✅ Done | Mobile | F07 | Low | .xlsx via file_picker |
-| F12 | **Font assets** | ✅ Done | Design | — | Low | NotoSansEthiopic Regular + Bold (OFL) |
-| F13 | **Splash screen** | ✅ Done | Design | — | Low | 512x512 PNG, Ethiopian green + checkmark |
-| F14 | Voice commands (STT/TTS) | ✅ Done | Mobile | — | Low | Recording + playback |
-| F29 | **Encrypted Hive storage** | ✅ Done | Backend | F07 | Medium | AES-256 via HiveAesCipher, key in flutter_secure_storage, corrupt-box recovery |
-| F30 | **Validation service** | ✅ Done | Backend | F07 | Low | Pure Dart, Student/Assessment/ScanResult validation, 25+ tests |
-| F31 | **StudentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, UUID generation, Result type, search |
-| F32 | **AssessmentProvider real CRUD** | ✅ Done | Backend | F30 | Medium | Hive-backed, validation, Result type, backward-compat saveAssessment |
-| F33 | **ScanResult auto-save + persistence** | ✅ Done | Backend | F30 | Medium | Auto-save in gradePaper, retry logic, pending queue, lazy box queries |
-| F34 | **Data migration framework** | ✅ Done | Backend | F07 | Low | Schema versioning in metadata box, ordered migrations, never crashes |
-| F35 | **Backup & export service** | ✅ Done | Backend | F07 | Medium | JSON export/import, share sheet, auto-backup every 10 scans, pruning |
+### Sprint: Testing & Quality
 
-### Teacher Features (v0.2.0)
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Generate Hive .g.dart adapters locally | 🔴 Blocked | P0 | Requires Flutter SDK (`build_runner`). CI now generates them automatically on every push; local generation still needs Flutter. |
+| CI: generate adapters + upload APK | ✅ Done | P0 | build_runner runs before analyze/test/build in both CI jobs. APK uploaded as artifact (30-day retention). |
+| Teacher install guide | ✅ Done | P1 | `TEACHER_GUIDE.md` — step-by-step APK download + feature walkthrough |
+| Per-question raw OCR display | ✅ Done | P1 | `_AnswerTile` shows OCR raw text below "Detected:" when available |
+| Fix Wrong mode (step-through) | ✅ Done | P1 | Toggle button filters to wrong/MISSING answers, step-through one at a time with prev/next |
+| MISSING answer quick-entry | ✅ Done | P1 | Prominent "What did the student write?" card with A/B/C/D/E or T/F buttons, auto-advances |
+| Widget tests: Dashboard, Review screens | ✅ Done | P1 | `test/widgets/dashboard_test.dart` (12 tests), `test/widgets/review_test.dart` (5 tests) |
+| Widget tests: Scanning flow (BatchScan) | ✅ Done | P1 | `test/widgets/batch_scan_test.dart` (9 tests) — CameraScreen skipped (camera hardware dep) |
+| Widget tests: Settings, Backup/Restore | ✅ Done | P1 | Settings tab covered in `dashboard_test.dart` (language toggle, privacy, backup buttons, version) |
+| Integration test: full grading flow | ✅ Done | P2 | `integration_test/grading_flow_test.dart` (10 tests): onboarding, demo data, create assessment, answer key, navigation, class detail, add student |
+| Widget tests: Grade Review Screen | ✅ Done | P2 | `test/widgets/grade_review_test.dart` (14 tests) |
+| Widget tests: Quick Enter screen | ✅ Done | P1 | `test/widgets/quick_enter_test.dart` (7 tests) — picker, score table, no-students, cells, bottom sheet |
+| Widget tests: Import CSV screen | ✅ Done | P1 | `test/widgets/import_csv_test.dart` (12 tests) — instructions, manual entry, validation, add/remove/save |
+| Widget tests: Transfer dialog | ✅ Done | P1 | `test/widgets/transfer_dialog_test.dart` (8 tests) — title, class picker, reason, button states, no-classes |
+| Widget tests: Grading Scale Editor | ✅ Done | P1 | `test/widgets/grading_scale_editor_test.dart` (8 tests) — default template, edit mode, confirmation dialog, impact warning, cancel, add/remove range |
 
-| # | Feature | Status | Owner | Depends On | Risk | Notes |
-|---|---------|--------|-------|------------|------|-------|
-| F15 | Teacher management persistence (F15) | ✅ Done | Backend | F07, F30 | Medium | Teacher model + TeacherProvider with full Hive CRUD, validation, bilingual search, active toggle, delete confirmation. Dialog wired to persistence, teacher list visible in school mode. |
-| F16 | Re-scan paper | ✅ Done | Mobile | F01 | Low | Single-capture re-scan, immediate regrade, returns updated result |
-| F17 | Dashboard search | ✅ Done | Mobile | F07 | Low | Real-time filter by student name, bilingual empty state |
-| F18 | Voice recording playback | ✅ Done | Mobile | F14 | Low | just_audio wired, play/stop in review screen, bilingual errors |
-| F19 | Batch scan flow (continuous capture) | ✅ Done | Mobile | F01, F03 | Medium | Capture-only loop, batch process on 'Done Scanning' |
-| F36 | **Duplicate scan detection** | ✅ Done | Mobile | F01 | Medium | dHash (pure Dart), Hamming distance ≤10, bilingual warning dialog, offline-safe |
+### Sprint: UX Polish & Safety
 
-### School & Monetization (v0.3.0+)
+| Task | Status | Priority | Bug | Notes |
+|------|--------|----------|-----|-------|
+| Make reassign visible on review cards | ✅ Done | P1 | BUG-003 | Visible "Reassign" ActionChip with swap icon + bilingual label |
+| Add transfer icon to class roster | ✅ Done | P1 | BUG-004 | PopupMenuButton with Transfer + Remove options, bilingual |
+| Audit trail revert button | ✅ Done | P1 | BUG-006 | "Revert to this" per audit entry, restores previous grade + records audit |
+| Batch scan undo last scan | ✅ Done | P1 | BUG-007 | Undo Last button, removes last result, updates draft |
+| Verify VoiceService safety | ✅ Done | P2 | BUG-005 | All stubs are safe no-ops, no crash risk |
+| Demo data on first launch | ✅ Done | P1 | BUG-008 | DemoDataService seeds class + 5 students + 10-question assessment on first launch. Idempotent. 7 tests. |
 
-| # | Feature | Status | Owner | Depends On | Risk | Notes |
-|---|---------|--------|-------|------------|------|-------|
-| F20 | Individual/School mode toggle | ✅ Done | Mobile | — | Low | UI complete |
-| F21 | Telebirr payment | ❌ Placeholder | Backend | F20 | 🔴 High | No integration |
-| F22 | Multi-teacher management | 📋 Planned | Backend | F15, F21 | High | Needs auth system |
-| F23 | Cloud sync | 📋 Planned | Backend | F22 | High | Architecture TBD |
-| F24 | School analytics dashboard | 📋 Planned | Data | F22 | Medium | — |
+### Sprint: OMR Pipeline — Phase 1: PDF + Coordinate Map ✅ Complete
 
-### Advanced (Post-1.0)
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| CoordinateMap model (mm-based) | ✅ Done | P0 | CoordinateMap, PageDimensions, AnchorPoint, QuestionBubble, BubblePosition, SheetQuestionType |
+| AnswerSheetGenerator service | ✅ Done | P0 | A4 PDF + JSON coordinate map. Corner anchors, MCQ/T/F rows, mixed type, dual column >60 Q |
+| Coordinate map tests (10) | ✅ Done | P0 | Roundtrip JSON, findBubble, anchorPositions, type serialization, spacing validation |
+| Generator tests (10) | ✅ Done | P0 | PDF existence, coordinate map structure, MCQ/T/F/mixed, column split, anchor positions, bounds checking |
 
-| # | Feature | Status | Owner | Depends On | Risk | Notes |
-|---|---------|--------|-------|------------|------|-------|
-| F25 | Short-answer keyword AI | 📋 Planned | ML | F03 | High | Needs NLP model |
-| F26 | Essay grading rubric AI | 📋 Planned | ML | F03 | High | University mode |
-| F27 | QR code student ID | 📋 Planned | Mobile | — | Low | `qr_flutter` in deps |
-| F28 | Offline data encryption | 📋 Planned | Security | F07 | Medium | — |
+### Sprint: OMR Pipeline — Phase 2: Answer Sheet Setup UI ✅ Complete
 
----
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| AnswerSheetConfig model | ✅ Done | P0 | QuestionTypeRange, detectRanges(), StudentNameEntry, copyWith |
+| AnswerSheetSetupScreen | ✅ Done | P0 | Assessment selector, type breakdown, per-page, header, student mode, answer key status, generate button |
+| Route wiring | ✅ Done | P0 | AppRoutes.answerSheetSetup, accepts Assessment argument |
+| Config model tests (11) | ✅ Done | P1 | detectRanges (MCQ/TF/mixed/alternating/empty/matching), QuestionTypeRange, computed properties |
+| Widget tests (14) | ✅ Done | P1 | EN/Am labels, assessment card, type breakdown, per-page options, header fields, student mode, answer key status, generate button states |
 
-## 🏃 Sprint Board
+### Sprint: OMR Pipeline — Phase 3: Answer Key Gate + Status ✅ Complete
 
-**Current Sprint:** Sprint 3 — Pre-Release Stabilization
-**Goal:** Fix version mismatch, code quality sweep, prepare for first device test
-**Velocity:** Sprint 1 ✅ (30 pts) · Sprint 2 ✅ (47 pts)
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Assessment.answeredQuestionCount getter | ✅ Done | P0 | Counts non-null, non-empty correct answers |
+| Assessment.isAnswerKeyComplete getter | ✅ Done | P0 | True when all questions have answers |
+| Assessment.answerKeyCompleteness getter | ✅ Done | P0 | 0.0–1.0 ratio |
+| Assessment.answerKeyStatus() method | ✅ Done | P0 | Bilingual "12/40 answers set" |
+| AnswerKeyStatusChip in AssessmentCard | ✅ Done | P1 | Green ✓ / orange ⚠ / red ✗ with count |
+| Gate dashboard scan button | ✅ Done | P1 | Dialog if no active assessment with complete key |
+| Gate answer key screen scan button | ✅ Done | P1 | Warning dialog if key incomplete |
+| Answer key gate tests (12) | ✅ Done | P1 | answeredQuestionCount, completeness, isComplete, status string, T/F, mixed, empty |
 
-### Sprint 3 — Pre-Release Stabilization
+### Sprint: OMR Pipeline — Phase 4: OMR Scanning ✅ Complete
 
-| Task | Status | Assignee | Points | Notes |
-|------|--------|----------|--------|-------|
-| Fix appVersion mismatch | ✅ Done | QA | 1 | constants.dart had '1.0.0' instead of '0.1.0'. main_dashboard.dart hardcoded 'v1.0.0' — now uses AppConstants.appVersion |
-| Code quality sweep | 📋 Pending | QA | 3 | Review large files (review_screen 1392L, dashboard 1011L), verify dispose patterns, check for leaked controllers |
-| Analytics screen test coverage | 📋 Pending | QA | 2 | analytics_screen.dart has 0 dedicated widget tests; needs rendering + empty state coverage |
-| Pre-release checklist verification | 📋 Pending | Infra | 2 | Verify lint clean, all tests pass, APK builds, Amharic mode works — document gaps |
-| Version bump coordination | 📋 Pending | Backend | 1 | Sync pubspec.yaml, constants.dart appVersion, CHANGELOG version header before release |
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| CoordinateMapOmrService | ✅ Done | P0 | Anchor detection, perspective transform (mm→pixel), mixed-type sampling, fill threshold, confidence scoring |
+| Result model (CoordinateMapOmrResult) | ✅ Done | P0 | answers, totalQuestions, correctAnswers, percentage, missingAnswers, lowConfidenceAnswers |
+| Result model tests (6) | ✅ Done | P1 | empty, percentage, missingAnswers, lowConfidenceAnswers, isEmpty |
+| Anchor detection (4 corners) | ✅ Done | P0 | Search near approximate mm positions, darkest-square matching, 0.5 darkness threshold |
+| Perspective correction (anchor-based) | ✅ Done | P0 | Homography from 4 anchor correspondences (mm→pixel), Gaussian elimination, inverse mapping |
+| Mixed-type sampling | ✅ Done | P0 | MCQ = sample 4 positions, T/F = sample 2 positions per coordinate map |
+| Darkness threshold + confidence | ✅ Done | P0 | fill > 0.35 = filled, > 0.20 = pencil (low conf), confidence = sigmoid of fill ratio |
 
-**Sprint 3 Burndown:** 1/9 points complete
+### Sprint: OMR Pipeline — Phase 5: Paper Saving + Answer Key Checkbox ✅ Complete
 
-| Task | Status | Assignee | Points | Notes |
-|------|--------|----------|--------|-------|
-| Fix F18: Real voice note playback | ✅ Done | Mobile | 2 | just_audio wired, play/stop controls in review screen, bilingual errors, 5 tests |
-| Teacher management persistence (F15) | ✅ Done | Backend | 3 | Teacher model, TeacherProvider with Hive CRUD, validation, bilingual UI, teacher list with delete, 7 model tests + 12 validation tests |
-| Sprint 2 metrics baseline | ✅ Done | Infra | 1 | Created integration_test/perf_benchmark.dart (cold start, dashboard render, rapid nav, memory idle baseline). Updated CI pipeline: release APK build + size measurement, AAB build, metrics summary in GitHub Step Summary. How-to-measure column added to Technical Metrics table. Actual values fill on first CI run with Flutter SDK or on-device test. |
-| i18n string extraction audit | ✅ Done | QA | 2 | Scanned all 11 screens, widgets, services. Found 2 gaps: analytics empty states were hardcoded English. Fixed by passing isAmharic to _GradeDistributionChart and _QuestionHeatmap. All other screens clean. |
-| Accessibility audit | ✅ Done | UX | 2 | Audited all 11 screens + 4 widgets. Fixed: (1) MCQ answer buttons 32→48dp, answer bubbles 32→40dp with semantic wrapper, heatmap cells 40→48dp with Semantics. (2) Camera overlay contrast: white60→white+14sp. (3) _TypeChip 10→11sp. (4) Added Semantics(button:true) to QuickAction, camera capture/done/thumbnail, ReportTypeCard, language chip, subscription options, mode cards. (5) Added semantic labels to heatmap cells and answer summary in review. 12 accessibility widget tests added. |
-| Crash recovery resume dialog | ✅ Done | Backend | 3 | SessionService persists scan session to Hive metadata box after each capture. Dashboard checks for active session on launch, shows bilingual resume dialog. Resume navigates to camera with existing images. Discard cleans up images + session. Re-scan mode also cleans up session. 7 unit tests. |
-| Answer key alignment verification | ✅ Done | QA | 3 | ScanResult.checkAlignment() counts [MISSING] answers, warns if >20% missing. Warning shown in: ReviewScreen result cards (per-student), SideBySideReview (prominent banner at top), BatchScanScreen (summary of misaligned papers). Bilingual text. 6 unit tests. |
-| Dynamic template calibration | ✅ Done | ML | 5 | OmrService._calibrateTemplate(): samples 3 rows (first, middle, last) of bubble grid, detects actual bubble centers via horizontal sweep, computes per-axis scale + offset corrections, returns calibrated template. Applied before OMR detection loop. Sanity checks reject corrections >3× columnSpacing. Graceful fallback to original template. 1 synthetic image test. |
-| Lighting normalization | ✅ Done | ML | 3 | Two-part fix: (1) OMR adaptive threshold — _sampleFillRatio now samples background brightness from outer ring around each bubble, sets threshold = bgBrightness - 0.25 instead of hardcoded 0.4. Works in bright sunlight, dim classrooms, fluorescent light. (2) OCR histogram normalization — img.normalize() stretches pixel range to full 0-255 after grayscale, before contrast boost. Consistent ink/paper separation regardless of lighting. 2 synthetic image tests (bright bg, dim bg). |
-| Eraser / multi-mark handling | ✅ Done | ML | 3 | Gap-based fill analysis replaces count-based. Sorts options by fill ratio, computes gap between 1st and 2nd. Large gap (>0.20): eraser residue scenario, pick highest with high confidence. Small gap (<0.10) with multiple above threshold: truly ambiguous, confidence 0.5. Pencil marks: gap >0.15 → confidence 0.5, else 0.3. Removed unused bestOption/bestFill variables. 3 synthetic image tests: eraser residue, ambiguous, empty. |
-| Ethiopian calendar support | ✅ Done | UX | 5 | EthiopianCalendar utility: pure Dart Gregorian→Ethiopian conversion via JDN algorithm. 13 months, Pagume handling, leap year detection. SettingsProvider: useEthiopianCalendar toggle (default true). Settings screen: Ethiopian Calendar switch in Preferences. AssessmentCard: shows created date in preferred calendar. ReviewScreen: shows scan date in preferred calendar. Bilingual month names (Amharic + English). 17 unit tests: new year, month boundaries, format options, leap year, edge cases. |
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Half-sheet layout (2 per A4) | ✅ Done | P0 | SheetLayout.halfSheet, table bubbles │ 1 │ ○ │ ○ │, 5 options A-E, cut line |
+| Answer key checkbox on sheet | ✅ Done | P0 | Checkbox at bottom of each half-sheet, coordinate map includes position |
+| Paper layout toggle in setup screen | ✅ Done | P0 | Full A4 / Half-sheet selector, info box, bilingual |
+| Half-sheet tests (12) | ✅ Done | P1 | Layout split, anchors, bounds, checkbox, prefill pairing |
+| Scanner answer key detection | ✅ Done | P0 | Checkbox sample >0.50 → isAnswerKey + answerKey getter |
+| CoordinateMapOmrService half-sheet support | ✅ Done | P0 | Tries both half-sheet maps, picks best anchors |
+| Answer key save from scan | ✅ Done | P0 | _saveAnswerKeyToAssessment() updates questions with scanned answers |
+| Scanner integration tests | ✅ Done | P1 | 4 tests: isAnswerKey default/set, answerKey extraction, empty |
 
-| Task | Status | Assignee | Points | Notes |
-|------|--------|----------|--------|-------|
-| Template-to-PDF flow | ✅ Done | Mobile | 3 | Reports use real scan results from Hive, not hardcoded data. Report shortcut from batch scan screen. |
-| Wire batch_scan_screen to HybridGradingService | ✅ Done | Backend | 3 | Replaced OcrService direct calls with HybridGradingService |
-| Wire camera_screen to HybridGradingService | ✅ Done | Backend | 2 | Single-paper grading also uses HybridGradingService now |
-| Convert camera to continuous batch capture | ✅ Done | UX | 3 | Capture-only loop, no per-scan processing, 'Done Scanning' navigates to BatchScanScreen |
-| Create HybridGradingService | ✅ Done | Backend | 3 | Orchestrates OcrService + ScoringService; error handling, batch with progress callback |
-| Unit tests for OcrService | ✅ Done | QA | 5 | 40+ tests: TextRegion model, enhanceImage (downscale/grayscale/contrast/edge cases), parseAnswers integration, deduplication, scoring pipeline, ScanResult serialization |
-| Unit tests for HybridGradingService | ✅ Done | QA | 3 | gradePaper (file-not-found, real image), gradeBatch (progress/names/partial/mixed), regradePaper |
-| Pure Dart perspective correction | ✅ Done | ML | 5 | PerspectiveCorrectionService: corner detection, homography, bilinear warp. Integrated into OCR pipeline as primary correction before fallback to simple rotation. 9 tests. |
-| Camera guidance overlay | ✅ Done | UX | 2 | PaperGuideOverlay: 3 color states, bilingual hints, CustomPainter, zero allocs |
-| Score override/edit flow | ✅ Done | UX | 3 | Question-type-aware override: MCQ chips, T/F buttons, short answer editor. Uses actual assessment rubric. Auto-saves to Hive on confirm. Save All for batch overrides. |
-| Student persistence (Hive) | ✅ Done | Backend | — | F31 completed: StudentProvider real Hive CRUD with validation, UUID, Result type |
-| End-to-end integration test | ✅ Done | QA | — | 8 test groups: app launch, bilingual, assessment creation, scanning, review, reports, crash resilience, accessibility. Flutter driver runnable. |
-| Encrypted Hive init | ✅ Done | Backend | 3 | AES-256 cipher, secure key storage, lazy box for scan_results, corrupt-box recovery, fallback banner |
-| ValidationService | ✅ Done | Backend | 3 | Pure Dart student/assessment/scan validation, 25+ unit tests |
-| Rewrite StudentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, UUID gen, Result type, Amharic search |
-| Rewrite AssessmentProvider | ✅ Done | Backend | 3 | Real Hive CRUD, validation, Result type, backward-compat saveAssessment |
-| ScanResult auto-save in HybridGradingService | ✅ Done | Backend | 3 | Auto-save with retry, pending queue, lazy box queries (load/get/delete/student) |
-| MigrationService | ✅ Done | Backend | 2 | Schema versioning in metadata box, ordered migration runner, wired to main.dart |
-| BackupService | ✅ Done | Backend | 3 | JSON export/import with validation, share_plus, auto-backup every 10 scans, pruning |
-| Persistence test suite | ✅ Done | QA | 3 | 25 tests: happy path, validation, edge cases, error handling, backup, migration |
-| Answer-pattern duplicate detection (T8) | ✅ Done | ML | 3 | ScoringService fingerprint + compare + detectAnswerDuplicates; HybridGradingService.detectBatchDuplicates; BatchScanScreen bilingual warning banner; 28 new tests (70 total for scoring) |
-| OutOfMemoryError handling in enhanceImage | ✅ Done | ML | 2 | OOM retry at 1080p, crash-proof pipeline; 2 new tests |
-| setState mounted guard in batch scan | ✅ Done | QA | 1 | Prevents crash on navigation during batch processing |
-| Replace print() with debugPrint() in voice service | ✅ Done | QA | 1 | Zero print() calls in lib/ verified |
-| Fix TextEditingControllers leaked in dialogs | ✅ Done | QA | 2 | subscription (2), import_excel (7), answer_key (1) controllers now disposed |
-| Image cleanup for captured/enhanced files | ✅ Done | QA | 2 | OcrService cleanup methods, CameraScreen + BatchScanScreen dispose cleanup |
-| Fix isFirstLaunch crash bug | ✅ Done | Backend | 2 | Future<bool> cast to bool in constants.dart — crashed on app launch. Changed to async checkFirstLaunch() called before runApp, passed as param to EthioGradeApp |
-| Align Hive box constants | ✅ Done | Backend | 1 | constants.dart had dead/mismatched box names (settings, results, sync_queue). Updated to match main.dart: students, assessments, scan_results, metadata |
-| Widget test scaffolding | ✅ Done | QA | 3 | 4 test groups: StatCard (5), LanguageToggle (5), PaperGuideOverlay (8), AssessmentCard (15) — 33 widget tests total |
-| GitHub Actions CI pipeline | ✅ Done | Infra | 2 | Lint → test with coverage → build APK with size check. Triggers on push to main/dev and PRs to main |
+### Sprint: Pilot Readiness — Test Coverage
 
-### Completed Sprint 0
-
-| Task | Status | Assignee | Points | Notes |
-|------|--------|----------|--------|-------|
-| Add font files (NotoSansEthiopic) | ✅ Done | Design | 1 | NotoSansEthiopic-Regular.ttf + Bold.ttf (OFL) |
-| Add splash logo | ✅ Done | Design | 1 | 512x512 PNG, green bg + white checkmark + yellow accent |
-| Wire ML Kit text recognition | ✅ Done | ML | 5 | google_mlkit_text_recognition, on-device, graceful failure |
-| Harden OCR: confidence filter + image cap | ✅ Done | ML | 2 | Reject noise <0.5 confidence, downscale >1600px |
-| Validate answer parser against ML Kit output | ✅ Done | ML | 3 | AnswerParser extracted, 30+ test cases, edge cases fixed |
-| Replace enhancement pipeline | ✅ Done | ML | 3 | 4 native ops, zero pixel loops, skew detection, dedup |
-| Add unit tests for scoring engine | ✅ Done | QA | 2 | ScoringService extracted (pure Dart), 40+ tests covering all 3 grading scales, answer types, edge cases |
-
-**Sprint 0 Burndown:** 19/19 points complete — Sprint 0 done ✅
-
----
-
-## 📊 Analytics & KPIs (What We Measure)
-
-### Product Metrics (Post-Launch)
-
-| Metric | Target | How We Measure |
-|--------|--------|----------------|
-| Papers scanned per session | ≥ 15 | In-app event |
-| Time to grade 30 papers | < 10 min | Session timing |
-| OCR accuracy (MCQ) | ≥ 95% | Correction rate |
-| OCR accuracy (True/False) | ≥ 90% | Correction rate |
-| Teacher retention (Day 7) | ≥ 40% | Firebase/Analytics |
-| App crash rate | < 1% | Crashlytics |
-| PDF export rate | ≥ 60% of sessions | In-app event |
-| Amharic mode usage | Track (no target) | Locale setting |
-
-### Technical Metrics
-
-| Metric | Target | Current | How to Measure |
-|--------|--------|---------|----------------|
-| Cold start time | < 3s | 📋 Pending | `integration_test/perf_benchmark.dart` — Stopwatch from main() to first frame |
-| Scan-to-result time | < 5s | ~0.8s (mock) | HybridGradingService.gradePaper timing |
-| APK size (release) | < 50MB | 📋 Pending | CI: `flutter build apk --release` → stat |
-| Memory peak | < 150MB | 📋 Pending | `adb shell dumpsys meminfo <pkg>` during batch scan of 10 papers |
-| Test coverage | ≥ 60% | 📋 Pending | `flutter test --coverage` → lcov |
-| Lint warnings | 0 | Unknown | `flutter analyze` |
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Widget tests: Quick Grade screen | ✅ Done | P1 | 28 tests: EN/Am labels, form validation (empty, range, format, mismatch), answer key parsing (MCQ/TF/mixed, semicolons, spaces, lowercase), navigation, UI structure |
+| Widget tests: Add Student screen | ✅ Done | P1 | 30 tests: EN/Am labels, form fields, gender selection, validation (empty, missing gender, too-long ID), class dropdown, preselected class, edit mode pre-fill/title/button, Amharic name input, optional fields, save flow (snackbar + pop), UI structure |
+| Widget tests: Reports screen | 🗑️ Removed | Tests deleted with Reports screen. |
+| Widget tests: Analytics screen | 🗑️ Removed | Tests deleted with Analytics screen. |
+| Widget tests: Quick Enter screen | ✅ Done | P1 | `test/widgets/quick_enter_test.dart` (7 tests) |
+| Widget tests: Import CSV screen | ✅ Done | P1 | `test/widgets/import_csv_test.dart` (12 tests) |
+| Widget tests: Transfer dialog | ✅ Done | P1 | `test/widgets/transfer_dialog_test.dart` (8 tests) |
+| Widget tests: Grading Scale Editor | ✅ Done | P1 | `test/widgets/grading_scale_editor_test.dart` (8 tests) |
+| Integration test: full grading flow | ✅ Done | P2 | `integration_test/grading_flow_test.dart` (10 tests) |
 
 ---
 
-## 🧪 Device & OS Matrix
+## v0.2.0 Roadmap
 
-| Device Class | Min Spec | Target | Tested? |
-|-------------|----------|--------|---------|
-| Low-end phone | 2GB RAM, Android 8, no GPU accel | Primary | ❌ |
-| Mid-range phone | 4GB RAM, Android 10 | Primary | ❌ |
-| High-end phone | 6GB+ RAM, Android 13+ | Secondary | ❌ |
-| Tablet | Any Android tablet | Nice-to-have | ❌ |
-| Chromebook | Android app support | Stretch | ❌ |
+### Sprint: Voice Feedback (TTS + Voice Notes)
 
-**Camera requirements:** Rear camera with autofocus. Flash preferred but not required.
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Add flutter_tts dependency | ✅ Done | P0 | Only TTS re-enabled (~2MB APK delta). STT/record/playback kept as stubs. |
+| Implement VoiceService real TTS methods | ✅ Done | P0 | flutter_tts integration: initialize, speak, stopSpeaking, readScore, readAllScores. English-only. |
+| Add "Read Scores" button to ReviewScreen | ✅ Done | P1 | Volume icon in AppBar. Reads all students sequentially. Stop button. Visual highlight on current student. |
+| Add "Read Scores" button to GradeReviewScreen | ✅ Done | P1 | Same pattern as ReviewScreen. Highlights current row during read. |
+| Voice service widget tests | ✅ Done | P1 | 14 tests: singleton, fileExists, stub safety, stream, state. |
+| Add "Read Score" to per-question review | ✅ Done | P2 | SideBySideReview volume_up button shows stop icon while speaking, calls stopSpeaking() on dispose. Already wired to readScore() — now works with real TTS. |
+| APK size impact check | ✅ Done | P2 | CI build-apk job prints APK size, fails build if >25MB. |
+| Research camera mock strategy | ✅ Done | P0 | MockCameraPlatform created: implements CameraPlatform with synthetic answer sheet images + image generation helper. |
+| Create MockCameraPlatform | ✅ Done | P1 | `integration_test/mock_camera_platform.dart` — registers as CameraPlatform.instance, returns synthetic JPEG from takePicture(). generateSyntheticAnswerSheet() creates 1200x1600 white image with corner anchors + MCQ bubble grid. |
+| Integration test: scan → grade pipeline | ✅ Done | P1 | `integration_test/scan_grade_test.dart` — 10 tests: synthetic image generation (JPEG validity, decodability, answer variation), OMR template scanning (synthetic, empty, missing file), scoring pipeline (correct/wrong/MISSING), end-to-end (image→OMR→score), resilience (corrupt JPEG, zero-byte file). Pure Dart — no device needed. |
 
----
+### Sprint: Integration Test — Camera Mock
 
-## ⚠️ Risk Register
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Research camera mock strategy | ✅ Done | P0 | CameraPlatform.instance override with mock implementation. |
+| Create MockCameraPlatform | ✅ Done | P1 | `integration_test/mock_camera_platform.dart` — full CameraPlatform implementation. generateSyntheticAnswerSheet() for test images. |
+| Integration test: scan → grade pipeline | ✅ Done | P1 | `integration_test/scan_grade_test.dart` — 10 tests covering image gen, OMR scanning, scoring, e2e pipeline, crash resilience. Pure Dart, no device needed. |
+| Integration test: batch scan with mock | ✅ Done | P2 | 12 tests: multi-image OMR, scoring consistency, duplicate detection, pipeline resilience (corrupt/zero-byte/missing/rapid). |
+| Integration test: answer sheet coordinate map OMR | ✅ Done | P2 | 13 tests: pipeline basics, CoordinateMap model (findBubble, anchors, roundtrip), CoordinateMapOmrResult, resilience. |
 
-| # | Risk | Impact | Likelihood | Mitigation |
-|---|------|--------|------------|------------|
-| R1 | No Amharic handwriting model available | 🔴 Fatal | High | Research existing models; consider partnership with Ethiopian universities |
-| R2 | ML Kit accuracy too low for real papers | 🟡 High | Medium | Test with real exam papers early; have manual fallback; dynamic template calibration applied |
-| R3 | Image processing too slow on 2GB devices | 🟡 High | High | Move to Dart isolates; optimize algorithms |
-| R4 | Telebirr API integration blocked | 🟡 High | Medium | Ship free tier first; payment in v0.3.0 |
-| R5 | Font licensing issues | 🟡 Medium | Low | NotoSansEthiopic is OFL — free to use |
-| R6 | Google Play rejection (permissions) | 🟡 Medium | Medium | Camera + storage only; justify in store listing |
-| R7 | Offline data loss on app crash | 🟡 Medium | Medium | Auto-save after each scan; Hive is crash-safe |
-| R8 | No runtime test verification | 🟡 Medium | Medium | CI pipeline added but needs Flutter runner verification on first push |
-| R9 | Constants.dart isFirstLaunch was crashing at runtime | ✅ Mitigated | — | Fixed: async checkFirstLaunch() resolved before runApp |
+### Sprint: Data Safety — Critical Fixes
 
----
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| Auto-backup trigger on scan save | ✅ Done | P0 | HybridGradingService._saveWithRetry() now calls BackupService.recordScanAndMaybeBackup() after every successful save. Was dead code — never called. |
+| Remove auto-delete on Hive corruption | ✅ Done | P0 | _openBoxSafe/_openLazyBoxSafe now rename corrupt .hive files to .corrupt.N (preserves bytes) instead of deleting. Original deleted only after copy succeeds. |
+| Corruption recovery banner | ✅ Done | P0 | New _InitStatus.corruption + _InitBanner widget shows orange healing banner: "Some data was recovered from a corrupted storage file. Check Settings → Storage for details." |
+| Delete image files on record deletion | ✅ Done | P1 | HybridGradingService.deleteScanResult() now loads record first, deletes imagePath + enhancedImagePath from filesystem, then deletes Hive entry. New _deleteImageFile() helper never throws. |
+| Storage usage indicator in Settings | ✅ Done | P1 | _StorageInfoTile in Settings → Data & Privacy. Shows total MB used + scanned image count. Progress bar (green < 200MB, red > 200MB). FutureBuilder loads async. |
+| Data safety tests | ✅ Done | P1 | 7 tests in test/services/data_safety_test.dart: image deletion (exists/missing/null), corrupt box preservation, storage calculation, ScanResult roundtrip. |
 
-## 📦 Dependency Health
+### Sprint: Polish & Hardening
 
-| Package | Version | Purpose | Risk |
-|---------|---------|---------|------|
-| `google_mlkit_text_recognition` | ^0.11.0 | OCR | Core dependency — actively maintained |
-| `tflite_flutter` | ^0.10.4 | Amharic model | Heavy native dep — may cause build issues |
-| `camera` | ^0.10.5+9 | Camera | Stable, well-maintained |
-| `pdf` | ^3.10.7 | Report generation | Stable |
-| `hive` / `hive_flutter` | ^2.2.3 | Local DB | Stable, no SQL overhead |
-| `flutter_secure_storage` | ^9.0.0 | Encryption key storage | Platform keystore (Android EncryptedSharedPreferences) |
-| `provider` | ^6.1.1 | State mgmt | Standard Flutter pattern |
-| `speech_to_text` | ^6.6.0 | STT | Platform-dependent accuracy |
-| `flutter_tts` | ^3.8.5 | TTS | Amharic voice quality unknown |
-| `record` | ^5.0.4 | Audio recording | Stable |
-| `just_audio` | ^0.9.36 | Audio playback | Stable, well-maintained, cross-platform |
-| `excel` | ^4.0.3 | Import | Stable |
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| APK size audit | 📋 Pending | P2 | Profile release APK. Target <20MB. Remove unused assets. |
+| Accessibility audit (TalkBack) | 📋 Pending | P2 | Verify screen reader works for grading flow. Semantics labels. |
+| Battery drain test on 2GB device | 📋 Pending | P2 | Extended batch scan session — monitor memory + thermal. |
 
----
+## Risk Register
 
-## 🔄 How to Update This File
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| TextRecognizer never disposed | 🔴 High | Fixed — dispose added to app lifecycle |
+| No CI pipeline | ✅ Resolved | GitHub Actions CI with analyze + test + format check |
+| No CI APK build — build failures undetected | ✅ Resolved | CI now builds debug APK + verifies output exists |
+| compileSdk 36 requires Android 16 SDK | ✅ Resolved | compileSdk 36 is correct (plugins require it). User must install SDK 36 via Android Studio SDK Manager or `sdkmanager "platforms;android-36"` |
+| No Hive adapters — raw Map serialization | ✅ Resolved | All 24 types annotated; migration service converts existing data; run `scripts/build_adapters.sh` to generate .g.dart |
+| Flutter SDK not on CI server | ✅ Resolved | subosito/flutter-action with cache on GitHub-hosted runner |
+| Voice features stubbed | 🟢 Low | Clear deferral to v0.2.0 |
+| Flutter SDK not on dev server | ✅ Resolved | CI handles all Flutter ops. Integration test written. Dev server for code review + doc updates + pure-Dart work. 74 lib files verified brace-balanced. |
+| No testable APK for teachers | ✅ Resolved | CI uploads debug APK as artifact (30-day retention). Teachers download from Actions tab. `TEACHER_GUIDE.md` created with install instructions. |
+| Weighted grade not linked | ✅ Resolved | Components auto-populate with assessment ID on save; per-paper weighted scoring via ScoringService |
+| Transfer roster stale | ✅ Resolved | Transfer dialog updates ClassProvider rosters; undo uses correct student state |
 
-1. After every task completion → update Feature Matrix status
-2. After every sprint → update Sprint Board, velocity
-3. After every release → update Release Train, bump version
-4. When risk changes → update Risk Register
-5. When dependencies change → update Dependency Health
-6. Weekly → verify Health signals are current
+## Architecture
 
-**This file is not optional. A stale PROJECT_STATE.md means the project is out of control.**
-
----
-
-*Last Updated: 2026-04-01*
+- **State:** Provider (ChangeNotifier)
+- **Storage:** Hive (encrypted) + SharedPreferences (first-launch flag)
+- **OCR:** ML Kit TextRecognizer (on-device, offline)
+- **OMR:** Pixel sampling (pure Dart, image package)
+- **PDF:** pdf package (pure Dart)
+- **No network calls** — everything offline-first

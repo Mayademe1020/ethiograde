@@ -1,263 +1,290 @@
+import 'dart:convert';
 import 'dart:io';
-import 'package:excel/excel.dart';
+
+import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/student.dart';
 
-class ExcelService {
-  static final ExcelService _instance = ExcelService._();
-  factory ExcelService() => _instance;
-  ExcelService._();
+/// CSV import and export for students and assessment results.
+///
+/// Pure Dart — no native dependencies beyond file_picker and path_provider.
+class ImportService {
+  static final ImportService _instance = ImportService._();
+  factory ImportService() => _instance;
+  ImportService._();
 
-  /// Import students from an Excel (.xlsx) file
-  Future<ExcelImportResult> importStudents() async {
+
+  static final _columnPatterns = <String, List<RegExp>>{
+    'firstName': [
+      RegExp(r'^ስም$', unicode: true),
+      RegExp(r'^name$', caseSensitive: false),
+      RegExp(r'first\s*name', caseSensitive: false),
+      RegExp(r'^fullname$', caseSensitive: false),
+      RegExp(r'^full\s*name$', caseSensitive: false),
+    ],
+    'lastName': [
+      RegExp(r'የአባት\s*ስም', unicode: true),
+      RegExp(r"father'?s?\s*name", caseSensitive: false),
+      RegExp(r'last\s*name', caseSensitive: false),
+      RegExp(r'surname', caseSensitive: false),
+      RegExp(r'family\s*name', caseSensitive: false),
+    ],
+    'studentId': [
+      RegExp(r'ተ\.?ቁ', unicode: true),
+      RegExp(r'id', caseSensitive: false),
+      RegExp(r'roll\s*no', caseSensitive: false),
+      RegExp(r'student\s*id', caseSensitive: false),
+      RegExp(r'student\s*number', caseSensitive: false),
+    ],
+    'gender': [
+      RegExp(r'ጾታ', unicode: true),
+      RegExp(r'gender', caseSensitive: false),
+      RegExp(r'sex', caseSensitive: false),
+      RegExp(r'ወንድ/ሴት', unicode: true),
+      RegExp(r'M/F', caseSensitive: false),
+    ],
+    'className': [
+      RegExp(r'ክፍል', unicode: true),
+      RegExp(r'class', caseSensitive: false),
+      RegExp(r'grade', caseSensitive: false),
+      RegExp(r'ደረጃ', unicode: true),
+    ],
+    'section': [
+      RegExp(r'ቡድን', unicode: true),
+      RegExp(r'section', caseSensitive: false),
+      RegExp(r'stream', caseSensitive: false),
+      RegExp(r'group', caseSensitive: false),
+    ],
+    'grade': [
+      RegExp(r'ክፍል\s*ቁጥር', unicode: true),
+      RegExp(r'grade\s*level', caseSensitive: false),
+      RegExp(r'year', caseSensitive: false),
+    ],
+  };
+
+  // ── Import ──────────────────────────────────────────────────────
+
+  /// Import students from a CSV file.
+  /// File picker shows .csv files only.
+  Future<ImportResult> importStudents({String? classId}) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls'],
-    );
+      allowedExtensions: ['csv']);
 
     if (result == null || result.files.isEmpty) {
-      return ExcelImportResult(
-        success: false,
-        message: 'No file selected',
-      );
+      return ImportResult(success: false, message: 'No file selected');
     }
 
     final file = File(result.files.single.path!);
-    final bytes = await file.readAsBytes();
-    final excel = Excel.decodeBytes(bytes);
+    final content = await file.readAsString();
+
+    return _parseCsvContent(content, classId: classId);
+  }
+
+  /// Parse CSV content string into students. Public for testing.
+  ImportResult _parseCsvContent(String content, {String? classId}) {
+    final rows = const CsvToListConverter(eol: '\n').convert(content);
+    if (rows.isEmpty) {
+      return ImportResult(success: false, message: 'Empty CSV file');
+    }
+
+    // Find header row
+    int headerRow = -1;
+    Map<String, int> columnMap = {};
+
+    for (int i = 0; i < rows.length; i++) {
+      final headerCandidates =
+          rows[i].map((cell) => cell.toString().trim()).toList();
+      final detected = _detectColumns(headerCandidates);
+      if (detected.containsKey('firstName') ||
+          detected.containsKey('studentId')) {
+        headerRow = i;
+        columnMap = detected;
+        break;
+      }
+    }
+
+    if (headerRow == -1) {
+      return ImportResult(
+        success: false,
+        message: 'No header row found — expected columns like ስም / Name / ID');
+    }
 
     final students = <Student>[];
     final errors = <String>[];
-    int rowNumber = 0;
 
-    for (final sheetName in excel.tables.keys) {
-      final sheet = excel.tables[sheetName];
-      if (sheet == null) continue;
+    for (int i = headerRow + 1; i < rows.length; i++) {
+      final row = rows[i];
 
-      // Find header row (look for "Name" or "First" or "ስም")
-      int headerRow = -1;
-      Map<String, int> columnMap = {};
+      try {
+        final firstName = _getCell(row, columnMap['firstName']);
+        final lastName = _getCell(row, columnMap['lastName']);
+        final studentId = _getCell(row, columnMap['studentId']);
+        final genderRaw = _getCell(row, columnMap['gender']);
+        final className = _getCell(row, columnMap['className']);
+        final section = _getCell(row, columnMap['section']);
+        final gradeStr = _getCell(row, columnMap['grade']);
 
-      for (int i = 0; i < sheet.maxRows; i++) {
-        final row = sheet.rows[i];
-        final headerCandidates = row
-            .map((cell) => cell?.value?.toString().toLowerCase().trim() ?? '')
-            .toList();
-
-        if (headerCandidates.any((h) =>
-            h.contains('name') ||
-            h.contains('ስም') ||
-            h.contains('first'))) {
-          headerRow = i;
-          columnMap = _detectColumns(headerCandidates);
-          break;
+        if (firstName.isEmpty && lastName.isEmpty && studentId.isEmpty) {
+          continue;
         }
+
+        final classIds = <String>[];
+        if (classId != null && classId.isNotEmpty) classIds.add(classId);
+
+        students.add(Student(
+          id: const Uuid().v4(),
+          studentId: studentId,
+          firstName: firstName,
+          lastName: lastName,
+          gender: _normalizeGender(genderRaw),
+          classIds: classIds,
+          className: className,
+          section: section,
+          grade: int.tryParse(gradeStr) ?? 1));
+      } catch (e) {
+        errors.add('Row ${i + 1}: $e');
       }
-
-      if (headerRow == -1) {
-        errors.add('Could not find header row with student names');
-        continue;
-      }
-
-      // Parse data rows
-      for (int i = headerRow + 1; i < sheet.maxRows; i++) {
-        rowNumber = i + 1;
-        final row = sheet.rows[i];
-
-        try {
-          final firstName = _getCellValue(row, columnMap['firstName']);
-          final lastName = _getCellValue(row, columnMap['lastName']);
-          final firstNameAm = _getCellValue(row, columnMap['firstNameAmharic']);
-          final lastNameAm = _getCellValue(row, columnMap['lastNameAmharic']);
-          final studentId = _getCellValue(row, columnMap['studentId']);
-          final className = _getCellValue(row, columnMap['className']);
-          final section = _getCellValue(row, columnMap['section']);
-          final gradeStr = _getCellValue(row, columnMap['grade']);
-
-          if (firstName.isEmpty && lastName.isEmpty) continue;
-
-          final student = Student(
-            id: const Uuid().v4(),
-            firstName: firstName,
-            lastName: lastName,
-            firstNameAmharic: firstNameAm,
-            lastNameAmharic: lastNameAm,
-            studentId: studentId,
-            className: className,
-            section: section,
-            grade: int.tryParse(gradeStr) ?? 1,
-          );
-
-          students.add(student);
-        } catch (e) {
-          errors.add('Row $rowNumber: $e');
-        }
-      }
-
-      // Only process first sheet
-      break;
     }
 
     if (students.isEmpty) {
-      return ExcelImportResult(
+      final dataRows = rows.length - headerRow - 1;
+      return ImportResult(
         success: false,
-        message: 'No valid students found in file',
-        errors: errors,
-      );
+        message: dataRows > 0
+            ? 'Found $dataRows rows but none had valid names'
+            : 'No data rows found after header',
+        errors: errors);
     }
 
-    return ExcelImportResult(
+    return ImportResult(
       success: true,
       students: students,
-      message: 'Imported ${students.length} students',
-      errors: errors,
-    );
+      message: 'Found ${students.length} students',
+      errors: errors);
   }
 
-  /// Export students to Excel file
-  Future<String> exportStudents(List<Student> students) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Students'];
+  // ── Export ──────────────────────────────────────────────────────
 
-    // Headers
-    sheet.appendRow([
-      TextCellValue('First Name'),
-      TextCellValue('Last Name'),
-      TextCellValue('ስም (Amharic)'),
-      TextCellValue('የአባት ስም (Amharic)'),
-      TextCellValue('Student ID'),
-      TextCellValue('Class'),
-      TextCellValue('Section'),
-      TextCellValue('Grade'),
-    ]);
+  /// Export students to CSV file.
+  /// [outputDir] overrides the default directory (for testing).
+  Future<String> exportStudents(
+    List<Student> students, {
+    String? outputDir,
+  }) async {
+    final rows = <List<dynamic>>[
+      [
+        'ID',
+        'FirstName',
+        'LastName',
+        'Gender',
+        'Class',
+        'Section',
+        'Grade',
+      ],
+      ...students.map((s) => [
+            s.studentId,
+            s.firstName,
+            s.lastName,
+            s.gender,
+            s.className,
+            s.section,
+            s.grade,
+          ]),
+    ];
 
-    // Data
-    for (final student in students) {
-      sheet.appendRow([
-        TextCellValue(student.firstName),
-        TextCellValue(student.lastName),
-        TextCellValue(student.firstNameAmharic),
-        TextCellValue(student.lastNameAmharic),
-        TextCellValue(student.studentId),
-        TextCellValue(student.className),
-        TextCellValue(student.section),
-        IntCellValue(student.grade),
-      ]);
-    }
-
-    // Save
-    final dir = Directory('/storage/emulated/0/Download');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
+    final csv = const ListToCsvConverter().convert(rows);
+    final dirPath =
+        outputDir ?? (await getApplicationDocumentsDirectory()).path;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = '${dir.path}/ethiograde_students_$timestamp.xlsx';
-    final fileBytes = excel.save();
-    if (fileBytes != null) {
-      await File(path).writeAsBytes(fileBytes);
-    }
-
+    final path = '$dirPath/ethiograde_students_$timestamp.csv';
+    await File(path).writeAsString(csv, encoding: utf8);
     return path;
   }
 
-  /// Export assessment results to Excel
+  /// Export assessment results to CSV file.
+  /// [outputDir] overrides the default directory (for testing).
   Future<String> exportResults({
     required String assessmentTitle,
     required List<Map<String, dynamic>> results,
+    String? outputDir,
   }) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['Results'];
+    final rows = <List<dynamic>>[
+      ['StudentName', 'StudentID', 'Score', 'MaxScore', 'Percentage', 'Grade', 'Status'],
+      ...results.map((r) {
+        final pct = (r['percentage'] ?? 0).toDouble();
+        return [
+          r['studentName'] ?? '',
+          r['studentId'] ?? '',
+          (r['totalScore'] ?? 0).toDouble(),
+          (r['maxScore'] ?? 0).toDouble(),
+          '${pct.toStringAsFixed(1)}%',
+          r['grade'] ?? '',
+          pct >= 50 ? 'PASS' : 'FAIL',
+        ];
+      }),
+    ];
 
-    // Headers
-    sheet.appendRow([
-      TextCellValue('Student Name'),
-      TextCellValue('Student ID'),
-      TextCellValue('Score'),
-      TextCellValue('Max Score'),
-      TextCellValue('Percentage'),
-      TextCellValue('Grade'),
-      TextCellValue('Status'),
-    ]);
-
-    // Data
-    for (final result in results) {
-      sheet.appendRow([
-        TextCellValue(result['studentName'] ?? ''),
-        TextCellValue(result['studentId'] ?? ''),
-        DoubleCellValue((result['totalScore'] ?? 0).toDouble()),
-        DoubleCellValue((result['maxScore'] ?? 0).toDouble()),
-        TextCellValue('${(result['percentage'] ?? 0).toStringAsFixed(1)}%'),
-        TextCellValue(result['grade'] ?? ''),
-        TextCellValue(
-          (result['percentage'] ?? 0) >= 50 ? 'PASS' : 'FAIL',
-        ),
-      ]);
-    }
-
-    final dir = Directory('/storage/emulated/0/Download');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
+    final csv = const ListToCsvConverter().convert(rows);
+    final dirPath =
+        outputDir ?? (await getApplicationDocumentsDirectory()).path;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final safeName = assessmentTitle.replaceAll(RegExp(r'[^\w]'), '_');
-    final path = '${dir.path}/ethiograde_${safeName}_$timestamp.xlsx';
-    final fileBytes = excel.save();
-    if (fileBytes != null) {
-      await File(path).writeAsBytes(fileBytes);
-    }
-
+    final path = '$dirPath/ethiograde_${safeName}_$timestamp.csv';
+    await File(path).writeAsString(csv, encoding: utf8);
     return path;
   }
 
-  // ──── Helpers ────
+  // ── Helpers ─────────────────────────────────────────────────────
 
   Map<String, int> _detectColumns(List<String> headers) {
     final map = <String, int>{};
-
     for (int i = 0; i < headers.length; i++) {
-      final h = headers[i];
-      if (h.contains('first') && h.contains('name')) {
-        map['firstName'] = i;
-      } else if (h.contains('last') && h.contains('name')) {
-        map['lastName'] = i;
-      } else if (h == 'name' || h == 'ስም') {
-        map['firstName'] = i;
-      } else if (h.contains('ስም') && h.contains('የአባት')) {
-        map['firstNameAmharic'] = i;
-      } else if (h.contains('amharic') && h.contains('first')) {
-        map['firstNameAmharic'] = i;
-      } else if (h.contains('amharic') && h.contains('last')) {
-        map['lastNameAmharic'] = i;
-      } else if (h.contains('id') || h.contains('number')) {
-        map['studentId'] = i;
-      } else if (h.contains('class') || h.contains('ክፍል')) {
-        map['className'] = i;
-      } else if (h.contains('section') || h.contains('ቡድን')) {
-        map['section'] = i;
-      } else if (h.contains('grade') || h.contains('ደረጃ')) {
-        map['grade'] = i;
+      final h = headers[i].trim();
+      if (h.isEmpty) continue;
+      for (final entry in _columnPatterns.entries) {
+        if (map.containsKey(entry.key)) continue;
+        for (final pattern in entry.value) {
+          if (pattern.hasMatch(h)) {
+            map[entry.key] = i;
+            break;
+          }
+        }
       }
     }
-
     return map;
   }
 
-  String _getCellValue(List<Data?> row, int? index) {
+  String _normalizeGender(String raw) {
+    if (raw.isEmpty) return '';
+    final lower = raw.trim().toLowerCase();
+    if (lower == 'ወንድ' || lower == 'ወ' || lower == 'm' || lower == 'male' || lower == 'w') {
+      return 'M';
+    }
+    if (lower == 'ሴት' || lower == 'ሴ' || lower == 'f' || lower == 'female') {
+      return 'F';
+    }
+    if (raw.trim().toUpperCase() == 'M') return 'M';
+    if (raw.trim().toUpperCase() == 'F') return 'F';
+    return '';
+  }
+
+  String _getCell(List<dynamic> row, int? index) {
     if (index == null || index >= row.length) return '';
-    return row[index]?.value?.toString().trim() ?? '';
+    return row[index].toString().trim();
   }
 }
 
-class ExcelImportResult {
+class ImportResult {
   final bool success;
   final String message;
   final List<Student> students;
   final List<String> errors;
 
-  ExcelImportResult({
+  ImportResult({
     required this.success,
     required this.message,
     this.students = const [],

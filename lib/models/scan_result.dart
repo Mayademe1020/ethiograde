@@ -1,23 +1,47 @@
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
+part 'scan_result.g.dart';
+
+@HiveType(typeId: 7)
 class ScanResult {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String assessmentId;
+  @HiveField(2)
   final String studentId;
+  @HiveField(3)
   final String studentName;
+  @HiveField(4)
   final String imagePath;
+  @HiveField(5)
   final String? enhancedImagePath;
+  @HiveField(6)
   final List<AnswerMatch> answers;
+  @HiveField(7)
   final double totalScore;
+  @HiveField(8)
   final double maxScore;
+  @HiveField(9)
   final double percentage;
+  @HiveField(10)
   final String grade;
+  @HiveField(11)
   final ScanStatus status;
+  @HiveField(12)
   final DateTime scannedAt;
+  @HiveField(13)
   final String? voiceNotePath;
+  @HiveField(14)
   final String? teacherComment;
+  @HiveField(15)
   final double confidence; // Overall OCR confidence 0.0 - 1.0
+  @HiveField(16)
   final int? imageHash; // dHash for duplicate scan detection
+  @HiveField(17)
+  final bool isManualEntry; // true when scores entered by hand, not scanned
+  @HiveField(18)
   final Map<String, dynamic> metadata;
 
   ScanResult({
@@ -38,12 +62,13 @@ class ScanResult {
     this.teacherComment,
     this.confidence = 0,
     this.imageHash,
+    this.isManualEntry = false,
     this.metadata = const {},
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
 
-  bool get needsReview => confidence < 0.7 ||
-      answers.any((a) => a.confidence < 0.6);
+  bool get needsReview =>
+      confidence < 0.7 || answers.any((a) => a.confidence < 0.6);
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -63,6 +88,7 @@ class ScanResult {
     'teacherComment': teacherComment,
     'confidence': confidence,
     'imageHash': imageHash,
+    'isManualEntry': isManualEntry,
     'metadata': metadata,
   };
 
@@ -86,108 +112,81 @@ class ScanResult {
     teacherComment: map['teacherComment'],
     confidence: (map['confidence'] ?? 0).toDouble(),
     imageHash: map['imageHash'] as int?,
+    isManualEntry: map['isManualEntry'] ?? false,
     metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
   );
 
   ScanResult copyWith({
+    String? studentId,
+    String? studentName,
     List<AnswerMatch>? answers,
     double? totalScore,
+    double? maxScore,
     double? percentage,
     String? grade,
     ScanStatus? status,
     String? voiceNotePath,
     String? teacherComment,
+    double? confidence,
     int? imageHash,
+    bool? isManualEntry,
+    Map<String, dynamic>? metadata,
   }) => ScanResult(
     id: id,
     assessmentId: assessmentId,
-    studentId: studentId,
-    studentName: studentName,
+    studentId: studentId ?? this.studentId,
+    studentName: studentName ?? this.studentName,
     imagePath: imagePath,
     enhancedImagePath: enhancedImagePath,
     answers: answers ?? this.answers,
     totalScore: totalScore ?? this.totalScore,
-    maxScore: maxScore,
+    maxScore: maxScore ?? this.maxScore,
     percentage: percentage ?? this.percentage,
     grade: grade ?? this.grade,
     status: status ?? this.status,
     scannedAt: scannedAt,
     voiceNotePath: voiceNotePath ?? this.voiceNotePath,
     teacherComment: teacherComment ?? this.teacherComment,
-    confidence: confidence,
+    confidence: confidence ?? this.confidence,
     imageHash: imageHash ?? this.imageHash,
-    metadata: metadata,
+    isManualEntry: isManualEntry ?? this.isManualEntry,
+    metadata: metadata ?? this.metadata,
   );
-
-  /// Check if answer detection is aligned with the expected key length.
-  ///
-  /// Returns alignment details: how many answers were detected vs expected,
-  /// how many are [MISSING], and whether the mismatch is significant enough
-  /// to warn the teacher.
-  ///
-  /// [expectedObjectiveCount] — number of MCQ + True/False questions in the
-  /// assessment's answer key. Pass 0 for subjective-only assessments.
-  AlignmentCheck checkAlignment(int expectedObjectiveCount) {
-    if (expectedObjectiveCount <= 0 || answers.isEmpty) {
-      return AlignmentCheck(
-        detectedObjective: 0,
-        expectedObjective: expectedObjectiveCount,
-        missingCount: 0,
-        needsWarning: false,
-      );
-    }
-
-    final detectedObjective = answers
-        .where((a) => a.detectedAnswer != '[MISSING]')
-        .length;
-    final missingCount = answers
-        .where((a) => a.detectedAnswer == '[MISSING]')
-        .length;
-
-    // Warn if more than 20% of objective answers are missing
-    // (e.g., paper misaligned, wrong template, partial scan)
-    final missingRatio = missingCount / expectedObjectiveCount;
-    final needsWarning = missingRatio > 0.2;
-
-    return AlignmentCheck(
-      detectedObjective: detectedObjective,
-      expectedObjective: expectedObjectiveCount,
-      missingCount: missingCount,
-      needsWarning: needsWarning,
-    );
-  }
 }
 
-/// Result of checking answer key alignment after scanning.
-class AlignmentCheck {
-  final int detectedObjective;
-  final int expectedObjective;
-  final int missingCount;
-  final bool needsWarning;
-
-  const AlignmentCheck({
-    required this.detectedObjective,
-    required this.expectedObjective,
-    required this.missingCount,
-    required this.needsWarning,
-  });
-
-  /// Ratio of missing answers (0.0 = none missing, 1.0 = all missing).
-  double get missingRatio =>
-      expectedObjective > 0 ? missingCount / expectedObjective : 0.0;
+@HiveType(typeId: 10)
+enum ScanStatus {
+  @HiveField(0)
+  pending,
+  @HiveField(1)
+  processing,
+  @HiveField(2)
+  graded,
+  @HiveField(3)
+  reviewed,
+  @HiveField(4)
+  needsRescan,
 }
 
-enum ScanStatus { pending, processing, graded, reviewed, needsRescan }
-
+@HiveType(typeId: 8)
 class AnswerMatch {
+  @HiveField(0)
   final int questionNumber;
+  @HiveField(1)
   final String detectedAnswer;
+  @HiveField(2)
   final String correctAnswer;
+  @HiveField(3)
   final bool isCorrect;
+  @HiveField(4)
   final double score;
+  @HiveField(5)
   final double maxScore;
+  @HiveField(6)
   final double confidence;
+  @HiveField(7)
   final String? ocrRawText;
+  @HiveField(8)
   final BoundingBox? boundingBox;
 
   AnswerMatch({
@@ -229,10 +228,15 @@ class AnswerMatch {
   );
 }
 
+@HiveType(typeId: 9)
 class BoundingBox {
+  @HiveField(0)
   final double left;
+  @HiveField(1)
   final double top;
+  @HiveField(2)
   final double right;
+  @HiveField(3)
   final double bottom;
 
   const BoundingBox({
@@ -246,7 +250,10 @@ class BoundingBox {
   double get height => bottom - top;
 
   Map<String, dynamic> toMap() => {
-    'left': left, 'top': top, 'right': right, 'bottom': bottom,
+    'left': left,
+    'top': top,
+    'right': right,
+    'bottom': bottom,
   };
 
   factory BoundingBox.fromMap(Map<String, dynamic> map) => BoundingBox(

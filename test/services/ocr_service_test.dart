@@ -63,14 +63,17 @@ void main() {
       title: 'Test Assessment',
       subject: 'Math',
       rubricType: rubricType,
-      questions: questions ??
+      questions:
+          questions ??
           [
             Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
             Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-            Question(number: 3, type: QuestionType.trueFalse, correctAnswer: 'True'),
+            Question(
+              number: 3,
+              type: QuestionType.trueFalse,
+              correctAnswer: 'True'),
             Question(number: 4, type: QuestionType.mcq, correctAnswer: 'D'),
-          ],
-    );
+          ]);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -83,8 +86,7 @@ void main() {
         text: '1. A',
         confidence: 0.92,
         x: 100.0,
-        y: 200.0,
-      );
+        y: 200.0);
       expect(region.text, '1. A');
       expect(region.confidence, 0.92);
       expect(region.x, 100.0);
@@ -92,22 +94,12 @@ void main() {
     });
 
     test('confidence can be zero', () {
-      final region = TextRegion(
-        text: 'noise',
-        confidence: 0.0,
-        x: 0,
-        y: 0,
-      );
+      final region = TextRegion(text: 'noise', confidence: 0.0, x: 0, y: 0);
       expect(region.confidence, 0.0);
     });
 
     test('position can be zero', () {
-      final region = TextRegion(
-        text: '1. B',
-        confidence: 0.8,
-        x: 0,
-        y: 0,
-      );
+      final region = TextRegion(text: '1. B', confidence: 0.8, x: 0, y: 0);
       expect(region.x, 0);
       expect(region.y, 0);
     });
@@ -209,43 +201,45 @@ void main() {
       }
     });
 
-    test('corrects EXIF orientation (rotated 90° image becomes upright)', () async {
-      final ocr = OcrService();
-      // Create a 200x400 image (tall/portrait)
-      final image = img.Image(width: 200, height: 400);
-      img.fill(image, color: img.ColorRgb8(255, 255, 255));
-      // Add text-like marks in the top half
-      for (int y = 30; y < 200; y += 30) {
-        for (int x = 20; x < 150; x++) {
-          image.setPixelRgba(x, y, 0, 0, 0, 255);
+    test(
+      'corrects EXIF orientation (rotated 90° image becomes upright)',
+      () async {
+        final ocr = OcrService();
+        // Create a 200x400 image (tall/portrait)
+        final image = img.Image(width: 200, height: 400);
+        img.fill(image, color: img.ColorRgb8(255, 255, 255));
+        // Add text-like marks in the top half
+        for (int y = 30; y < 200; y += 30) {
+          for (int x = 20; x < 150; x++) {
+            image.setPixelRgba(x, y, 0, 0, 0, 255);
+          }
         }
-      }
 
-      // Encode with EXIF orientation 6 (rotated 90° CW — phone held landscape)
-      final tempDir = Directory.systemTemp;
-      final inputPath = '${tempDir.path}/rotated_test.jpg';
-      final encoded = img.encodeJpg(image, quality: 92);
+        // Encode with EXIF orientation 6 (rotated 90° CW — phone held landscape)
+        final tempDir = Directory.systemTemp;
+        final inputPath = '${tempDir.path}/rotated_test.jpg';
+        final encoded = img.encodeJpg(image, quality: 92);
 
-      // Decode and re-encode with explicit EXIF orientation tag
-      final exifImage = img.decodeJpg(encoded)!;
-      exifImage.exif.orientation = 6; // 90° CW rotation
-      final rotatedBytes = img.encodeJpg(exifImage, quality: 92);
-      await File(inputPath).writeAsBytes(rotatedBytes);
+        // Decode and re-encode with explicit EXIF orientation tag
+        final exifImage = img.decodeJpg(encoded)!;
+        exifImage.exif.imageIfd['Orientation'] = 6; // 90° CW rotation
+        final rotatedBytes = img.encodeJpg(exifImage, quality: 92);
+        await File(inputPath).writeAsBytes(rotatedBytes);
 
-      try {
-        final enhancedPath = await ocr.enhanceImage(inputPath);
-        final enhancedBytes = await File(enhancedPath).readAsBytes();
-        final enhanced = img.decodeJpg(enhancedBytes);
+        try {
+          final enhancedPath = await ocr.enhanceImage(inputPath);
+          final enhancedBytes = await File(enhancedPath).readAsBytes();
+          final enhanced = img.decodeJpg(enhancedBytes);
 
-        expect(enhanced, isNotNull);
-        // After bakeOrientation, the image dimensions should reflect the
-        // rotation: 200x400 with orientation 6 → 400x200
-        expect(enhanced!.width, 400);
-        expect(enhanced.height, 200);
-      } finally {
-        await cleanupFile(inputPath);
-      }
-    });
+          expect(enhanced, isNotNull);
+          // After bakeOrientation, the image dimensions should reflect the
+          // rotation: 200x400 with orientation 6 → 400x200
+          expect(enhanced!.width, 400);
+          expect(enhanced.height, 200);
+        } finally {
+          await cleanupFile(inputPath);
+        }
+      });
 
     test('handles PNG input (converts to JPEG output)', () async {
       final ocr = OcrService();
@@ -281,30 +275,31 @@ void main() {
       expect(result, '/nonexistent/path/image.jpg');
     });
 
-    test('contrast is boosted (white becomes brighter, dark stays dark)',
-        () async {
-      final ocr = OcrService();
-      // Create image with gray background
-      final image = img.Image(width: 200, height: 200);
-      img.fill(image, color: img.ColorRgb8(180, 180, 180));
-      final tempDir = Directory.systemTemp;
-      final inputPath = '${tempDir.path}/gray_test.jpg';
-      await File(inputPath).writeAsBytes(img.encodeJpg(image));
+    test(
+      'contrast is boosted (white becomes brighter, dark stays dark)',
+      () async {
+        final ocr = OcrService();
+        // Create image with gray background
+        final image = img.Image(width: 200, height: 200);
+        img.fill(image, color: img.ColorRgb8(180, 180, 180));
+        final tempDir = Directory.systemTemp;
+        final inputPath = '${tempDir.path}/gray_test.jpg';
+        await File(inputPath).writeAsBytes(img.encodeJpg(image));
 
-      try {
-        final enhancedPath = await ocr.enhanceImage(inputPath);
-        final enhancedBytes = await File(enhancedPath).readAsBytes();
-        final enhanced = img.decodeJpg(enhancedBytes);
+        try {
+          final enhancedPath = await ocr.enhanceImage(inputPath);
+          final enhancedBytes = await File(enhancedPath).readAsBytes();
+          final enhanced = img.decodeJpg(enhancedBytes);
 
-        expect(enhanced, isNotNull);
-        // With contrast boost, the center pixel should be brighter than original 180
-        final pixel = enhanced!.getPixel(100, 100);
-        // Grayscale so R=G=B; with contrast 1.2 on 180, expected ~210+
-        expect(pixel.r.toInt(), greaterThan(180));
-      } finally {
-        await cleanupFile(inputPath);
-      }
-    });
+          expect(enhanced, isNotNull);
+          // With contrast boost, the center pixel should be brighter than original 180
+          final pixel = enhanced!.getPixel(100, 100);
+          // Grayscale so R=G=B; with contrast 1.2 on 180, expected ~210+
+          expect(pixel.r.toInt(), greaterThan(180));
+        } finally {
+          await cleanupFile(inputPath);
+        }
+      });
 
     test('returns original path for non-existent file', () async {
       final ocr = OcrService();
@@ -327,6 +322,55 @@ void main() {
         await cleanupFile(inputPath);
       }
     });
+
+    test('isolate offloading: enhanced image is grayscale', () async {
+      // Regression test: verify isolate-based enhancement produces
+      // correct grayscale output (same as before the compute() refactor)
+      final ocr = OcrService();
+      final image = img.Image(width: 100, height: 100);
+      // Fill with a non-gray color (red)
+      img.fill(image, color: img.ColorRgb8(200, 50, 50));
+      final tempDir = Directory.systemTemp;
+      final file = File('${tempDir.path}/test_isolate_color.jpg');
+      await file.writeAsBytes(img.encodeJpg(image));
+
+      try {
+        final enhancedPath = await ocr.enhanceImage(file.path);
+        final enhancedBytes = await File(enhancedPath).readAsBytes();
+        final enhanced = img.decodeJpg(enhancedBytes);
+        expect(enhanced, isNotNull);
+
+        // Verify grayscale: all channels should be equal
+        final pixel = enhanced!.getPixel(50, 50);
+        expect(pixel.r.toInt(), equals(pixel.g.toInt()));
+        expect(pixel.g.toInt(), equals(pixel.b.toInt()));
+      } finally {
+        await cleanupFile(file.path);
+      }
+    });
+
+    test('isolate offloading: concurrent enhancements do not crash', () async {
+      // Verify multiple compute() calls can run without interference
+      final ocr = OcrService();
+      final paths = <String>[];
+      for (int i = 0; i < 3; i++) {
+        paths.add(
+          await createTestImage(width: 400, height: 600, suffix: '_conc$i.jpg'));
+      }
+
+      try {
+        final results = await Future.wait(
+          paths.map((p) => ocr.enhanceImage(p)));
+        for (final result in results) {
+          expect(result, contains('_enhanced'));
+          expect(await File(result).exists(), isTrue);
+        }
+      } finally {
+        for (final p in paths) {
+          await cleanupFile(p);
+        }
+      }
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -334,6 +378,8 @@ void main() {
   // ══════════════════════════════════════════════════════════════════
 
   group('correctRotation', () {
+    final ocr = OcrService();
+
     test('rotates image and saves corrected version', () async {
       // Create a wider-than-tall image (simulates landscape photo)
       final image = img.Image(width: 400, height: 200);
@@ -542,9 +588,21 @@ void main() {
 
     test('keeps highest confidence when same Q# detected twice', () {
       final answers = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.7, rawText: '1. A'),
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: '1A'),
-        DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.8, rawText: '2. B'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.7,
+          rawText: '1. A'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.95,
+          rawText: '1A'),
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'B',
+          confidence: 0.8,
+          rawText: '2. B'),
       ];
 
       final deduped = scoring.deduplicateAnswers(answers);
@@ -557,9 +615,21 @@ void main() {
 
     test('keeps different answers for different questions', () {
       final answers = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),
-        DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.85, rawText: '2. B'),
-        DetectedAnswer(questionNumber: 3, answer: 'C', confidence: 0.8, rawText: '3. C'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '1. A'),
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'B',
+          confidence: 0.85,
+          rawText: '2. B'),
+        DetectedAnswer(
+          questionNumber: 3,
+          answer: 'C',
+          confidence: 0.8,
+          rawText: '3. C'),
       ];
 
       final deduped = scoring.deduplicateAnswers(answers);
@@ -567,19 +637,28 @@ void main() {
       expect(deduped, hasLength(3));
     });
 
-    test('handles conflicting answers for same Q# (keeps highest confidence)',
-        () {
-      final answers = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),
-        DetectedAnswer(questionNumber: 1, answer: 'B', confidence: 0.6, rawText: '1. B'),
-      ];
+    test(
+      'handles conflicting answers for same Q# (keeps highest confidence)',
+      () {
+        final answers = [
+          DetectedAnswer(
+            questionNumber: 1,
+            answer: 'A',
+            confidence: 0.9,
+            rawText: '1. A'),
+          DetectedAnswer(
+            questionNumber: 1,
+            answer: 'B',
+            confidence: 0.6,
+            rawText: '1. B'),
+        ];
 
-      final deduped = scoring.deduplicateAnswers(answers);
+        final deduped = scoring.deduplicateAnswers(answers);
 
-      expect(deduped, hasLength(1));
-      expect(deduped[0].answer, 'A');
-      expect(deduped[0].confidence, 0.9);
-    });
+        expect(deduped, hasLength(1));
+        expect(deduped[0].answer, 'A');
+        expect(deduped[0].confidence, 0.9);
+      });
 
     test('empty list returns empty', () {
       final deduped = scoring.deduplicateAnswers([]);
@@ -588,9 +667,21 @@ void main() {
 
     test('results sorted by question number', () {
       final answers = [
-        DetectedAnswer(questionNumber: 3, answer: 'C', confidence: 0.8, rawText: '3. C'),
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),
-        DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.85, rawText: '2. B'),
+        DetectedAnswer(
+          questionNumber: 3,
+          answer: 'C',
+          confidence: 0.8,
+          rawText: '3. C'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '1. A'),
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'B',
+          confidence: 0.85,
+          rawText: '2. B'),
       ];
 
       final deduped = scoring.deduplicateAnswers(answers);
@@ -611,13 +702,31 @@ void main() {
     test('perfect answers → full score and A+ grade', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),
-        DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.9, rawText: '2. B'),
-        DetectedAnswer(questionNumber: 3, answer: 'True', confidence: 0.9, rawText: '3. True'),
-        DetectedAnswer(questionNumber: 4, answer: 'D', confidence: 0.9, rawText: '4. D'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '1. A'),
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'B',
+          confidence: 0.9,
+          rawText: '2. B'),
+        DetectedAnswer(
+          questionNumber: 3,
+          answer: 'True',
+          confidence: 0.9,
+          rawText: '3. True'),
+        DetectedAnswer(
+          questionNumber: 4,
+          answer: 'D',
+          confidence: 0.9,
+          rawText: '4. D'),
       ];
 
-      final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
+      final scored = scoring.scoreAnswers(
+        detected: detected,
+        assessment: assessment);
 
       expect(scored, hasLength(4));
       expect(scored.every((a) => a.isCorrect), isTrue);
@@ -629,13 +738,31 @@ void main() {
     test('all wrong → zero score and F grade', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'B', confidence: 0.9, rawText: '1. B'),
-        DetectedAnswer(questionNumber: 2, answer: 'A', confidence: 0.9, rawText: '2. A'),
-        DetectedAnswer(questionNumber: 3, answer: 'False', confidence: 0.9, rawText: '3. False'),
-        DetectedAnswer(questionNumber: 4, answer: 'A', confidence: 0.9, rawText: '4. A'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'B',
+          confidence: 0.9,
+          rawText: '1. B'),
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '2. A'),
+        DetectedAnswer(
+          questionNumber: 3,
+          answer: 'False',
+          confidence: 0.9,
+          rawText: '3. False'),
+        DetectedAnswer(
+          questionNumber: 4,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '4. A'),
       ];
 
-      final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
+      final scored = scoring.scoreAnswers(
+        detected: detected,
+        assessment: assessment);
 
       expect(scored.every((a) => !a.isCorrect), isTrue);
       expect(scoring.calculateTotalScore(scored), 0);
@@ -645,12 +772,22 @@ void main() {
     test('missing answers → marked as [MISSING]', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '1. A'),
         // Q2 and Q3 missing
-        DetectedAnswer(questionNumber: 4, answer: 'D', confidence: 0.9, rawText: '4. D'),
+        DetectedAnswer(
+          questionNumber: 4,
+          answer: 'D',
+          confidence: 0.9,
+          rawText: '4. D'),
       ];
 
-      final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
+      final scored = scoring.scoreAnswers(
+        detected: detected,
+        assessment: assessment);
 
       expect(scored, hasLength(4));
       expect(scored[1].detectedAnswer, '[MISSING]');
@@ -662,13 +799,31 @@ void main() {
     test('partial correct → correct percentage', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.9, rawText: '1. A'),  // correct
-        DetectedAnswer(questionNumber: 2, answer: 'A', confidence: 0.9, rawText: '2. A'),  // wrong
-        DetectedAnswer(questionNumber: 3, answer: 'True', confidence: 0.9, rawText: '3. True'), // correct
-        DetectedAnswer(questionNumber: 4, answer: 'A', confidence: 0.9, rawText: '4. A'),  // wrong
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '1. A'), // correct
+        DetectedAnswer(
+          questionNumber: 2,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '2. A'), // wrong
+        DetectedAnswer(
+          questionNumber: 3,
+          answer: 'True',
+          confidence: 0.9,
+          rawText: '3. True'), // correct
+        DetectedAnswer(
+          questionNumber: 4,
+          answer: 'A',
+          confidence: 0.9,
+          rawText: '4. A'), // wrong
       ];
 
-      final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
+      final scored = scoring.scoreAnswers(
+        detected: detected,
+        assessment: assessment);
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(totalScore: total, maxScore: 4);
 
@@ -679,9 +834,30 @@ void main() {
 
     test('confidence calculation averages across answers', () {
       final scored = [
-        AnswerMatch(questionNumber: 1, detectedAnswer: 'A', correctAnswer: 'A', isCorrect: true, score: 1, maxScore: 1, confidence: 0.9),
-        AnswerMatch(questionNumber: 2, detectedAnswer: 'B', correctAnswer: 'B', isCorrect: true, score: 1, maxScore: 1, confidence: 0.7),
-        AnswerMatch(questionNumber: 3, detectedAnswer: 'C', correctAnswer: 'C', isCorrect: true, score: 1, maxScore: 1, confidence: 0.5),
+        AnswerMatch(
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
+        AnswerMatch(
+          questionNumber: 2,
+          detectedAnswer: 'B',
+          correctAnswer: 'B',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.7),
+        AnswerMatch(
+          questionNumber: 3,
+          detectedAnswer: 'C',
+          correctAnswer: 'C',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.5),
       ];
 
       final avgConf = scoring.calculateConfidence(scored);
@@ -752,7 +928,9 @@ void main() {
     });
 
     test('long prose lines do not match', () {
-      expect(parser.parseQuestionAnswer('This is a long sentence about something'), isNull);
+      expect(
+        parser.parseQuestionAnswer('This is a long sentence about something'),
+        isNull);
     });
 
     test('percentage calculation with zero max returns 0', () {
@@ -770,10 +948,16 @@ void main() {
     test('detected answer with null confidence handled gracefully', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0, rawText: ''),
+        DetectedAnswer(
+          questionNumber: 1,
+          answer: 'A',
+          confidence: 0,
+          rawText: ''),
       ];
 
-      final scored = scoring.scoreAnswers(detected: detected, assessment: assessment);
+      final scored = scoring.scoreAnswers(
+        detected: detected,
+        assessment: assessment);
       // scoreAnswers returns one match per question in assessment
       expect(scored, hasLength(4));
       expect(scored[0].confidence, 0);
@@ -808,8 +992,7 @@ void main() {
             score: 1,
             maxScore: 1,
             confidence: 0.9,
-            ocrRawText: '1. A',
-          ),
+            ocrRawText: '1. A'),
         ],
         totalScore: 1,
         maxScore: 1,
@@ -817,8 +1000,7 @@ void main() {
         grade: 'A+',
         status: ScanStatus.graded,
         confidence: 0.9,
-        metadata: {'textLinesDetected': 5},
-      );
+        metadata: {'textLinesDetected': 5});
 
       final map = result.toMap();
       final restored = ScanResult.fromMap(map);
@@ -841,8 +1023,7 @@ void main() {
         studentName: 'Test',
         imagePath: '/img.jpg',
         confidence: 0.5,
-        answers: [],
-      );
+        answers: []);
 
       expect(result.needsReview, isTrue);
     });
@@ -864,8 +1045,7 @@ void main() {
             maxScore: 1,
             confidence: 0.4, // low
           ),
-        ],
-      );
+        ]);
 
       expect(result.needsReview, isTrue);
     });
@@ -885,10 +1065,8 @@ void main() {
             isCorrect: true,
             score: 1,
             maxScore: 1,
-            confidence: 0.85,
-          ),
-        ],
-      );
+            confidence: 0.85),
+        ]);
 
       expect(result.needsReview, isFalse);
     });
@@ -901,15 +1079,13 @@ void main() {
         imagePath: '/img.jpg',
         grade: 'B',
         totalScore: 3,
-        percentage: 75,
-      );
+        percentage: 75);
 
       final copied = original.copyWith(
         grade: 'A',
         totalScore: 4,
         percentage: 100,
-        status: ScanStatus.reviewed,
-      );
+        status: ScanStatus.reviewed);
 
       expect(copied.id, original.id);
       expect(copied.grade, 'A');

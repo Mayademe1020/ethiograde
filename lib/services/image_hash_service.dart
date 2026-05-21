@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
@@ -25,12 +26,13 @@ class ImageHashService {
   /// This is intentionally non-throwing — hash failure must never block scanning.
   int? computeHash(String imagePath) {
     try {
-      final bytes = img.decodeImageFile(imagePath);
-      if (bytes == null) return null;
-      return _dHash(bytes);
+      final file = File(imagePath);
+      if (!file.existsSync()) return null;
+      final bytes = file.readAsBytesSync();
+      final image = img.decodeImage(bytes);
+      if (image == null) return null;
+      return _dHash(image);
     } catch (_) {
-      // Corrupt file, OOM on decode, platform error — skip hash silently.
-      // Duplicate detection is nice-to-have, not critical path.
       return null;
     }
   }

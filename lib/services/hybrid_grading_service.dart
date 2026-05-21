@@ -3,12 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
+import '../models/student.dart';
+import '../models/weighted_grade.dart';
 import 'ocr_service.dart';
 import 'omr_service.dart';
 import 'bubble_template.dart';
 import 'scoring_service.dart';
 import 'validation_service.dart';
 import 'answer_parser.dart';
+import 'student_matcher.dart';
+import 'backup_service.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.
 ///
@@ -64,9 +68,16 @@ class HybridGradingService {
   Future<ScanResult> gradePaper({
     required String imagePath,
     required Assessment assessment,
-    required String studentId,
-    required String studentName,
+    String? studentId,
+    String? studentName,
     BubbleTemplate? template,
+    // Class-aware matching (optional)
+    String? classId,
+    List<Student>? classStudents,
+    Future<Student?> Function(String scannedName, String classId)?
+    onStudentNotFound,
+    // Weighted scoring (optional)
+    WeightedGradeScale? weightedScale,
   }) async {
     await initialize();
 
@@ -76,12 +87,15 @@ class HybridGradingService {
       debugPrint('HybridGrading: image not found: $imagePath');
       return _failedResult(
         assessmentId: assessment.id,
-        studentId: studentId,
-        studentName: studentName,
+        studentId: studentId ?? '',
+        studentName: studentName ?? 'Unknown',
         imagePath: imagePath,
-        reason: 'Image file not found',
-      );
+        reason: 'Image file not found');
     }
+
+    // Declare before try so catch block can reference them
+    String resolvedId = studentId ?? '';
+    String resolvedName = studentName ?? 'Student';
 
     try {
       // ── Step 1: Enhance image (once) ──
@@ -92,19 +106,51 @@ class HybridGradingService {
       // No parallelism — sequential is safe for 2GB devices
       final extractionResult = await _ocr.extractTextRegions(enhancedPath);
 
+      // ── Step 2.5: Class-aware student matching ──
+
+      if (classId != null &&
+          classStudents != null &&
+          classStudents.isNotEmpty) {
+        final ocrText = extractionResult.regions.map((r) => r.text).join('\n');
+        final match = StudentMatcher.matchFromOcr(ocrText, classStudents);
+
+        if (match.hasMatch && !match.isAmbiguous) {
+          resolvedId = match.matchedStudent!.id;
+          resolvedName = match.matchedStudent!.fullName;
+          debugPrint(
+            'HybridGrading: matched "$resolvedName" (${(match.confidence * 100).toStringAsFixed(0)}%)');
+        } else if (onStudentNotFound != null) {
+          // Ask the UI to resolve — teacher can add or select
+          final scannedName = match.scannedName.isNotEmpty
+              ? match.scannedName
+              : 'Unknown Student';
+          final added = await onStudentNotFound(scannedName, classId);
+          if (added != null) {
+            resolvedId = added.id;
+            resolvedName = added.fullName;
+          } else {
+            // Teacher skipped — use scanned name as-is
+            resolvedName = scannedName;
+          }
+        } else {
+          // No callback — use scanned name or fallback
+          resolvedName = match.scannedName.isNotEmpty
+              ? match.scannedName
+              : resolvedName;
+        }
+      }
+
       final ocrAnswers = _parseOcrAnswers(extractionResult.regions, assessment);
       final omrAnswers = await _omr.detectAndParse(
         enhancedImagePath: enhancedPath,
         assessment: assessment,
-        template: template,
-      );
+        template: template);
 
       // ── Step 3: Merge OCR + OMR results ──
       final mergedAnswers = _mergeAnswers(
         ocrAnswers: ocrAnswers,
         omrAnswers: omrAnswers,
-        assessment: assessment,
-      );
+        assessment: assessment);
 
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
@@ -112,19 +158,17 @@ class HybridGradingService {
       // ── Step 5: Score against answer key ──
       final scoredAnswers = _scoring.scoreAnswers(
         detected: deduplicated,
-        assessment: assessment,
-      );
+        assessment: assessment);
 
       // ── Step 6: Calculate totals ──
-      final totalScore = _scoring.calculateTotalScore(scoredAnswers);
-      final maxScore = assessment.maxScore;
-      final percentage = _scoring.calculatePercentage(
+      double totalScore = _scoring.calculateTotalScore(scoredAnswers);
+      double maxScore = assessment.maxScore;
+      double percentage = _scoring.calculatePercentage(
         totalScore: totalScore,
-        maxScore: maxScore,
-      );
+        maxScore: maxScore);
       final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
 
-      // ── Step 7: Build metadata ──
+      // ── Step 6b: Build metadata (before weighted scoring reads it) ──
       final metadata = <String, dynamic>{
         'textLinesDetected': extractionResult.regions.length,
         'ocrAnswersDetected': ocrAnswers.length,
@@ -136,48 +180,65 @@ class HybridGradingService {
         'skewWarning': extractionResult.skewAngle.abs() > 8.0,
         'omrConfidence': omrAnswers.isEmpty
             ? 0.0
-            : omrAnswers.fold(0.0, (s, a) => s + a.confidence) / omrAnswers.length,
+            : omrAnswers.fold(0.0, (s, a) => s + a.confidence) /
+                  omrAnswers.length,
         'detectedMethod': omrAnswers.isNotEmpty ? 'hybrid' : 'ocr-only',
       };
 
+      // ── Step 7: Apply weighted scoring if scale is provided ──
+      String rubricType = assessment.rubricType;
+      if (weightedScale != null && weightedScale.components.isNotEmpty) {
+        final weightedPct = _scoring.computeWeightedPercentage(
+          scoredAnswers: scoredAnswers,
+          questions: assessment.questions,
+          scale: weightedScale);
+        if (weightedPct != null) {
+          percentage = weightedPct;
+          totalScore = (weightedPct / 100) * maxScore;
+          rubricType = weightedScale.rubricType;
+          metadata['weightedScoring'] = true;
+          metadata['weightedPercentage'] = weightedPct;
+        }
+      }
+
       final result = ScanResult(
         assessmentId: assessment.id,
-        studentId: studentId,
-        studentName: studentName,
+        studentId: resolvedId,
+        studentName: resolvedName,
         imagePath: imagePath,
         enhancedImagePath: enhancedPath,
         answers: scoredAnswers,
         totalScore: totalScore,
         maxScore: maxScore,
         percentage: percentage,
-        grade: _scoring.calculateGrade(percentage.toDouble(), assessment.rubricType),
-        status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
+        grade: _scoring.calculateGrade(
+          percentage.toDouble(),
+          rubricType),
+        status: overallConfidence < 0.6
+            ? ScanStatus.needsRescan
+            : ScanStatus.graded,
         confidence: overallConfidence,
-        metadata: metadata,
-      );
+        metadata: metadata);
 
       debugPrint(
         'HybridGrading: ${result.studentName} → '
         '${result.totalScore}/${result.maxScore} '
         '(${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, '
-        '${metadata['detectedMethod']})',
-      );
+        '${metadata['detectedMethod']})');
 
       // Auto-save with retry — never let persistence break the grading flow
       await _saveWithRetry(result);
 
       return result;
     } catch (e, stackTrace) {
-      debugPrint('HybridGrading: grading failed for $studentName ($e)
-$st');
+      debugPrint('HybridGrading: grading failed for $resolvedName ($e)');
       debugPrint('Stack: $stackTrace');
       return _failedResult(
         assessmentId: assessment.id,
-        studentId: studentId,
-        studentName: studentName,
+        studentId: resolvedId,
+        studentName: resolvedName,
         imagePath: imagePath,
-        reason: 'Processing error: ${e.runtimeType}',
-      );
+        reason: 'Processing error: ${e.runtimeType}');
     }
   }
 
@@ -200,6 +261,13 @@ $st');
     List<String>? studentNames,
     BubbleTemplate? template,
     void Function(int processed, int total)? onProgress,
+    // Class-aware matching (optional)
+    String? classId,
+    List<Student>? classStudents,
+    Future<Student?> Function(String scannedName, String classId)?
+    onStudentNotFound,
+    // Weighted scoring (optional)
+    WeightedGradeScale? weightedScale,
   }) async {
     await initialize();
 
@@ -208,15 +276,18 @@ $st');
     for (int i = 0; i < imagePaths.length; i++) {
       final name = (studentNames != null && i < studentNames.length)
           ? studentNames[i]
-          : 'Student ${i + 1}';
+          : null;
 
       final result = await gradePaper(
         imagePath: imagePaths[i],
         assessment: assessment,
         studentId: 'student_${i + 1}',
-        studentName: name,
+        studentName: name ?? 'Student ${i + 1}',
         template: template,
-      );
+        classId: classId,
+        classStudents: classStudents,
+        onStudentNotFound: onStudentNotFound,
+        weightedScale: weightedScale);
 
       results.add(result);
       onProgress?.call(i + 1, imagePaths.length);
@@ -225,8 +296,7 @@ $st');
     debugPrint(
       'HybridGrading: batch complete — '
       '${results.where((r) => r.status == ScanStatus.graded).length} graded, '
-      '${results.where((r) => r.status == ScanStatus.needsRescan).length} need rescan',
-    );
+      '${results.where((r) => r.status == ScanStatus.needsRescan).length} need rescan');
 
     return results;
   }
@@ -238,6 +308,9 @@ $st');
     required String studentId,
     required String studentName,
     BubbleTemplate? template,
+    String? classId,
+    List<Student>? classStudents,
+    WeightedGradeScale? weightedScale,
   }) async {
     debugPrint('HybridGrading: re-grading $studentName');
     return gradePaper(
@@ -246,7 +319,9 @@ $st');
       studentId: studentId,
       studentName: studentName,
       template: template,
-    );
+      classId: classId,
+      classStudents: classStudents,
+      weightedScale: weightedScale);
   }
 
   // ── Answer Merging ────────────────────────────────────────────────
@@ -282,8 +357,10 @@ $st');
       final ocr = ocrByQ[question.number];
       final omr = omrByQ[question.number];
 
-      final isObjective = question.type == QuestionType.mcq ||
-          question.type == QuestionType.trueFalse;
+      final isObjective =
+          question.type == QuestionType.mcq ||
+          question.type == QuestionType.trueFalse ||
+          question.type == QuestionType.matching;
 
       if (isObjective) {
         // Objective questions: OMR preferred
@@ -311,26 +388,25 @@ $st');
   /// Parse OCR text regions into DetectedAnswers.
   List<DetectedAnswer> _parseOcrAnswers(
     List<TextRegion> regions,
-    Assessment assessment,
-  ) {
+    Assessment assessment) {
     final parser = const AnswerParser();
     final inputs = regions
-        .map((r) => TextRegionInput(
-              text: r.text,
-              confidence: r.confidence,
-              x: r.x,
-              y: r.y,
-            ))
+        .map(
+          (r) => TextRegionInput(
+            text: r.text,
+            confidence: r.confidence,
+            x: r.x,
+            y: r.y))
         .toList();
 
     return parser
         .parseAnswers(inputs)
-        .map((p) => DetectedAnswer(
-              questionNumber: p.questionNumber,
-              answer: p.answer,
-              confidence: p.confidence,
-              rawText: p.rawText,
-            ))
+        .map(
+          (p) => DetectedAnswer(
+            questionNumber: p.questionNumber,
+            answer: p.answer,
+            confidence: p.confidence,
+            rawText: p.rawText))
         .toList();
   }
 
@@ -343,9 +419,8 @@ $st');
     try {
       await _saveWithRetry(result);
       return true;
-    } catch (e, st) {
-      debugPrint('HybridGrading: saveScanResult failed ($e)
-$st');
+    } catch (e) {
+      debugPrint('HybridGrading: saveScanResult failed ($e)');
       return false;
     }
   }
@@ -356,7 +431,8 @@ $st');
     // Validate before writing
     final validation = _validator.validateScanResult(result);
     if (!validation.isValid) {
-      debugPrint('HybridGrading: scan result validation failed: ${validation.errors}');
+      debugPrint(
+        'HybridGrading: scan result validation failed: ${validation.errors}');
       // Still save — validation is advisory, not blocking
     }
 
@@ -367,8 +443,12 @@ $st');
 
       // Opportunistically flush pending saves
       await flushPendingSaves();
-    } catch (e, st) {
-      debugPrint('HybridGrading: save failed (${e.runtimeType}), retrying in 500ms…');
+
+      // Trigger auto-backup check (every N scans)
+      BackupService.instance.recordScanAndMaybeBackup();
+    } catch (e) {
+      debugPrint(
+        'HybridGrading: save failed (${e.runtimeType}), retrying in 500ms…');
       await Future.delayed(const Duration(milliseconds: 500));
       try {
         final box = Hive.lazyBox(_scanResultsBoxName);
@@ -376,7 +456,8 @@ $st');
         debugPrint('HybridGrading: retry succeeded for ${result.id}');
         await flushPendingSaves();
       } catch (e2) {
-        debugPrint('HybridGrading: retry failed (${e2.runtimeType}), queuing for later');
+        debugPrint(
+          'HybridGrading: retry failed (${e2.runtimeType}), queuing for later');
         _pendingSaves.add(result);
       }
     }
@@ -394,9 +475,8 @@ $st');
       try {
         await box.put(result.id, result.toMap());
         succeeded.add(result);
-      } catch (e, st) {
-        debugPrint('HybridGrading: flush failed for ${result.id} ($e)
-$st');
+      } catch (e) {
+        debugPrint('HybridGrading: flush failed for ${result.id} ($e)');
       }
     }
 
@@ -426,9 +506,8 @@ $st');
 
       results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
       return results;
-    } catch (e, st) {
-      debugPrint('HybridGrading: loadScanResults failed ($e)
-$st');
+    } catch (e) {
+      debugPrint('HybridGrading: loadScanResults failed ($e)');
       return [];
     }
   }
@@ -440,23 +519,45 @@ $st');
       final data = await box.get(id);
       if (data == null) return null;
       return ScanResult.fromMap(Map<String, dynamic>.from(data as Map));
-    } catch (e, st) {
-      debugPrint('HybridGrading: getScanResultById failed ($e)
-$st');
+    } catch (e) {
+      debugPrint('HybridGrading: getScanResultById failed ($e)');
       return null;
     }
   }
 
-  /// Remove a scan result from the box.
+  /// Remove a scan result from the box AND delete associated image files.
   Future<bool> deleteScanResult(String id) async {
     try {
       final box = Hive.lazyBox(_scanResultsBoxName);
+      final data = await box.get(id);
+
+      // Delete image files before removing the record
+      if (data != null) {
+        final map = Map<String, dynamic>.from(data as Map);
+        await _deleteImageFile(map['imagePath'] as String?);
+        await _deleteImageFile(map['enhancedImagePath'] as String?);
+      }
+
       await box.delete(id);
+      debugPrint('HybridGrading: deleted scan result $id + images');
       return true;
-    } catch (e, st) {
-      debugPrint('HybridGrading: deleteScanResult failed ($e)
-$st');
+    } catch (e) {
+      debugPrint('HybridGrading: deleteScanResult failed ($e)');
       return false;
+    }
+  }
+
+  /// Delete a single image file. Never throws.
+  Future<void> _deleteImageFile(String? path) async {
+    if (path == null || path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+        debugPrint('HybridGrading: deleted image $path');
+      }
+    } catch (e) {
+      debugPrint('HybridGrading: failed to delete image $path ($e)');
     }
   }
 
@@ -478,9 +579,8 @@ $st');
 
       results.sort((a, b) => b.scannedAt.compareTo(a.scannedAt));
       return results;
-    } catch (e, st) {
-      debugPrint('HybridGrading: getResultsForStudent failed ($e)
-$st');
+    } catch (e) {
+      debugPrint('HybridGrading: getResultsForStudent failed ($e)');
       return [];
     }
   }
@@ -524,8 +624,7 @@ $st');
       imagePath: imagePath,
       status: ScanStatus.needsRescan,
       confidence: 0,
-      metadata: {'error': reason},
-    );
+      metadata: {'error': reason});
   }
 
   /// Release resources. Call when app is shutting down.

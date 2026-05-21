@@ -1,80 +1,71 @@
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
-/// A school teacher record, used in School Admin mode.
-///
-/// Persisted in the encrypted `teachers` Hive box.
+part 'teacher.g.dart';
+
+@HiveType(typeId: 17)
 class Teacher {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String name;
-  final String nameAmharic;
-  final String phone;
-  final String email;
-  final String subject; // e.g. 'Math', 'English'
+  @HiveField(2)
+  final String subject;
+  @HiveField(3)
+  final String school;
+  @HiveField(4)
+  final String role; // 'teacher' | 'admin'
+  @HiveField(5)
   final bool isActive;
+  @HiveField(6)
   final DateTime createdAt;
-  final Map<String, dynamic> metadata;
 
   Teacher({
     String? id,
     required this.name,
-    this.nameAmharic = '',
-    this.phone = '',
-    this.email = '',
     this.subject = '',
+    this.school = '',
+    this.role = 'teacher',
     this.isActive = true,
     DateTime? createdAt,
-    this.metadata = const {},
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? DateTime.now();
-
-  String getDisplayName(String locale) {
-    if (locale == 'am' && nameAmharic.trim().isNotEmpty) {
-      return nameAmharic;
-    }
-    return name;
-  }
+  }) : id = id ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'nameAmharic': nameAmharic,
-        'phone': phone,
-        'email': email,
-        'subject': subject,
-        'isActive': isActive,
-        'createdAt': createdAt.toIso8601String(),
-        'metadata': metadata,
-      };
+    'id': id,
+    'name': name,
+    'subject': subject,
+    'school': school,
+    'role': role,
+    'isActive': isActive,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory Teacher.fromMap(Map<String, dynamic> map) => Teacher(
-        id: map['id'] ?? '',
-        name: map['name'] ?? '',
-        nameAmharic: map['nameAmharic'] ?? '',
-        phone: map['phone'] ?? '',
-        email: map['email'] ?? '',
-        subject: map['subject'] ?? '',
-        isActive: map['isActive'] ?? true,
-        createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
-        metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
-      );
+    id: map['id'] as String?,
+    name: map['name'] as String? ?? '',
+    subject: map['subject'] as String? ?? '',
+    school: map['school'] as String? ?? '',
+    role: map['role'] as String? ?? 'teacher',
+    isActive: map['isActive'] as bool? ?? true,
+    createdAt:
+        DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now());
 
   Teacher copyWith({
     String? name,
-    String? nameAmharic,
-    String? phone,
-    String? email,
     String? subject,
+    String? school,
+    String? role,
     bool? isActive,
-  }) =>
-      Teacher(
-        id: id,
-        name: name ?? this.name,
-        nameAmharic: nameAmharic ?? this.nameAmharic,
-        phone: phone ?? this.phone,
-        email: email ?? this.email,
-        subject: subject ?? this.subject,
-        isActive: isActive ?? this.isActive,
-        createdAt: createdAt,
-        metadata: metadata,
-      );
+  }) => Teacher(
+    id: id,
+    name: name ?? this.name,
+    subject: subject ?? this.subject,
+    school: school ?? this.school,
+    role: role ?? this.role,
+    isActive: isActive ?? this.isActive,
+    createdAt: createdAt);
+
+  @override
+  String toString() => 'Teacher($name, $subject, $role)';
 }

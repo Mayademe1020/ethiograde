@@ -1,14 +1,15 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader('UTF-8') { reader ->
         localProperties.load(reader)
     }
-}
-
-def flutterRoot = localProperties.getProperty('flutter.sdk')
-if (flutterRoot == null) {
-    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -21,21 +22,17 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-
 android {
     namespace "com.ethiograde"
-    compileSdk 34
+    compileSdk 36
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
     }
 
     sourceSets {
@@ -44,11 +41,21 @@ android {
 
     defaultConfig {
         applicationId "com.ethiograde"
-        minSdk 26  // Android 8+
-        targetSdk 34
+        minSdk 26
+        targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+        ndkVersion "28.2.13676358"
+        // arm64 only — saves ~50MB by dropping x86 + armv7 ABIs.
+        // 95%+ of Ethiopian Android 8+ phones are arm64.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        // Strip unused language resources from native libs.
+        // App handles i18n itself (Amharic/English) — no need for
+        // Android's built-in locale resources. Saves ~1-3MB.
+        resourceConfigurations += ['en']
     }
 
     buildTypes {
@@ -57,12 +64,12 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Strip native debug symbols from release APK.
+            // Saves ~1-2MB. Debug symbols are in split-debug-info/.
+            ndk {
+                debugSymbolLevel 'NONE'
+            }
         }
-    }
-
-    // Support for 32-bit devices (low-end phones)
-    ndk {
-        abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
     }
 }
 
@@ -70,12 +77,26 @@ flutter {
     source '../..'
 }
 
-dependencies {
-    implementation "androidx.core:core-ktx:1.12.0"
-    implementation "androidx.appcompat:appcompat:1.6.1"
-    implementation "com.google.android.material:material:1.11.0"
+// Workaround: Flutter 3.41.6 + AGP 8.9.1 (declarative plugin syntax)
+// causes Flutter's output path detection to fail. The APK is built at
+// android/app/build/outputs/flutter-apk/ but Flutter looks for it at
+// <project_root>/build/app/outputs/flutter-apk/.
+// Copy it there after each build so `flutter build apk` succeeds.
+afterEvaluate {
+    def flutterApkDir = file("${rootProject.projectDir}/../build/app/outputs/flutter-apk")
+    def androidApkDir = file("${buildDir}/outputs/flutter-apk")
+
+    tasks.matching { it.name == 'assembleDebug' }.all { task ->
+        task.doLast {
+            flutterApkDir.mkdirs()
+            def srcApk = file("${androidApkDir}/app-debug.apk")
+            if (srcApk.exists()) {
+                def dstApk = file("${flutterApkDir}/app-debug.apk")
+                dstApk.bytes = srcApk.bytes
+                println("[EthioGrade] APK copied to: ${dstApk}")
+            }
+        }
+    }
 }
 
-// TensorFlow Lite (for future ML models)
-// implementation 'org.tensorflow:tensorflow-lite:2.14.0'
-// implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0'
+// AndroidX dependencies are provided transitively by Flutter plugins.

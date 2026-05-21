@@ -29,14 +29,11 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-.pubspec.lock
+pubspec.lock
 
 # Android
-**/android/**/gradle-wrapper.jar
 .gradle/
 **/android/captures/
-**/android/gradlew
-**/android/gradlew.bat
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
 
@@ -73,3 +70,7 @@ assets/models/*.bin
 # OS
 .DS_Store
 Thumbs.db
+
+# Dependency source cache (depfetch)
+.depfetch/
+exam_refs/

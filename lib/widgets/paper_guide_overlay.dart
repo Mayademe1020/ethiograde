@@ -22,11 +22,9 @@ class PaperGuideOverlay extends StatelessWidget {
   const PaperGuideOverlay({
     super.key,
     required this.state,
-    required this.isAmharic,
   });
 
   final PaperGuideState state;
-  final bool isAmharic;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +34,7 @@ class PaperGuideOverlay extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         child: Padding(
           padding: const EdgeInsets.only(bottom: 140),
-          child: _HintText(state: state, isAm: isAmharic),
-        ),
-      ),
-    );
+          child: _HintText(state: state))));
   }
 }
 
@@ -48,10 +43,9 @@ class PaperGuideOverlay extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _HintText extends StatelessWidget {
-  const _HintText({required this.state, required this.isAm});
+  const _HintText({required this.state});
 
   final PaperGuideState state;
-  final bool isAm;
 
   @override
   Widget build(BuildContext context) {
@@ -65,30 +59,23 @@ class _HintText extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.black54,
-          borderRadius: BorderRadius.circular(20),
-        ),
+          borderRadius: BorderRadius.circular(20)),
         child: Text(
           label,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
+            fontWeight: FontWeight.w500),
+          textAlign: TextAlign.center)));
   }
 
   String? _label() {
     switch (state) {
       case PaperGuideState.idle:
       case PaperGuideState.detected:
-        return isAm
-            ? 'ወረቀቱን በአገባቡ ያስተካክሉ'
-            : 'Align paper within the frame';
+        return 'Align paper within the frame';
       case PaperGuideState.aligned:
-        return isAm ? 'የያዙትን ይቆዩ' : 'Hold steady';
+        return 'Hold steady';
     }
   }
 }
@@ -136,8 +123,7 @@ class _PaperGuidePainter extends CustomPainter {
     final rect = Rect.fromCenter(
       center: Offset(centerX, centerY),
       width: guideWidth,
-      height: guideHeight,
-    );
+      height: guideHeight);
 
     // Semi-transparent fill.
     canvas.drawRect(rect, _fillPaint);
@@ -146,18 +132,19 @@ class _PaperGuidePainter extends CustomPainter {
     final arm = guideWidth * 0.07; // ~24dp at 360dp width, scales up/down
     _drawCornerBracket(canvas, rect.topLeft, arm, _BracketCorner.topLeft);
     _drawCornerBracket(canvas, rect.topRight, arm, _BracketCorner.topRight);
+    _drawCornerBracket(canvas, rect.bottomLeft, arm, _BracketCorner.bottomLeft);
     _drawCornerBracket(
-        canvas, rect.bottomLeft, arm, _BracketCorner.bottomLeft);
-    _drawCornerBracket(
-        canvas, rect.bottomRight, arm, _BracketCorner.bottomRight);
+      canvas,
+      rect.bottomRight,
+      arm,
+      _BracketCorner.bottomRight);
   }
 
   void _drawCornerBracket(
     Canvas canvas,
     Offset origin,
     double arm,
-    _BracketCorner corner,
-  ) {
+    _BracketCorner corner) {
     late Offset hStart, hEnd, vStart, vEnd;
 
     switch (corner) {

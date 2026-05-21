@@ -1,222 +1,165 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:uuid/uuid.dart';
-
 import '../models/teacher.dart';
-import '../config/constants.dart';
 import 'validation_service.dart';
 
-/// Operation result — never throws, always returns a status.
-class Result<T> {
-  final bool success;
-  final T? data;
-  final String? error;
-
-  const Result.success(this.data)
-      : success = true,
-        error = null;
-  const Result.failure(this.error)
-      : success = false,
-        data = null;
-}
-
-/// Manages teacher persistence against the encrypted Hive `teachers` box.
+/// Manages teacher profiles with Hive persistence.
 ///
-/// All operations are wrapped in try/catch — persistence errors never
-/// crash the app.  Callers check [Result.success].
+/// Single-teacher (individual) and multi-teacher (school) modes supported.
+/// In individual mode, the first teacher is the "active" one.
 class TeacherProvider extends ChangeNotifier {
-  static const _uuid = Uuid();
-  static const _validator = ValidationService();
-
+  static const String _boxName = 'teachers';
+  static const ValidationService _validator = ValidationService();
   List<Teacher> _teachers = [];
-  bool _isLoading = false;
+  bool _loaded = false;
+  List<String> _lastAddErrors = [];
 
   List<Teacher> get teachers => List.unmodifiable(_teachers);
-  bool get isLoading => _isLoading;
-  int get teacherCount => _teachers.length;
-  List<Teacher> get activeTeachers =>
-      _teachers.where((t) => t.isActive).toList();
+  bool get isLoaded => _loaded;
 
-  TeacherProvider() {
-    loadTeachers();
+  /// Validation errors from the last [addTeacher] or [updateTeacher] call.
+  List<String> get lastAddErrors => List.unmodifiable(_lastAddErrors);
+
+  /// The currently active teacher (first active one, or the single teacher).
+  Teacher? get activeTeacher {
+    try {
+      return _teachers.firstWhere((t) => t.isActive);
+    } catch (_) {
+      return _teachers.isNotEmpty ? _teachers.first : null;
+    }
   }
 
-  // ── Load ──────────────────────────────────────────────────────────
+  /// Convenience: active teacher name, or empty string.
+  String get activeTeacherName => activeTeacher?.name ?? '';
 
+  /// Ensures the Hive box is open (lazy init).
+  Future<Box> _getBox() async {
+    if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
+    return await Hive.openBox(_boxName);
+  }
+
+  /// Load teachers from Hive. Safe to call multiple times.
   Future<void> loadTeachers() async {
-    _isLoading = true;
-    notifyListeners();
-
+    if (_loaded) return;
     try {
-      final box = Hive.box(AppConstants.teachersBox);
+      final box = await _getBox();
       _teachers = box.values
-          .map((data) => Teacher.fromMap(Map<String, dynamic>.from(data)))
-          .toList()
-        ..sort((a, b) =>
-            a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          .map(
+            (data) => Teacher.fromMap(Map<String, dynamic>.from(data as Map)))
+          .toList();
+      _teachers.sort((a, b) => a.name.compareTo(b.name));
+      _loaded = true;
+      debugPrint('TeacherProvider: loaded ${_teachers.length} teacher(s)');
     } catch (e, st) {
-      debugPrint('[TeacherProvider] loadTeachers failed: $e');
+      debugPrint('TeacherProvider: load failed ($e)\n$st');
       _teachers = [];
+      _loaded = true;
     }
-
-    _isLoading = false;
     notifyListeners();
   }
 
-  // ── Add ───────────────────────────────────────────────────────────
-
-  Future<Result<Teacher>> addTeacher(Teacher teacher) async {
-    final validation = _validator.validateTeacher(teacher);
+  /// Add a new teacher. Returns the created Teacher on success, null on failure.
+  ///
+  /// Validates name (non-empty, ≤100 chars), role, and duplicate name
+  /// before persisting. Check [lastAddError] for validation errors.
+  Future<Teacher?> addTeacher(Teacher teacher) async {
+    // Validate against existing teachers
+    final validation = _validator.validateTeacher(
+      teacher,
+      existingTeachers: _teachers);
     if (!validation.isValid) {
-      return Result.failure(validation.errors.join('; '));
-    }
-
-    final withId = teacher.id.isEmpty
-        ? Teacher(
-            id: _uuid.v4(),
-            name: teacher.name,
-            nameAmharic: teacher.nameAmharic,
-            phone: teacher.phone,
-            email: teacher.email,
-            subject: teacher.subject,
-            isActive: teacher.isActive,
-            createdAt: teacher.createdAt,
-            metadata: teacher.metadata,
-          )
-        : teacher;
-
-    final box = Hive.box(AppConstants.teachersBox);
-    if (box.containsKey(withId.id)) {
-      return Result.failure('Teacher with ID ${withId.id} already exists');
+      debugPrint(
+        'TeacherProvider: addTeacher validation failed: '
+        '${validation.errors}');
+      _lastAddErrors = validation.errors;
+      notifyListeners();
+      return null;
     }
 
     try {
-      await box.put(withId.id, withId.toMap());
-    } catch (e, st) {
-      debugPrint('[TeacherProvider] addTeacher Hive write failed: $e');
-      return Result.failure('Failed to save teacher');
-    }
-
-    _teachers.add(withId);
-    _teachers.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    notifyListeners();
-    return Result.success(withId);
-  }
-
-  // ── Update ────────────────────────────────────────────────────────
-
-  Future<Result<Teacher>> updateTeacher(Teacher teacher) async {
-    final validation = _validator.validateTeacher(teacher);
-    if (!validation.isValid) {
-      return Result.failure(validation.errors.join('; '));
-    }
-
-    final box = Hive.box(AppConstants.teachersBox);
-    if (!box.containsKey(teacher.id)) {
-      return Result.failure('Teacher ${teacher.id} not found');
-    }
-
-    try {
+      final box = await _getBox();
       await box.put(teacher.id, teacher.toMap());
+      _teachers.add(teacher);
+      _teachers.sort((a, b) => a.name.compareTo(b.name));
+      _lastAddErrors = [];
+      notifyListeners();
+      debugPrint('TeacherProvider: added ${teacher.name}');
+      return teacher;
     } catch (e, st) {
-      debugPrint('[TeacherProvider] updateTeacher Hive write failed: $e');
-      return Result.failure('Failed to update teacher');
+      debugPrint('TeacherProvider: addTeacher failed ($e)\n$st');
+      return null;
     }
-
-    final index = _teachers.indexWhere((t) => t.id == teacher.id);
-    if (index >= 0) {
-      _teachers[index] = teacher;
-    }
-    notifyListeners();
-    return Result.success(teacher);
   }
 
-  // ── Delete ────────────────────────────────────────────────────────
-
-  Future<Result<void>> deleteTeacher(String teacherId) async {
-    final box = Hive.box(AppConstants.teachersBox);
-    if (!box.containsKey(teacherId)) {
-      return Result.failure('Teacher $teacherId not found');
+  /// Update an existing teacher. Returns true on success.
+  ///
+  /// Validates name, role, and duplicate name (excluding self) before persisting.
+  Future<bool> updateTeacher(Teacher updated) async {
+    // Validate — exclude self from duplicate check
+    final others = _teachers.where((t) => t.id != updated.id).toList();
+    final validation = _validator.validateTeacher(
+      updated,
+      existingTeachers: others);
+    if (!validation.isValid) {
+      debugPrint(
+        'TeacherProvider: updateTeacher validation failed: '
+        '${validation.errors}');
+      _lastAddErrors = validation.errors;
+      notifyListeners();
+      return false;
     }
 
     try {
-      await box.delete(teacherId);
+      final box = await _getBox();
+      await box.put(updated.id, updated.toMap());
+      final index = _teachers.indexWhere((t) => t.id == updated.id);
+      if (index >= 0) {
+        _teachers[index] = updated;
+        _teachers.sort((a, b) => a.name.compareTo(b.name));
+        _lastAddErrors = [];
+        notifyListeners();
+        debugPrint('TeacherProvider: updated ${updated.name}');
+        return true;
+      }
+      return false;
     } catch (e, st) {
-      debugPrint('[TeacherProvider] deleteTeacher Hive delete failed: $e');
-      return Result.failure('Failed to delete teacher');
+      debugPrint('TeacherProvider: updateTeacher failed ($e)\n$st');
+      return false;
     }
-
-    _teachers.removeWhere((t) => t.id == teacherId);
-    notifyListeners();
-    return Result.success(null);
   }
 
-  // ── Toggle active ─────────────────────────────────────────────────
-
-  Future<Result<Teacher>> toggleActive(String teacherId) async {
-    final teacher = getTeacherById(teacherId);
-    if (teacher == null) {
-      return Result.failure('Teacher $teacherId not found');
+  /// Delete a teacher by ID. Returns true on success.
+  Future<bool> deleteTeacher(String id) async {
+    try {
+      final box = await _getBox();
+      await box.delete(id);
+      _teachers.removeWhere((t) => t.id == id);
+      notifyListeners();
+      debugPrint('TeacherProvider: deleted $id');
+      return true;
+    } catch (e, st) {
+      debugPrint('TeacherProvider: deleteTeacher failed ($e)\n$st');
+      return false;
     }
-    return updateTeacher(teacher.copyWith(isActive: !teacher.isActive));
   }
 
-  // ── Queries ───────────────────────────────────────────────────────
+  /// Set a teacher as the active one (deactivates others).
+  Future<void> setActive(String id) async {
+    for (final t in _teachers) {
+      if (t.id == id && !t.isActive) {
+        await updateTeacher(t.copyWith(isActive: true));
+      } else if (t.id != id && t.isActive) {
+        await updateTeacher(t.copyWith(isActive: false));
+      }
+    }
+  }
 
-  Teacher? getTeacherById(String id) {
+  /// Get a teacher by ID.
+  Teacher? getById(String id) {
     try {
       return _teachers.firstWhere((t) => t.id == id);
     } catch (_) {
       return null;
     }
-  }
-
-  List<Teacher> searchTeachers(String query) {
-    if (query.trim().isEmpty) return List.unmodifiable(_teachers);
-    final q = query.toLowerCase();
-    return _teachers
-        .where((t) =>
-            t.name.toLowerCase().contains(q) ||
-            t.nameAmharic.contains(query) ||
-            t.phone.contains(q) ||
-            t.subject.toLowerCase().contains(q))
-        .toList();
-  }
-
-  List<Teacher> getTeachersBySubject(String subject) {
-    return _teachers
-        .where((t) => t.subject.toLowerCase() == subject.toLowerCase())
-        .toList();
-  }
-
-  List<String> get subjects =>
-      _teachers.map((t) => t.subject).where((s) => s.isNotEmpty).toSet().toList()
-        ..sort();
-
-  // ── Bulk ──────────────────────────────────────────────────────────
-
-  Future<Result<int>> addTeachers(List<Teacher> teachers) async {
-    int added = 0;
-    for (final t in teachers) {
-      final result = await addTeacher(t);
-      if (result.success) added++;
-    }
-    return added > 0
-        ? Result.success(added)
-        : Result.failure('No teachers were added');
-  }
-
-  // ── Clear ─────────────────────────────────────────────────────────
-
-  Future<void> clearAll() async {
-    try {
-      final box = Hive.box(AppConstants.teachersBox);
-      await box.clear();
-    } catch (e, st) {
-      debugPrint('[TeacherProvider] clearAll failed: $e');
-    }
-    _teachers.clear();
-    notifyListeners();
   }
 }

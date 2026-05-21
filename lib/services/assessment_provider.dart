@@ -1,45 +1,61 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 import '../models/assessment.dart';
 import '../config/constants.dart';
 import 'validation_service.dart';
+import 'result.dart';
 
-/// Operation result — mirrors StudentProvider's pattern.
-class Result<T> {
-  final bool success;
-  final T? data;
-  final String? error;
+export 'result.dart';
 
-  const Result.success(this.data)
-      : success = true,
-        error = null;
-  const Result.failure(this.error)
-      : success = false,
-        data = null;
-}
+/// Filter for the Assessments tab.
+enum AssessmentFilter { all, active, completed }
 
 /// Manages assessment persistence against the encrypted Hive `assessments` box.
 ///
 /// All operations wrapped in try/catch — persistence errors never crash the app.
 class AssessmentProvider extends ChangeNotifier {
-  static const _uuid = Uuid();
   static const _validator = ValidationService();
 
   List<Assessment> _assessments = [];
   Assessment? _currentAssessment;
   bool _isLoading = false;
+  AssessmentFilter _filter = AssessmentFilter.all;
 
   List<Assessment> get assessments => List.unmodifiable(_assessments);
   Assessment? get currentAssessment => _currentAssessment;
   bool get isLoading => _isLoading;
+  AssessmentFilter get filter => _filter;
+
+  /// Assessments respecting the current [filter].
+  List<Assessment> get filteredAssessments {
+    switch (_filter) {
+      case AssessmentFilter.active:
+        return _assessments
+            .where((a) => a.status == AssessmentStatus.active)
+            .toList();
+      case AssessmentFilter.completed:
+        return _assessments
+            .where((a) => a.status == AssessmentStatus.completed)
+            .toList();
+      case AssessmentFilter.all:
+        return List.unmodifiable(_assessments);
+    }
+  }
+
+  /// Set the active filter. Triggers rebuild.
+  void setFilter(AssessmentFilter filter) {
+    if (_filter == filter) return;
+    _filter = filter;
+    notifyListeners();
+  }
 
   List<Assessment> get activeAssessments =>
       _assessments.where((a) => a.status == AssessmentStatus.active).toList();
 
-  List<Assessment> get completedAssessments =>
-      _assessments.where((a) => a.status == AssessmentStatus.completed).toList();
+  List<Assessment> get completedAssessments => _assessments
+      .where((a) => a.status == AssessmentStatus.completed)
+      .toList();
 
   AssessmentProvider() {
     loadAssessments();
@@ -54,11 +70,13 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       final box = Hive.box(AppConstants.assessmentsBox);
-      _assessments = box.values
-          .map((data) => Assessment.fromMap(Map<String, dynamic>.from(data)))
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    } catch (e, st) {
+      _assessments =
+          box.values
+              .map(
+                (data) => Assessment.fromMap(Map<String, dynamic>.from(data)))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (e) {
       debugPrint('[AssessmentProvider] loadAssessments failed: $e');
       _assessments = [];
     }
@@ -80,12 +98,12 @@ class AssessmentProvider extends ChangeNotifier {
     final box = Hive.box(AppConstants.assessmentsBox);
     if (box.containsKey(assessment.id)) {
       return Result.failure(
-          'Assessment with ID ${assessment.id} already exists');
+        'Assessment with ID ${assessment.id} already exists');
     }
 
     try {
       await box.put(assessment.id, assessment.toMap());
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[AssessmentProvider] addAssessment Hive write failed: $e');
       return Result.failure('Failed to save assessment');
     }
@@ -112,7 +130,7 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       await box.put(assessment.id, assessment.toMap());
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[AssessmentProvider] updateAssessment Hive write failed: $e');
       return Result.failure('Failed to update assessment');
     }
@@ -139,8 +157,9 @@ class AssessmentProvider extends ChangeNotifier {
 
     try {
       await box.delete(assessmentId);
-    } catch (e, st) {
-      debugPrint('[AssessmentProvider] deleteAssessment Hive delete failed: $e');
+    } catch (e) {
+      debugPrint(
+        '[AssessmentProvider] deleteAssessment Hive delete failed: $e');
       return Result.failure('Failed to delete assessment');
     }
 
@@ -207,8 +226,7 @@ class AssessmentProvider extends ChangeNotifier {
   /// Convenience: update just the status field.
   Future<Result<Assessment>> updateAssessmentStatus(
     String id,
-    AssessmentStatus status,
-  ) async {
+    AssessmentStatus status) async {
     final existing = getAssessmentById(id);
     if (existing == null) {
       return Result.failure('Assessment $id not found');
@@ -221,7 +239,7 @@ class AssessmentProvider extends ChangeNotifier {
     try {
       final box = Hive.box(AppConstants.assessmentsBox);
       await box.clear();
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[AssessmentProvider] clearAll failed: $e');
     }
     _assessments.clear();

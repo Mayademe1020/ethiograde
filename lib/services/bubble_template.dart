@@ -55,8 +55,7 @@ class BubbleTemplate {
   (double x, double y) bubbleCenter(int questionIndex, int optionIndex) {
     return (
       startX + optionIndex * columnSpacing,
-      startY + questionIndex * rowSpacing,
-    );
+      startY + questionIndex * rowSpacing);
   }
 
   /// Number of options per question.
@@ -83,11 +82,11 @@ class BubbleTemplate {
     columnSpacing: (map['columnSpacing'] ?? 0).toDouble(),
     rowSpacing: (map['rowSpacing'] ?? 0).toDouble(),
     bubbleRadius: (map['bubbleRadius'] ?? 8.0).toDouble(),
-    fillThreshold: (map['fillThreshold'] ?? 0.45).toDouble(),
-  );
+    fillThreshold: (map['fillThreshold'] ?? 0.45).toDouble());
 
   @override
-  String toString() => 'BubbleTemplate($name, $questionCount Q × $optionCount opts)';
+  String toString() =>
+      'BubbleTemplate($name, $questionCount Q × $optionCount opts)';
 }
 
 /// Pre-built templates matching common Ethiopian exam formats.
@@ -109,8 +108,7 @@ class StandardTemplates {
     columnSpacing: 110,
     rowSpacing: 30,
     bubbleRadius: 8,
-    fillThreshold: 0.45,
-  );
+    fillThreshold: 0.45);
 
   /// 30 questions, 5 options (A–E), single column.
   /// Extended format for comprehensive exams.
@@ -123,8 +121,7 @@ class StandardTemplates {
     columnSpacing: 110,
     rowSpacing: 27,
     bubbleRadius: 7,
-    fillThreshold: 0.45,
-  );
+    fillThreshold: 0.45);
 
   /// 10 True/False questions.
   static const BubbleTemplate tf10 = BubbleTemplate(
@@ -136,8 +133,7 @@ class StandardTemplates {
     columnSpacing: 200,
     rowSpacing: 30,
     bubbleRadius: 8,
-    fillThreshold: 0.45,
-  );
+    fillThreshold: 0.45);
 
   /// 20 True/False questions.
   static const BubbleTemplate tf20 = BubbleTemplate(
@@ -149,8 +145,7 @@ class StandardTemplates {
     columnSpacing: 200,
     rowSpacing: 27,
     bubbleRadius: 7,
-    fillThreshold: 0.45,
-  );
+    fillThreshold: 0.45);
 
   /// 50 questions, 4 options (A–D). Common for university entrance exams.
   static const BubbleTemplate uni50x4 = BubbleTemplate(
@@ -162,8 +157,7 @@ class StandardTemplates {
     columnSpacing: 130,
     rowSpacing: 22,
     bubbleRadius: 6,
-    fillThreshold: 0.45,
-  );
+    fillThreshold: 0.45);
 
   /// Get a template by name (case-insensitive).
   static BubbleTemplate? byName(String name) {
@@ -190,5 +184,11 @@ class StandardTemplates {
   }
 
   /// All available standard templates.
-  static List<BubbleTemplate> get all => [moe20x5, moe30x5, tf10, tf20, uni50x4];
+  static List<BubbleTemplate> get all => [
+    moe20x5,
+    moe30x5,
+    tf10,
+    tf20,
+    uni50x4,
+  ];
 }

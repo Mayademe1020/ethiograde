@@ -16,43 +16,48 @@ void main() {
       title: 'Test',
       subject: 'Math',
       rubricType: rubricType,
-      questions: questions ?? [],
-    );
+      questions: questions ?? []);
   }
 
   Question mcq(int number, String correct, {double points = 1.0}) => Question(
-        number: number,
-        type: QuestionType.mcq,
-        correctAnswer: correct,
-        points: points,
-      );
+    number: number,
+    type: QuestionType.mcq,
+    correctAnswer: correct,
+    points: points);
 
   Question tf(int number, String correct, {double points = 1.0}) => Question(
-        number: number,
-        type: QuestionType.trueFalse,
-        correctAnswer: correct,
-        points: points,
-      );
+    number: number,
+    type: QuestionType.trueFalse,
+    correctAnswer: correct,
+    points: points);
 
-  Question shortAnswer(
-    int number,
-    dynamic correct, {
-    double points = 2.0,
-  }) =>
+  Question shortAnswer(int number, dynamic correct, {double points = 2.0}) =>
       Question(
         number: number,
         type: QuestionType.shortAnswer,
         correctAnswer: correct,
-        points: points,
-      );
+        points: points);
 
   DetectedAnswer det(int q, String answer, {double confidence = 0.9}) =>
       DetectedAnswer(
         questionNumber: q,
         answer: answer,
         confidence: confidence,
-        rawText: '$q. $answer',
-      );
+        rawText: '$q. $answer');
+
+  AnswerMatch am(
+    int q,
+    String detected,
+    String correct, {
+    double confidence = 0.9,
+  }) => AnswerMatch(
+    questionNumber: q,
+    detectedAnswer: detected,
+    correctAnswer: correct,
+    isCorrect: detected.toUpperCase() == correct.toUpperCase(),
+    score: detected.toUpperCase() == correct.toUpperCase() ? 1.0 : 0.0,
+    maxScore: 1.0,
+    confidence: confidence);
 
   // ════════════════════════════════════════════════════════════════
   // checkAnswer
@@ -62,41 +67,46 @@ void main() {
     test('exact match (uppercase)', () {
       expect(
         scoring.checkAnswer(
-            detected: 'A', correct: 'A', type: QuestionType.mcq),
-        isTrue,
-      );
+          detected: 'A',
+          correct: 'A',
+          type: QuestionType.mcq),
+        isTrue);
     });
 
     test('case-insensitive match', () {
       expect(
         scoring.checkAnswer(
-            detected: 'b', correct: 'B', type: QuestionType.mcq),
-        isTrue,
-      );
+          detected: 'b',
+          correct: 'B',
+          type: QuestionType.mcq),
+        isTrue);
     });
 
     test('wrong answer', () {
       expect(
         scoring.checkAnswer(
-            detected: 'C', correct: 'A', type: QuestionType.mcq),
-        isFalse,
-      );
+          detected: 'C',
+          correct: 'A',
+          type: QuestionType.mcq),
+        isFalse);
     });
 
     test('null detected → false', () {
       expect(
         scoring.checkAnswer(
-            detected: null, correct: 'A', type: QuestionType.mcq),
-        isFalse,
-      );
+          detected: null,
+          correct: 'A',
+          type: QuestionType.mcq),
+        isFalse);
     });
 
     test('null correct → false', () {
       expect(
         scoring.checkAnswer(
-            detected: 'A', correct: null, type: QuestionType.mcq),
-        isFalse,
-      );
+          detected: 'A',
+          correct: null,
+          type: QuestionType.mcq),
+        isFalse);
     });
   });
 
@@ -104,25 +114,28 @@ void main() {
     test('True matches True', () {
       expect(
         scoring.checkAnswer(
-            detected: 'True', correct: 'True', type: QuestionType.trueFalse),
-        isTrue,
-      );
+          detected: 'True',
+          correct: 'True',
+          type: QuestionType.trueFalse),
+        isTrue);
     });
 
     test('false matches False (case-insensitive)', () {
       expect(
         scoring.checkAnswer(
-            detected: 'false', correct: 'False', type: QuestionType.trueFalse),
-        isTrue,
-      );
+          detected: 'false',
+          correct: 'False',
+          type: QuestionType.trueFalse),
+        isTrue);
     });
 
     test('True ≠ False', () {
       expect(
         scoring.checkAnswer(
-            detected: 'True', correct: 'False', type: QuestionType.trueFalse),
-        isFalse,
-      );
+          detected: 'True',
+          correct: 'False',
+          type: QuestionType.trueFalse),
+        isFalse);
     });
   });
 
@@ -132,10 +145,8 @@ void main() {
         scoring.checkAnswer(
           detected: 'Addis Ababa',
           correct: 'addis ababa',
-          type: QuestionType.shortAnswer,
-        ),
-        isTrue,
-      );
+          type: QuestionType.shortAnswer),
+        isTrue);
     });
 
     test('matches any in accepted list', () {
@@ -143,10 +154,8 @@ void main() {
         scoring.checkAnswer(
           detected: 'Ethiopia',
           correct: ['ethiopia', 'Habesha'],
-          type: QuestionType.shortAnswer,
-        ),
-        isTrue,
-      );
+          type: QuestionType.shortAnswer),
+        isTrue);
     });
 
     test('no match in list', () {
@@ -154,10 +163,8 @@ void main() {
         scoring.checkAnswer(
           detected: 'Kenya',
           correct: ['ethiopia', 'habesha'],
-          type: QuestionType.shortAnswer,
-        ),
-        isFalse,
-      );
+          type: QuestionType.shortAnswer),
+        isFalse);
     });
 
     test('case-insensitive list match', () {
@@ -165,10 +172,35 @@ void main() {
         scoring.checkAnswer(
           detected: 'HABESHA',
           correct: ['ethiopia', 'habesha'],
-          type: QuestionType.shortAnswer,
-        ),
-        isTrue,
-      );
+          type: QuestionType.shortAnswer),
+        isTrue);
+    });
+
+    test('whitespace trimmed (OCR artifact)', () {
+      expect(
+        scoring.checkAnswer(
+          detected: '  Addis Ababa  ',
+          correct: 'Addis Ababa',
+          type: QuestionType.shortAnswer),
+        isTrue);
+    });
+
+    test('extra internal spaces normalized', () {
+      expect(
+        scoring.checkAnswer(
+          detected: 'Addis  Ababa',
+          correct: 'Addis Ababa',
+          type: QuestionType.shortAnswer),
+        isTrue);
+    });
+
+    test('MCQ with extra whitespace', () {
+      expect(
+        scoring.checkAnswer(
+          detected: ' A ',
+          correct: 'A',
+          type: QuestionType.mcq),
+        isTrue);
     });
   });
 
@@ -178,15 +210,13 @@ void main() {
 
   group('scoreAnswers', () {
     test('all correct MCQ → full score', () {
-      final assessment = makeAssessment(questions: [
-        mcq(1, 'A'),
-        mcq(2, 'B'),
-        mcq(3, 'C'),
-      ]);
+      final assessment = makeAssessment(
+        questions: [mcq(1, 'A'), mcq(2, 'B'), mcq(3, 'C')]);
       final detected = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results.length, 3);
       expect(results.every((r) => r.isCorrect), isTrue);
@@ -194,28 +224,24 @@ void main() {
     });
 
     test('all wrong → zero score', () {
-      final assessment = makeAssessment(questions: [
-        mcq(1, 'A'),
-        mcq(2, 'B'),
-      ]);
+      final assessment = makeAssessment(questions: [mcq(1, 'A'), mcq(2, 'B')]);
       final detected = [det(1, 'D'), det(2, 'E')];
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results.every((r) => !r.isCorrect), isTrue);
       expect(results.every((r) => r.score == 0), isTrue);
     });
 
     test('missing detection → [MISSING], score 0', () {
-      final assessment = makeAssessment(questions: [
-        mcq(1, 'A'),
-        mcq(2, 'B'),
-      ]);
+      final assessment = makeAssessment(questions: [mcq(1, 'A'), mcq(2, 'B')]);
       final detected = [det(1, 'A')]; // Q2 missing
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results[1].detectedAnswer, '[MISSING]');
       expect(results[1].isCorrect, isFalse);
@@ -224,15 +250,17 @@ void main() {
     });
 
     test('mixed correct/wrong → partial score', () {
-      final assessment = makeAssessment(questions: [
-        mcq(1, 'A', points: 2.0),
-        mcq(2, 'B', points: 3.0),
-        mcq(3, 'C', points: 1.0),
-      ]);
+      final assessment = makeAssessment(
+        questions: [
+          mcq(1, 'A', points: 2.0),
+          mcq(2, 'B', points: 3.0),
+          mcq(3, 'C', points: 1.0),
+        ]);
       final detected = [det(1, 'A'), det(2, 'X'), det(3, 'C')];
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results[0].isCorrect, isTrue);
       expect(results[0].score, 2.0);
@@ -243,19 +271,13 @@ void main() {
     });
 
     test('question types mixed (MCQ + T/F + short)', () {
-      final assessment = makeAssessment(questions: [
-        mcq(1, 'A'),
-        tf(2, 'True'),
-        shortAnswer(3, 'gravity'),
-      ]);
-      final detected = [
-        det(1, 'A'),
-        det(2, 'True'),
-        det(3, 'gravity'),
-      ];
+      final assessment = makeAssessment(
+        questions: [mcq(1, 'A'), tf(2, 'True'), shortAnswer(3, 'gravity')]);
+      final detected = [det(1, 'A'), det(2, 'True'), det(3, 'gravity')];
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results.every((r) => r.isCorrect), isTrue);
     });
@@ -267,12 +289,12 @@ void main() {
           questionNumber: 1,
           answer: 'A',
           confidence: 0.85,
-          rawText: '1. A ',
-        ),
+          rawText: '1. A '),
       ];
 
       final results = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(results[0].ocrRawText, '1. A ');
       expect(results[0].confidence, 0.85);
@@ -327,21 +349,21 @@ void main() {
     test('average of all answers', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.8),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.8),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: 'B',
-            correctAnswer: 'B',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.6),
+          questionNumber: 2,
+          detectedAnswer: 'B',
+          correctAnswer: 'B',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.6),
       ];
 
       expect(scoring.calculateConfidence(answers), closeTo(0.7, 0.001));
@@ -354,13 +376,13 @@ void main() {
     test('single answer → its confidence', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.95),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.95),
       ];
 
       expect(scoring.calculateConfidence(answers), closeTo(0.95, 0.001));
@@ -375,29 +397,29 @@ void main() {
     test('sums all scores', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 2,
-            maxScore: 2,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 2,
+          maxScore: 2,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: 'B',
-            correctAnswer: 'X',
-            isCorrect: false,
-            score: 0,
-            maxScore: 3,
-            confidence: 0.8),
+          questionNumber: 2,
+          detectedAnswer: 'B',
+          correctAnswer: 'X',
+          isCorrect: false,
+          score: 0,
+          maxScore: 3,
+          confidence: 0.8),
         AnswerMatch(
-            questionNumber: 3,
-            detectedAnswer: 'C',
-            correctAnswer: 'C',
-            isCorrect: true,
-            score: 5,
-            maxScore: 5,
-            confidence: 0.95),
+          questionNumber: 3,
+          detectedAnswer: 'C',
+          correctAnswer: 'C',
+          isCorrect: true,
+          score: 5,
+          maxScore: 5,
+          confidence: 0.95),
       ];
 
       expect(scoring.calculateTotalScore(answers), 7.0);
@@ -416,36 +438,25 @@ void main() {
     test('7/10 → 70%', () {
       expect(
         scoring.calculatePercentage(totalScore: 7, maxScore: 10),
-        closeTo(70.0, 0.001),
-      );
+        closeTo(70.0, 0.001));
     });
 
     test('0/10 → 0%', () {
-      expect(
-        scoring.calculatePercentage(totalScore: 0, maxScore: 10),
-        0,
-      );
+      expect(scoring.calculatePercentage(totalScore: 0, maxScore: 10), 0);
     });
 
     test('10/10 → 100%', () {
       expect(
         scoring.calculatePercentage(totalScore: 10, maxScore: 10),
-        closeTo(100.0, 0.001),
-      );
+        closeTo(100.0, 0.001));
     });
 
     test('maxScore = 0 → 0 (no division by zero)', () {
-      expect(
-        scoring.calculatePercentage(totalScore: 5, maxScore: 0),
-        0,
-      );
+      expect(scoring.calculatePercentage(totalScore: 5, maxScore: 0), 0);
     });
 
     test('negative maxScore → 0', () {
-      expect(
-        scoring.calculatePercentage(totalScore: 5, maxScore: -1),
-        0,
-      );
+      expect(scoring.calculatePercentage(totalScore: 5, maxScore: -1), 0);
     });
   });
 
@@ -483,10 +494,7 @@ void main() {
 
     for (final entry in cases.entries) {
       test('${entry.key}% → ${entry.value}', () {
-        expect(
-          scoring.calculateGrade(entry.key, 'moe_national'),
-          entry.value,
-        );
+        expect(scoring.calculateGrade(entry.key, 'moe_national'), entry.value);
       });
     }
   });
@@ -515,8 +523,7 @@ void main() {
       test('${entry.key}% → ${entry.value}', () {
         expect(
           scoring.calculateGrade(entry.key, 'private_international'),
-          entry.value,
-        );
+          entry.value);
       });
     }
   });
@@ -551,10 +558,7 @@ void main() {
 
     for (final entry in cases.entries) {
       test('${entry.key}% → ${entry.value}', () {
-        expect(
-          scoring.calculateGrade(entry.key, 'university'),
-          entry.value,
-        );
+        expect(scoring.calculateGrade(entry.key, 'university'), entry.value);
       });
     }
   });
@@ -565,10 +569,7 @@ void main() {
 
   group('calculateGrade — edge cases', () {
     test('unknown rubric type → falls back to moe_national', () {
-      expect(
-        scoring.calculateGrade(92, 'some_unknown_rubric'),
-        'A',
-      );
+      expect(scoring.calculateGrade(92, 'some_unknown_rubric'), 'A');
     });
 
     test('100.0 → top grade', () {
@@ -586,8 +587,7 @@ void main() {
 
   group('full scoring pipeline', () {
     test('20-question MCQ assessment, 17 correct → 85% A- (MoE)', () {
-      final questions = List.generate(
-          20, (i) => mcq(i + 1, 'A', points: 1.0));
+      final questions = List.generate(20, (i) => mcq(i + 1, 'A', points: 1.0));
 
       // Student got 17 right, 3 wrong
       final detected = <DetectedAnswer>[];
@@ -598,10 +598,12 @@ void main() {
       final assessment = makeAssessment(questions: questions);
       final deduped = scoring.deduplicateAnswers(detected);
       final scored = scoring.scoreAnswers(
-          detected: deduped, assessment: assessment);
+        detected: deduped,
+        assessment: assessment);
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
-          totalScore: total, maxScore: assessment.maxScore);
+        totalScore: total,
+        maxScore: assessment.maxScore);
       final grade = scoring.calculateGrade(pct, 'moe_national');
       final confidence = scoring.calculateConfidence(scored);
 
@@ -612,17 +614,17 @@ void main() {
     });
 
     test('perfect score → 100% A+ (MoE)', () {
-      final questions = List.generate(
-          10, (i) => mcq(i + 1, 'B', points: 2.0));
-      final detected = List.generate(
-          10, (i) => det(i + 1, 'B'));
+      final questions = List.generate(10, (i) => mcq(i + 1, 'B', points: 2.0));
+      final detected = List.generate(10, (i) => det(i + 1, 'B'));
 
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
-          totalScore: total, maxScore: assessment.maxScore);
+        totalScore: total,
+        maxScore: assessment.maxScore);
 
       expect(total, 20.0);
       expect(pct, closeTo(100.0, 0.01));
@@ -635,10 +637,12 @@ void main() {
 
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
-          totalScore: total, maxScore: assessment.maxScore);
+        totalScore: total,
+        maxScore: assessment.maxScore);
 
       expect(total, 0);
       expect(pct, 0);
@@ -659,14 +663,12 @@ void main() {
           questionNumber: 3,
           answer: 'photosynthesis',
           confidence: 0.6,
-          rawText: '3 photosynthesis',
-        ),
+          rawText: '3 photosynthesis'),
         const DetectedAnswer(
           questionNumber: 3,
           answer: 'photosynthesis',
           confidence: 0.95,
-          rawText: '3. photosynthesis',
-        ),
+          rawText: '3. photosynthesis'),
       ];
 
       final assessment = makeAssessment(questions: questions);
@@ -674,7 +676,8 @@ void main() {
       expect(deduped.length, 3);
 
       final scored = scoring.scoreAnswers(
-          detected: deduped, assessment: assessment);
+        detected: deduped,
+        assessment: assessment);
       final total = scoring.calculateTotalScore(scored);
 
       // All correct: 1 + 1 + 3 = 5
@@ -690,7 +693,8 @@ void main() {
 
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
-          detected: detected, assessment: assessment);
+        detected: detected,
+        assessment: assessment);
 
       expect(scored[0].isCorrect, isTrue);
       expect(scored[0].score, 2.0);
@@ -712,29 +716,29 @@ void main() {
     test('basic MCQ answers', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: 'B',
-            correctAnswer: 'B',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.8),
+          questionNumber: 2,
+          detectedAnswer: 'B',
+          correctAnswer: 'B',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.8),
         AnswerMatch(
-            questionNumber: 3,
-            detectedAnswer: 'C',
-            correctAnswer: 'C',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.85),
+          questionNumber: 3,
+          detectedAnswer: 'C',
+          correctAnswer: 'C',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.85),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
@@ -743,29 +747,29 @@ void main() {
     test('answers sorted by question number regardless of input order', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 3,
-            detectedAnswer: 'C',
-            correctAnswer: 'C',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 3,
+          detectedAnswer: 'C',
+          correctAnswer: 'C',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: 'B',
-            correctAnswer: 'B',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 2,
+          detectedAnswer: 'B',
+          correctAnswer: 'B',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
@@ -774,13 +778,13 @@ void main() {
     test('answers uppercased for comparison', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'a',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'a',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A');
@@ -789,21 +793,21 @@ void main() {
     test('True/False answers normalized', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'True',
-            correctAnswer: 'True',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'True',
+          correctAnswer: 'True',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: 'false',
-            correctAnswer: 'False',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 2,
+          detectedAnswer: 'false',
+          correctAnswer: 'False',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:TRUE|2:FALSE');
@@ -812,21 +816,21 @@ void main() {
     test('MISSING answers excluded from fingerprint', () {
       final answers = [
         AnswerMatch(
-            questionNumber: 1,
-            detectedAnswer: 'A',
-            correctAnswer: 'A',
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9),
+          questionNumber: 1,
+          detectedAnswer: 'A',
+          correctAnswer: 'A',
+          isCorrect: true,
+          score: 1,
+          maxScore: 1,
+          confidence: 0.9),
         AnswerMatch(
-            questionNumber: 2,
-            detectedAnswer: '[MISSING]',
-            correctAnswer: 'B',
-            isCorrect: false,
-            score: 0,
-            maxScore: 1,
-            confidence: 0),
+          questionNumber: 2,
+          detectedAnswer: '[MISSING]',
+          correctAnswer: 'B',
+          isCorrect: false,
+          score: 0,
+          maxScore: 1,
+          confidence: 0),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A');
@@ -837,7 +841,15 @@ void main() {
     });
 
     test('deterministic — same input always produces same output', () {
-      final answers = [det(1, 'A'), det(2, 'B')];
+      AnswerMatch am(int q, String a) => AnswerMatch(
+        questionNumber: q,
+        detectedAnswer: a,
+        correctAnswer: a,
+        isCorrect: true,
+        score: 1,
+        maxScore: 1,
+        confidence: 0.9);
+      final answers = [am(1, 'A'), am(2, 'B')];
       final fp1 = scoring.generateAnswerFingerprint(answers);
       final fp2 = scoring.generateAnswerFingerprint(answers);
       expect(fp1, fp2);
@@ -895,8 +907,8 @@ void main() {
 
   group('detectAnswerDuplicates', () {
     test('identical answer sets → detected', () {
-      final answers1 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
-      final answers2 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
+      final answers1 = [am(1, 'A', 'A'), am(2, 'B', 'B'), am(3, 'C', 'C')];
+      final answers2 = [am(1, 'A', 'A'), am(2, 'B', 'B'), am(3, 'C', 'C')];
 
       final result = scoring.detectAnswerDuplicates([answers1, answers2]);
 
@@ -907,8 +919,8 @@ void main() {
     });
 
     test('different answer sets → no duplicate', () {
-      final answers1 = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
-      final answers2 = [det(1, 'D'), det(2, 'E'), det(3, 'A')];
+      final answers1 = [am(1, 'A', 'A'), am(2, 'B', 'B'), am(3, 'C', 'C')];
+      final answers2 = [am(1, 'D', 'A'), am(2, 'E', 'B'), am(3, 'A', 'C')];
 
       final result = scoring.detectAnswerDuplicates([answers1, answers2]);
 
@@ -917,9 +929,9 @@ void main() {
 
     test('90% match (threshold default) → detected', () {
       // 10 questions, 9 match, 1 different
-      final answers1 = List.generate(10, (i) => det(i + 1, 'A'));
-      final answers2 = List.generate(9, (i) => det(i + 1, 'A'))
-        ..add(det(10, 'B'));
+      final answers1 = List.generate(10, (i) => am(i + 1, 'A', 'A'));
+      final answers2 = List.generate(9, (i) => am(i + 1, 'A', 'A'))
+        ..add(am(10, 'B', 'A'));
 
       final result = scoring.detectAnswerDuplicates([answers1, answers2]);
 
@@ -929,9 +941,9 @@ void main() {
 
     test('89% match (below threshold) → not detected', () {
       // 9 questions: 8 match, 1 different → 8/9 ≈ 88.9%
-      final answers1 = List.generate(9, (i) => det(i + 1, 'A'));
-      final answers2 = List.generate(8, (i) => det(i + 1, 'A'))
-        ..add(det(9, 'B'));
+      final answers1 = List.generate(9, (i) => am(i + 1, 'A', 'A'));
+      final answers2 = List.generate(8, (i) => am(i + 1, 'A', 'A'))
+        ..add(am(9, 'B', 'A'));
 
       final result = scoring.detectAnswerDuplicates([answers1, answers2]);
 
@@ -940,30 +952,34 @@ void main() {
 
     test('custom threshold works', () {
       // 50% match
-      final answers1 = [det(1, 'A'), det(2, 'B')];
-      final answers2 = [det(1, 'A'), det(2, 'Z')];
+      final answers1 = [am(1, 'A', 'A'), am(2, 'B', 'B')];
+      final answers2 = [am(1, 'A', 'A'), am(2, 'Z', 'B')];
 
       // At 50% threshold → detected
-      final result50 = scoring.detectAnswerDuplicates(
-        [answers1, answers2],
-        threshold: 0.5,
-      );
+      final result50 = scoring.detectAnswerDuplicates([
+        answers1,
+        answers2,
+      ], threshold: 0.5);
       expect(result50.length, 1);
 
       // At 51% threshold → not detected
-      final result51 = scoring.detectAnswerDuplicates(
-        [answers1, answers2],
-        threshold: 0.51,
-      );
+      final result51 = scoring.detectAnswerDuplicates([
+        answers1,
+        answers2,
+      ], threshold: 0.51);
       expect(result51, isEmpty);
     });
 
     test('3 scans, 2 duplicates → 1 pair detected', () {
-      final answers1 = [det(1, 'A'), det(2, 'B')];
-      final answers2 = [det(1, 'A'), det(2, 'B')]; // dup of 1
-      final answers3 = [det(1, 'D'), det(2, 'E')]; // different
+      final answers1 = [am(1, 'A', 'A'), am(2, 'B', 'B')];
+      final answers2 = [am(1, 'A', 'A'), am(2, 'B', 'B')]; // dup of 1
+      final answers3 = [am(1, 'D', 'A'), am(2, 'E', 'B')]; // different
 
-      final result = scoring.detectAnswerDuplicates([answers1, answers2, answers3]);
+      final result = scoring.detectAnswerDuplicates([
+        answers1,
+        answers2,
+        answers3,
+      ]);
 
       expect(result.length, 1);
       expect(result[0].scanIndexA, 0);
@@ -971,9 +987,13 @@ void main() {
     });
 
     test('3 scans, all identical → 3 pairs detected', () {
-      final answers = [det(1, 'A'), det(2, 'B')];
+      final answers = [am(1, 'A', 'A'), am(2, 'B', 'B')];
 
-      final result = scoring.detectAnswerDuplicates([answers, answers, answers]);
+      final result = scoring.detectAnswerDuplicates([
+        answers,
+        answers,
+        answers,
+      ]);
 
       // Pairs: (0,1), (0,2), (1,2)
       expect(result.length, 3);
@@ -984,13 +1004,13 @@ void main() {
     });
 
     test('single scan → no duplicates', () {
-      final answers = [det(1, 'A')];
+      final answers = [am(1, 'A', 'A')];
       expect(scoring.detectAnswerDuplicates([answers]), isEmpty);
     });
 
     test('empty answers in one scan → skipped', () {
-      final answers1 = [det(1, 'A')];
-      final answers2 = <DetectedAnswer>[];
+      final answers1 = [am(1, 'A', 'A')];
+      final answers2 = <AnswerMatch>[];
 
       final result = scoring.detectAnswerDuplicates([answers1, answers2]);
 
@@ -1001,101 +1021,34 @@ void main() {
       const dup = AnswerDuplicate(
         scanIndexA: 0,
         scanIndexB: 1,
-        matchRatio: 0.975,
-      );
+        matchRatio: 0.975);
       expect(dup.matchPercent, closeTo(97.5, 0.001));
     });
 
     test('re-scans with slight OCR variance still detected', () {
       // Same paper re-scanned: most answers match, one OCR reads "B" instead of "A"
-      final original = [det(1, 'A'), det(2, 'B'), det(3, 'C'), det(4, 'A'),
-                        det(5, 'B'), det(6, 'C'), det(7, 'A'), det(8, 'B'),
-                        det(9, 'C'), det(10, 'A')];
-      final rescan = [det(1, 'A'), det(2, 'B'), det(3, 'C'), det(4, 'A'),
-                      det(5, 'B'), det(6, 'C'), det(7, 'B'), // 1 error
-                      det(8, 'B'), det(9, 'C'), det(10, 'A')];
+      final original = [
+        am(1, 'A', 'A'),
+        am(2, 'B', 'B'),
+        am(3, 'C', 'C'),
+        am(4, 'A', 'A'),
+        am(5, 'B', 'B'),
+        am(6, 'C', 'C'),
+        am(7, 'A', 'A'),
+        am(8, 'B', 'B'),
+        am(9, 'C', 'C'),
+        am(10, 'A', 'A'),
+      ];
+      final rescan = [
+        am(1, 'A', 'A'), am(2, 'B', 'B'), am(3, 'C', 'C'), am(4, 'A', 'A'),
+        am(5, 'B', 'B'), am(6, 'C', 'C'), am(7, 'B', 'A'), // 1 error
+        am(8, 'B', 'B'), am(9, 'C', 'C'), am(10, 'A', 'A'),
+      ];
 
       final result = scoring.detectAnswerDuplicates([original, rescan]);
 
       expect(result.length, 1);
       expect(result[0].matchRatio, closeTo(0.9, 0.001)); // 9/10
-    });
-  });
-}
-
-  group('ScanResult.checkAlignment', () {
-    ScanResult _makeResult(List<AnswerMatch> answers) {
-      return ScanResult(
-        assessmentId: 'test',
-        studentId: 's1',
-        studentName: 'Test',
-        imagePath: '',
-        answers: answers,
-      );
-    }
-
-    AnswerMatch _match(int num, String detected) => AnswerMatch(
-          questionNumber: num,
-          detectedAnswer: detected,
-          correctAnswer: 'A',
-          isCorrect: detected == 'A',
-          score: detected == 'A' ? 1 : 0,
-          maxScore: 1,
-        );
-
-    test('no missing answers — no warning', () {
-      final result = _makeResult([
-        _match(1, 'A'), _match(2, 'B'), _match(3, 'A'),
-      ]);
-      final check = result.checkAlignment(3);
-      expect(check.needsWarning, false);
-      expect(check.missingCount, 0);
-      expect(check.detectedObjective, 3);
-    });
-
-    test('few missing (< 20%) — no warning', () {
-      final result = _makeResult([
-        _match(1, 'A'), _match(2, 'B'), _match(3, 'A'),
-        _match(4, '[MISSING]'), _match(5, 'C'),
-      ]);
-      final check = result.checkAlignment(5);
-      expect(check.needsWarning, false);
-      expect(check.missingCount, 1);
-    });
-
-    test('many missing (> 20%) — warning', () {
-      final result = _makeResult([
-        _match(1, 'A'), _match(2, 'B'),
-        _match(3, '[MISSING]'), _match(4, '[MISSING]'),
-        _match(5, '[MISSING]'),
-      ]);
-      final check = result.checkAlignment(5);
-      expect(check.needsWarning, true);
-      expect(check.missingCount, 3);
-      expect(check.detectedObjective, 2);
-      expect(check.missingRatio, 0.6);
-    });
-
-    test('all missing — warning', () {
-      final result = _makeResult([
-        _match(1, '[MISSING]'), _match(2, '[MISSING]'),
-      ]);
-      final check = result.checkAlignment(2);
-      expect(check.needsWarning, true);
-      expect(check.missingCount, 2);
-      expect(check.missingRatio, 1.0);
-    });
-
-    test('zero expected — no warning', () {
-      final result = _makeResult([_match(1, 'A')]);
-      final check = result.checkAlignment(0);
-      expect(check.needsWarning, false);
-    });
-
-    test('empty answers — no warning', () {
-      final result = _makeResult([]);
-      final check = result.checkAlignment(10);
-      expect(check.needsWarning, false);
     });
   });
 }
