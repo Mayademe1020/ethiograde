@@ -720,24 +720,26 @@ class _AssessmentsTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Assessments',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
+                Text(
+                  'Assessments',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.createAssessment,
                     ),
-                    FilledButton.icon(
-                      onPressed: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.createAssessment,
-                      ),
-                      icon: const Icon(Icons.add),
-                      label: Text('Grade'),
-                    ),
-                  ],
+                    icon: const Icon(Icons.add),
+                    label: const Text('Grade papers'),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 PrimaryActionCard(

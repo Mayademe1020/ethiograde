@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/weighted_grade_provider.dart';
+import '../assessment/exam_day_create_screen.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Arguments for re-scan mode: replaces an existing ScanResult with a fresh scan.
@@ -45,6 +47,9 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isInitialized = false;
   bool _isCapturing = false;
   bool _isFlashOn = false;
+  bool _isCameraStarting = true;
+  String? _cameraError;
+  final List<Timer> _cameraStartupTimers = [];
   final List<String> _capturedImages = [];
   final List<int?> _capturedHashes = []; // Parallel hash cache for batch
   List<int?> _existingHashes = []; // Hashes from previously saved scans
@@ -68,37 +73,117 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Future<void> _initializeCamera() async {
+    setState(() {
+      _isCameraStarting = true;
+      _cameraError = null;
+      _isInitialized = false;
+    });
+
     try {
-      _cameras = await availableCameras();
+      _cameras = await _withCameraTimeout<List<CameraDescription>>(
+        availableCameras(),
+        const Duration(seconds: 8),
+      );
+    } on TimeoutException {
+      _showCameraError(
+        'The camera is taking too long to start. Check app permission, close other camera apps, then try again.',
+      );
+      return;
     } on CameraException catch (e) {
-      // Camera package requests permission internally.
-      // If denied, availableCameras() throws with 'CameraAccessDenied'.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.description ?? ('Camera permission required'))));
-        Navigator.pop(context);
-      }
+      _showCameraError(
+        e.description ?? 'Camera permission is required to scan papers.',
+      );
+      return;
+    } catch (_) {
+      _showCameraError(
+        'The camera could not start on this device. You can retry or enter the answer key manually.',
+      );
       return;
     }
 
-    if (_cameras.isEmpty) return;
+    if (_cameras.isEmpty) {
+      _showCameraError(
+        'No camera was found on this device. You can still enter the answer key manually.',
+      );
+      return;
+    }
 
     _cameraController = CameraController(
       _cameras.first,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg);
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
 
-    await _cameraController!.initialize();
-    await _cameraController!.setFlashMode(FlashMode.off);
-    await _cameraController!.setExposureMode(ExposureMode.auto);
-    await _cameraController!.setFocusMode(FocusMode.auto);
+    try {
+      await _withCameraTimeout<void>(
+        _cameraController!.initialize(),
+        const Duration(seconds: 10),
+      );
+      await _cameraController!.setFlashMode(FlashMode.off);
+      await _cameraController!.setExposureMode(ExposureMode.auto);
+      await _cameraController!.setFocusMode(FocusMode.auto);
+    } on TimeoutException {
+      _showCameraError(
+        'The camera opened but did not finish starting. Try again in a moment.',
+      );
+      return;
+    } on CameraException catch (e) {
+      _showCameraError(
+        e.description ?? 'Camera permission is required to scan papers.',
+      );
+      return;
+    } catch (_) {
+      _showCameraError(
+        'The camera could not start. Try again or use manual answer entry.',
+      );
+      return;
+    }
 
     if (mounted) {
-      setState(() => _isInitialized = true);
+      setState(() {
+        _isInitialized = true;
+        _isCameraStarting = false;
+      });
     }
+  }
+
+  void _showCameraError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _cameraError = message;
+      _isCameraStarting = false;
+      _isInitialized = false;
+    });
+  }
+
+  Future<T> _withCameraTimeout<T>(Future<T> operation, Duration duration) {
+    final completer = Completer<T>();
+    late final Timer timer;
+    timer = Timer(duration, () {
+      if (!completer.isCompleted) {
+        completer.completeError(TimeoutException('Camera startup timed out'));
+      }
+    });
+    _cameraStartupTimers.add(timer);
+
+    operation
+        .then(
+          (value) {
+            if (!completer.isCompleted) completer.complete(value);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!completer.isCompleted) {
+              completer.completeError(error, stackTrace);
+            }
+          },
+        )
+        .whenComplete(() {
+          timer.cancel();
+          _cameraStartupTimers.remove(timer);
+        });
+
+    return completer.future;
   }
 
   @override
@@ -121,15 +206,34 @@ class _CameraScreenState extends State<CameraScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       body: !_isInitialized
-          ? const Center(child: CircularProgressIndicator())
+          ? _CameraUnavailableView(
+              isStarting: _isCameraStarting,
+              message: _cameraError,
+              onBack: () => Navigator.pop(context),
+              onRetry: _initializeCamera,
+              onManualEntry: () {
+                if (_selectedAssessment != null) {
+                  Navigator.pushReplacementNamed(
+                    context,
+                    AppRoutes.answerKey,
+                    arguments: _selectedAssessment,
+                  );
+                  return;
+                }
+                Navigator.pushReplacementNamed(
+                  context,
+                  AppRoutes.createAssessment,
+                  arguments: ExamDayStartMode.manualKey,
+                );
+              },
+            )
           : Stack(
               children: [
                 // Camera preview
                 Positioned.fill(child: CameraPreview(_cameraController!)),
 
                 // Scan guide overlay
-                Positioned.fill(
-                  child: PaperGuideOverlay(state: _guideState)),
+                Positioned.fill(child: PaperGuideOverlay(state: _guideState)),
 
                 // Top bar with counter
                 Positioned(
@@ -140,7 +244,8 @@ class _CameraScreenState extends State<CameraScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
-                        vertical: 8),
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
@@ -148,14 +253,18 @@ class _CameraScreenState extends State<CameraScreen>
                           colors: [
                             Colors.black.withOpacity(0.6),
                             Colors.transparent,
-                          ])),
+                          ],
+                        ),
+                      ),
                       child: Row(
                         children: [
                           IconButton(
                             icon: const Icon(
                               Icons.arrow_back,
-                              color: Colors.white),
-                            onPressed: () => Navigator.pop(context)),
+                              color: Colors.white,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
                           Expanded(
                             child: Column(
                               children: [
@@ -165,24 +274,36 @@ class _CameraScreenState extends State<CameraScreen>
                                       : ('Scanning Mode'),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                                 if (_reScanArgs == null)
                                   Text(
                                     '${_capturedImages.length} '
                                     '${'papers captured'}',
                                     style: const TextStyle(
                                       color: Colors.white70,
-                                      fontSize: 12)),
-                              ])),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                           IconButton(
                             icon: Icon(
                               _isFlashOn ? Icons.flash_on : Icons.flash_off,
-                              color: Colors.white),
-                            onPressed: _toggleFlash),
-                        ])))),
+                              color: Colors.white,
+                            ),
+                            onPressed: _toggleFlash,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
                 // Assessment selector (hidden in re-scan mode)
                 if (_selectedAssessment == null && _reScanArgs == null)
@@ -194,7 +315,8 @@ class _CameraScreenState extends State<CameraScreen>
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.black87,
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -202,7 +324,9 @@ class _CameraScreenState extends State<CameraScreen>
                             'Select Assessment',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.w600)),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<Assessment>(
                             dropdownColor: Colors.grey.shade900,
@@ -212,24 +336,35 @@ class _CameraScreenState extends State<CameraScreen>
                               fillColor: Colors.grey.shade800,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none),
+                                borderSide: BorderSide.none,
+                              ),
                               contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12)),
+                                horizontal: 12,
+                              ),
+                            ),
                             items: assessments
                                 .where(
-                                  (a) => a.status == AssessmentStatus.active)
+                                  (a) => a.status == AssessmentStatus.active,
+                                )
                                 .map(
                                   (a) => DropdownMenuItem(
                                     value: a,
                                     child: Text(
                                       '${a.title} (${a.subject})',
-                                      style: const TextStyle(fontSize: 14))))
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: (a) {
                               setState(() => _selectedAssessment = a);
                               if (a != null) _loadExistingHashes(a);
-                            }),
-                        ]))),
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 // Bottom controls
                 Positioned(
@@ -246,7 +381,9 @@ class _CameraScreenState extends State<CameraScreen>
                           colors: [
                             Colors.black.withOpacity(0.8),
                             Colors.transparent,
-                          ])),
+                          ],
+                        ),
+                      ),
                       child: Column(
                         children: [
                           // Re-scan mode: single capture + process
@@ -259,8 +396,11 @@ class _CameraScreenState extends State<CameraScreen>
                                     : ('Align paper, then tap to re-scan'),
                                 style: const TextStyle(
                                   color: Colors.white60,
-                                  fontSize: 13),
-                                textAlign: TextAlign.center)),
+                                  fontSize: 13,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                             GestureDetector(
                               onTap: (_isCapturing || _isReScanProcessing)
                                   ? null
@@ -272,22 +412,30 @@ class _CameraScreenState extends State<CameraScreen>
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: Colors.white,
-                                    width: 4)),
+                                    width: 4,
+                                  ),
+                                ),
                                 child: Container(
                                   margin: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: (_isCapturing || _isReScanProcessing)
                                         ? Colors.grey
-                                        : AppTheme.primaryYellow),
+                                        : AppTheme.primaryYellow,
+                                  ),
                                   child: (_isCapturing || _isReScanProcessing)
                                       ? const CircularProgressIndicator(
                                           color: Colors.white,
-                                          strokeWidth: 2)
+                                          strokeWidth: 2,
+                                        )
                                       : const Icon(
                                           Icons.refresh,
                                           color: Colors.white,
-                                          size: 32)))),
+                                          size: 32,
+                                        ),
+                                ),
+                              ),
+                            ),
                           ] else ...[
                             // Capture hint when no images yet
                             if (_capturedImages.isEmpty)
@@ -297,8 +445,11 @@ class _CameraScreenState extends State<CameraScreen>
                                   'Align paper in frame, then tap capture',
                                   style: const TextStyle(
                                     color: Colors.white60,
-                                    fontSize: 13),
-                                  textAlign: TextAlign.center)),
+                                    fontSize: 13,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
 
                             // Capture button row
                             Row(
@@ -315,17 +466,24 @@ class _CameraScreenState extends State<CameraScreen>
                                     decoration: BoxDecoration(
                                       color: Colors.white24,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.white38)),
+                                      border: Border.all(color: Colors.white38),
+                                    ),
                                     child: _capturedImages.isNotEmpty
                                         ? ClipRRect(
                                             borderRadius: BorderRadius.circular(
-                                              8),
+                                              8,
+                                            ),
                                             child: Image.file(
                                               File(_capturedImages.last),
-                                              fit: BoxFit.cover))
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
                                         : const Icon(
                                             Icons.photo_library,
-                                            color: Colors.white54))),
+                                            color: Colors.white54,
+                                          ),
+                                  ),
+                                ),
 
                                 // Capture button
                                 GestureDetector(
@@ -337,22 +495,30 @@ class _CameraScreenState extends State<CameraScreen>
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: Colors.white,
-                                        width: 4)),
+                                        width: 4,
+                                      ),
+                                    ),
                                     child: Container(
                                       margin: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         color: _isCapturing
                                             ? Colors.grey
-                                            : AppTheme.primaryGreen),
+                                            : AppTheme.primaryGreen,
+                                      ),
                                       child: _isCapturing
                                           ? const CircularProgressIndicator(
                                               color: Colors.white,
-                                              strokeWidth: 2)
+                                              strokeWidth: 2,
+                                            )
                                           : const Icon(
                                               Icons.camera,
                                               color: Colors.white,
-                                              size: 32)))),
+                                              size: 32,
+                                            ),
+                                    ),
+                                  ),
+                                ),
 
                                 // Done Scanning button
                                 GestureDetector(
@@ -366,13 +532,18 @@ class _CameraScreenState extends State<CameraScreen>
                                       color: _capturedImages.isNotEmpty
                                           ? AppTheme.primaryGreen
                                           : Colors.white24,
-                                      shape: BoxShape.circle),
+                                      shape: BoxShape.circle,
+                                    ),
                                     child: Icon(
                                       Icons.check,
                                       color: _capturedImages.isNotEmpty
                                           ? Colors.white
-                                          : Colors.white54))),
-                              ]),
+                                          : Colors.white54,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
 
                             // "Done Scanning" label + counter
                             if (_capturedImages.isNotEmpty)
@@ -386,24 +557,39 @@ class _CameraScreenState extends State<CameraScreen>
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 10,
-                                        vertical: 4),
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.white24,
-                                        borderRadius: BorderRadius.circular(12)),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                       child: Text(
                                         '${_capturedImages.length}',
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontWeight: FontWeight.bold))),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                     Text(
                                       'Tap ✓ when done scanning',
                                       style: const TextStyle(
                                         color: Colors.white60,
-                                        fontSize: 12)),
-                                  ])),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
-                        ])))),
-              ]));
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
   }
 
   /// Capture an image and add it to the batch — no processing.
@@ -416,9 +602,8 @@ class _CameraScreenState extends State<CameraScreen>
 
     if (_selectedAssessment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please select an assessment first')));
+        SnackBar(content: Text('Please select an assessment first')),
+      );
       return;
     }
 
@@ -450,10 +635,9 @@ class _CameraScreenState extends State<CameraScreen>
     } catch (e) {
       debugPrint('Capture error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Capture failed — try again')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Capture failed — try again')));
       }
     } finally {
       if (mounted) setState(() => _isCapturing = false);
@@ -475,7 +659,8 @@ class _CameraScreenState extends State<CameraScreen>
               Text(
                 '${_capturedImages.length} '
                 '${'Papers Captured'}',
-                style: Theme.of(context).textTheme.titleLarge),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               Expanded(
                 child: GridView.builder(
@@ -483,16 +668,25 @@ class _CameraScreenState extends State<CameraScreen>
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 8,
-                    mainAxisSpacing: 8),
+                    mainAxisSpacing: 8,
+                  ),
                   itemCount: _capturedImages.length,
                   itemBuilder: (context, index) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.file(
                         File(_capturedImages[index]),
-                        fit: BoxFit.cover));
-                  })),
-            ]))));
+                        fit: BoxFit.cover,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Load hashes from previously saved scan results for this assessment.
@@ -518,23 +712,31 @@ class _CameraScreenState extends State<CameraScreen>
             Icon(
               Icons.warning_amber_rounded,
               color: AppTheme.primaryYellow,
-              size: 22),
+              size: 22,
+            ),
             const SizedBox(width: 8),
             Text('Possible Duplicate'),
-          ]),
+          ],
+        ),
         content: Text(
           'This looks similar to a paper already captured. Not sure? '
-                    'Answers will be double-checked after processing.'),
+          'Answers will be double-checked after processing.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, true), // Keep
-            child: Text('Keep')),
+            child: Text('Keep'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, false), // Skip
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryRed),
-            child: Text('Skip')),
-        ]));
+              backgroundColor: AppTheme.primaryRed,
+            ),
+            child: Text('Skip'),
+          ),
+        ],
+      ),
+    );
     return result ?? false; // Default: keep (safe default)
   }
 
@@ -573,7 +775,8 @@ class _CameraScreenState extends State<CameraScreen>
         assessment: assessment,
         studentId: existing.studentId,
         studentName: existing.studentName,
-        weightedScale: weightedScale);
+        weightedScale: weightedScale,
+      );
 
       // Delete old result from Hive
       await grading.deleteScanResult(existing.id);
@@ -584,7 +787,10 @@ class _CameraScreenState extends State<CameraScreen>
             content: Text(
               newResult.status == ScanStatus.graded
                   ? ("${existing.studentName} re-graded — ${newResult.percentage.toStringAsFixed(0)}%")
-                  : ('Re-scan failed — try again'))));
+                  : ('Re-scan failed — try again'),
+            ),
+          ),
+        );
 
         // Pop back to review with the new result
         Navigator.pop(context, newResult);
@@ -596,10 +802,9 @@ class _CameraScreenState extends State<CameraScreen>
           _isCapturing = false;
           _isReScanProcessing = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error — try again')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error — try again')));
       }
     }
   }
@@ -610,19 +815,25 @@ class _CameraScreenState extends State<CameraScreen>
     Navigator.pushNamed(
       context,
       AppRoutes.batchScan,
-      arguments: {'images': _capturedImages, 'assessment': _selectedAssessment});
+      arguments: {'images': _capturedImages, 'assessment': _selectedAssessment},
+    );
   }
 
   Future<void> _toggleFlash() async {
     if (_cameraController == null) return;
     setState(() => _isFlashOn = !_isFlashOn);
     await _cameraController!.setFlashMode(
-      _isFlashOn ? FlashMode.torch : FlashMode.off);
+      _isFlashOn ? FlashMode.torch : FlashMode.off,
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    for (final timer in _cameraStartupTimers) {
+      timer.cancel();
+    }
+    _cameraStartupTimers.clear();
     _cameraController?.dispose();
     // Clean up captured images if teacher backed out without scanning
     if (!_batchStarted && _capturedImages.isNotEmpty) {
@@ -641,5 +852,93 @@ class _CameraScreenState extends State<CameraScreen>
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
+  }
+}
+
+class _CameraUnavailableView extends StatelessWidget {
+  final bool isStarting;
+  final String? message;
+  final VoidCallback onBack;
+  final VoidCallback onRetry;
+  final VoidCallback onManualEntry;
+
+  const _CameraUnavailableView({
+    required this.isStarting,
+    required this.message,
+    required this.onBack,
+    required this.onRetry,
+    required this.onManualEntry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusText = isStarting ? 'Camera is starting' : 'Camera not ready';
+    final helperText =
+        message ?? 'Hold the phone steady while EthioGrade opens the camera.';
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                tooltip: 'Back',
+              ),
+            ),
+            const Spacer(),
+            Icon(
+              isStarting ? Icons.camera_alt : Icons.no_photography_outlined,
+              color: Colors.white,
+              size: 56,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              statusText,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              helperText,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.white70,
+                height: 1.35,
+              ),
+            ),
+            if (isStarting) ...[
+              const SizedBox(height: 22),
+              const Center(child: CircularProgressIndicator()),
+            ],
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: isStarting ? null : onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try camera again'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onManualEntry,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white54),
+              ),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Enter answer key manually'),
+            ),
+            TextButton(onPressed: onBack, child: const Text('Go back')),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }

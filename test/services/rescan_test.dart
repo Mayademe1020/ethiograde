@@ -14,16 +14,19 @@ void main() {
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Abebe',
-        imagePath: '/tmp/test.jpg');
+        imagePath: '/tmp/test.jpg',
+      );
       final assessment = Assessment(
         id: 'a1',
         title: 'Math Final',
         subject: 'Math',
-        questions: []);
+        questions: [],
+      );
 
       final args = ReScanArguments(
         existingResult: result,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(args.existingResult.id, 'test-id');
       expect(args.existingResult.studentName, 'Abebe');
@@ -34,22 +37,26 @@ void main() {
 
   group('CameraScreen re-scan mode', () {
     testWidgets('shows student name in header when in re-scan mode', (
-      tester) async {
+      tester,
+    ) async {
       final result = ScanResult(
         id: 'rescan-1',
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Kebede',
-        imagePath: '/tmp/old.jpg');
+        imagePath: '/tmp/old.jpg',
+      );
       final assessment = Assessment(
         id: 'a1',
         title: 'Physics Mid',
         subject: 'Physics',
-        questions: []);
+        questions: [],
+      );
 
       final args = ReScanArguments(
         existingResult: result,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       // Build a minimal widget that passes re-scan args via route settings
       await tester.pumpWidget(
@@ -60,7 +67,11 @@ void main() {
               providers: [
                 ChangeNotifierProvider(create: (_) => AssessmentProvider()),
               ],
-              child: const CameraScreen()))));
+              child: const CameraScreen(),
+            ),
+          ),
+        ),
+      );
 
       // The camera screen needs camera permissions + hardware, so the widget
       // test won't fully initialize. But we can verify the scaffold builds
@@ -69,13 +80,15 @@ void main() {
     });
 
     testWidgets('ReScanArguments is distinct from Assessment arg', (
-      tester) async {
+      tester,
+    ) async {
       // Verify that passing an Assessment directly still works (backward compat)
       final assessment = Assessment(
         id: 'a2',
         title: 'English Quiz',
         subject: 'English',
-        questions: []);
+        questions: [],
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -85,9 +98,37 @@ void main() {
               providers: [
                 ChangeNotifierProvider(create: (_) => AssessmentProvider()),
               ],
-              child: const CameraScreen()))));
+              child: const CameraScreen(),
+            ),
+          ),
+        ),
+      );
 
       expect(find.byType(CameraScreen), findsOneWidget);
+    });
+
+    testWidgets('shows retry and manual options when camera does not start', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+              ],
+              child: const CameraScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pump();
+
+      expect(find.text('Camera not ready'), findsOneWidget);
+      expect(find.text('Try camera again'), findsOneWidget);
+      expect(find.text('Enter answer key manually'), findsOneWidget);
     });
   });
 }

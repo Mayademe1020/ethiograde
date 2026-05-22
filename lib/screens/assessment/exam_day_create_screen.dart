@@ -98,6 +98,37 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             ),
             const SizedBox(height: 18),
             Text(
+              'Answer key',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose how the correct answers will be created.',
+              style: TextStyle(color: AppTheme.lightText, height: 1.35),
+            ),
+            const SizedBox(height: 10),
+            _ModeCard(
+              selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
+              icon: Icons.document_scanner_outlined,
+              title: 'Scan master answer sheet',
+              subtitle:
+                  'Best for long exams. Scan the filled key first, confirm weak answers, then grade papers.',
+              onTap: () =>
+                  setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
+            ),
+            _ModeCard(
+              selected: _answerKeyMode == _AnswerKeyMode.manual,
+              icon: Icons.edit_note,
+              title: 'Enter answer key manually',
+              subtitle:
+                  'Use quick taps when the master sheet is not ready or scanning is not suitable.',
+              onTap: () =>
+                  setState(() => _answerKeyMode = _AnswerKeyMode.manual),
+            ),
+            const SizedBox(height: 18),
+            Text(
               'Questions',
               style: Theme.of(
                 context,
@@ -182,32 +213,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ),
             ],
             const SizedBox(height: 18),
-            Text(
-              'Answer key',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            _ModeCard(
-              selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
-              icon: Icons.document_scanner_outlined,
-              title: 'Scan master answer sheet',
-              subtitle:
-                  'Best for long exams. Scan the filled key first, confirm weak answers, then grade papers.',
-              onTap: () =>
-                  setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
-            ),
-            _ModeCard(
-              selected: _answerKeyMode == _AnswerKeyMode.manual,
-              icon: Icons.edit_note,
-              title: 'Enter answer key manually',
-              subtitle:
-                  'Use quick taps when the master sheet is not ready or scanning is not suitable.',
-              onTap: () =>
-                  setState(() => _answerKeyMode = _AnswerKeyMode.manual),
-            ),
-            const SizedBox(height: 8),
             ExpansionTile(
               initiallyExpanded: _advancedOpen,
               onExpansionChanged: (open) =>

@@ -88,9 +88,15 @@ void main() {
 
       expect(find.text('Grade papers'), findsOneWidget);
       expect(find.text('I have papers. I need grades.'), findsOneWidget);
-      expect(find.text('Student list'), findsOneWidget);
-      await scrollToText(tester, 'Answer key');
       expect(find.text('Answer key'), findsOneWidget);
+      expect(
+        find.text('Choose how the correct answers will be created.'),
+        findsOneWidget,
+      );
+      expect(find.text('Scan master answer sheet'), findsOneWidget);
+      expect(find.text('Enter answer key manually'), findsOneWidget);
+      await scrollToText(tester, 'Student list');
+      expect(find.text('Student list'), findsOneWidget);
     });
 
     testWidgets('keeps student mode and answer-key mode separate', (
@@ -99,19 +105,19 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
+      expect(find.text('Scan master answer sheet'), findsOneWidget);
+      expect(find.text('Enter answer key manually'), findsOneWidget);
+      await scrollToText(tester, 'Grade without student list');
       expect(find.text('Grade without student list'), findsOneWidget);
       await scrollToText(tester, 'Grade with class list');
       expect(find.text('Grade with class list'), findsOneWidget);
-      await scrollToText(tester, 'Scan master answer sheet');
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      await scrollToText(tester, 'Enter answer key manually');
-      expect(find.text('Enter answer key manually'), findsOneWidget);
     });
 
     testWidgets('supports custom question count', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
+      await scrollToText(tester, 'Custom');
       final customField = find.widgetWithText(TextField, 'Custom');
       expect(customField, findsOneWidget);
 
@@ -129,8 +135,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await scrollToText(tester, 'Grade without student list');
       expect(find.text('Grade without student list'), findsOneWidget);
-      await scrollToText(tester, 'Scan master answer sheet');
+      await scrollToText(tester, 'Answer key');
       expect(find.text('Scan master answer sheet'), findsOneWidget);
       expect(find.text('Continue to master scan'), findsOneWidget);
     });

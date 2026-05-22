@@ -27,27 +27,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       icon: Icons.document_scanner,
       titleEn: 'Scan & Grade',
       descEn:
-          'Take a photo of any exam paper. Our AI reads answers and grades instantly — no bubble sheets needed.',),
+          'Take a photo of any exam paper. Our AI reads answers and grades instantly — no bubble sheets needed.',
+    ),
     _OnboardingPage(
       icon: Icons.offline_bolt,
       titleEn: '100% Offline',
       descEn:
-          'Works without internet. Perfect for schools anywhere in Ethiopia.',),
+          'Works without internet. Perfect for schools anywhere in Ethiopia.',
+    ),
     _OnboardingPage(
       icon: Icons.edit_note,
       titleEn: 'Quick Enter',
       descEn:
-          'Type scores directly for calculation-heavy subjects. No scanning needed — just enter and save.',),
+          'Type scores directly for calculation-heavy subjects. No scanning needed — just enter and save.',
+    ),
     _OnboardingPage(
       icon: Icons.assessment,
       titleEn: 'Track Grades',
       descEn:
-          'Review class results, see per-question breakdowns, and manage your grading scale.',),
+          'Review class results, see per-question breakdowns, and manage your grading scale.',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -56,10 +59,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
-                onPressed: _goToLastPage,
+                onPressed: _completeSetup,
                 child: Text(
                   'Skip',
-                  style: TextStyle(color: AppTheme.lightText)))),
+                  style: TextStyle(color: AppTheme.lightText),
+                ),
+              ),
+            ),
 
             // Pages
             Expanded(
@@ -72,7 +78,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     return _buildSetupPage();
                   }
                   return _buildPage(_pages[index]);
-                })),
+                },
+              ),
+            ),
 
             // Dots indicator
             Padding(
@@ -90,7 +98,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       color: _currentPage == i
                           ? AppTheme.primaryGreen
                           : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4)))))),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
             // Bottom buttons
             Padding(
@@ -103,9 +116,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         onPressed: () {
                           _pageController.previousPage(
                             duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut);
+                            curve: Curves.easeInOut,
+                          );
                         },
-                        child: Text('Back'))),
+                        child: Text('Back'),
+                      ),
+                    ),
                   if (_currentPage > 0) const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
@@ -114,14 +130,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           : () {
                               _pageController.nextPage(
                                 duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut);
+                                curve: Curves.easeInOut,
+                              );
                             },
                       child: Text(
                         _currentPage == _pages.length
                             ? ('Get Started')
-                            : ('Next')))),
-                ])),
-          ])));
+                            : ('Next'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPage(_OnboardingPage page) {
@@ -135,22 +160,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             height: 120,
             decoration: BoxDecoration(
               color: AppTheme.primaryGreen.withOpacity(0.1),
-              shape: BoxShape.circle),
-            child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen)),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen),
+          ),
           const SizedBox(height: 32),
           Text(
             page.titleEn,
             style: Theme.of(
-              context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center),
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           Text(
             page.descEn,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: AppTheme.lightText,
-              height: 1.6),
-            textAlign: TextAlign.center),
-        ]));
+              height: 1.6,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSetupPage() {
@@ -163,12 +196,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             'Welcome!',
             style: Theme.of(
-              context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Text(
             'Tell us about yourself',
             style: Theme.of(
-              context).textTheme.bodyLarge?.copyWith(color: AppTheme.lightText)),
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppTheme.lightText),
+          ),
           const SizedBox(height: 32),
 
           // Teacher name
@@ -177,7 +214,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             decoration: InputDecoration(
               labelText: 'Your Name',
               prefixIcon: const Icon(Icons.person_outline),
-              hintText: 'e.g. Abebe Tesfaye')),
+              hintText: 'e.g. Abebe Tesfaye',
+            ),
+          ),
           const SizedBox(height: 16),
 
           // School name
@@ -186,15 +225,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             decoration: InputDecoration(
               labelText: 'School Name (optional)',
               prefixIcon: const Icon(Icons.school_outlined),
-              hintText: 'e.g. Bole Primary School')),
-        ]));
-  }
-
-  void _goToLastPage() {
-    _pageController.animateToPage(
-      _pages.length,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut);
+              hintText: 'e.g. Bole Primary School',
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _completeSetup() async {
@@ -220,7 +256,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await DemoDataService.seed(
         classProvider: context.read<ClassProvider>(),
         studentProvider: context.read<StudentProvider>(),
-        assessmentProvider: context.read<AssessmentProvider>());
+        assessmentProvider: context.read<AssessmentProvider>(),
+      );
     }
 
     if (mounted) {
