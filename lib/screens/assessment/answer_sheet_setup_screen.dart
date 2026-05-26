@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -32,7 +31,6 @@ class _AnswerSheetSetupScreenState extends State<AnswerSheetSetupScreen> {
   final _examNameController = TextEditingController();
   final _subjectController = TextEditingController();
 
-  int _questionsPerPage = 0; // 0 = auto
   SheetLayout _layout = SheetLayout.halfSheet; // default to paper-saving
   bool _prefillNames = false;
   bool _isGenerating = false;
@@ -284,7 +282,10 @@ class _AnswerSheetSetupScreenState extends State<AnswerSheetSetupScreen> {
                   onPressed: () => Navigator.pushNamed(
                     context,
                     AppRoutes.camera,
-                    arguments: _assessment,
+                    arguments: {
+                      'assessment': _assessment,
+                      'scanMode': 'masterKey',
+                    },
                   ),
                   icon: const Icon(Icons.document_scanner_outlined),
                   label: const Text(
@@ -618,32 +619,6 @@ class _AnswerSheetSetupScreenState extends State<AnswerSheetSetupScreen> {
   }
 
   // ── Questions per page option ─────────────────────────────────────
-
-  Widget _pageOption(int value, String label) {
-    final isSelected = _questionsPerPage == value;
-    return GestureDetector(
-      onTap: () => setState(() => _questionsPerPage = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryGreen : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade300,
-            width: 1.5,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppTheme.darkText,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
 
   // ── Paper layout option ───────────────────────────────────────────
 

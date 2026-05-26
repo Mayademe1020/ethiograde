@@ -6,10 +6,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ethiograde/screens/scanning/batch_scan_screen.dart';
+import 'package:ethiograde/models/assessment.dart';
 import 'package:ethiograde/services/student_provider.dart';
 import 'package:ethiograde/services/assessment_provider.dart';
 import 'package:ethiograde/services/class_provider.dart';
-
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +18,8 @@ void main() {
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp(
-      'ethiograde_batch_scan_test_');
+      'ethiograde_batch_scan_test_',
+    );
     Hive.init(tempDir.path);
   });
 
@@ -57,7 +58,6 @@ void main() {
 
   /// Wraps BatchScanScreen with all required providers.
   Widget wrapBatchScan({Map<String, dynamic>? args}) {
-
     return MaterialApp(
       home: MultiProvider(
         providers: [
@@ -68,25 +68,28 @@ void main() {
         child: Builder(
           builder: (context) => Scaffold(
             body: ElevatedButton(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/batch',
-                arguments: args),
-              child: const Text('Go'))))),
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/batch', arguments: args),
+              child: const Text('Go'),
+            ),
+          ),
+        ),
+      ),
       routes: {
         '/batch': (_) => MultiProvider(
-              providers: [
-                ChangeNotifierProvider(create: (_) => StudentProvider()),
-                ChangeNotifierProvider(create: (_) => AssessmentProvider()),
-                ChangeNotifierProvider(create: (_) => ClassProvider()),
-              ],
-              child: const BatchScanScreen()),
-      });
+          providers: [
+            ChangeNotifierProvider(create: (_) => StudentProvider()),
+            ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+            ChangeNotifierProvider(create: (_) => ClassProvider()),
+          ],
+          child: const BatchScanScreen(),
+        ),
+      },
+    );
   }
 
   /// Direct wrapper without route navigation — for empty state tests.
   Widget wrapDirect() {
-
     return MaterialApp(
       home: MultiProvider(
         providers: [
@@ -94,7 +97,9 @@ void main() {
           ChangeNotifierProvider(create: (_) => AssessmentProvider()),
           ChangeNotifierProvider(create: (_) => ClassProvider()),
         ],
-        child: const BatchScanScreen()));
+        child: const BatchScanScreen(),
+      ),
+    );
   }
 
   group('BatchScanScreen — empty state', () {
@@ -123,16 +128,16 @@ void main() {
       expect(find.text('Pass'), findsNothing);
     });
 
-    testWidgets('does not show Review button when no results',
-        (tester) async {
+    testWidgets('does not show Review button when no results', (tester) async {
       await tester.pumpWidget(wrapDirect());
       await tester.pumpAndSettle();
 
       expect(find.text('Review All'), findsNothing);
     });
 
-    testWidgets('does not show Read Scores button when no results',
-        (tester) async {
+    testWidgets('does not show Read Scores button when no results', (
+      tester,
+    ) async {
       await tester.pumpWidget(wrapDirect());
       await tester.pumpAndSettle();
 
@@ -141,8 +146,9 @@ void main() {
   });
 
   group('BatchScanScreen — with Assessment arg only (no images)', () {
-    testWidgets('renders screen without crashing with Assessment arg',
-        (tester) async {
+    testWidgets('renders screen without crashing with Assessment arg', (
+      tester,
+    ) async {
       // Passing just an Assessment (no images) should not crash —
       // the screen initializes but does not auto-process since images is null.
       await tester.pumpWidget(wrapDirect());
@@ -167,6 +173,37 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('0 / 0'), findsOneWidget);
+    });
+  });
+
+  group('BatchScanScreen — master scan session', () {
+    testWidgets('shows recovery session when master image is missing', (
+      tester,
+    ) async {
+      final assessment = Assessment(
+        id: 'master-test',
+        title: 'Biology Quiz',
+        subject: 'Biology',
+        questions: [Question(number: 1, type: QuestionType.mcq)],
+      );
+
+      await tester.pumpWidget(
+        wrapBatchScan(
+          args: {
+            'assessment': assessment,
+            'images': <String>[],
+            'masterOnly': true,
+          },
+        ),
+      );
+
+      await tester.tap(find.text('Go'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Grading Session'), findsOneWidget);
+      expect(find.text('Master scan needs attention'), findsOneWidget);
+      expect(find.text('No master answer sheet image found.'), findsOneWidget);
+      expect(find.text('Enter answer key manually'), findsOneWidget);
     });
   });
 }

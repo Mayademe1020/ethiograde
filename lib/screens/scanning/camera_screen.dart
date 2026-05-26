@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,10 +26,12 @@ class ReScanArguments {
   });
 }
 
+enum _CameraScanMode { batch, masterKey }
+
 /// Camera screen with continuous batch capture flow.
 ///
-/// Teacher taps capture → image stored, counter increments.
-/// No per-scan processing — all images are batch-processed when the
+/// Teacher taps capture â†’ image stored, counter increments.
+/// No per-scan processing â€” all images are batch-processed when the
 /// teacher taps "Done Scanning" (navigates to BatchScanScreen).
 ///
 /// This keeps the capture loop fast and uninterrupted on 2GB devices.
@@ -60,6 +62,7 @@ class _CameraScreenState extends State<CameraScreen>
   bool _batchStarted = false;
   Assessment? _selectedAssessment;
   PaperGuideState _guideState = PaperGuideState.idle;
+  _CameraScanMode _scanMode = _CameraScanMode.batch;
 
   /// Re-scan mode: non-null when re-scanning a specific student's paper.
   ReScanArguments? _reScanArgs;
@@ -196,6 +199,15 @@ class _CameraScreenState extends State<CameraScreen>
       _reScanArgs = routeArgs;
       _selectedAssessment = routeArgs.assessment;
     }
+    if (routeArgs is Map) {
+      final assessment = routeArgs['assessment'];
+      if (assessment is Assessment) {
+        _selectedAssessment ??= assessment;
+      }
+      if (routeArgs['scanMode'] == 'masterKey') {
+        _scanMode = _CameraScanMode.masterKey;
+      }
+    }
     _selectedAssessment ??= routeArgs is Assessment ? routeArgs : null;
 
     // Load existing hashes once when assessment is known
@@ -269,9 +281,7 @@ class _CameraScreenState extends State<CameraScreen>
                             child: Column(
                               children: [
                                 Text(
-                                  _reScanArgs != null
-                                      ? ("Re-Scan — ${_reScanArgs!.existingResult.studentName}")
-                                      : ('Scanning Mode'),
+                                  _titleText,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
@@ -280,11 +290,20 @@ class _CameraScreenState extends State<CameraScreen>
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                if (_reScanArgs == null)
+                                if (_reScanArgs == null &&
+                                    _scanMode != _CameraScanMode.masterKey)
                                   Text(
                                     '${_capturedImages.length} '
                                     '${'papers captured'}',
                                     style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                if (_scanMode == _CameraScanMode.masterKey)
+                                  const Text(
+                                    'Step 1 of grading',
+                                    style: TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
                                     ),
@@ -436,6 +455,54 @@ class _CameraScreenState extends State<CameraScreen>
                                 ),
                               ),
                             ),
+                          ] else if (_scanMode ==
+                              _CameraScanMode.masterKey) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                _isCapturing
+                                    ? 'Reading master answer sheet...'
+                                    : 'Scan only the filled master answer sheet. You will confirm answers before student papers.',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _isCapturing ? null : _captureMasterKey,
+                              child: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 4,
+                                  ),
+                                ),
+                                child: Container(
+                                  margin: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _isCapturing
+                                        ? Colors.grey
+                                        : AppTheme.primaryGreen,
+                                  ),
+                                  child: _isCapturing
+                                      ? const CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        )
+                                      : const Icon(
+                                          Icons.document_scanner_outlined,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                ),
+                              ),
+                            ),
                           ] else ...[
                             // Capture hint when no images yet
                             if (_capturedImages.isEmpty)
@@ -572,7 +639,7 @@ class _CameraScreenState extends State<CameraScreen>
                                       ),
                                     ),
                                     Text(
-                                      'Tap ✓ when done scanning',
+                                      'Tap âœ“ when done scanning',
                                       style: const TextStyle(
                                         color: Colors.white60,
                                         fontSize: 12,
@@ -592,7 +659,59 @@ class _CameraScreenState extends State<CameraScreen>
     );
   }
 
-  /// Capture an image and add it to the batch — no processing.
+  String get _titleText {
+    if (_reScanArgs != null) {
+      return "Re-Scan â€” ${_reScanArgs!.existingResult.studentName}";
+    }
+    if (_scanMode == _CameraScanMode.masterKey) {
+      return 'Scan master answer sheet';
+    }
+    return 'Scanning Mode';
+  }
+
+  /// Capture the master answer sheet and process it before student scanning.
+  Future<void> _captureMasterKey() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing) {
+      return;
+    }
+
+    if (_selectedAssessment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select an assessment first')),
+      );
+      return;
+    }
+
+    setState(() => _isCapturing = true);
+
+    try {
+      final image = await _cameraController!.takePicture();
+      _batchStarted = true;
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.batchScan,
+        arguments: {
+          'images': [image.path],
+          'assessment': _selectedAssessment,
+          'masterOnly': true,
+        },
+      );
+    } catch (e) {
+      debugPrint('Master key capture error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Master scan failed â€” try again')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCapturing = false);
+    }
+  }
+
+  /// Capture an image and add it to the batch â€” no processing.
   Future<void> _captureImage() async {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
@@ -621,7 +740,7 @@ class _CameraScreenState extends State<CameraScreen>
         if (dupIndex >= 0) {
           final isDuplicate = await _showDuplicateDialog();
           if (!isDuplicate) {
-            // Teacher chose to skip — delete the captured file
+            // Teacher chose to skip â€” delete the captured file
             try {
               await File(image.path).delete();
             } catch (_) {}
@@ -637,7 +756,7 @@ class _CameraScreenState extends State<CameraScreen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Capture failed — try again')));
+        ).showSnackBar(SnackBar(content: Text('Capture failed â€” try again')));
       }
     } finally {
       if (mounted) setState(() => _isCapturing = false);
@@ -786,8 +905,8 @@ class _CameraScreenState extends State<CameraScreen>
           SnackBar(
             content: Text(
               newResult.status == ScanStatus.graded
-                  ? ("${existing.studentName} re-graded — ${newResult.percentage.toStringAsFixed(0)}%")
-                  : ('Re-scan failed — try again'),
+                  ? ("${existing.studentName} re-graded â€” ${newResult.percentage.toStringAsFixed(0)}%")
+                  : ('Re-scan failed â€” try again'),
             ),
           ),
         );
@@ -804,7 +923,7 @@ class _CameraScreenState extends State<CameraScreen>
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error — try again')));
+        ).showSnackBar(SnackBar(content: Text('Error â€” try again')));
       }
     }
   }

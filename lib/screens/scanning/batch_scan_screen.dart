@@ -37,6 +37,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
   List<AnswerDuplicate> _duplicates = [];
   bool _isProcessing = false;
   bool _isSpeaking = false;
+  bool _masterOnly = false;
+  bool _masterKeyReady = false;
+  String? _masterKeyError;
   int _processedCount = 0;
   int _totalCount = 0;
   List<String> _imagePaths = [];
@@ -60,6 +63,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
         final assessment = args['assessment'] as Assessment?;
         final images = args['images'] as List<String>?;
         _classId = args['classId'] as String?;
+        _masterOnly = args['masterOnly'] == true;
 
         // Draft resume: load completed results and continue
         final draftResults = args['draftCompletedResults'] as List<ScanResult>?;
@@ -80,7 +84,15 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
           _classId ??= assessment.settings['classId'] as String?;
           _imagePaths = List<String>.from(images);
           _totalCount = images.length;
-          _processBatch(images, assessment);
+          if (_masterOnly) {
+            if (images.isEmpty) {
+              _finishMasterKeyWithError('No master answer sheet image found.');
+            } else {
+              _processMasterKey(images.first, assessment);
+            }
+          } else {
+            _processBatch(images, assessment);
+          }
         }
       } else if (args is Assessment) {
         // Direct assessment arg (from Quick Grade or manual entry)
@@ -100,6 +112,108 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     } else {
       await _processBatchHybrid(images, assessment);
     }
+  }
+
+  Future<void> _processMasterKey(
+    String imagePath,
+    Assessment assessment,
+  ) async {
+    if (!mounted) return;
+    setState(() {
+      _isProcessing = true;
+      _processedCount = 0;
+      _totalCount = 1;
+      _masterKeyError = null;
+      _masterKeyReady = false;
+    });
+
+    if (!assessment.hasCoordinateMap) {
+      _finishMasterKeyWithError(
+        'Generate an EthioGrade answer sheet before scanning a master key.',
+      );
+      return;
+    }
+
+    String resolvedPath = await AnswerSheetGenerator.resolveCoordinateMapPath(
+      assessment.coordinateMapPath!,
+    );
+    var mapFile = File(resolvedPath);
+
+    if (!await mapFile.exists()) {
+      final regenerated = await AnswerSheetGenerator.regenerateCoordinateMap(
+        assessment,
+      );
+      if (regenerated != null && await regenerated.exists()) {
+        mapFile = regenerated;
+      } else {
+        _finishMasterKeyWithError(
+          'The answer sheet map is missing. Generate the PDF again, then rescan the master key.',
+        );
+        return;
+      }
+    }
+
+    final mapJson = jsonDecode(await mapFile.readAsString());
+    final layout = mapJson['layout'] ?? 'fullA4';
+    final mapsToTry = layout == 'halfSheet' && mapJson['halfSheets'] is List
+        ? (mapJson['halfSheets'] as List)
+              .map((m) => CoordinateMap.fromMap(m))
+              .toList()
+        : [CoordinateMap.fromMap(mapJson)];
+
+    final omrService = CoordinateMapOmrService();
+    CoordinateMapOmrResult? bestResult;
+    for (final coordMap in mapsToTry) {
+      final result = await omrService.scan(
+        imagePath: imagePath,
+        coordinateMap: coordMap,
+        assessment: assessment,
+      );
+      if (bestResult == null ||
+          result.anchorsDetected > bestResult.anchorsDetected) {
+        bestResult = result;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _processedCount = 1);
+
+    if (bestResult == null || !bestResult.isAnswerKey) {
+      _finishMasterKeyWithError(
+        'I could not detect the master checkbox. Check the answer-key box on the sheet, then rescan.',
+      );
+      return;
+    }
+
+    final confirmedKey = await _confirmScannedMasterKey(
+      assessment: assessment,
+      omrResult: bestResult,
+    );
+    if (!mounted) return;
+
+    if (confirmedKey == null || confirmedKey.isEmpty) {
+      _finishMasterKeyWithError('Master answer key was not saved.');
+      return;
+    }
+
+    await _saveAnswerKeyToAssessment(assessment, confirmedKey);
+    if (!mounted) return;
+
+    setState(() {
+      _isProcessing = false;
+      _masterKeyReady = true;
+      _masterKeyError = null;
+    });
+  }
+
+  void _finishMasterKeyWithError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _isProcessing = false;
+      _masterKeyReady = false;
+      _masterKeyError = message;
+      _processedCount = _totalCount == 0 ? 0 : 1;
+    });
   }
 
   /// Process batch using coordinate-map OMR (Phase 4 pipeline).
@@ -665,7 +779,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Batch Scan'),
+        title: Text(_masterOnly ? 'Grading Session' : 'Batch Scan'),
         actions: [
           if (_results.isNotEmpty && !_isProcessing)
             TextButton.icon(
@@ -685,319 +799,538 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          // Draft resume banner
-          if (_isDraftResume)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: AppTheme.info.withOpacity(0.08),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.play_circle_outline,
-                    color: AppTheme.info,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Resuming: $_processedCount/$_totalCount already graded",
-                      style: const TextStyle(
-                        color: AppTheme.info,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // Progress header
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppTheme.primaryGreen.withOpacity(0.05),
-            child: Column(
+      body: _masterOnly && !_isProcessing && _results.isEmpty
+          ? _buildMasterSessionBody()
+          : Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Progress',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                // Draft resume banner
+                if (_isDraftResume)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                    Text(
-                      '$_processedCount / $_totalCount',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: _totalCount > 0 ? _processedCount / _totalCount : 0,
-                    minHeight: 8,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      AppTheme.primaryGreen,
-                    ),
-                  ),
-                ),
-                if (_isProcessing)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    color: AppTheme.info.withOpacity(0.08),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                        const Icon(
+                          Icons.play_circle_outline,
+                          color: AppTheme.info,
+                          size: 20,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Processing...',
-                          style: TextStyle(
-                            color: AppTheme.lightText,
-                            fontSize: 12,
+                        Expanded(
+                          child: Text(
+                            "Resuming: $_processedCount/$_totalCount already graded",
+                            style: const TextStyle(
+                              color: AppTheme.info,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-              ],
-            ),
-          ),
-
-          // Summary stats (when done)
-          if (!_isProcessing && _results.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'Avg',
-                      value: _average.toStringAsFixed(1),
-                      color: AppTheme.primaryGreen,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'High',
-                      value: _highest.toStringAsFixed(1),
-                      color: AppTheme.info,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'Low',
-                      value: _lowest.toStringAsFixed(1),
-                      color: AppTheme.primaryRed,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniStat(
-                      label: 'Pass',
-                      value: '${_passRate.toStringAsFixed(0)}%',
-                      color: AppTheme.success,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Duplicate warnings (answer-pattern detection)
-          if (_duplicates.isNotEmpty && !_isProcessing)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryYellow.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppTheme.primaryYellow.withOpacity(0.4),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+                // Progress header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: AppTheme.primaryGreen.withOpacity(0.05),
+                  child: Column(
                     children: [
-                      Icon(
-                        Icons.warning_amber_rounded,
-                        color: AppTheme.primaryYellow,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Possible Duplicates',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...(_duplicates.map((d) {
-                    final nameA = d.scanIndexA < _results.length
-                        ? _results[d.scanIndexA].studentName
-                        : '#${d.scanIndexA + 1}';
-                    final nameB = d.scanIndexB < _results.length
-                        ? _results[d.scanIndexB].studentName
-                        : '#${d.scanIndexB + 1}';
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        "  #$nameA & #$nameB — answers ${d.matchPercent.toStringAsFixed(0)}% match",
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    );
-                  })),
-                ],
-              ),
-            ),
-
-          // Results list
-          Expanded(
-            child: _results.isEmpty && !_isProcessing
-                ? Center(
-                    child: Text(
-                      'No results yet',
-                      style: TextStyle(color: AppTheme.lightText),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _results.length,
-                    itemBuilder: (context, index) {
-                      final r = _results[index];
-                      final passed = r.percentage >= 50;
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: passed
-                                ? AppTheme.primaryGreen.withOpacity(0.1)
-                                : AppTheme.primaryRed.withOpacity(0.1),
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: passed
-                                    ? AppTheme.primaryGreen
-                                    : AppTheme.primaryRed,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Progress',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '$_processedCount / $_totalCount',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
                           ),
-                          title: Text(r.studentName),
-                          subtitle: Text(
-                            '${r.totalScore.toInt()}/${r.maxScore.toInt()} • ${r.grade}',
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: _totalCount > 0
+                              ? _processedCount / _totalCount
+                              : 0,
+                          minHeight: 8,
+                          backgroundColor: Colors.grey.shade200,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppTheme.primaryGreen,
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        ),
+                      ),
+                      if (_isProcessing)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Assign student button
-                              if (r.studentName.startsWith('Student '))
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.person_add_outlined,
-                                    size: 20,
-                                  ),
-                                  color: AppTheme.primaryGreen,
-                                  tooltip: 'Assign student',
-                                  onPressed: () => _assignStudent(index),
+                              const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
+                              ),
+                              const SizedBox(width: 8),
                               Text(
-                                '${r.percentage.toStringAsFixed(1)}%',
+                                'Processing...',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: passed
-                                      ? AppTheme.primaryGreen
-                                      : AppTheme.primaryRed,
+                                  color: AppTheme.lightText,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
-                          onLongPress: () => _assignStudent(index),
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.sideBySide,
-                            arguments: r,
-                          ),
                         ),
-                      );
-                    },
+                    ],
                   ),
-          ),
+                ),
 
-          // Bottom actions
-          if (!_isProcessing && _results.isNotEmpty)
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Voice readout button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _isSpeaking
-                            ? () => VoiceService().stopSpeaking().then(
-                                (_) => setState(() => _isSpeaking = false),
-                              )
-                            : _readScoresAloud,
-                        icon: Icon(
-                          _isSpeaking ? Icons.stop_circle : Icons.volume_up,
-                          size: 20,
-                        ),
-                        label: Text(
-                          _isSpeaking ? ('Stop') : ('Read Scores Aloud'),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _isSpeaking
-                              ? AppTheme.primaryRed
-                              : AppTheme.primaryGreen,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
+                // Summary stats (when done)
+                if (!_isProcessing && _results.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _undoLastResult(),
-                            icon: const Icon(Icons.undo),
-                            label: Text('Undo Last'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppTheme.warning,
-                            ),
+                          child: _MiniStat(
+                            label: 'Avg',
+                            value: _average.toStringAsFixed(1),
+                            color: AppTheme.primaryGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'High',
+                            value: _highest.toStringAsFixed(1),
+                            color: AppTheme.info,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'Low',
+                            value: _lowest.toStringAsFixed(1),
+                            color: AppTheme.primaryRed,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MiniStat(
+                            label: 'Pass',
+                            value: '${_passRate.toStringAsFixed(0)}%',
+                            color: AppTheme.success,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _handleReviewAll(),
-                        icon: const Icon(Icons.rate_review),
-                        label: Text('Review All'),
+                  ),
+
+                // Duplicate warnings (answer-pattern detection)
+                if (_duplicates.isNotEmpty && !_isProcessing)
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryYellow.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppTheme.primaryYellow.withOpacity(0.4),
                       ),
                     ),
-                  ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: AppTheme.primaryYellow,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Possible Duplicates',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ...(_duplicates.map((d) {
+                          final nameA = d.scanIndexA < _results.length
+                              ? _results[d.scanIndexA].studentName
+                              : '#${d.scanIndexA + 1}';
+                          final nameB = d.scanIndexB < _results.length
+                              ? _results[d.scanIndexB].studentName
+                              : '#${d.scanIndexB + 1}';
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              "  #$nameA & #$nameB — answers ${d.matchPercent.toStringAsFixed(0)}% match",
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          );
+                        })),
+                      ],
+                    ),
+                  ),
+
+                // Results list
+                Expanded(
+                  child: _results.isEmpty && !_isProcessing
+                      ? Center(
+                          child: Text(
+                            'No results yet',
+                            style: TextStyle(color: AppTheme.lightText),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _results.length,
+                          itemBuilder: (context, index) {
+                            final r = _results[index];
+                            final passed = r.percentage >= 50;
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: passed
+                                      ? AppTheme.primaryGreen.withOpacity(0.1)
+                                      : AppTheme.primaryRed.withOpacity(0.1),
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      color: passed
+                                          ? AppTheme.primaryGreen
+                                          : AppTheme.primaryRed,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(r.studentName),
+                                subtitle: Text(
+                                  '${r.totalScore.toInt()}/${r.maxScore.toInt()} • ${r.grade}',
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Assign student button
+                                    if (r.studentName.startsWith('Student '))
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.person_add_outlined,
+                                          size: 20,
+                                        ),
+                                        color: AppTheme.primaryGreen,
+                                        tooltip: 'Assign student',
+                                        onPressed: () => _assignStudent(index),
+                                      ),
+                                    Text(
+                                      '${r.percentage.toStringAsFixed(1)}%',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: passed
+                                            ? AppTheme.primaryGreen
+                                            : AppTheme.primaryRed,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                onLongPress: () => _assignStudent(index),
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.sideBySide,
+                                  arguments: r,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+
+                // Bottom actions
+                if (!_isProcessing && _results.isNotEmpty)
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Voice readout button
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isSpeaking
+                                  ? () => VoiceService().stopSpeaking().then(
+                                      (_) =>
+                                          setState(() => _isSpeaking = false),
+                                    )
+                                  : _readScoresAloud,
+                              icon: Icon(
+                                _isSpeaking
+                                    ? Icons.stop_circle
+                                    : Icons.volume_up,
+                                size: 20,
+                              ),
+                              label: Text(
+                                _isSpeaking ? ('Stop') : ('Read Scores Aloud'),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _isSpeaking
+                                    ? AppTheme.primaryRed
+                                    : AppTheme.primaryGreen,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _undoLastResult(),
+                                  icon: const Icon(Icons.undo),
+                                  label: Text('Undo Last'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.warning,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleReviewAll(),
+                              icon: const Icon(Icons.rate_review),
+                              label: Text('Review All'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildMasterSessionBody() {
+    final assessment = _assessment;
+    final ready = _masterKeyReady && assessment != null;
+    final completeCount =
+        assessment?.questions
+            .where((q) => (q.correctAnswer ?? '').toString().isNotEmpty)
+            .length ??
+        0;
+    final totalCount = assessment?.questions.length ?? 0;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ready
+                    ? AppTheme.primaryGreen.withOpacity(0.08)
+                    : AppTheme.primaryRed.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: ready
+                      ? AppTheme.primaryGreen.withOpacity(0.24)
+                      : AppTheme.primaryRed.withOpacity(0.24),
                 ),
               ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    ready
+                        ? Icons.check_circle_outline
+                        : Icons.warning_amber_rounded,
+                    color: ready ? AppTheme.primaryGreen : AppTheme.primaryRed,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ready
+                              ? 'Master answer key saved'
+                              : 'Master scan needs attention',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          ready
+                              ? '$completeCount/$totalCount answers confirmed. Student papers will use this key.'
+                              : (_masterKeyError ??
+                                    'Rescan the master answer sheet or enter the answer key manually.'),
+                          style: TextStyle(
+                            color: AppTheme.lightText,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-        ],
+            const SizedBox(height: 18),
+            if (assessment != null) ...[
+              Text(
+                assessment.title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${assessment.subject} • ${assessment.questionCount} questions',
+                style: TextStyle(color: AppTheme.lightText),
+              ),
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: ready ? _showMasterKeySheet : null,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('View/Edit answer key'),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: ready
+                    ? () => Navigator.pushReplacementNamed(
+                        context,
+                        AppRoutes.camera,
+                        arguments: assessment,
+                      )
+                    : null,
+                icon: const Icon(Icons.document_scanner_outlined),
+                label: const Text('Start scanning student papers'),
+              ),
+              const SizedBox(height: 12),
+              if (!ready)
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('Rescan master answer sheet'),
+                ),
+              if (!ready)
+                TextButton.icon(
+                  onPressed: () => Navigator.pushReplacementNamed(
+                    context,
+                    AppRoutes.answerKey,
+                    arguments: assessment,
+                  ),
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Enter answer key manually'),
+                ),
+            ],
+            const Spacer(),
+            Text(
+              'Next: scan student papers one by one or in a batch. Scores stay reviewable before final save.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.lightText, height: 1.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMasterKeySheet() {
+    final assessment = _assessment;
+    if (assessment == null) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.78,
+          minChildSize: 0.45,
+          maxChildSize: 0.94,
+          builder: (context, controller) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Master Answer Key',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: assessment.questions.length,
+                  itemBuilder: (context, index) {
+                    final question = assessment.questions[index];
+                    final answer = (question.correctAnswer ?? '').toString();
+                    return ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 16,
+                        child: Text('${question.number}'),
+                      ),
+                      title: Text(answer.isEmpty ? 'Missing' : answer),
+                      trailing: answer.isEmpty
+                          ? const Icon(Icons.warning_amber_rounded)
+                          : const Icon(Icons.check_circle_outline),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.answerKey,
+                      arguments: assessment,
+                    );
+                  },
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Edit answer key'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
