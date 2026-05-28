@@ -35,7 +35,7 @@ class ImportResult {
 
 /// Export / import / auto-backup for all EthioGrade data.
 ///
-/// Exports are human-readable JSON files. Imports validate every record
+/// Manual exports are encrypted backup files. Imports validate every record
 /// via [ValidationService] before writing.
 class BackupService {
   BackupService._();
@@ -73,10 +73,8 @@ class BackupService {
       // Encrypt with the same key as Hive
       final encrypted = await _encryptData(jsonStr);
       if (encrypted == null) {
-        debugPrint('[Backup] Encryption failed, exporting unencrypted');
-        final plainPath = '${dir.path}/ethiograde_backup_$timestamp.json';
-        await File(plainPath).writeAsString(jsonStr);
-        return plainPath;
+        debugPrint('[Backup] Encryption failed, aborting export');
+        return null;
       }
 
       await File(filePath).writeAsBytes(encrypted);
@@ -97,7 +95,8 @@ class BackupService {
       await Share.shareXFiles(
         [XFile(filePath)],
         subject: 'EthioGrade Backup',
-        text: 'EthioGrade data backup');
+        text: 'EthioGrade data backup',
+      );
     } catch (e) {
       debugPrint('[Backup] Share failed: $e');
     }
@@ -123,7 +122,8 @@ class BackupService {
         return ImportResult(
           imported: 0,
           skipped: 0,
-          errors: ['File not found: $filePath']);
+          errors: ['File not found: $filePath'],
+        );
       }
 
       late final String jsonStr;
@@ -136,7 +136,8 @@ class BackupService {
             skipped: 0,
             errors: [
               'Failed to decrypt backup — wrong device or corrupted file',
-            ]);
+            ],
+          );
         }
         jsonStr = decrypted;
       } else {
@@ -151,7 +152,8 @@ class BackupService {
         return ImportResult(
           imported: 0,
           skipped: 0,
-          errors: ['Invalid JSON: $e']);
+          errors: ['Invalid JSON: $e'],
+        );
       }
 
       // Version check
@@ -160,7 +162,8 @@ class BackupService {
         return ImportResult(
           imported: 0,
           skipped: 0,
-          errors: ['Unsupported backup version: $version']);
+          errors: ['Unsupported backup version: $version'],
+        );
       }
 
       // Clear existing data if replace mode
@@ -177,7 +180,8 @@ class BackupService {
           final validation = _validator.validateStudent(student);
           if (!validation.isValid) {
             errors.add(
-              'Student ${student.id}: ${validation.errors.join("; ")}');
+              'Student ${student.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -204,7 +208,8 @@ class BackupService {
           final validation = _validator.validateAssessment(assessment);
           if (!validation.isValid) {
             errors.add(
-              'Assessment ${assessment.id}: ${validation.errors.join("; ")}');
+              'Assessment ${assessment.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -231,7 +236,8 @@ class BackupService {
           final validation = _validator.validateScanResult(scan);
           if (!validation.isValid) {
             errors.add(
-              'ScanResult ${scan.id}: ${validation.errors.join("; ")}');
+              'ScanResult ${scan.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -254,14 +260,16 @@ class BackupService {
 
       debugPrint(
         '[Backup] Import done: $imported imported, $skipped skipped, '
-        '${errors.length} errors');
+        '${errors.length} errors',
+      );
       return ImportResult(imported: imported, skipped: skipped, errors: errors);
     } catch (e) {
       debugPrint('[Backup] Import failed: $e');
       return ImportResult(
         imported: 0,
         skipped: 0,
-        errors: ['Import failed: $e']);
+        errors: ['Import failed: $e'],
+      );
     }
   }
 
@@ -294,11 +302,17 @@ class BackupService {
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final filePath = '${dir.path}/ethiograde_auto_$timestamp.json';
+      final filePath = '${dir.path}/ethiograde_auto_$timestamp.enc';
 
       final data = await _collectAllData();
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-      await File(filePath).writeAsString(jsonStr);
+      final encrypted = await _encryptData(jsonStr);
+      if (encrypted == null) {
+        debugPrint('[Backup] Auto-backup encryption failed, aborting backup');
+        return;
+      }
+
+      await File(filePath).writeAsBytes(encrypted);
 
       debugPrint('[Backup] Auto-backup saved to $filePath');
 
@@ -338,7 +352,7 @@ class BackupService {
 
         try {
           final stat = await entity.stat();
-          final name = entity.path.split('/').last;
+          final name = entity.path.split(RegExp(r'[\\/]')).last;
           final isAuto = name.contains('_auto_');
           backups.add(
             BackupInfo(
@@ -346,7 +360,9 @@ class BackupService {
               fileName: name,
               date: stat.modified,
               sizeBytes: stat.size,
-              isAutoBackup: isAuto));
+              isAutoBackup: isAuto,
+            ),
+          );
         } catch (_) {}
       }
 
@@ -370,9 +386,12 @@ class BackupService {
 
       final iv = enc.IV(
         Uint8List.fromList(
-          List<int>.generate(16, (_) => Random.secure().nextInt(256))));
+          List<int>.generate(16, (_) => Random.secure().nextInt(256)),
+        ),
+      );
       final encrypter = enc.Encrypter(
-        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc));
+        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc),
+      );
       final encrypted = encrypter.encrypt(plainText, iv: iv);
 
       // Prepend IV (16 bytes) + encrypted data
@@ -398,7 +417,8 @@ class BackupService {
       final iv = enc.IV(data.sublist(0, 16));
       final encryptedBytes = data.sublist(16);
       final encrypter = enc.Encrypter(
-        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc));
+        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc),
+      );
       return encrypter.decrypt64(base64Encode(encryptedBytes), iv: iv);
     } catch (e) {
       debugPrint('[Backup] decryptData failed: $e');
@@ -410,7 +430,8 @@ class BackupService {
   Future<Uint8List?> _getEncryptionKey() async {
     try {
       const storage = FlutterSecureStorage(
-        aOptions: AndroidOptions(encryptedSharedPreferences: true));
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
       final storedKey = await storage.read(key: _hiveKeyStorageKey);
       if (storedKey == null || storedKey.isEmpty) return null;
       return base64Decode(storedKey);

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -35,6 +36,7 @@ void main() {
   const assessmentsBox = 'assessments';
   const scanResultsBox = 'scan_results';
   const metadataBox = 'metadata';
+  const hiveKeyStorageKey = 'hive_encryption_key';
 
   // ── Helpers ─────────────────────────────────────────────────────
 
@@ -51,7 +53,8 @@ void main() {
     firstName: firstName,
     lastName: lastName,
     grade: grade,
-    gender: gender);
+    gender: gender,
+  );
 
   Assessment makeAssessment({
     String id = 'a1',
@@ -66,7 +69,8 @@ void main() {
         [
           Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
           Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-        ]);
+        ],
+  );
 
   ScanResult makeScanResult({
     String id = 'r1',
@@ -81,7 +85,8 @@ void main() {
     totalScore: 8,
     maxScore: 10,
     confidence: 0.9,
-    percentage: 80);
+    percentage: 80,
+  );
 
   // ── Setup ───────────────────────────────────────────────────────
 
@@ -93,6 +98,9 @@ void main() {
   });
 
   setUp(() async {
+    FlutterSecureStorage.setMockInitialValues({
+      hiveKeyStorageKey: base64Encode(List<int>.generate(32, (i) => i)),
+    });
     await Hive.openBox(studentsBox);
     await Hive.openBox(assessmentsBox);
     // Must be lazy — BackupService uses Hive.lazyBox('scan_results')
@@ -168,6 +176,7 @@ void main() {
 
       final result = await BackupService.instance.exportAllData();
       expect(result, isNotNull);
+      expect(result, endsWith('.enc'));
 
       // File exists
       final file = File(result!);
@@ -181,10 +190,27 @@ void main() {
         // Empty boxes — export should still produce a valid backup
         final result = await BackupService.instance.exportAllData();
         expect(result, isNotNull);
+        expect(result, endsWith('.enc'));
 
         final file = File(result!);
         expect(await file.exists(), isTrue);
-      });
+      },
+    );
+
+    test('exportAllData aborts if encryption key is unavailable', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      await Hive.box('students').put('s1', makeStudent().toMap());
+
+      final result = await BackupService.instance.exportAllData();
+      expect(result, isNull);
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final plaintextBackups = appDir.listSync().whereType<File>().where(
+        (f) =>
+            f.path.contains('ethiograde_backup_') && f.path.endsWith('.json'),
+      );
+      expect(plaintextBackups, isEmpty);
+    });
 
     test('exported file contains valid JSON with expected keys', () async {
       await Hive.box('students').put('s1', makeStudent().toMap());
@@ -217,7 +243,8 @@ void main() {
       final student = makeStudent(
         id: 's2',
         firstName: 'Tigist',
-        lastName: 'Haile');
+        lastName: 'Haile',
+      );
       await Hive.box('students').put('s2', student.toMap());
 
       final filePath = await BackupService.instance.exportAllData();
@@ -276,11 +303,13 @@ void main() {
 
       // Verify data persisted
       final student = Student.fromMap(
-        Map<String, dynamic>.from(Hive.box('students').get('s1') as Map));
+        Map<String, dynamic>.from(Hive.box('students').get('s1') as Map),
+      );
       expect(student.firstName, 'Abebe');
 
       final assessment = Assessment.fromMap(
-        Map<String, dynamic>.from(Hive.box('assessments').get('a1') as Map));
+        Map<String, dynamic>.from(Hive.box('assessments').get('a1') as Map),
+      );
       expect(assessment.title, 'Math Midterm');
     });
 
@@ -304,7 +333,8 @@ void main() {
 
       final result = await BackupService.instance.importData(
         backupFile.path,
-        replace: false);
+        replace: false,
+      );
       expect(result.imported, 1); // only s2
       expect(result.skipped, 1); // s1 duplicate
       expect(result.errors, isEmpty);
@@ -322,7 +352,8 @@ void main() {
             id: 's99',
             firstName: 'New',
             lastName: 'Student',
-            studentId: '099').toMap(),
+            studentId: '099',
+          ).toMap(),
         ],
         'assessments': [],
         'scanResults': [],
@@ -333,7 +364,8 @@ void main() {
 
       final result = await BackupService.instance.importData(
         backupFile.path,
-        replace: true);
+        replace: true,
+      );
       expect(result.imported, 1);
       expect(result.skipped, 0);
 
@@ -346,7 +378,8 @@ void main() {
 
     test('import from non-existent file returns error', () async {
       final result = await BackupService.instance.importData(
-        '/tmp/nonexistent.json');
+        '/tmp/nonexistent.json',
+      );
       expect(result.imported, 0);
       expect(result.errors, isNotEmpty);
       expect(result.errors.first, contains('File not found'));
@@ -431,7 +464,8 @@ void main() {
       await Hive.box('students').put('s1', makeStudent().toMap());
       await Hive.box('students').put(
         's2',
-        makeStudent(id: 's2', firstName: 'Tigist', studentId: '002').toMap());
+        makeStudent(id: 's2', firstName: 'Tigist', studentId: '002').toMap(),
+      );
       await Hive.box('assessments').put('a1', makeAssessment().toMap());
       await Hive.lazyBox('scan_results').put('r1', makeScanResult().toMap());
 
@@ -456,12 +490,14 @@ void main() {
       expect(Hive.box('assessments').length, 1);
 
       final s1 = Student.fromMap(
-        Map<String, dynamic>.from(Hive.box('students').get('s1') as Map));
+        Map<String, dynamic>.from(Hive.box('students').get('s1') as Map),
+      );
       expect(s1.firstName, 'Abebe');
       expect(s1.grade, 5);
 
       final s2 = Student.fromMap(
-        Map<String, dynamic>.from(Hive.box('students').get('s2') as Map));
+        Map<String, dynamic>.from(Hive.box('students').get('s2') as Map),
+      );
       expect(s2.firstName, 'Tigist');
     });
   });
@@ -513,7 +549,7 @@ void main() {
       expect(autoBackups.length, lessThanOrEqualTo(3));
     });
 
-    test('auto-backup file contains valid JSON', () async {
+    test('auto-backup file is encrypted and importable', () async {
       await Hive.box('students').put('s1', makeStudent().toMap());
 
       for (int i = 0; i < 10; i++) {
@@ -522,12 +558,27 @@ void main() {
 
       final backups = await BackupService.instance.listBackups();
       final autoBackup = backups.firstWhere((b) => b.isAutoBackup);
+      expect(autoBackup.fileName, endsWith('.enc'));
 
-      final file = File(autoBackup.filePath);
-      final jsonStr = await file.readAsString();
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-      expect(data['version'], 1);
-      expect(data['students'], isNotEmpty);
+      await Hive.box('students').clear();
+      final result = await BackupService.instance.importData(
+        autoBackup.filePath,
+      );
+      expect(result.errors, isEmpty);
+      expect(Hive.box('students').length, 1);
+    });
+
+    test('auto-backup aborts if encryption key is unavailable', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      await Hive.box('students').put('s1', makeStudent().toMap());
+
+      for (int i = 0; i < 10; i++) {
+        await BackupService.instance.recordScanAndMaybeBackup();
+      }
+
+      final backups = await BackupService.instance.listBackups();
+      final autoBackups = backups.where((b) => b.isAutoBackup).toList();
+      expect(autoBackups, isEmpty);
     });
   });
 
@@ -564,7 +615,8 @@ void main() {
 
       final backups = await BackupService.instance.listBackups();
       expect(backups, isNotEmpty);
-      expect(backups.any((b) => b.filePath == exportPath), isTrue);
+      final exportedName = File(exportPath!).path.split(RegExp(r'[\\/]')).last;
+      expect(backups.any((b) => b.fileName == exportedName), isTrue);
     });
 
     test('BackupInfo has correct metadata', () async {
@@ -614,7 +666,8 @@ void main() {
         expect(
           backups[0].date.isAfter(backups[1].date) ||
               backups[0].date.isAtSameMomentAs(backups[1].date),
-          isTrue);
+          isTrue,
+        );
       }
     });
   });
@@ -630,7 +683,8 @@ void main() {
         fileName: 'test.enc',
         date: DateTime(2026, 1, 1),
         sizeBytes: 500,
-        isAutoBackup: false);
+        isAutoBackup: false,
+      );
       expect(info.sizeFormatted, '500 B');
     });
 
@@ -640,7 +694,8 @@ void main() {
         fileName: 'test.enc',
         date: DateTime(2026, 1, 1),
         sizeBytes: 2048,
-        isAutoBackup: false);
+        isAutoBackup: false,
+      );
       expect(info.sizeFormatted, '2.0 KB');
     });
 
@@ -650,7 +705,8 @@ void main() {
         fileName: 'test.enc',
         date: DateTime(2026, 1, 1),
         sizeBytes: 2 * 1024 * 1024,
-        isAutoBackup: false);
+        isAutoBackup: false,
+      );
       expect(info.sizeFormatted, '2.0 MB');
     });
   });
@@ -714,7 +770,9 @@ void main() {
           makeStudent(
             id: 's$i',
             firstName: 'Student $i',
-            studentId: '$i').toMap());
+            studentId: '$i',
+          ).toMap(),
+        );
       }
 
       final exportPath = await BackupService.instance.exportAllData();
@@ -724,7 +782,8 @@ void main() {
       expect(await file.exists(), isTrue);
       expect(
         file.lengthSync(),
-        greaterThan(1000)); // should be reasonably sized
+        greaterThan(1000),
+      ); // should be reasonably sized
     });
   });
 }
