@@ -11,7 +11,8 @@ void main() {
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp(
-      'ethiograde_settings_test_');
+      'ethiograde_settings_test_',
+    );
     Hive.init(tempDir.path);
   });
 
@@ -43,6 +44,8 @@ void main() {
       expect(provider.defaultRubric, 'moe_national');
       expect(provider.autoEnhanceImages, isTrue);
       expect(provider.voiceFeedbackEnabled, isTrue);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.scoreOnly);
+      expect(provider.voiceFeedbackModeLabel, 'Score only');
       expect(provider.darkMode, isFalse);
       expect(provider.schoolName, isEmpty);
       expect(provider.teacherName, isEmpty);
@@ -55,6 +58,7 @@ void main() {
         'default_rubric': 'university',
         'auto_enhance': false,
         'voice_feedback': false,
+        'voice_feedback_mode': 'gradeOnly',
         'dark_mode': true,
         'school_logo': '/path/to/logo.png',
       });
@@ -63,9 +67,19 @@ void main() {
 
       expect(provider.defaultRubric, 'university');
       expect(provider.autoEnhanceImages, isFalse);
-      expect(provider.voiceFeedbackEnabled, isFalse);
+      expect(provider.voiceFeedbackEnabled, isTrue);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.gradeOnly);
       expect(provider.darkMode, isTrue);
       expect(provider.schoolLogoPath, '/path/to/logo.png');
+    });
+
+    test('loadSettings migrates legacy voice feedback bool', () async {
+      SharedPreferences.setMockInitialValues({'voice_feedback': false});
+      final provider = SettingsProvider();
+      await provider.loadSettings();
+
+      expect(provider.voiceFeedbackEnabled, isFalse);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.off);
     });
 
     test('loadSettings reads PII from Hive', () async {
@@ -101,7 +115,8 @@ void main() {
 
       await provider.updateSchoolInfo(
         name: 'Arat Kilo School',
-        teacher: 'Tigist Haile');
+        teacher: 'Tigist Haile',
+      );
 
       expect(provider.schoolName, 'Arat Kilo School');
       expect(provider.teacherName, 'Tigist Haile');
@@ -149,9 +164,23 @@ void main() {
       final provider = SettingsProvider();
       await provider.loadSettings();
       expect(provider.voiceFeedbackEnabled, isTrue);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.scoreOnly);
 
       await provider.toggleVoiceFeedback();
       expect(provider.voiceFeedbackEnabled, isFalse);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.off);
+    });
+
+    test('setVoiceFeedbackMode persists teacher choice', () async {
+      final provider = SettingsProvider();
+      await provider.loadSettings();
+
+      await provider.setVoiceFeedbackMode(VoiceFeedbackMode.gradeOnly);
+
+      expect(provider.voiceFeedbackEnabled, isTrue);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.gradeOnly);
+      expect(provider.voiceFeedbackModeLabel, 'Grade only');
+      expect(provider.voiceFeedbackModeDescription, 'Says grades like A');
     });
 
     test('toggleDarkMode flips value', () async {
@@ -169,7 +198,8 @@ void main() {
 
       await provider.updateContactInfo(
         telegram: '@teacher',
-        whatsapp: '+251900000000');
+        whatsapp: '+251900000000',
+      );
 
       expect(provider.telegramHandle, '@teacher');
       expect(provider.whatsappNumber, '+251900000000');
@@ -208,6 +238,7 @@ void main() {
       expect(provider.defaultRubric, 'moe_national');
       expect(provider.autoEnhanceImages, isTrue);
       expect(provider.voiceFeedbackEnabled, isTrue);
+      expect(provider.voiceFeedbackMode, VoiceFeedbackMode.scoreOnly);
       expect(provider.darkMode, isFalse);
     });
 

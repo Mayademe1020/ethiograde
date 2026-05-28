@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/grading_scale.dart';
 
+enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
+
 /// Manages app settings.
 ///
 /// Non-sensitive settings (rubric, language, auto-enhance) → SharedPreferences.
@@ -18,7 +20,7 @@ class SettingsProvider extends ChangeNotifier {
   String _schoolLogoPath = '';
   String _defaultRubric = 'moe_national';
   bool _autoEnhanceImages = true;
-  bool _voiceFeedbackEnabled = true;
+  VoiceFeedbackMode _voiceFeedbackMode = VoiceFeedbackMode.scoreOnly;
   bool _darkMode = false;
   String _telegramHandle = '';
   String _whatsappNumber = '';
@@ -33,7 +35,11 @@ class SettingsProvider extends ChangeNotifier {
   String get schoolLogoPath => _schoolLogoPath;
   String get defaultRubric => _defaultRubric;
   bool get autoEnhanceImages => _autoEnhanceImages;
-  bool get voiceFeedbackEnabled => _voiceFeedbackEnabled;
+  bool get voiceFeedbackEnabled => _voiceFeedbackMode != VoiceFeedbackMode.off;
+  VoiceFeedbackMode get voiceFeedbackMode => _voiceFeedbackMode;
+  String get voiceFeedbackModeLabel => _voiceFeedbackLabel(_voiceFeedbackMode);
+  String get voiceFeedbackModeDescription =>
+      _voiceFeedbackDescription(_voiceFeedbackMode);
   bool get darkMode => _darkMode;
   String get telegramHandle => _telegramHandle;
   String get whatsappNumber => _whatsappNumber;
@@ -47,7 +53,10 @@ class SettingsProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _defaultRubric = prefs.getString('default_rubric') ?? 'moe_national';
       _autoEnhanceImages = prefs.getBool('auto_enhance') ?? true;
-      _voiceFeedbackEnabled = prefs.getBool('voice_feedback') ?? true;
+      _voiceFeedbackMode = _parseVoiceFeedbackMode(
+        prefs.getString('voice_feedback_mode'),
+        legacyEnabled: prefs.getBool('voice_feedback') ?? true,
+      );
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _schoolLogoPath = prefs.getString('school_logo') ?? '';
 
@@ -69,8 +78,7 @@ class SettingsProvider extends ChangeNotifier {
       if (scalesJson != null && scalesJson.isNotEmpty) {
         try {
           final List<dynamic> decoded = jsonDecode(scalesJson);
-          _customScales =
-              decoded.map((m) => GradingScale.fromMap(m)).toList();
+          _customScales = decoded.map((m) => GradingScale.fromMap(m)).toList();
         } catch (e) {
           debugPrint('[Settings] Failed to parse custom scales: $e');
           _customScales = [];
@@ -122,9 +130,20 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> toggleVoiceFeedback() async {
-    _voiceFeedbackEnabled = !_voiceFeedbackEnabled;
+    _voiceFeedbackMode = voiceFeedbackEnabled
+        ? VoiceFeedbackMode.off
+        : VoiceFeedbackMode.scoreOnly;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('voice_feedback', _voiceFeedbackEnabled);
+    await prefs.setString('voice_feedback_mode', _voiceFeedbackMode.name);
+    await prefs.setBool('voice_feedback', voiceFeedbackEnabled);
+    notifyListeners();
+  }
+
+  Future<void> setVoiceFeedbackMode(VoiceFeedbackMode mode) async {
+    _voiceFeedbackMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('voice_feedback_mode', mode.name);
+    await prefs.setBool('voice_feedback', voiceFeedbackEnabled);
     notifyListeners();
   }
 
@@ -172,8 +191,9 @@ class SettingsProvider extends ChangeNotifier {
     if (!rubricKey.startsWith('custom:')) return null;
     final id = rubricKey.substring(7);
     return _customScales.cast<GradingScale?>().firstWhere(
-          (s) => s?.id == id,
-          orElse: () => null);
+      (s) => s?.id == id,
+      orElse: () => null,
+    );
   }
 
   Future<void> _persistCustomScales() async {
@@ -187,6 +207,7 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.remove('default_rubric');
     await prefs.remove('auto_enhance');
     await prefs.remove('voice_feedback');
+    await prefs.remove('voice_feedback_mode');
     await prefs.remove('dark_mode');
     await prefs.remove('school_logo');
     await prefs.remove('custom_grading_scales');
@@ -200,7 +221,7 @@ class SettingsProvider extends ChangeNotifier {
     _whatsappNumber = '';
     _defaultRubric = 'moe_national';
     _autoEnhanceImages = true;
-    _voiceFeedbackEnabled = true;
+    _voiceFeedbackMode = VoiceFeedbackMode.scoreOnly;
     _darkMode = false;
     _schoolLogoPath = '';
     _customScales = [];
@@ -210,5 +231,51 @@ class SettingsProvider extends ChangeNotifier {
   Future<Box> _getPiiBox() async {
     if (Hive.isBoxOpen(_piiBoxName)) return Hive.box(_piiBoxName);
     return await Hive.openBox(_piiBoxName);
+  }
+
+  static VoiceFeedbackMode _parseVoiceFeedbackMode(
+    String? value, {
+    required bool legacyEnabled,
+  }) {
+    if (value == null || value.isEmpty) {
+      return legacyEnabled
+          ? VoiceFeedbackMode.scoreOnly
+          : VoiceFeedbackMode.off;
+    }
+    return VoiceFeedbackMode.values.firstWhere(
+      (mode) => mode.name == value,
+      orElse: () =>
+          legacyEnabled ? VoiceFeedbackMode.scoreOnly : VoiceFeedbackMode.off,
+    );
+  }
+
+  static String _voiceFeedbackLabel(VoiceFeedbackMode mode) {
+    switch (mode) {
+      case VoiceFeedbackMode.off:
+        return 'Off';
+      case VoiceFeedbackMode.statusOnly:
+        return 'Status only';
+      case VoiceFeedbackMode.scoreOnly:
+        return 'Score only';
+      case VoiceFeedbackMode.gradeOnly:
+        return 'Grade only';
+      case VoiceFeedbackMode.scoreAndGrade:
+        return 'Score + grade';
+    }
+  }
+
+  static String _voiceFeedbackDescription(VoiceFeedbackMode mode) {
+    switch (mode) {
+      case VoiceFeedbackMode.off:
+        return 'No scan sound';
+      case VoiceFeedbackMode.statusOnly:
+        return 'Only tells scan status';
+      case VoiceFeedbackMode.scoreOnly:
+        return 'Says marks like 8';
+      case VoiceFeedbackMode.gradeOnly:
+        return 'Says grades like A';
+      case VoiceFeedbackMode.scoreAndGrade:
+        return 'Says mark and grade';
+    }
   }
 }
