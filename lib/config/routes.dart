@@ -1,55 +1,51 @@
 import 'package:flutter/material.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/home/main_dashboard.dart';
-import '../screens/assessment/create_assessment_screen.dart';
+import '../screens/assessment/exam_day_create_screen.dart';
 import '../screens/assessment/answer_key_screen.dart';
+import '../screens/assessment/answer_sheet_setup_screen.dart';
 import '../screens/scanning/camera_screen.dart';
 import '../screens/scanning/batch_scan_screen.dart';
+import '../screens/quick_grade/quick_grade_screen.dart';
+import '../screens/quick_enter/quick_enter_screen.dart';
 import '../screens/review/review_screen.dart';
-import '../screens/analytics/analytics_screen.dart';
-import '../screens/reports/reports_screen.dart';
+import '../screens/review/grade_review_screen.dart';
 import '../screens/students/import_excel_screen.dart';
-import '../screens/subscription/subscription_screen.dart';
+import '../screens/students/add_student_screen.dart';
+import '../screens/settings/grading_scale_editor_screen.dart';
+import '../models/student.dart';
+import '../models/grading_scale.dart';
+import '../models/assessment.dart';
+import '../models/scan_result.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
   static const String dashboard = '/dashboard';
-  static const String settings = '/settings';
 
   // Assessment
   static const String createAssessment = '/assessment/create';
-  static const String questionList = '/assessment/questions';
   static const String answerKey = '/assessment/answer-key';
-  static const String rubricSelector = '/assessment/rubric';
+  static const String answerSheetSetup = '/assessment/answer-sheet-setup';
 
   // Scanning
   static const String camera = '/scanning/camera';
-  static const String imagePreview = '/scanning/preview';
-  static const String scanResults = '/scanning/results';
   static const String batchScan = '/scanning/batch';
+  static const String quickGrade = '/quick_grade';
+  static const String quickEnter = '/quick_enter';
 
   // Review
   static const String review = '/review';
   static const String sideBySide = '/review/side-by-side';
+  static const String gradeReview = '/review/grade-review';
 
   // Students
-  static const String studentList = '/students/list';
   static const String importExcel = '/students/import';
   static const String addStudent = '/students/add';
 
-  // Analytics
-  static const String analytics = '/analytics';
-  static const String heatmap = '/analytics/heatmap';
-  static const String essayAnalytics = '/analytics/essay';
+  // Classes
 
-  // Reports
-  static const String reports = '/reports';
-  static const String reportPreview = '/reports/preview';
-  static const String shareReport = '/reports/share';
-
-  // Subscription
-  static const String subscription = '/subscription';
-  static const String schoolAdmin = '/subscription/school-admin';
+  // Settings
+  static const String gradingScaleEditor = '/settings/grading-scale';
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -60,37 +56,56 @@ class AppRoutes {
 
       // Assessment
       case createAssessment:
-        return _fade(const CreateAssessmentScreen());
+        final args = settings.arguments;
+        final mode = args is ExamDayStartMode ? args : null;
+        return _fade(ExamDayCreateScreen(initialMode: mode));
       case answerKey:
         return _fade(const AnswerKeyScreen());
+      case answerSheetSetup:
+        final args = settings.arguments;
+        final assessment = args is Assessment ? args : null;
+        return _fade(AnswerSheetSetupScreen(assessment: assessment));
 
       // Scanning
       case camera:
         return _fade(const CameraScreen());
       case batchScan:
         return _fade(const BatchScanScreen());
+      case quickGrade:
+        return _fade(const QuickGradeScreen());
+      case quickEnter:
+        return _fade(const QuickEnterScreen());
 
       // Review
       case review:
         return _fade(const ReviewScreen());
       case sideBySide:
         return _fade(const SideBySideReview());
+      case gradeReview:
+        final args = settings.arguments as Map<String, dynamic>;
+        return _fade(
+          GradeReviewScreen(
+            assessment: args['assessment'] as Assessment,
+            results: (args['results'] as List<ScanResult>),
+          ),
+        );
 
       // Students
       case importExcel:
-        return _fade(const ImportExcelScreen());
+        final classId = settings.arguments as String?;
+        return _fade(ImportCsvScreen(classId: classId));
+      case addStudent:
+        final args = settings.arguments;
+        if (args is Student) {
+          return _fade(AddStudentScreen(existingStudent: args));
+        }
+        final classId = args as String?;
+        return _fade(AddStudentScreen(preselectedClassId: classId));
 
-      // Analytics
-      case analytics:
-        return _fade(const AnalyticsScreen());
-
-      // Reports
-      case reports:
-        return _fade(const ReportsScreen());
-
-      // Subscription
-      case subscription:
-        return _fade(const SubscriptionScreen());
+      // Settings
+      case gradingScaleEditor:
+        final existing = settings.arguments as GradingScale?;
+        return _fade(GradingScaleEditorScreen(existingScale: existing));
 
       default:
         return _fade(const MainDashboard());

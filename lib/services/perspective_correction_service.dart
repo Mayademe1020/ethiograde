@@ -31,7 +31,6 @@ class PerspectiveCorrectionService {
 
   /// Brightness threshold for edge detection (0-255).
   /// Pixels darker than this are considered "document edge" candidates.
-  static const int _edgeThreshold = 128;
 
   /// Minimum edge length as fraction of image dimension.
   /// Filters out noise edges that are too short to be document borders.
@@ -39,14 +38,6 @@ class PerspectiveCorrectionService {
 
   /// Canny-style gradient magnitude threshold (0-255).
   static const int _gradientThreshold = 30;
-
-  /// Result of perspective correction.
-  final img.Image? image;
-  final List<Point>? corners;
-  final double confidence;
-  final String? error;
-
-  PerspectiveResult._({this.image, this.corners, required this.confidence, this.error});
 
   /// Apply perspective correction to an image file.
   ///
@@ -72,23 +63,22 @@ class PerspectiveCorrectionService {
       if (result.image == null || result.confidence < 0.4) {
         debugPrint(
           'Perspective: detection failed or low confidence '
-          '(${result.confidence.toStringAsFixed(2)}), keeping original',
-        );
+          '(${result.confidence.toStringAsFixed(2)}), keeping original');
         return imagePath;
       }
 
       // Save corrected image
       final dotIndex = imagePath.lastIndexOf('.');
-      final basePath =
-          dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+      final basePath = dotIndex > 0
+          ? imagePath.substring(0, dotIndex)
+          : imagePath;
       final correctedPath = '${basePath}_perspective.jpg';
-      await File(correctedPath)
-          .writeAsBytes(img.encodeJpg(result.image!, quality: 92));
+      await File(
+        correctedPath).writeAsBytes(img.encodeJpg(result.image!, quality: 92));
 
       debugPrint(
         'Perspective: corrected with confidence '
-        '${result.confidence.toStringAsFixed(2)}',
-      );
+        '${result.confidence.toStringAsFixed(2)}');
       return correctedPath;
     } catch (e, st) {
       debugPrint('Perspective: correction failed ($e)\n$st');
@@ -104,7 +94,9 @@ class PerspectiveCorrectionService {
     // Step 1: Detect corners at reduced resolution
     final corners = await detectCorners(source);
     if (corners == null || corners.length != 4) {
-      return PerspectiveResult._(confidence: 0.0, error: 'Could not detect 4 corners');
+      return PerspectiveResult._(
+        confidence: 0.0,
+        error: 'Could not detect 4 corners');
     }
 
     // Step 2: Compute confidence from corner positions
@@ -113,8 +105,7 @@ class PerspectiveCorrectionService {
       return PerspectiveResult._(
         corners: corners,
         confidence: confidence,
-        error: 'Low confidence in corner detection',
-      );
+        error: 'Low confidence in corner detection');
     }
 
     // Step 3: Compute output dimensions (A4-ish aspect ratio)
@@ -125,22 +116,19 @@ class PerspectiveCorrectionService {
       source,
       corners,
       outputSize.width,
-      outputSize.height,
-    );
+      outputSize.height);
 
     if (warped == null) {
       return PerspectiveResult._(
         corners: corners,
         confidence: confidence,
-        error: 'Warp failed',
-      );
+        error: 'Warp failed');
     }
 
     return PerspectiveResult._(
       image: warped,
       corners: corners,
-      confidence: confidence,
-    );
+      confidence: confidence);
   }
 
   /// Detect the 4 corners of a document in an image.
@@ -188,11 +176,7 @@ class PerspectiveCorrectionService {
     if (edgePixels.length < 20) return null; // Not enough edges
 
     // Find edges near image borders (top, bottom, left, right)
-    final borderEdges = _findBorderEdges(
-      edgePixels,
-      detectWidth,
-      detectHeight,
-    );
+    final borderEdges = _findBorderEdges(edgePixels, detectWidth, detectHeight);
 
     if (borderEdges.length < 4) {
       // Fallback: use image rectangle as corners
@@ -226,7 +210,8 @@ class PerspectiveCorrectionService {
     for (int y = 1; y < h - 1; y++) {
       for (int x = 1; x < w - 1; x++) {
         // Sobel X: [-1 0 1; -2 0 2; -1 0 1]
-        final gx = -_getGray(gray, x - 1, y - 1) +
+        final gx =
+            -_getGray(gray, x - 1, y - 1) +
             _getGray(gray, x + 1, y - 1) -
             2 * _getGray(gray, x - 1, y) +
             2 * _getGray(gray, x + 1, y) -
@@ -234,15 +219,17 @@ class PerspectiveCorrectionService {
             _getGray(gray, x + 1, y + 1);
 
         // Sobel Y: [-1 -2 -1; 0 0 0; 1 2 1]
-        final gy = -_getGray(gray, x - 1, y - 1) -
+        final gy =
+            -_getGray(gray, x - 1, y - 1) -
             2 * _getGray(gray, x, y - 1) -
             _getGray(gray, x + 1, y - 1) +
             _getGray(gray, x - 1, y + 1) +
             2 * _getGray(gray, x, y + 1) +
             _getGray(gray, x + 1, y + 1);
 
-        gradients[y * w + x] =
-            ((gx.abs() + gy.abs()) / 2).round().clamp(0, 255);
+        gradients[y * w + x] = ((gx.abs() + gy.abs()) / 2).round().clamp(
+          0,
+          255);
       }
     }
 
@@ -260,8 +247,7 @@ class PerspectiveCorrectionService {
   Map<String, List<Point>> _findBorderEdges(
     List<Point> edges,
     int width,
-    int height,
-  ) {
+    int height) {
     final margin = (width * 0.15).round(); // 15% margin from border
     final result = <String, List<Point>>{
       'top': [],
@@ -314,8 +300,7 @@ class PerspectiveCorrectionService {
   List<({String border, double m, double b})> _fitLines(
     Map<String, List<Point>> borderEdges,
     int width,
-    int height,
-  ) {
+    int height) {
     final lines = <({String border, double m, double b})>[];
 
     for (final entry in borderEdges.entries) {
@@ -332,16 +317,18 @@ class PerspectiveCorrectionService {
   /// Scales points back to original image coordinates.
   List<Point> _findIntersections(
     List<({String border, double m, double b})> lines,
-    double scale,
-  ) {
+    double scale) {
     final hLines = lines
-        .where((l) =>
-            l.border == 'top' || l.border == 'bottom' || l.m.abs() < 1.5)
+        .where(
+          (l) => l.border == 'top' || l.border == 'bottom' || l.m.abs() < 1.5)
         .toList();
     final vLines = lines
-        .where((l) =>
-            l.border == 'left' || l.border == 'right' ||
-            l.m.abs() >= 1.5 || l.m.isInfinite)
+        .where(
+          (l) =>
+              l.border == 'left' ||
+              l.border == 'right' ||
+              l.m.abs() >= 1.5 ||
+              l.m.isInfinite)
         .toList();
 
     final intersections = <Point>[];
@@ -383,7 +370,8 @@ class PerspectiveCorrectionService {
     if (corners.length != 4) return corners;
 
     // Sort by Y to find top/bottom pairs
-    final sorted = List<Point>.from(corners)..sort((a, b) => a.y.compareTo(b.y));
+    final sorted = List<Point>.from(corners)
+      ..sort((a, b) => a.y.compareTo(b.y));
     final top = [sorted[0], sorted[1]]..sort((a, b) => a.x.compareTo(b.x));
     final bottom = [sorted[2], sorted[3]]..sort((a, b) => a.x.compareTo(b.x));
 
@@ -414,8 +402,7 @@ class PerspectiveCorrectionService {
 
     return (
       width: avgWidth.clamp(100, 4000),
-      height: avgHeight.clamp(100, 4000),
-    );
+      height: avgHeight.clamp(100, 4000));
   }
 
   /// Warp the source image using perspective transform.
@@ -426,12 +413,14 @@ class PerspectiveCorrectionService {
     img.Image source,
     List<Point> corners,
     int outWidth,
-    int outHeight,
-  ) {
+    int outHeight) {
     if (outWidth <= 0 || outHeight <= 0) return null;
 
     try {
-      final dst = img.Image(width: outWidth, height: outHeight, numChannels: source.numChannels);
+      final dst = img.Image(
+        width: outWidth,
+        height: outHeight,
+        numChannels: source.numChannels);
 
       // Compute homography matrix (source → destination)
       final srcPoints = corners;
@@ -513,10 +502,7 @@ class PerspectiveCorrectionService {
   List<double>? _solveLinear(List<List<double>> a, List<double> b) {
     final n = 8;
     // Augmented matrix
-    final aug = List.generate(
-      n,
-      (i) => [...a[i], b[i]],
-    );
+    final aug = List.generate(n, (i) => [...a[i], b[i]]);
 
     // Forward elimination
     for (int col = 0; col < n; col++) {
@@ -566,8 +552,7 @@ class PerspectiveCorrectionService {
     if (w.abs() < 1e-10) return null;
     return Point(
       (h[0] * x + h[1] * y + h[2]) / w,
-      (h[3] * x + h[4] * y + h[5]) / w,
-    );
+      (h[3] * x + h[4] * y + h[5]) / w);
   }
 
   /// Sample a pixel using bilinear interpolation.
@@ -602,12 +587,21 @@ class PerspectiveCorrectionService {
     final g = interp(p00.g, p10.g, p01.g, p11.g).round().clamp(0, 255);
     final b = interp(p00.b, p10.b, p01.b, p11.b).round().clamp(0, 255);
 
+    final pixel = source.getPixel(x0, y0);
     if (source.numChannels >= 4) {
       final a = interp(p00.a, p10.a, p01.a, p11.a).round().clamp(0, 255);
-      return img.ColorRgba8(r, g, b, a);
+      pixel
+        ..r = r.toInt()
+        ..g = g.toInt()
+        ..b = b.toInt()
+        ..a = a.toInt();
+    } else {
+      pixel
+        ..r = r.toInt()
+        ..g = g.toInt()
+        ..b = b.toInt();
     }
-
-    return img.ColorRgb8(r, g, b);
+    return pixel;
   }
 
   /// Compute confidence of corner detection (0.0 - 1.0).
@@ -663,7 +657,9 @@ class PerspectiveCorrectionService {
     final edgeScore = (1.0 - avgEdgeDist / (imgW * 0.3)).clamp(0.0, 1.0);
 
     // Combined confidence
-    return (0.4 + 0.3 * edgeScore + 0.3 * areaRatio.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+    return (0.4 + 0.3 * edgeScore + 0.3 * areaRatio.clamp(0.0, 1.0)).clamp(
+      0.0,
+      1.0);
   }
 }
 

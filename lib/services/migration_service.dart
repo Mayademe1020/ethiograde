@@ -59,8 +59,9 @@ class MigrationService {
       }
 
       if (storedVersion > currentVersion) {
-        debugPrint('[Migration] WARNING: stored v$storedVersion > '
-            'current v$currentVersion — downgrades not supported');
+        debugPrint(
+          '[Migration] WARNING: stored v$storedVersion > '
+          'current v$currentVersion — downgrades not supported');
         return;
       }
 
@@ -70,8 +71,9 @@ class MigrationService {
         if (migration.version <= storedVersion) continue;
         if (migration.version > currentVersion) break;
 
-        debugPrint('[Migration] Running v${migration.version}: '
-            '${migration.description}');
+        debugPrint(
+          '[Migration] Running v${migration.version}: '
+          '${migration.description}');
         try {
           await migration.run();
           debugPrint('[Migration] v${migration.version} complete');

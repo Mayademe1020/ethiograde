@@ -14,36 +14,34 @@ void main() {
     String firstName = 'Abebe',
     String lastName = 'Kebede',
     int grade = 5,
-  }) =>
-      Student(
-        id: 's1',
-        firstName: firstName,
-        lastName: lastName,
-        grade: grade,
-      );
+    String studentId = '001',
+    String gender = 'M',
+  }) => Student(
+    id: 's1',
+    studentId: studentId,
+    firstName: firstName,
+    lastName: lastName,
+    grade: grade,
+    gender: gender);
 
   Question _mcq(int number, dynamic correctAnswer) => Question(
-        number: number,
-        type: QuestionType.mcq,
-        correctAnswer: correctAnswer,
-      );
+    number: number,
+    type: QuestionType.mcq,
+    correctAnswer: correctAnswer);
 
   Question _tf(int number, dynamic correctAnswer) => Question(
-        number: number,
-        type: QuestionType.trueFalse,
-        correctAnswer: correctAnswer,
-      );
+    number: number,
+    type: QuestionType.trueFalse,
+    correctAnswer: correctAnswer);
 
   Assessment _assessment({
     String title = 'Math Midterm',
     List<Question>? questions,
-  }) =>
-          Assessment(
-            id: 'a1',
-            title: title,
-            subject: 'Math',
-            questions: questions ?? [_mcq(1, 'A'), _mcq(2, 'B')],
-          );
+  }) => Assessment(
+    id: 'a1',
+    title: title,
+    subject: 'Math',
+    questions: questions ?? [_mcq(1, 'A'), _mcq(2, 'B')]);
 
   ScanResult _scanResult({
     double totalScore = 8,
@@ -52,17 +50,15 @@ void main() {
     double percentage = 80,
     String assessmentId = 'a1',
     String studentId = 's1',
-  }) =>
-          ScanResult(
-            assessmentId: assessmentId,
-            studentId: studentId,
-            studentName: 'Abebe Kebede',
-            imagePath: '/tmp/test.jpg',
-            totalScore: totalScore,
-            maxScore: maxScore,
-            confidence: confidence,
-            percentage: percentage,
-          );
+  }) => ScanResult(
+    assessmentId: assessmentId,
+    studentId: studentId,
+    studentName: 'Abebe Kebede',
+    imagePath: '/tmp/test.jpg',
+    totalScore: totalScore,
+    maxScore: maxScore,
+    confidence: confidence,
+    percentage: percentage);
 
   // ── Student validation ────────────────────────────────────────────
 
@@ -74,15 +70,15 @@ void main() {
     });
 
     test('empty first name fails', () {
-      final result = validator.validateStudent(_student(firstName: '', lastName: ''));
+      final result = validator.validateStudent(
+        _student(firstName: '', lastName: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('empty'));
     });
 
     test('whitespace-only name fails', () {
       final result = validator.validateStudent(
-        _student(firstName: '   ', lastName: '   '),
-      );
+        _student(firstName: '   ', lastName: '   '));
       expect(result.isValid, isFalse);
     });
 
@@ -98,8 +94,7 @@ void main() {
       final lastName = 'B' * 49;
       // fullName = 'A*49 B*49' = 99 chars (with space)
       final result = validator.validateStudent(
-        _student(firstName: firstName, lastName: lastName),
-      );
+        _student(firstName: firstName, lastName: lastName));
       expect(result.isValid, isTrue);
     });
 
@@ -144,18 +139,14 @@ void main() {
     });
 
     test('empty questions list fails', () {
-      final result =
-          validator.validateAssessment(_assessment(questions: []));
+      final result = validator.validateAssessment(_assessment(questions: []));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('at least one'));
     });
 
     test('valid MCQ answers pass', () {
-      final a = _assessment(questions: [
-        _mcq(1, 'A'),
-        _mcq(2, 'B'),
-        _mcq(3, 'E'),
-      ]);
+      final a = _assessment(
+        questions: [_mcq(1, 'A'), _mcq(2, 'B'), _mcq(3, 'E')]);
       expect(validator.validateAssessment(a).isValid, isTrue);
     });
 
@@ -167,18 +158,12 @@ void main() {
     });
 
     test('valid True/False answers pass', () {
-      final a = _assessment(questions: [
-        _tf(1, 'True'),
-        _tf(2, 'False'),
-      ]);
+      final a = _assessment(questions: [_tf(1, 'True'), _tf(2, 'False')]);
       expect(validator.validateAssessment(a).isValid, isTrue);
     });
 
     test('lowercase true/false normalises and passes', () {
-      final a = _assessment(questions: [
-        _tf(1, 'true'),
-        _tf(2, 'false'),
-      ]);
+      final a = _assessment(questions: [_tf(1, 'true'), _tf(2, 'false')]);
       expect(validator.validateAssessment(a).isValid, isTrue);
     });
 
@@ -200,20 +185,20 @@ void main() {
       final q = Question(
         number: 1,
         type: QuestionType.shortAnswer,
-        correctAnswer: '  ',
-      );
+        correctAnswer: '  ');
       final a = _assessment(questions: [q]);
       final result = validator.validateAssessment(a);
       expect(result.isValid, isFalse);
     });
 
     test('mixed valid + invalid reports all errors', () {
-      final a = _assessment(questions: [
-        _mcq(1, 'A'),
-        _mcq(2, 'INVALID'),
-        _tf(3, 'True'),
-        _tf(4, 'nope'),
-      ]);
+      final a = _assessment(
+        questions: [
+          _mcq(1, 'A'),
+          _mcq(2, 'INVALID'),
+          _tf(3, 'True'),
+          _tf(4, 'nope'),
+        ]);
       final result = validator.validateAssessment(a);
       expect(result.isValid, isFalse);
       expect(result.errors.length, 2);
@@ -235,8 +220,8 @@ void main() {
     });
 
     test('score exceeding max fails', () {
-      final result =
-          validator.validateScanResult(_scanResult(totalScore: 15, maxScore: 10));
+      final result = validator.validateScanResult(
+        _scanResult(totalScore: 15, maxScore: 10));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('exceeds'));
     });
@@ -247,8 +232,8 @@ void main() {
     });
 
     test('score equals max is valid', () {
-      final result =
-          validator.validateScanResult(_scanResult(totalScore: 10, maxScore: 10));
+      final result = validator.validateScanResult(
+        _scanResult(totalScore: 10, maxScore: 10));
       expect(result.isValid, isTrue);
     });
 
@@ -259,7 +244,8 @@ void main() {
     });
 
     test('negative confidence fails', () {
-      final result = validator.validateScanResult(_scanResult(confidence: -0.1));
+      final result = validator.validateScanResult(
+        _scanResult(confidence: -0.1));
       expect(result.isValid, isFalse);
     });
 
@@ -270,106 +256,100 @@ void main() {
     });
 
     test('empty assessment ID fails', () {
-      final result =
-          validator.validateScanResult(_scanResult(assessmentId: ''));
+      final result = validator.validateScanResult(
+        _scanResult(assessmentId: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('Assessment ID'));
     });
 
     test('empty student ID fails', () {
-      final result =
-          validator.validateScanResult(_scanResult(studentId: ''));
+      final result = validator.validateScanResult(_scanResult(studentId: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('Student ID'));
     });
   });
 
-  // ── Teacher ───────────────────────────────────────────────────────
+  // ── Teacher validation ────────────────────────────────────────────
 
   Teacher _teacher({
-    String name = 'Abebe Kebede',
-    String phone = '',
-    String email = '',
-  }) =>
-      Teacher(
-        name: name,
-        phone: phone,
-        email: email,
-      );
+    String? id,
+    String name = 'Abebe',
+    String role = 'teacher',
+  }) => Teacher(id: id, name: name, role: role);
 
   group('Teacher validation', () {
     test('valid teacher passes', () {
       final result = validator.validateTeacher(_teacher());
       expect(result.isValid, isTrue);
+      expect(result.errors, isEmpty);
     });
 
     test('empty name fails', () {
       final result = validator.validateTeacher(_teacher(name: ''));
       expect(result.isValid, isFalse);
-      expect(result.errors.first, contains('name'));
+      expect(result.errors.first, contains('empty'));
     });
 
     test('whitespace-only name fails', () {
       final result = validator.validateTeacher(_teacher(name: '   '));
       expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('empty'));
     });
 
-    test('long name fails', () {
+    test('name exceeding 100 chars fails', () {
+      final result = validator.validateTeacher(_teacher(name: 'A' * 101));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('100'));
+    });
+
+    test('exactly 100-char name passes', () {
+      final result = validator.validateTeacher(_teacher(name: 'A' * 100));
+      expect(result.isValid, isTrue);
+    });
+
+    test('invalid role fails', () {
+      final result = validator.validateTeacher(_teacher(role: 'superadmin'));
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('Invalid role'));
+    });
+
+    test('role "admin" passes', () {
+      final result = validator.validateTeacher(_teacher(role: 'admin'));
+      expect(result.isValid, isTrue);
+    });
+
+    test('duplicate name fails (case-insensitive)', () {
+      final existing = [Teacher(id: '1', name: 'Abebe')];
       final result = validator.validateTeacher(
-          _teacher(name: 'A' * 101));
+        _teacher(id: '2', name: 'ABEBE'),
+        existingTeachers: existing);
       expect(result.isValid, isFalse);
-      expect(result.errors.first, contains('exceed'));
+      expect(result.errors.first, contains('already exists'));
     });
 
-    test('valid phone passes', () {
-      final result =
-          validator.validateTeacher(_teacher(phone: '+251911223344'));
+    test('duplicate name with leading/trailing spaces fails', () {
+      final existing = [Teacher(id: '1', name: 'Abebe')];
+      final result = validator.validateTeacher(
+        _teacher(id: '2', name: '  Abebe  '),
+        existingTeachers: existing);
+      expect(result.isValid, isFalse);
+      expect(result.errors.first, contains('already exists'));
+    });
+
+    test('same teacher with same name passes (update scenario)', () {
+      final existing = [Teacher(id: '1', name: 'Abebe')];
+      // Same ID, same name — should pass (self is excluded from duplicate check)
+      final result = validator.validateTeacher(
+        _teacher(id: '1', name: 'Abebe'),
+        existingTeachers: existing);
       expect(result.isValid, isTrue);
     });
 
-    test('short phone fails', () {
-      final result = validator.validateTeacher(_teacher(phone: '123'));
+    test('multiple errors reported together', () {
+      final result = validator.validateTeacher(
+        _teacher(name: '', role: 'bad_role'));
       expect(result.isValid, isFalse);
-      expect(result.errors.first, contains('Phone'));
-    });
-
-    test('long phone fails', () {
-      final result =
-          validator.validateTeacher(_teacher(phone: '1234567890123456'));
-      expect(result.isValid, isFalse);
-    });
-
-    test('empty phone is valid', () {
-      final result = validator.validateTeacher(_teacher(phone: ''));
-      expect(result.isValid, isTrue);
-    });
-
-    test('valid email passes', () {
-      final result =
-          validator.validateTeacher(_teacher(email: 'abebe@school.et'));
-      expect(result.isValid, isTrue);
-    });
-
-    test('invalid email fails', () {
-      final result =
-          validator.validateTeacher(_teacher(email: 'not-an-email'));
-      expect(result.isValid, isFalse);
-      expect(result.errors.first, contains('email'));
-    });
-
-    test('empty email is valid', () {
-      final result = validator.validateTeacher(_teacher(email: ''));
-      expect(result.isValid, isTrue);
-    });
-
-    test('multiple errors collected', () {
-      final result = validator.validateTeacher(_teacher(
-        name: '',
-        phone: '12',
-        email: 'bad',
-      ));
-      expect(result.isValid, isFalse);
-      expect(result.errors.length, greaterThanOrEqualTo(3));
+      expect(result.errors.length, 2);
     });
   });
 }

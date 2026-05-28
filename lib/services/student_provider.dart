@@ -5,20 +5,9 @@ import 'package:uuid/uuid.dart';
 import '../models/student.dart';
 import '../config/constants.dart';
 import 'validation_service.dart';
+import 'result.dart';
 
-/// Operation result — never throws, always returns a status.
-class Result<T> {
-  final bool success;
-  final T? data;
-  final String? error;
-
-  const Result.success(this.data)
-      : success = true,
-        error = null;
-  const Result.failure(this.error)
-      : success = false,
-        data = null;
-}
+export 'result.dart';
 
 /// Manages student persistence against the encrypted Hive `students` box.
 ///
@@ -31,18 +20,41 @@ class StudentProvider extends ChangeNotifier {
   List<Student> _students = [];
   bool _isLoading = false;
   String _selectedClassName = '';
+  String _searchQuery = '';
 
   List<Student> get students => List.unmodifiable(_students);
   bool get isLoading => _isLoading;
   String get selectedClassName => _selectedClassName;
+  String get searchQuery => _searchQuery;
 
-  List<Student> get studentsByClass => _selectedClassName.isEmpty
-      ? List.unmodifiable(_students)
-      : List.unmodifiable(
-          _students.where((s) => s.className == _selectedClassName));
+  /// Filter by class ID (from ClassProvider). Empty = show all.
+  List<Student> studentsByClassId(String? classId) {
+    final byClass = (classId == null || classId.isEmpty)
+        ? _students
+        : _students.where((s) => s.classIds.contains(classId)).toList();
+    return List.unmodifiable(byClass);
+  }
 
-  List<String> get classNames =>
-      _students.map((s) => s.className).toSet().toList()..sort();
+  /// Combined filter: selected class + search query (used by StudentsTab).
+  List<Student> get studentsByClass {
+    final byClass = _selectedClassName.isEmpty
+        ? _students
+        : _students
+              .where((s) => s.classIds.contains(_selectedClassName))
+              .toList();
+    if (_searchQuery.trim().isEmpty) return List.unmodifiable(byClass);
+    final q = _searchQuery.toLowerCase();
+    return List.unmodifiable(
+      byClass.where(
+        (s) =>
+            s.firstName.toLowerCase().contains(q) ||
+            s.lastName.toLowerCase().contains(q) ||
+            s.studentId.toLowerCase().contains(q)));
+  }
+
+  /// Unique class IDs that students belong to (for filter chips).
+  List<String> get classIdsInUse =>
+      _students.expand((s) => s.classIds).toSet().toList()..sort();
 
   int get totalStudents => _students.length;
 
@@ -59,13 +71,14 @@ class StudentProvider extends ChangeNotifier {
 
     try {
       final box = Hive.box(AppConstants.studentsBox);
-      _students = box.values
-          .map((data) => Student.fromMap(Map<String, dynamic>.from(data)))
-          .toList()
-        ..sort((a, b) => a.fullName.toLowerCase().compareTo(
-              b.fullName.toLowerCase(),
-            ));
-    } catch (e, st) {
+      _students =
+          box.values
+              .map((data) => Student.fromMap(Map<String, dynamic>.from(data)))
+              .toList()
+            ..sort(
+              (a, b) =>
+                  a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
+    } catch (e) {
       debugPrint('[StudentProvider] loadStudents failed: $e');
       _students = [];
     }
@@ -85,23 +98,7 @@ class StudentProvider extends ChangeNotifier {
     }
 
     // Ensure ID
-    final withId = student.id.isEmpty
-        ? Student(
-            id: _uuid.v4(),
-            firstName: student.firstName,
-            lastName: student.lastName,
-            firstNameAmharic: student.firstNameAmharic,
-            lastNameAmharic: student.lastNameAmharic,
-            studentId: student.studentId,
-            className: student.className,
-            section: student.section,
-            grade: student.grade,
-            photoPath: student.photoPath,
-            parentPhone: student.parentPhone,
-            createdAt: student.createdAt,
-            metadata: student.metadata,
-          )
-        : student;
+    final withId = student.id.isEmpty ? student.copyWith(id: _uuid.v4()) : student;
 
     // Check duplicate
     final box = Hive.box(AppConstants.studentsBox);
@@ -112,15 +109,14 @@ class StudentProvider extends ChangeNotifier {
     // Persist
     try {
       await box.put(withId.id, withId.toMap());
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[StudentProvider] addStudent Hive write failed: $e');
       return Result.failure('Failed to save student');
     }
 
     _students.add(withId);
-    _students.sort((a, b) => a.fullName.toLowerCase().compareTo(
-          b.fullName.toLowerCase(),
-        ));
+    _students.sort(
+      (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
     notifyListeners();
     return Result.success(withId);
   }
@@ -141,7 +137,7 @@ class StudentProvider extends ChangeNotifier {
 
     try {
       await box.put(student.id, student.toMap());
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[StudentProvider] updateStudent Hive write failed: $e');
       return Result.failure('Failed to update student');
     }
@@ -165,7 +161,7 @@ class StudentProvider extends ChangeNotifier {
 
     try {
       await box.delete(studentId);
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[StudentProvider] deleteStudent Hive delete failed: $e');
       return Result.failure('Failed to delete student');
     }
@@ -191,32 +187,62 @@ class StudentProvider extends ChangeNotifier {
     return _students.where((s) => s.className == className).toList();
   }
 
-  /// Case-insensitive search across English + Amharic names.
+  /// Case-insensitive search across English names names.
   List<Student> searchStudents(String query) {
     if (query.trim().isEmpty) return List.unmodifiable(_students);
     final q = query.toLowerCase();
     return _students
-        .where((s) =>
-            s.firstName.toLowerCase().contains(q) ||
-            s.lastName.toLowerCase().contains(q) ||
-            s.firstNameAmharic.contains(query) ||
-            s.lastNameAmharic.contains(query) ||
-            s.studentId.toLowerCase().contains(q))
+        .where(
+          (s) =>
+              s.firstName.toLowerCase().contains(q) ||
+              s.lastName.toLowerCase().contains(q) ||
+              s.studentId.toLowerCase().contains(q))
         .toList();
   }
 
   // ── Bulk ──────────────────────────────────────────────────────────
 
-  /// Add multiple students in one call. Returns count of successful adds.
+  /// Add multiple students in one call. Batches Hive writes + single notify.
   Future<Result<int>> addStudents(List<Student> students) async {
+    if (students.isEmpty) return Result.failure('No students provided');
+
+    final box = Hive.box(AppConstants.studentsBox);
     int added = 0;
+    final List<String> errors = [];
+
     for (final s in students) {
-      final result = await addStudent(s);
-      if (result.success) added++;
+      // Validate
+      final validation = _validator.validateStudent(s);
+      if (!validation.isValid) {
+        errors.add('${s.fullName}: ${validation.errors.join("; ")}');
+        continue;
+      }
+
+      // Ensure ID
+      final withId = s.id.isEmpty ? s.copyWith(id: _uuid.v4()) : s;
+
+      // Skip duplicates
+      if (box.containsKey(withId.id)) continue;
+
+      try {
+        await box.put(withId.id, withId.toMap());
+        _students.add(withId);
+        added++;
+      } catch (e) {
+        errors.add('${s.fullName}: save failed');
+      }
     }
-    return added > 0
-        ? Result.success(added)
-        : Result.failure('No students were added');
+
+    if (added > 0) {
+      _students.sort(
+        (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
+      notifyListeners(); // Single rebuild for the whole batch
+      debugPrint(
+        '[StudentProvider] Batch added $added/${students.length} students');
+      return Result.success(added);
+    }
+
+    return Result.failure('No students added. Errors: ${errors.join("; ")}');
   }
 
   // ── UI helpers ────────────────────────────────────────────────────
@@ -226,12 +252,17 @@ class StudentProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    notifyListeners();
+  }
+
   /// Wipe the box and in-memory cache.
   Future<void> clearAll() async {
     try {
       final box = Hive.box(AppConstants.studentsBox);
       await box.clear();
-    } catch (e, st) {
+    } catch (e) {
       debugPrint('[StudentProvider] clearAll failed: $e');
     }
     _students.clear();

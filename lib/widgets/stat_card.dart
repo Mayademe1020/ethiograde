@@ -21,8 +21,7 @@ class StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.15)),
-      ),
+        border: Border.all(color: color.withOpacity(0.15))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -33,19 +32,11 @@ class StatCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
+              color: color)),
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color.withOpacity(0.8),
-            ),
-          ),
-        ],
-      ),
-    );
+            style: TextStyle(fontSize: 12, color: color.withOpacity(0.8))),
+        ]));
   }
 }

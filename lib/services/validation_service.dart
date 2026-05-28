@@ -9,18 +9,13 @@ class ValidationResult {
   final bool isValid;
   final List<String> errors;
 
-  const ValidationResult._(this.isValid, this.errors);
-
   const ValidationResult.valid() : isValid = true, errors = const [];
 
-  const ValidationResult.invalid(List<String> errors)
-      : isValid = false,
-        errors = errors;
+  const ValidationResult.invalid(this.errors) : isValid = false;
 
   @override
-  String toString() => isValid
-      ? 'ValidationResult.valid'
-      : 'ValidationResult.invalid($errors)';
+  String toString() =>
+      isValid ? 'ValidationResult.valid' : 'ValidationResult.invalid($errors)';
 }
 
 /// Pure-Dart model validator. Providers call this before every Hive write.
@@ -42,49 +37,30 @@ class ValidationService {
     if (fullName.isEmpty) {
       errors.add('Student name cannot be empty');
     } else if (fullName.length > _maxNameLength) {
-      errors.add('Student name cannot exceed $_maxNameLength characters '
-          '(${fullName.length} given)');
+      errors.add(
+        'Student name cannot exceed $_maxNameLength characters '
+        '(${fullName.length} given)');
     }
 
     // Grade: 1–12 or "University" (stored as 0 or -1)
     if (student.grade < 0 || student.grade > 12) {
-      errors.add('Grade must be between 1 and 12, or 0 for University '
-          '(${student.grade} given)');
+      errors.add(
+        'Grade must be between 1 and 12, or 0 for University '
+        '(${student.grade} given)');
     }
 
-    return errors.isEmpty
-        ? const ValidationResult.valid()
-        : ValidationResult.invalid(errors);
-  }
-
-  // ── Teacher ────────────────────────────────────────────────────────
-
-  /// Validate a [Teacher] before persisting.
-  ValidationResult validateTeacher(Teacher teacher) {
-    final errors = <String>[];
-
-    // Name: not empty, not whitespace-only
-    if (teacher.name.trim().isEmpty) {
-      errors.add('Teacher name cannot be empty');
-    } else if (teacher.name.trim().length > _maxNameLength) {
-      errors.add('Teacher name cannot exceed $_maxNameLength characters '
-          '(${teacher.name.trim().length} given)');
+    // Gender: M or F (required)
+    if (student.gender.isNotEmpty &&
+        student.gender != 'M' &&
+        student.gender != 'F') {
+      errors.add('Gender must be M or F ("${student.gender}" given)');
     }
 
-    // Phone: if provided, must look like a phone number
-    if (teacher.phone.trim().isNotEmpty) {
-      final digits = teacher.phone.replaceAll(RegExp(r'[\s\-\+]'), '');
-      if (digits.length < 7 || digits.length > 15) {
-        errors.add('Phone number must be 7–15 digits');
-      }
-    }
-
-    // Email: if provided, basic format check
-    if (teacher.email.trim().isNotEmpty) {
-      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-      if (!emailRegex.hasMatch(teacher.email.trim())) {
-        errors.add('Invalid email format');
-      }
+    // Student ID: required, max 20 chars
+    if (student.studentId.trim().isEmpty) {
+      errors.add('Student ID (roll number) is required');
+    } else if (student.studentId.trim().length > 20) {
+      errors.add('Student ID cannot exceed 20 characters');
     }
 
     return errors.isEmpty
@@ -94,12 +70,8 @@ class ValidationService {
 
   // ── Assessment ────────────────────────────────────────────────────
 
-  static const Set<String> _validMcqAnswers = {
-    'A', 'B', 'C', 'D', 'E',
-  };
-  static const Set<String> _validTfAnswers = {
-    'True', 'False',
-  };
+  static const Set<String> _validMcqAnswers = {'A', 'B', 'C', 'D', 'E'};
+  static const Set<String> _validTfAnswers = {'True', 'False'};
 
   /// Validate an [Assessment] before persisting.
   ValidationResult validateAssessment(Assessment assessment) {
@@ -126,14 +98,16 @@ class ValidationService {
         case QuestionType.mcq:
           final answer = q.correctAnswer.toString().toUpperCase().trim();
           if (!_validMcqAnswers.contains(answer)) {
-            errors.add('Question ${q.number}: invalid MCQ answer '
-                '"${q.correctAnswer}" (expected A–E)');
+            errors.add(
+              'Question ${q.number}: invalid MCQ answer '
+              '"${q.correctAnswer}" (expected A–E)');
           }
         case QuestionType.trueFalse:
           final answer = _normalizeTf(q.correctAnswer.toString());
           if (!_validTfAnswers.contains(answer)) {
-            errors.add('Question ${q.number}: invalid True/False answer '
-                '"${q.correctAnswer}"');
+            errors.add(
+              'Question ${q.number}: invalid True/False answer '
+              '"${q.correctAnswer}"');
           }
         case QuestionType.shortAnswer:
           // Accept any non-empty string or list
@@ -143,6 +117,13 @@ class ValidationService {
           }
         case QuestionType.essay:
           // Essays don't have a single correct answer — skip
+          break;
+        case QuestionType.matching:
+          // Matching answers are letter sequences like "G-D" or "MATCH:G-D"
+          final answer = q.correctAnswer.toString().trim();
+          if (answer.isEmpty) {
+            errors.add('Question ${q.number}: matching answer cannot be empty');
+          }
           break;
       }
     }
@@ -173,20 +154,23 @@ class ValidationService {
 
     // Score: cannot exceed max
     if (scan.maxScore > 0 && scan.totalScore > scan.maxScore) {
-      errors.add('Total score (${scan.totalScore}) exceeds '
-          'max score (${scan.maxScore})');
+      errors.add(
+        'Total score (${scan.totalScore}) exceeds '
+        'max score (${scan.maxScore})');
     }
 
     // Confidence: 0.0–1.0
     if (scan.confidence < 0 || scan.confidence > 1) {
-      errors.add('Confidence must be between 0.0 and 1.0 '
-          '(${scan.confidence})');
+      errors.add(
+        'Confidence must be between 0.0 and 1.0 '
+        '(${scan.confidence})');
     }
 
     // Percentage: 0–100
     if (scan.percentage < 0 || scan.percentage > 100) {
-      errors.add('Percentage must be between 0 and 100 '
-          '(${scan.percentage})');
+      errors.add(
+        'Percentage must be between 0 and 100 '
+        '(${scan.percentage})');
     }
 
     // Assessment / student IDs
@@ -195,6 +179,52 @@ class ValidationService {
     }
     if (scan.studentId.isEmpty) {
       errors.add('Student ID cannot be empty');
+    }
+
+    return errors.isEmpty
+        ? const ValidationResult.valid()
+        : ValidationResult.invalid(errors);
+  }
+
+  // ── Teacher ───────────────────────────────────────────────────────
+
+  static const int _maxTeacherNameLength = 100;
+  static const Set<String> _validRoles = {'teacher', 'admin'};
+
+  /// Validate a [Teacher] before persisting.
+  ///
+  /// [existingTeachers] is used for duplicate name detection.
+  /// Pass the current list excluding the teacher being validated
+  /// (for updates, exclude the teacher being edited).
+  ValidationResult validateTeacher(
+    Teacher teacher, {
+    List<Teacher> existingTeachers = const [],
+  }) {
+    final errors = <String>[];
+
+    // Name: required, trimmed, length limit
+    final name = teacher.name.trim();
+    if (name.isEmpty) {
+      errors.add('Teacher name cannot be empty');
+    } else if (name.length > _maxTeacherNameLength) {
+      errors.add(
+        'Teacher name cannot exceed $_maxTeacherNameLength characters '
+        '(${name.length} given)');
+    }
+
+    // Role: must be valid
+    if (!_validRoles.contains(teacher.role)) {
+      errors.add('Invalid role "${teacher.role}" (expected: teacher, admin)');
+    }
+
+    // Duplicate name check (case-insensitive, trimmed)
+    if (name.isNotEmpty) {
+      final nameLower = name.toLowerCase();
+      final isDuplicate = existingTeachers.any(
+        (t) => t.id != teacher.id && t.name.trim().toLowerCase() == nameLower);
+      if (isDuplicate) {
+        errors.add('A teacher named "$name" already exists');
+      }
     }
 
     return errors.isEmpty

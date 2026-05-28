@@ -1,17 +1,30 @@
 import '../models/assessment.dart';
+import '../models/grading_scale.dart';
 import '../models/scan_result.dart';
-import 'answer_parser.dart';
+import '../models/weighted_grade.dart';
 
 /// Pure-Dart scoring engine. No Flutter, no platform plugins.
 /// Extracted from OcrService for independent testability.
 ///
 /// Handles:
 /// - Answer matching by question type (MCQ, T/F, short answer)
-/// - Grading scale lookup (MoE national, private international, university)
+/// - Grading scale lookup (MoE national, private international, university, or custom)
 /// - Confidence calculation
 /// - Answer deduplication
 class ScoringService {
   const ScoringService();
+
+  /// Runtime registry for custom grading scales.
+  /// Call [registerCustomScales] from UI code before scoring.
+  static final Map<String, GradingScale> _customScales = {};
+
+  /// Register custom scales so [calculateGrade] can find them by rubricKey.
+  static void registerCustomScales(List<GradingScale> scales) {
+    _customScales.clear();
+    for (final s in scales) {
+      _customScales[s.rubricKey] = s;
+    }
+  }
 
   // ── Grading Scales ──
 
@@ -52,7 +65,21 @@ class ScoringService {
   };
 
   /// Map a percentage score to a letter grade under the given rubric.
+  ///
+  /// Checks custom scales first (registered via [registerCustomScales]),
+  /// then falls back to built-in scales.
   String calculateGrade(double percentage, String rubricType) {
+    // Check custom scale registry
+    if (rubricType.startsWith('custom:')) {
+      final custom = _customScales[rubricType];
+      if (custom != null) return custom.gradeFor(percentage);
+      // Fall back to moe_national if custom scale not found
+      return _builtinGrade(percentage, 'moe_national');
+    }
+    return _builtinGrade(percentage, rubricType);
+  }
+
+  String _builtinGrade(double percentage, String rubricType) {
     final scale = gradingScales[rubricType] ?? gradingScales['moe_national']!;
     for (final entry in scale.entries) {
       final range = entry.value;
@@ -63,6 +90,11 @@ class ScoringService {
     return 'F';
   }
 
+  /// Normalize whitespace and case for OCR comparison.
+  /// Trims leading/trailing spaces, collapses internal runs to single space, lowercases.
+  static String _normalizeWhitespace(String s) =>
+      s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
   /// Check if a detected answer matches the correct answer for a question type.
   bool checkAnswer({
     required dynamic detected,
@@ -72,21 +104,116 @@ class ScoringService {
     if (detected == null || correct == null) return false;
 
     if (type == QuestionType.mcq || type == QuestionType.trueFalse) {
-      return detected.toString().toUpperCase() ==
-          correct.toString().toUpperCase();
+      return _normalizeWhitespace(detected.toString()).toUpperCase() ==
+          _normalizeWhitespace(correct.toString()).toUpperCase();
+    }
+
+    if (type == QuestionType.matching) {
+      return _checkMatchingAnswer(
+        detected.toString(),
+        correct.toString());
     }
 
     if (type == QuestionType.shortAnswer) {
+      // Normalize whitespace: OCR often inserts extra spaces
+      final detectedNorm = _normalizeWhitespace(detected.toString());
       if (correct is List) {
         return correct.any(
-          (c) => c.toString().toLowerCase() == detected.toString().toLowerCase(),
-        );
+          (c) => _normalizeWhitespace(c.toString()) == detectedNorm);
       }
-      return detected.toString().toLowerCase() ==
-          correct.toString().toLowerCase();
+      return _normalizeWhitespace(correct.toString()) == detectedNorm;
     }
 
     return false;
+  }
+
+  /// Check if a matching answer matches the correct sequence.
+  ///
+  /// Matching answers use format "MATCH:A-B-C" where each letter represents
+  /// the column B match for the corresponding question in column A.
+  ///
+  /// Scoring modes:
+  /// - Exact match (default): all letters must match in order
+  /// - Partial credit: each correct position earns proportional points
+  ///
+  /// Also handles raw letter sequences like "G D" or "G-D" by normalizing
+  /// them to "MATCH:G-D" format before comparison.
+  bool _checkMatchingAnswer(String detected, String correct) {
+    final detLetters = _extractMatchingLetters(detected);
+    final corLetters = _extractMatchingLetters(correct);
+
+    if (detLetters.isEmpty || corLetters.isEmpty) return false;
+
+    // Exact match: all letters in same order
+    if (detLetters.length != corLetters.length) return false;
+
+    for (int i = 0; i < detLetters.length; i++) {
+      if (detLetters[i] != corLetters[i]) return false;
+    }
+    return true;
+  }
+
+  /// Extract individual letters from a matching answer string.
+  ///
+  /// Handles formats:
+  /// - "MATCH:G-D-E" → ['G', 'D', 'E']
+  /// - "G D" → ['G', 'D']
+  /// - "G,D,E" → ['G', 'D', 'E']
+  /// - "GDE" → ['G', 'D', 'E']
+  List<String> _extractMatchingLetters(String answer) {
+    final trimmed = answer.trim();
+
+    // Strip "MATCH:" prefix if present
+    String working = trimmed;
+    if (working.toUpperCase().startsWith('MATCH:')) {
+      working = working.substring(6);
+    }
+
+    // Split by dash, space, or comma
+    final parts = working.split(RegExp(r'[-\s,]+')).where((p) => p.isNotEmpty).toList();
+
+    // Each part should be a single letter
+    final letters = <String>[];
+    for (final part in parts) {
+      if (part.length == 1 && RegExp(r'^[a-zA-Z]$').hasMatch(part)) {
+        letters.add(part.toUpperCase());
+      } else if (RegExp(r'^[a-zA-Z]+$').hasMatch(part)) {
+        // Multiple letters concatenated: "GDE" → ['G', 'D', 'E']
+        for (int i = 0; i < part.length; i++) {
+          letters.add(part[i].toUpperCase());
+        }
+      }
+    }
+
+    return letters;
+  }
+
+  /// Calculate partial credit for a matching answer.
+  ///
+  /// Each correct position earns [pointsPerMatch] points.
+  /// Returns 0 if formats are incompatible.
+  double scoreMatchingPartial({
+    required String detected,
+    required String correct,
+    required double totalPoints,
+  }) {
+    final detLetters = _extractMatchingLetters(detected);
+    final corLetters = _extractMatchingLetters(correct);
+
+    if (corLetters.isEmpty) return 0;
+    if (detLetters.isEmpty) return 0;
+
+    final maxCompare = detLetters.length < corLetters.length
+        ? detLetters.length
+        : corLetters.length;
+
+    int correctCount = 0;
+    for (int i = 0; i < maxCompare; i++) {
+      if (detLetters[i] == corLetters[i]) correctCount++;
+    }
+
+    final pointsPerMatch = totalPoints / corLetters.length;
+    return correctCount * pointsPerMatch;
   }
 
   /// Score detected answers against an assessment's answer key.
@@ -102,34 +229,33 @@ class ScoringService {
           .firstOrNull;
 
       if (detectedAnswer == null) {
-        matches.add(AnswerMatch(
-          questionNumber: question.number,
-          detectedAnswer: '[MISSING]',
-          correctAnswer: question.correctAnswer?.toString() ?? '',
-          isCorrect: false,
-          score: 0,
-          maxScore: question.points,
-          confidence: 0,
-        ));
+        matches.add(
+          AnswerMatch(
+            questionNumber: question.number,
+            detectedAnswer: '[MISSING]',
+            correctAnswer: question.correctAnswer?.toString() ?? '',
+            isCorrect: false,
+            score: 0,
+            maxScore: question.points,
+            confidence: 0));
         continue;
       }
 
       final isCorrect = checkAnswer(
         detected: detectedAnswer.answer,
         correct: question.correctAnswer,
-        type: question.type,
-      );
+        type: question.type);
 
-      matches.add(AnswerMatch(
-        questionNumber: question.number,
-        detectedAnswer: detectedAnswer.answer,
-        correctAnswer: question.correctAnswer?.toString() ?? '',
-        isCorrect: isCorrect,
-        score: isCorrect ? question.points : 0,
-        maxScore: question.points,
-        confidence: detectedAnswer.confidence,
-        ocrRawText: detectedAnswer.rawText,
-      ));
+      matches.add(
+        AnswerMatch(
+          questionNumber: question.number,
+          detectedAnswer: detectedAnswer.answer,
+          correctAnswer: question.correctAnswer?.toString() ?? '',
+          isCorrect: isCorrect,
+          score: isCorrect ? question.points : 0,
+          maxScore: question.points,
+          confidence: detectedAnswer.confidence,
+          ocrRawText: detectedAnswer.rawText));
     }
 
     return matches;
@@ -161,9 +287,102 @@ class ScoringService {
   }
 
   /// Calculate percentage from total and max score.
-  double calculatePercentage({required double totalScore, required double maxScore}) {
+  double calculatePercentage({
+    required double totalScore,
+    required double maxScore,
+  }) {
     if (maxScore <= 0) return 0;
     return (totalScore / maxScore) * 100;
+  }
+
+  // ── Weighted Per-Paper Scoring ────────────────────────────────────
+
+  /// Compute weighted percentage for a single paper's scored answers.
+  ///
+  /// Distributes questions to components:
+  /// 1. By topic tag match (component name ↔ question topicTag)
+  /// 2. Remaining questions distributed proportionally by component weight
+  ///
+  /// Returns null if no questions could be assigned.
+  double? computeWeightedPercentage({
+    required List<AnswerMatch> scoredAnswers,
+    required List<Question> questions,
+    required WeightedGradeScale scale,
+  }) {
+    if (scoredAnswers.isEmpty || scale.components.isEmpty) return null;
+
+    // Build question number → AnswerMatch lookup
+    final answerByQ = <int, AnswerMatch>{};
+    for (final a in scoredAnswers) {
+      answerByQ[a.questionNumber] = a;
+    }
+
+    // Build question → component index mapping
+    final questionToComponent = <int, int>{};
+
+    // Pass 1: topic tag matching
+    for (final q in questions) {
+      if (q.topicTag != null && q.topicTag!.isNotEmpty) {
+        for (int c = 0; c < scale.components.length; c++) {
+          final compName = scale.components[c].name.toLowerCase();
+          final tag = q.topicTag!.toLowerCase();
+          if (compName.contains(tag) || tag.contains(compName)) {
+            questionToComponent[q.number] = c;
+            break;
+          }
+        }
+      }
+    }
+
+    // Pass 2: distribute remaining proportionally by weight
+    final unassigned =
+        questions.where((q) => !questionToComponent.containsKey(q.number)).toList();
+
+    if (unassigned.isNotEmpty) {
+      final totalWeight = scale.components.fold(0.0, (s, c) => s + c.weight);
+      int assignedCount = 0;
+      for (int c = 0; c < scale.components.length; c++) {
+        final proportion =
+            totalWeight > 0 ? scale.components[c].weight / totalWeight : 1.0 / scale.components.length;
+        final count = (unassigned.length * proportion).round();
+        final start = assignedCount;
+        final end = (assignedCount + count).clamp(0, unassigned.length);
+        for (int j = start; j < end; j++) {
+          questionToComponent[unassigned[j].number] = c;
+        }
+        assignedCount = end;
+      }
+      // Remainder → last component
+      for (int j = assignedCount; j < unassigned.length; j++) {
+        questionToComponent[unassigned[j].number] = scale.components.length - 1;
+      }
+    }
+
+    // Compute per-component scores
+    final componentScores = <int, double>{};
+    final componentMaxScores = <int, double>{};
+
+    for (final entry in questionToComponent.entries) {
+      final answer = answerByQ[entry.key];
+      if (answer == null) continue;
+      final c = entry.value;
+      componentScores[c] = (componentScores[c] ?? 0) + answer.score;
+      componentMaxScores[c] = (componentMaxScores[c] ?? 0) + answer.maxScore;
+    }
+
+    // Weighted sum
+    double weightedSum = 0;
+    double totalActiveWeight = 0;
+    for (int c = 0; c < scale.components.length; c++) {
+      final max = componentMaxScores[c] ?? 0;
+      if (max <= 0) continue;
+      final pct = ((componentScores[c] ?? 0) / max) * 100;
+      weightedSum += pct * scale.components[c].weight;
+      totalActiveWeight += scale.components[c].weight;
+    }
+
+    if (totalActiveWeight <= 0) return null;
+    return weightedSum / totalActiveWeight;
   }
 
   // ── Answer-Pattern Duplicate Detection ──
@@ -216,7 +435,7 @@ class ScoringService {
       if (colonIndex < 0) continue;
       final qNum = int.tryParse(pair.substring(0, colonIndex));
       if (qNum == null) continue;
-      map[qNum] = pair.substring(colonIndex + 1);
+      map[qNum] = pair.substring(colonIndex + 1).toUpperCase();
     }
     return map;
   }
@@ -242,11 +461,8 @@ class ScoringService {
         if (fingerprints[j].isEmpty) continue;
         final ratio = compareFingerprints(fingerprints[i], fingerprints[j]);
         if (ratio >= threshold) {
-          duplicates.add(AnswerDuplicate(
-            scanIndexA: i,
-            scanIndexB: j,
-            matchRatio: ratio,
-          ));
+          duplicates.add(
+            AnswerDuplicate(scanIndexA: i, scanIndexB: j, matchRatio: ratio));
         }
       }
     }

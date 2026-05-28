@@ -1,151 +1,138 @@
-class ClassInfo {
-  final String id;
-  final String name;
-  final String nameAmharic;
-  final int grade;
-  final String section;
-  final String subject;
-  final String schoolYear;
-  final List<String> studentIds;
-  final DateTime createdAt;
+import 'package:hive/hive.dart';
+import 'package:uuid/uuid.dart';
 
-  ClassInfo({
+part 'class_info.g.dart';
+
+/// A class profile — the container for students and assessments.
+///
+/// Examples: "Grade 5A Math", "Grade 10 Science", "Grade 12 Section B"
+/// One teacher can have many classes. One student can be in many classes.
+@HiveType(typeId: 1)
+class ClassInfo {
+  @HiveField(0)
+  final String id;
+  @HiveField(1)
+  final String name; // e.g. "Grade 5A" or "Math 5A"
+  @HiveField(2)
+  final String school;
+  @HiveField(3)
+  final int grade; // 1-12 or university year
+  @HiveField(4)
+  final String section; // e.g. "A", "B", "C"
+  @HiveField(5)
+  final String subject; // e.g. "Mathematics", "English"
+  @HiveField(6)
+  final List<String> studentIds; // IDs of students in this class
+  @HiveField(7)
+  final String ownerId; // Teacher ID who owns this class
+  @HiveField(8)
+  final DateTime createdAt;
+  @HiveField(9)
+  final DateTime? lastModifiedAt;
+  @HiveField(10)
+  final String? examScheduleNote; // Free text: "Final exam June 15"
+
+  const ClassInfo._({
     required this.id,
     required this.name,
-    this.nameAmharic = '',
-    this.grade = 1,
-    this.section = '',
-    this.subject = '',
-    this.schoolYear = '2016 E.C.',
-    this.studentIds = const [],
+    required this.school,
+    required this.grade,
+    required this.section,
+    required this.subject,
+    required this.studentIds,
+    required this.ownerId,
+    required this.createdAt,
+    this.lastModifiedAt,
+    this.examScheduleNote,
+  });
+
+  factory ClassInfo({
+    String? id,
+    required String name,
+    String school = '',
+    int grade = 1,
+    String section = '',
+    String subject = '',
+    List<String>? studentIds,
+    required String ownerId,
     DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+    DateTime? lastModifiedAt,
+    String? examScheduleNote,
+  }) => ClassInfo._(
+    id: id ?? const Uuid().v4(),
+    name: name,
+    school: school,
+    grade: grade,
+    section: section,
+    subject: subject,
+    studentIds: studentIds ?? [],
+    ownerId: ownerId,
+    createdAt: createdAt ?? DateTime.now(),
+    lastModifiedAt: lastModifiedAt,
+    examScheduleNote: examScheduleNote);
 
   int get studentCount => studentIds.length;
 
+  /// Display label: "Grade 5A Math" or just "Grade 5A" if no subject.
+  String get displayName {
+    final parts = <String>[];
+    if (grade > 0) parts.add('Grade $grade');
+    if (section.isNotEmpty) parts.add(section);
+    if (subject.isNotEmpty) parts.add(subject);
+    return parts.isEmpty ? name : parts.join(' ');
+  }
+
+  ClassInfo copyWith({
+    String? name,
+    String? school,
+    int? grade,
+    String? section,
+    String? subject,
+    List<String>? studentIds,
+    String? ownerId,
+    DateTime? lastModifiedAt,
+    String? examScheduleNote,
+  }) => ClassInfo(
+    id: id,
+    name: name ?? this.name,
+    school: school ?? this.school,
+    grade: grade ?? this.grade,
+    section: section ?? this.section,
+    subject: subject ?? this.subject,
+    studentIds: studentIds ?? this.studentIds,
+    ownerId: ownerId ?? this.ownerId,
+    createdAt: createdAt,
+    lastModifiedAt: lastModifiedAt ?? DateTime.now(),
+    examScheduleNote: examScheduleNote ?? this.examScheduleNote);
+
   Map<String, dynamic> toMap() => {
-    'id': id, 'name': name, 'nameAmharic': nameAmharic,
-    'grade': grade, 'section': section, 'subject': subject,
-    'schoolYear': schoolYear, 'studentIds': studentIds,
+    'id': id,
+    'name': name,
+    'school': school,
+    'grade': grade,
+    'section': section,
+    'subject': subject,
+    'studentIds': studentIds,
+    'ownerId': ownerId,
     'createdAt': createdAt.toIso8601String(),
+    'lastModifiedAt': lastModifiedAt?.toIso8601String(),
+    'examScheduleNote': examScheduleNote,
   };
 
   factory ClassInfo.fromMap(Map<String, dynamic> map) => ClassInfo(
     id: map['id'] ?? '',
     name: map['name'] ?? '',
-    nameAmharic: map['nameAmharic'] ?? '',
+    school: map['school'] ?? '',
     grade: map['grade'] ?? 1,
     section: map['section'] ?? '',
     subject: map['subject'] ?? '',
-    schoolYear: map['schoolYear'] ?? '2016 E.C.',
-    studentIds: List<String>.from(map['studentIds'] ?? []),
+    studentIds: map['studentIds'] != null
+        ? List<String>.from(map['studentIds'])
+        : [],
+    ownerId: map['ownerId'] ?? '',
     createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
-  );
-}
-
-class ClassAnalytics {
-  final String classId;
-  final String assessmentId;
-  final double classAverage;
-  final double highestScore;
-  final double lowestScore;
-  final double medianScore;
-  final double passRate;
-  final int totalStudents;
-  final int passedStudents;
-  final int failedStudents;
-  final Map<String, int> gradeDistribution; // {'A': 5, 'B': 12, ...}
-  final List<QuestionAnalytics> questionAnalytics;
-  final Map<String, double> topicScores; // topic_tag -> avg_score
-
-  const ClassAnalytics({
-    required this.classId,
-    required this.assessmentId,
-    this.classAverage = 0,
-    this.highestScore = 0,
-    this.lowestScore = 0,
-    this.medianScore = 0,
-    this.passRate = 0,
-    this.totalStudents = 0,
-    this.passedStudents = 0,
-    this.failedStudents = 0,
-    this.gradeDistribution = const {},
-    this.questionAnalytics = const [],
-    this.topicScores = const {},
-  });
-
-  Map<String, dynamic> toMap() => {
-    'classId': classId,
-    'assessmentId': assessmentId,
-    'classAverage': classAverage,
-    'highestScore': highestScore,
-    'lowestScore': lowestScore,
-    'medianScore': medianScore,
-    'passRate': passRate,
-    'totalStudents': totalStudents,
-    'passedStudents': passedStudents,
-    'failedStudents': failedStudents,
-    'gradeDistribution': gradeDistribution,
-    'questionAnalytics': questionAnalytics.map((q) => q.toMap()).toList(),
-    'topicScores': topicScores,
-  };
-
-  factory ClassAnalytics.fromMap(Map<String, dynamic> map) => ClassAnalytics(
-    classId: map['classId'] ?? '',
-    assessmentId: map['assessmentId'] ?? '',
-    classAverage: (map['classAverage'] ?? 0).toDouble(),
-    highestScore: (map['highestScore'] ?? 0).toDouble(),
-    lowestScore: (map['lowestScore'] ?? 0).toDouble(),
-    medianScore: (map['medianScore'] ?? 0).toDouble(),
-    passRate: (map['passRate'] ?? 0).toDouble(),
-    totalStudents: map['totalStudents'] ?? 0,
-    passedStudents: map['passedStudents'] ?? 0,
-    failedStudents: map['failedStudents'] ?? 0,
-    gradeDistribution: Map<String, int>.from(map['gradeDistribution'] ?? {}),
-    questionAnalytics: (map['questionAnalytics'] as List? ?? [])
-        .map((q) => QuestionAnalytics.fromMap(q))
-        .toList(),
-    topicScores: Map<String, double>.from(map['topicScores'] ?? {}),
-  );
-}
-
-class QuestionAnalytics {
-  final int questionNumber;
-  final double correctRate; // 0.0 - 1.0
-  final int totalAttempts;
-  final int correctAttempts;
-  final Map<String, int> answerDistribution; // {'A': 15, 'B': 8, ...}
-  final String? topicTag;
-
-  const QuestionAnalytics({
-    required this.questionNumber,
-    this.correctRate = 0,
-    this.totalAttempts = 0,
-    this.correctAttempts = 0,
-    this.answerDistribution = const {},
-    this.topicTag,
-  });
-
-  bool get isDifficult => correctRate < 0.4;
-  bool get isEasy => correctRate > 0.85;
-
-  Map<String, dynamic> toMap() => {
-    'questionNumber': questionNumber,
-    'correctRate': correctRate,
-    'totalAttempts': totalAttempts,
-    'correctAttempts': correctAttempts,
-    'answerDistribution': answerDistribution,
-    'topicTag': topicTag,
-  };
-
-  factory QuestionAnalytics.fromMap(Map<String, dynamic> map) =>
-      QuestionAnalytics(
-        questionNumber: map['questionNumber'] ?? 0,
-        correctRate: (map['correctRate'] ?? 0).toDouble(),
-        totalAttempts: map['totalAttempts'] ?? 0,
-        correctAttempts: map['correctAttempts'] ?? 0,
-        answerDistribution:
-            Map<String, int>.from(map['answerDistribution'] ?? {}),
-        topicTag: map['topicTag'],
-      );
+    lastModifiedAt: map['lastModifiedAt'] != null
+        ? DateTime.tryParse(map['lastModifiedAt'])
+        : null,
+    examScheduleNote: map['examScheduleNote']);
 }

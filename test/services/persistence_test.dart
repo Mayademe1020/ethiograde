@@ -8,7 +8,6 @@ import 'package:ethiograde/services/validation_service.dart';
 import 'package:ethiograde/services/student_provider.dart';
 import 'package:ethiograde/services/assessment_provider.dart';
 import 'package:ethiograde/services/migration_service.dart';
-import 'package:ethiograde/services/backup_service.dart';
 
 import 'package:ethiograde/models/student.dart';
 import 'package:ethiograde/models/assessment.dart';
@@ -29,34 +28,33 @@ void main() {
 
   Student makeStudent({
     String id = 's1',
+    String studentId = '001',
     String firstName = 'Abebe',
     String lastName = 'Kebede',
     int grade = 5,
     String className = '5A',
-  }) =>
-      Student(
-        id: id,
-        firstName: firstName,
-        lastName: lastName,
-        grade: grade,
-        className: className,
-      );
+  }) => Student(
+    id: id,
+    studentId: studentId,
+    firstName: firstName,
+    lastName: lastName,
+    grade: grade,
+    className: className);
 
   Assessment makeAssessment({
     String id = 'a1',
     String title = 'Math Midterm',
     List<Question>? questions,
-  }) =>
-      Assessment(
-        id: id,
-        title: title,
-        subject: 'Math',
-        questions: questions ??
-            [
-              Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-              Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-            ],
-      );
+  }) => Assessment(
+    id: id,
+    title: title,
+    subject: 'Math',
+    questions:
+        questions ??
+        [
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
+        ]);
 
   ScanResult makeScanResult({
     String id = 'r1',
@@ -64,18 +62,16 @@ void main() {
     String studentId = 's1',
     double totalScore = 8,
     double maxScore = 10,
-  }) =>
-      ScanResult(
-        id: id,
-        assessmentId: assessmentId,
-        studentId: studentId,
-        studentName: 'Abebe Kebede',
-        imagePath: '/tmp/test.jpg',
-        totalScore: totalScore,
-        maxScore: maxScore,
-        confidence: 0.9,
-        percentage: 80,
-      );
+  }) => ScanResult(
+    id: id,
+    assessmentId: assessmentId,
+    studentId: studentId,
+    studentName: 'Abebe Kebede',
+    imagePath: '/tmp/test.jpg',
+    totalScore: totalScore,
+    maxScore: maxScore,
+    confidence: 0.9,
+    percentage: 80);
 
   // ── Setup ─────────────────────────────────────────────────────────
 
@@ -94,7 +90,12 @@ void main() {
 
   tearDown(() async {
     // Clear and close — complete isolation between tests
-    for (final name in [studentsBox, assessmentsBox, scanResultsBox, metadataBox]) {
+    for (final name in [
+      studentsBox,
+      assessmentsBox,
+      scanResultsBox,
+      metadataBox,
+    ]) {
       final box = Hive.box(name);
       await box.clear();
       await box.close();
@@ -118,8 +119,7 @@ void main() {
       expect(Hive.isBoxOpen(metadataBox), isTrue);
     });
 
-    test('2. Add student → load → verify exists with correct data',
-        () async {
+    test('2. Add student → load → verify exists with correct data', () async {
       final provider = StudentProvider();
       // Wait for initial load
       await Future.delayed(const Duration(milliseconds: 100));
@@ -147,14 +147,15 @@ void main() {
       expect(loaded.questions.length, 2);
     });
 
-    test('4. Save scan result → load by assessment → verify count',
-        () async {
+    test('4. Save scan result → load by assessment → verify count', () async {
       final box = Hive.box(scanResultsBox);
       await box.put('r1', makeScanResult().toMap());
-      await box.put('r2',
-          makeScanResult(id: 'r2', assessmentId: 'a1', studentId: 's2').toMap());
-      await box.put('r3',
-          makeScanResult(id: 'r3', assessmentId: 'a2', studentId: 's1').toMap());
+      await box.put(
+        'r2',
+        makeScanResult(id: 'r2', assessmentId: 'a1', studentId: 's2').toMap());
+      await box.put(
+        'r3',
+        makeScanResult(id: 'r3', assessmentId: 'a2', studentId: 's1').toMap());
 
       // Count results for assessment a1
       int count = 0;
@@ -197,9 +198,9 @@ void main() {
 
       await provider.addStudent(makeStudent(id: 's1', firstName: 'Abebe'));
       await provider.addStudent(
-          makeStudent(id: 's2', firstName: 'Bekele', lastName: 'Tadesse'));
+        makeStudent(id: 's2', firstName: 'Bekele', lastName: 'Tadesse'));
       await provider.addStudent(
-          makeStudent(id: 's3', firstName: 'Chaltu', lastName: 'Abebe'));
+        makeStudent(id: 's3', firstName: 'Chaltu', lastName: 'Abebe'));
 
       final results = provider.searchStudents('abebe');
       expect(results.length, 2); // firstName match + lastName match
@@ -224,7 +225,7 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 100));
 
       final result = await provider.addStudent(
-          makeStudent(firstName: '', lastName: ''));
+        makeStudent(firstName: '', lastName: ''));
       expect(result.success, isFalse);
       expect(result.error, contains('empty'));
     });
@@ -234,24 +235,26 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 100));
 
       final longName = 'A' * 200;
-      final result =
-          await provider.addStudent(makeStudent(firstName: longName));
+      final result = await provider.addStudent(
+        makeStudent(firstName: longName));
       expect(result.success, isFalse);
       expect(result.error, contains('100'));
     });
 
-    test('10. Add assessment with invalid MCQ answer → verify rejected',
-        () async {
-      final provider = AssessmentProvider();
-      await Future.delayed(const Duration(milliseconds: 100));
+    test(
+      '10. Add assessment with invalid MCQ answer → verify rejected',
+      () async {
+        final provider = AssessmentProvider();
+        await Future.delayed(const Duration(milliseconds: 100));
 
-      final assessment = makeAssessment(questions: [
-        Question(number: 1, type: QuestionType.mcq, correctAnswer: 'Z'),
-      ]);
-      final result = await provider.addAssessment(assessment);
-      expect(result.success, isFalse);
-      expect(result.error, contains('MCQ'));
-    });
+        final assessment = makeAssessment(
+          questions: [
+            Question(number: 1, type: QuestionType.mcq, correctAnswer: 'Z'),
+          ]);
+        final result = await provider.addAssessment(assessment);
+        expect(result.success, isFalse);
+        expect(result.error, contains('MCQ'));
+      });
 
     test('11. Validation rejects student with negative grade', () async {
       const validator = ValidationService();
@@ -262,8 +265,7 @@ void main() {
 
     test('12. Validation rejects assessment with empty title', () async {
       const validator = ValidationService();
-      final result =
-          validator.validateAssessment(makeAssessment(title: ''));
+      final result = validator.validateAssessment(makeAssessment(title: ''));
       expect(result.isValid, isFalse);
       expect(result.errors.first, contains('title'));
     });
@@ -292,8 +294,7 @@ void main() {
       expect(result.error, contains('already exists'));
     });
 
-    test('15. Delete student that doesn\'t exist → verify graceful',
-        () async {
+    test('15. Delete student that doesn\'t exist → verify graceful', () async {
       final provider = StudentProvider();
       await Future.delayed(const Duration(milliseconds: 100));
 
@@ -302,37 +303,39 @@ void main() {
       expect(result.error, contains('not found'));
     });
 
-    test('16. Save 100 scan results → verify completes without error',
-        () async {
-      final box = Hive.box(scanResultsBox);
-      for (int i = 0; i < 100; i++) {
-        await box.put('result_$i', makeScanResult(id: 'result_$i').toMap());
-      }
-      expect(box.length, 100);
+    test(
+      '16. Save 100 scan results → verify completes without error',
+      () async {
+        final box = Hive.box(scanResultsBox);
+        for (int i = 0; i < 100; i++) {
+          await box.put('result_$i', makeScanResult(id: 'result_$i').toMap());
+        }
+        expect(box.length, 100);
 
-      // Verify round-trip
-      final data = Map<String, dynamic>.from(box.get('result_50') as Map);
-      final scan = ScanResult.fromMap(data);
-      expect(scan.id, 'result_50');
-      expect(scan.totalScore, 8);
-    });
+        // Verify round-trip
+        final data = Map<String, dynamic>.from(box.get('result_50') as Map);
+        final scan = ScanResult.fromMap(data);
+        expect(scan.id, 'result_50');
+        expect(scan.totalScore, 8);
+      });
 
-    test('17. Load student with corrupted data → verify graceful fallback',
-        () async {
-      final box = Hive.box(studentsBox);
-      // Write valid student
-      await box.put('s_good', makeStudent(id: 's_good').toMap());
-      // Write corrupted data (not a valid map)
-      await box.put('s_bad', 'this is not a map');
+    test(
+      '17. Load student with corrupted data → verify graceful fallback',
+      () async {
+        final box = Hive.box(studentsBox);
+        // Write valid student
+        await box.put('s_good', makeStudent(id: 's_good').toMap());
+        // Write corrupted data (not a valid map)
+        await box.put('s_bad', 'this is not a map');
 
-      // Provider should handle corrupted data
-      final provider = StudentProvider();
-      await Future.delayed(const Duration(milliseconds: 200));
+        // Provider should handle corrupted data
+        final provider = StudentProvider();
+        await Future.delayed(const Duration(milliseconds: 200));
 
-      // Should either skip the bad entry or fall back to empty
-      // Either way, must not crash
-      expect(provider.students, isNotNull);
-    });
+        // Should either skip the bad entry or fall back to empty
+        // Either way, must not crash
+        expect(provider.students, isNotNull);
+      });
   });
 
   // ══════════════════════════════════════════════════════════════════
@@ -353,36 +356,35 @@ void main() {
       expect(duplicate.error, isNotNull);
 
       // Update nonexistent student
-      final updateResult =
-          await provider.updateStudent(makeStudent(id: 'ghost'));
+      final updateResult = await provider.updateStudent(
+        makeStudent(id: 'ghost'));
       expect(updateResult.success, isFalse);
     });
 
-    test('19. Assessment provider saveAssessment backward-compat works',
-        () async {
-      final provider = AssessmentProvider();
-      await Future.delayed(const Duration(milliseconds: 100));
+    test(
+      '19. Assessment provider saveAssessment backward-compat works',
+      () async {
+        final provider = AssessmentProvider();
+        await Future.delayed(const Duration(milliseconds: 100));
 
-      final assessment = makeAssessment();
-      // saveAssessment should work as add on first call
-      await provider.saveAssessment(assessment);
-      expect(provider.getAssessmentById('a1'), isNotNull);
+        final assessment = makeAssessment();
+        // saveAssessment should work as add on first call
+        await provider.saveAssessment(assessment);
+        expect(provider.getAssessmentById('a1'), isNotNull);
 
-      // saveAssessment should work as update on second call
-      final updated = assessment.copyWith(title: 'Updated');
-      await provider.saveAssessment(updated);
-      expect(provider.getAssessmentById('a1')!.title, 'Updated');
-    });
+        // saveAssessment should work as update on second call
+        final updated = assessment.copyWith(title: 'Updated');
+        await provider.saveAssessment(updated);
+        expect(provider.getAssessmentById('a1')!.title, 'Updated');
+      });
 
     test('20. getRecentAssessments returns correct limit', () async {
       final provider = AssessmentProvider();
       await Future.delayed(const Duration(milliseconds: 100));
 
       for (int i = 0; i < 10; i++) {
-        await provider.addAssessment(makeAssessment(
-          id: 'a$i',
-          title: 'Assessment $i',
-        ));
+        await provider.addAssessment(
+          makeAssessment(id: 'a$i', title: 'Assessment $i'));
       }
 
       final recent = provider.getRecentAssessments(3);
@@ -432,15 +434,15 @@ void main() {
 
       // Verify student round-trip
       final studentMap = Map<String, dynamic>.from(
-          (decoded['students'] as List).first as Map);
+        (decoded['students'] as List).first as Map);
       final student = Student.fromMap(studentMap);
       expect(student.firstName, 'Abebe');
       expect(student.grade, 5);
     });
 
     test('22. Import → verify data restored correctly', () async {
-      final importDir =
-          await Directory.systemTemp.createTemp('ethiograde_import_');
+      final importDir = await Directory.systemTemp.createTemp(
+        'ethiograde_import_');
       final filePath = '${importDir.path}/test_backup.json';
 
       // Create a backup file
@@ -449,15 +451,16 @@ void main() {
         'exportDate': DateTime.now().toIso8601String(),
         'students': [makeStudent(id: 'imp_s1', firstName: 'Imported').toMap()],
         'assessments': [
-          makeAssessment(id: 'imp_a1', title: 'Imported Exam').toMap()
+          makeAssessment(id: 'imp_a1', title: 'Imported Exam').toMap(),
         ],
         'scanResults': <Map>[],
       };
       await File(filePath).writeAsString(jsonEncode(backupData));
 
       // Import using the backup service's logic manually
-      final data = jsonDecode(await File(filePath).readAsString())
-          as Map<String, dynamic>;
+      final data =
+          jsonDecode(await File(filePath).readAsString())
+              as Map<String, dynamic>;
       final students = data['students'] as List;
 
       final box = Hive.box(studentsBox);
@@ -469,7 +472,7 @@ void main() {
 
       // Verify
       final loaded = Student.fromMap(
-          Map<String, dynamic>.from(box.get('imp_s1') as Map));
+        Map<String, dynamic>.from(box.get('imp_s1') as Map));
       expect(loaded.firstName, 'Imported');
       expect(loaded.grade, 5);
       expect(box.containsKey('imp_s1'), isTrue);
@@ -506,7 +509,7 @@ void main() {
 
       // Original student preserved (not overwritten)
       final original = Student.fromMap(
-          Map<String, dynamic>.from(box.get('s1') as Map));
+        Map<String, dynamic>.from(box.get('s1') as Map));
       expect(original.firstName, 'Abebe'); // not 'Duplicate'
     });
   });
@@ -539,8 +542,7 @@ void main() {
       await MigrationService.runMigrations();
 
       // Version should be updated to current
-      final version =
-          metaBox.get('schema_version', defaultValue: 0) as int;
+      final version = metaBox.get('schema_version', defaultValue: 0) as int;
       expect(version, MigrationService.currentVersion);
     });
   });

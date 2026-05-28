@@ -6,6 +6,9 @@ import 'package:ethiograde/models/assessment.dart';
 import 'package:ethiograde/models/scan_result.dart';
 
 void main() {
+  // ML Kit TextRecognizer needs Flutter services binding
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   // ── Helpers ──
 
   Assessment makeAssessment({
@@ -16,12 +19,12 @@ void main() {
       title: 'Test',
       subject: 'Math',
       rubricType: rubricType,
-      questions: questions ??
+      questions:
+          questions ??
           [
             Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
             Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-          ],
-    );
+          ]);
   }
 
   /// Create a test image with some text-like content.
@@ -68,8 +71,7 @@ void main() {
         imagePath: '/nonexistent/image.jpg',
         assessment: assessment,
         studentId: 's1',
-        studentName: 'Test Student',
-      );
+        studentName: 'Test Student');
 
       expect(result.status, ScanStatus.needsRescan);
       expect(result.confidence, 0);
@@ -77,32 +79,31 @@ void main() {
       expect(result.studentName, 'Test Student');
     });
 
-    test('processes existing image file (may return empty results with real OCR)',
-        () async {
-      final service = HybridGradingService();
-      final assessment = makeAssessment();
-      final imagePath = await createTestImage();
+    test(
+      'processes existing image file (may return empty results with real OCR)',
+      () async {
+        final service = HybridGradingService();
+        final assessment = makeAssessment();
+        final imagePath = await createTestImage();
 
-      try {
-        final result = await service.gradePaper(
-          imagePath: imagePath,
-          assessment: assessment,
-          studentId: 's1',
-          studentName: 'Abebe',
-        );
+        try {
+          final result = await service.gradePaper(
+            imagePath: imagePath,
+            assessment: assessment,
+            studentId: 's1',
+            studentName: 'Abebe');
 
-        // Should complete without throwing
-        expect(result.studentName, 'Abebe');
-        expect(result.assessmentId, assessment.id);
-        // Status should be either graded or needsRescan
-        expect(
-          result.status,
-          anyOf(ScanStatus.graded, ScanStatus.needsRescan),
-        );
-      } finally {
-        await cleanupFiles([imagePath]);
-      }
-    });
+          // Should complete without throwing
+          expect(result.studentName, 'Abebe');
+          expect(result.assessmentId, assessment.id);
+          // Status should be either graded or needsRescan
+          expect(
+            result.status,
+            anyOf(ScanStatus.graded, ScanStatus.needsRescan));
+        } finally {
+          await cleanupFiles([imagePath]);
+        }
+      });
 
     test('returns proper ScanResult structure', () async {
       final service = HybridGradingService();
@@ -114,8 +115,7 @@ void main() {
           imagePath: imagePath,
           assessment: assessment,
           studentId: 'student_42',
-          studentName: 'Kebede Alemu',
-        );
+          studentName: 'Kebede Alemu');
 
         expect(result.studentId, 'student_42');
         expect(result.studentName, 'Kebede Alemu');
@@ -140,8 +140,7 @@ void main() {
 
       final results = await service.gradeBatch(
         imagePaths: [],
-        assessment: assessment,
-      );
+        assessment: assessment);
 
       expect(results, isEmpty);
     });
@@ -163,8 +162,7 @@ void main() {
           assessment: assessment,
           onProgress: (processed, total) {
             progressLog.add([processed, total]);
-          },
-        );
+          });
 
         expect(progressLog, hasLength(3));
         expect(progressLog[0], [1, 3]);
@@ -188,8 +186,7 @@ void main() {
         final results = await service.gradeBatch(
           imagePaths: paths,
           assessment: assessment,
-          studentNames: ['Abebe Kebede', 'Sara Tadesse'],
-        );
+          studentNames: ['Abebe Kebede', 'Sara Tadesse']);
 
         expect(results, hasLength(2));
         expect(results[0].studentName, 'Abebe Kebede');
@@ -211,8 +208,7 @@ void main() {
       try {
         final results = await service.gradeBatch(
           imagePaths: paths,
-          assessment: assessment,
-        );
+          assessment: assessment);
 
         expect(results, hasLength(2));
         expect(results[0].studentName, 'Student 1');
@@ -256,8 +252,7 @@ void main() {
       try {
         final results = await service.gradeBatch(
           imagePaths: paths,
-          assessment: assessment,
-        );
+          assessment: assessment);
 
         expect(results, hasLength(2));
         // First should process normally
@@ -283,8 +278,7 @@ void main() {
         imagePath: '/nonexistent/regrade.jpg',
         assessment: assessment,
         studentId: 's1',
-        studentName: 'Regrade Test',
-      );
+        studentName: 'Regrade Test');
 
       expect(result.studentName, 'Regrade Test');
       expect(result.status, ScanStatus.needsRescan);
@@ -311,10 +305,8 @@ void main() {
             isCorrect: true,
             score: 1,
             maxScore: 1,
-            confidence: 0.9,
-          ),
-        ],
-      );
+            confidence: 0.9),
+        ]);
 
       expect(service.detectBatchDuplicates([result]), isEmpty);
     });
@@ -328,29 +320,26 @@ void main() {
       final service = HybridGradingService();
 
       AnswerMatch am(int q, String ans) => AnswerMatch(
-            questionNumber: q,
-            detectedAnswer: ans,
-            correctAnswer: ans,
-            isCorrect: true,
-            score: 1,
-            maxScore: 1,
-            confidence: 0.9,
-          );
+        questionNumber: q,
+        detectedAnswer: ans,
+        correctAnswer: ans,
+        isCorrect: true,
+        score: 1,
+        maxScore: 1,
+        confidence: 0.9);
 
       final r1 = ScanResult(
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Abebe',
         imagePath: '/a.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
-      );
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
       final r2 = ScanResult(
         assessmentId: 'a1',
         studentId: 's2',
         studentName: 'Kebede',
         imagePath: '/b.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
-      );
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
 
       final dupes = service.detectBatchDuplicates([r1, r2]);
 
@@ -364,29 +353,26 @@ void main() {
       final service = HybridGradingService();
 
       AnswerMatch am(int q, String ans) => AnswerMatch(
-            questionNumber: q,
-            detectedAnswer: ans,
-            correctAnswer: '',
-            isCorrect: false,
-            score: 0,
-            maxScore: 1,
-            confidence: 0.9,
-          );
+        questionNumber: q,
+        detectedAnswer: ans,
+        correctAnswer: '',
+        isCorrect: false,
+        score: 0,
+        maxScore: 1,
+        confidence: 0.9);
 
       final r1 = ScanResult(
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Abebe',
         imagePath: '/a.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
-      );
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
       final r2 = ScanResult(
         assessmentId: 'a1',
         studentId: 's2',
         studentName: 'Kebede',
         imagePath: '/b.jpg',
-        answers: [am(1, 'D'), am(2, 'E'), am(3, 'A')],
-      );
+        answers: [am(1, 'D'), am(2, 'E'), am(3, 'A')]);
 
       final dupes = service.detectBatchDuplicates([r1, r2]);
       expect(dupes, isEmpty);

@@ -1,34 +1,32 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../config/theme.dart';
 import '../../models/student.dart';
-import '../../services/locale_provider.dart';
 import '../../services/student_provider.dart';
+import '../../services/class_provider.dart';
 import '../../services/excel_service.dart';
 
-class ImportExcelScreen extends StatefulWidget {
-  const ImportExcelScreen({super.key});
+class ImportCsvScreen extends StatefulWidget {
+  final String? classId;
+
+  const ImportCsvScreen({super.key, this.classId});
 
   @override
-  State<ImportExcelScreen> createState() => _ImportExcelScreenState();
+  State<ImportCsvScreen> createState() => _ImportCsvScreenState();
 }
 
-class _ImportExcelScreenState extends State<ImportExcelScreen> {
-  final ExcelService _excel = ExcelService();
+class _ImportCsvScreenState extends State<ImportCsvScreen> {
+  final ImportService _import = ImportService();
   List<Student> _importedStudents = [];
   bool _isImporting = false;
   String _statusMessage = '';
 
   @override
   Widget build(BuildContext context) {
-    final isAm = context.watch<LocaleProvider>().isAmharic;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isAm ? 'ተማሪዎች አስገባ' : 'Import Students'),
-      ),
+      appBar: AppBar(title: Text('Import Students')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -40,8 +38,7 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.info.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.info.withOpacity(0.2)),
-              ),
+                border: Border.all(color: AppTheme.info.withOpacity(0.2))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -50,28 +47,18 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                       const Icon(Icons.info_outline, color: AppTheme.info),
                       const SizedBox(width: 8),
                       Text(
-                        isAm ? 'መመሪያ' : 'Instructions',
+                        'Instructions',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.info,
-                        ),
-                      ),
-                    ],
-                  ),
+                          color: AppTheme.info)),
+                    ]),
                   const SizedBox(height: 8),
                   Text(
-                    isAm
-                        ? '1. Excel ፋይል (.xlsx) ያዘጋጁ\n'
-                            '2. የመጀመሪያ ረድፍ ስሞች ይሁኑ (First Name, Last Name, Class...)\n'
-                            '3. ፋይሉን ይምረጡ'
-                        : '1. Prepare an Excel file (.xlsx)\n'
-                            '2. First row should be headers (First Name, Last Name, Class...)\n'
-                            '3. Select the file below',
-                    style: const TextStyle(fontSize: 13, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
+                    '1. Prepare a CSV file (.csv)\n'
+                    '2. First row should be headers (Name, Last Name, ID...)\n'
+                    '3. Select the file below',
+                    style: const TextStyle(fontSize: 13, height: 1.5)),
+                ])),
             const SizedBox(height: 24),
 
             // Import button
@@ -85,28 +72,21 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                          color: Colors.white))
                     : const Icon(Icons.upload_file),
                 label: Text(
                   _isImporting
-                      ? (isAm ? 'በማስገባት ላይ...' : 'Importing...')
-                      : (isAm ? 'Excel ፋይል ይምረጡ' : 'Select Excel File'),
-                ),
-              ),
-            ),
+                      ? ('Importing...')
+                      : ('Select CSV File')))),
             const SizedBox(height: 12),
 
             // Manual entry button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => _showManualEntry(isAm),
+                onPressed: () => _showManualEntry(),
                 icon: const Icon(Icons.person_add),
-                label: Text(isAm ? 'በእጅ ያክሉ' : 'Add Manually'),
-              ),
-            ),
+                label: Text('Add Manually'))),
 
             const SizedBox(height: 24),
 
@@ -119,17 +99,13 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                   color: _importedStudents.isNotEmpty
                       ? AppTheme.primaryGreen.withOpacity(0.1)
                       : AppTheme.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                  borderRadius: BorderRadius.circular(8)),
                 child: Text(
                   _statusMessage,
                   style: TextStyle(
                     color: _importedStudents.isNotEmpty
                         ? AppTheme.primaryGreen
-                        : AppTheme.warning,
-                  ),
-                ),
-              ),
+                        : AppTheme.warning))),
 
             // Imported students list
             if (_importedStudents.isNotEmpty) ...[
@@ -137,18 +113,14 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_importedStudents.length} ${isAm ? 'ተማሪዎች' : 'Students'}',
+                    '${_importedStudents.length} ${'Students'}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                      fontWeight: FontWeight.bold)),
                   TextButton.icon(
                     onPressed: _saveImportedStudents,
                     icon: const Icon(Icons.check),
-                    label: Text(isAm ? 'ሁሉን አስቀምጥ' : 'Save All'),
-                  ),
-                ],
-              ),
+                    label: Text('Save All')),
+                ]),
               const SizedBox(height: 8),
               ListView.builder(
                 shrinkWrap: true,
@@ -164,32 +136,21 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
                         style: const TextStyle(
                           color: AppTheme.primaryGreen,
                           fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
+                          fontSize: 12))),
                     title: Text(s.fullName),
                     subtitle: Text(
                       [
-                        if (s.fullNameAmharic.trim().isNotEmpty) s.fullNameAmharic,
                         if (s.className.isNotEmpty) s.className,
                         if (s.studentId.isNotEmpty) 'ID: ${s.studentId}',
-                      ].join(' • '),
-                    ),
+                      ].join(' • ')),
                     trailing: IconButton(
                       icon: const Icon(Icons.close, size: 18),
                       onPressed: () {
                         setState(() => _importedStudents.removeAt(index));
-                      },
-                    ),
-                  );
-                },
-              ),
+                      }));
+                }),
             ],
-          ],
-        ),
-      ),
-    );
+          ])));
   }
 
   Future<void> _pickAndImport() async {
@@ -199,7 +160,7 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
     });
 
     try {
-      final result = await _excel.importStudents();
+      final result = await _import.importStudents(classId: widget.classId);
 
       if (result.success) {
         setState(() {
@@ -223,14 +184,13 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
     }
   }
 
-  void _showManualEntry(bool isAm) {
+  void _showManualEntry() {
     final firstNameCtrl = TextEditingController();
     final lastNameCtrl = TextEditingController();
-    final firstNameAmCtrl = TextEditingController();
-    final lastNameAmCtrl = TextEditingController();
-    final classCtrl = TextEditingController();
-    final sectionCtrl = TextEditingController();
     final idCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    String gender = '';
+    String selectedClassId = '';
 
     // Track if controllers were already disposed via Add button.
     bool disposed = false;
@@ -239,10 +199,6 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
       disposed = true;
       firstNameCtrl.dispose();
       lastNameCtrl.dispose();
-      firstNameAmCtrl.dispose();
-      lastNameAmCtrl.dispose();
-      classCtrl.dispose();
-      sectionCtrl.dispose();
       idCtrl.dispose();
     }
 
@@ -254,135 +210,232 @@ class _ImportExcelScreenState extends State<ImportExcelScreen> {
           bottom: MediaQuery.of(c).viewInsets.bottom,
           left: 24,
           right: 24,
-          top: 24,
-        ),
+          top: 24),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isAm ? 'አዲስ ተማሪ' : 'New Student',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: firstNameCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'ስም' : 'First Name',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: lastNameCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'የአባት ስም' : 'Last Name',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: firstNameAmCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'ስም (አማርኛ)' : 'First Name (Am)',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: lastNameAmCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'የአባት ስም (አማርኛ)' : 'Last Name (Am)',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: classCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'ክፍል' : 'Class',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: sectionCtrl,
-                      decoration: InputDecoration(
-                        labelText: isAm ? 'ቡድን' : 'Section',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: idCtrl,
-                decoration: InputDecoration(
-                  labelText: isAm ? 'የተማሪ መለያ' : 'Student ID',
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (firstNameCtrl.text.isEmpty && lastNameCtrl.text.isEmpty) return;
-                    final student = Student(
-                      id: const Uuid().v4(),
-                      firstName: firstNameCtrl.text,
-                      lastName: lastNameCtrl.text,
-                      firstNameAmharic: firstNameAmCtrl.text,
-                      lastNameAmharic: lastNameAmCtrl.text,
-                      className: classCtrl.text,
-                      section: sectionCtrl.text,
-                      studentId: idCtrl.text,
-                    );
-                    setState(() => _importedStudents.add(student));
-                    disposeAll();
-                    Navigator.pop(c);
-                  },
-                  child: Text(isAm ? 'ጨምር' : 'Add'),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
-    ).whenComplete(disposeAll);
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'New Student',
+                  style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+
+                // Student ID
+                TextFormField(
+                  controller: idCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Student ID (Roll No.) *',
+                    hintText: 'e.g. 001',
+                    prefixIcon: const Icon(Icons.badge_outlined)),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Student ID is required';
+                    }
+                    if (v.trim().length > 20) {
+                      return 'Max 20 characters';
+                    }
+                    return null;
+                  }),
+                const SizedBox(height: 12),
+
+                // Name (English)
+                Text(
+                  'Name (English) *',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.lightText)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: firstNameCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'First Name',
+                          hintText: 'Abebe'),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? ('Required')
+                            : null)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: lastNameCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Last Name',
+                          hintText: 'Kebede'),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? ('Required')
+                            : null)),
+                  ]),
+                const SizedBox(height: 16),
+
+                // Gender
+                Text(
+                  'Gender *',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.lightText)),
+                const SizedBox(height: 8),
+                StatefulBuilder(
+                  builder: (context, setGenderState) => Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setGenderState(() => gender = 'M'),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: gender == 'M'
+                                  ? AppTheme.primaryGreen
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: gender == 'M'
+                                    ? AppTheme.primaryGreen
+                                    : Colors.grey.shade300,
+                                width: 1.5)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.male,
+                                  size: 18,
+                                  color: gender == 'M'
+                                      ? Colors.white
+                                      : AppTheme.lightText),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Male',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: gender == 'M'
+                                        ? Colors.white
+                                        : AppTheme.darkText)),
+                              ])))),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setGenderState(() => gender = 'F'),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: gender == 'F'
+                                  ? AppTheme.primaryGreen
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: gender == 'F'
+                                    ? AppTheme.primaryGreen
+                                    : Colors.grey.shade300,
+                                width: 1.5)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.female,
+                                  size: 18,
+                                  color: gender == 'F'
+                                      ? Colors.white
+                                      : AppTheme.lightText),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Female',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: gender == 'F'
+                                        ? Colors.white
+                                        : AppTheme.darkText)),
+                              ])))),
+                    ])),
+                const SizedBox(height: 16),
+
+                // Class dropdown
+                Builder(
+                  builder: (context) {
+                    final classes = context.watch<ClassProvider>().classes;
+                    if (classes.isEmpty) return const SizedBox.shrink();
+                    return StatefulBuilder(
+                      builder: (context, setClassState) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: DropdownButtonFormField<String>(
+                          value: selectedClassId.isEmpty
+                              ? null
+                              : selectedClassId,
+                          decoration: InputDecoration(
+                            labelText: 'Class',
+                            prefixIcon: const Icon(Icons.class_outlined)),
+                          items: classes
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c.id,
+                                  child: Text(c.displayName)))
+                              .toList(),
+                          onChanged: (v) =>
+                              setClassState(() => selectedClassId = v ?? ''))));
+                  }),
+
+                // Add button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) return;
+                      if (gender.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Gender is required'),
+                            backgroundColor: AppTheme.primaryRed));
+                        return;
+                      }
+
+                      final classIds = <String>[];
+                      if (selectedClassId.isNotEmpty)
+                        classIds.add(selectedClassId);
+
+                      final student = Student(
+                        id: const Uuid().v4(),
+                        firstName: firstNameCtrl.text.trim(),
+                        lastName: lastNameCtrl.text.trim(),
+                        className: '',
+                        section: '',
+                        studentId: idCtrl.text.trim(),
+                        gender: gender,
+                        classIds: classIds);
+                      setState(() => _importedStudents.add(student));
+                      disposeAll();
+                      Navigator.pop(c);
+                    },
+                    icon: const Icon(Icons.person_add),
+                    label: Text('Add Student'))),
+                const SizedBox(height: 24),
+              ]))))).whenComplete(disposeAll);
   }
 
   Future<void> _saveImportedStudents() async {
     final provider = context.read<StudentProvider>();
+    final classProv = context.read<ClassProvider>();
     await provider.addStudents(_importedStudents);
 
+    // Link to class if provided
+    if (widget.classId != null && widget.classId!.isNotEmpty) {
+      final studentIds = _importedStudents.map((s) => s.id).toList();
+      await classProv.addStudentsToClass(widget.classId!, studentIds);
+    }
+
     if (mounted) {
-      final isAm = context.read<LocaleProvider>().isAmharic;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_importedStudents.length} ${isAm ? 'ተማሪዎች ተቀምጠዋል' : 'students saved'}',
-          ),
-          backgroundColor: AppTheme.primaryGreen,
-        ),
-      );
+            '${_importedStudents.length} ${'students saved'}'),
+          backgroundColor: AppTheme.primaryGreen));
       Navigator.pop(context);
     }
   }

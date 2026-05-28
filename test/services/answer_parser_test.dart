@@ -158,6 +158,43 @@ void main() {
     });
   });
 
+  group('parseQuestionAnswer — short answers (multi-word text)', () {
+    test('"5. Addis Ababa"', () {
+      final result = parser.parseQuestionAnswer('5. Addis Ababa');
+      expect(result, isNotNull);
+      expect(result!.$1, 5);
+      expect(result.$2, 'Addis Ababa');
+    });
+
+    test('"6. 42"', () {
+      final result = parser.parseQuestionAnswer('6. 42');
+      expect(result, isNotNull);
+      expect(result!.$1, 6);
+      expect(result.$2, '42');
+    });
+
+    test('"7-Photosynthesis"', () {
+      final result = parser.parseQuestionAnswer('7-Photosynthesis');
+      expect(result, isNotNull);
+      expect(result!.$1, 7);
+      expect(result.$2, 'Photosynthesis');
+    });
+
+    test('"10) አዲስ አበባ" (Amharic short answer)', () {
+      final result = parser.parseQuestionAnswer('10) አዲስ አበባ');
+      expect(result, isNotNull);
+      expect(result!.$1, 10);
+      expect(result.$2, 'አዲስ አበባ');
+    });
+
+    test('"3. H2O" (chemical formula)', () {
+      final result = parser.parseQuestionAnswer('3. H2O');
+      expect(result, isNotNull);
+      expect(result!.$1, 3);
+      expect(result.$2, 'H2O');
+    });
+  });
+
   group('parseQuestionAnswer — trailing punctuation (OCR artifacts)', () {
     test('"2. A."', () {
       final result = parser.parseQuestionAnswer('2. A.');
@@ -198,11 +235,13 @@ void main() {
     });
 
     test('question text without answer: "1. What is the capital?"', () {
-      // This SHOULD return null — it's a question, not an answer
-      // But the current regex (1. pattern) would match it as number=1, answer="What is the capital?"
-      // That answer would fail normalization → empty string → null
+      // Now returns the text — the parser can't distinguish questions from
+      // short answers at the regex level. The answer key type determines
+      // whether this is scored or marked wrong.
       final result = parser.parseQuestionAnswer('1. What is the capital?');
-      expect(result, isNull);
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'What is the capital');
     });
 
     test('random noise: "xyz123"', () {
@@ -262,8 +301,22 @@ void main() {
       expect(parser.normalizeAnswer('!!!'), '');
     });
 
-    test('long nonsense returns empty', () {
-      expect(parser.normalizeAnswer('this is definitely not an answer'), '');
+    test('long text now accepted (short answer support)', () {
+      expect(parser.normalizeAnswer('Addis Ababa'), 'Addis Ababa');
+      expect(parser.normalizeAnswer('42 kilometers'), '42 kilometers');
+      expect(
+        parser.normalizeAnswer('this is a valid short answer'),
+        'this is a valid short answer');
+    });
+
+    test('pure noise (no alphanumeric) still returns empty', () {
+      expect(parser.normalizeAnswer('...::..'), '');
+      expect(parser.normalizeAnswer('???'), '');
+    });
+
+    test('too long (>80 chars) returns empty', () {
+      final longText = 'a' * 81;
+      expect(parser.normalizeAnswer(longText), '');
     });
   });
 
@@ -294,19 +347,21 @@ void main() {
       expect(answers[9].answer, 'D');
     });
 
-    test('mixed confidence — low-confidence lines included (caller filters)', () {
-      final regions = [
-        const TextRegionInput(text: '1. A', confidence: 0.95),
-        const TextRegionInput(text: '2. ???', confidence: 0.3), // noise
-        const TextRegionInput(text: '3. C', confidence: 0.91),
-      ];
+    test(
+      'mixed confidence — low-confidence lines included (caller filters)',
+      () {
+        final regions = [
+          const TextRegionInput(text: '1. A', confidence: 0.95),
+          const TextRegionInput(text: '2. ???', confidence: 0.3), // noise
+          const TextRegionInput(text: '3. C', confidence: 0.91),
+        ];
 
-      final answers = parser.parseAnswers(regions);
-      // Parser should return Q1 and Q3 (Q2 fails normalization)
-      expect(answers.length, 2);
-      expect(answers[0].questionNumber, 1);
-      expect(answers[1].questionNumber, 3);
-    });
+        final answers = parser.parseAnswers(regions);
+        // Parser should return Q1 and Q3 (Q2 fails normalization)
+        expect(answers.length, 2);
+        expect(answers[0].questionNumber, 1);
+        expect(answers[1].questionNumber, 3);
+      });
 
     test('noisy OCR — extra spaces, mixed delimiters', () {
       final regions = [
@@ -332,7 +387,12 @@ void main() {
 
       final answers = parser.parseAnswers(regions);
       expect(answers.length, 4);
-      expect(answers.map((a) => a.answer).toList(), ['True', 'False', 'False', 'True']);
+      expect(answers.map((a) => a.answer).toList(), [
+        'True',
+        'False',
+        'False',
+        'True',
+      ]);
     });
 
     test('Amharic mixed MCQ + True/False', () {
@@ -356,7 +416,9 @@ void main() {
         const TextRegionInput(text: '1. A', confidence: 0.92),
         const TextRegionInput(text: 'Name: Abebe Kebede', confidence: 0.95),
         const TextRegionInput(text: '2. B', confidence: 0.90),
-        const TextRegionInput(text: 'Grade 10 Mathematics Final Exam', confidence: 0.93),
+        const TextRegionInput(
+          text: 'Grade 10 Mathematics Final Exam',
+          confidence: 0.93),
         const TextRegionInput(text: 'ID: 12345678', confidence: 0.91),
       ];
 
@@ -364,6 +426,51 @@ void main() {
       expect(answers.length, 2);
       expect(answers[0].answer, 'A');
       expect(answers[1].answer, 'B');
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // DualLabels — bilingual MCQ option labels
+  // ══════════════════════════════════════════════════════════════════
+
+  group('DualLabels', () {
+    test('label() maps English to dual-label', () {
+      expect(DualLabels.label('A'), 'A / ሀ');
+      expect(DualLabels.label('B'), 'B / ለ');
+      expect(DualLabels.label('C'), 'C / ሐ');
+      expect(DualLabels.label('D'), 'D / መ');
+      expect(DualLabels.label('E'), 'E / ሠ');
+    });
+
+    test('label() is case-insensitive for English', () {
+      expect(DualLabels.label('a'), 'a / ሀ');
+      expect(DualLabels.label('b'), 'b / ለ');
+    });
+
+    test('label() returns original for non-MCQ options', () {
+      expect(DualLabels.label('True'), 'True');
+      expect(DualLabels.label('False'), 'False');
+      expect(DualLabels.label('X'), 'X');
+    });
+
+    test('labels() maps a list of options', () {
+      final result = DualLabels.labels(['A', 'B', 'C', 'D', 'E']);
+      expect(result, ['A / ሀ', 'B / ለ', 'C / ሐ', 'D / መ', 'E / ሠ']);
+    });
+
+    test('labels() handles True/False', () {
+      final result = DualLabels.labels(['True', 'False']);
+      expect(result, ['True', 'False']);
+    });
+
+    test('labels() handles empty list', () {
+      expect(DualLabels.labels([]), <String>[]);
+    });
+
+    test('enToAm and amToEn are inverse mappings', () {
+      for (final entry in DualLabels.enToAm.entries) {
+        expect(DualLabels.amToEn[entry.value], entry.key);
+      }
     });
   });
 }

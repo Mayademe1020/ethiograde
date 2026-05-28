@@ -1,261 +1,253 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:record/record.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 
+import 'settings_provider.dart';
+
+/// Voice service — TTS via flutter_tts for reading scores aloud.
+///
+/// STT, recording, and playback remain stubs (deferred to v0.3.0).
+/// Only flutter_tts is re-enabled (~2MB APK delta, no native SDK bloat).
+///
+/// Design:
+/// - Singleton (one TTS engine instance)
+/// - English-only (Amharic removed from codebase)
+/// - Safe for 2GB RAM: TTS engine is lightweight
+/// - Never blocks UI: all speech is async with completion futures
 class VoiceService {
   static final VoiceService _instance = VoiceService._();
   factory VoiceService() => _instance;
   VoiceService._();
 
-  final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
-  final AudioRecorder _recorder = AudioRecorder();
-  final AudioPlayer _player = AudioPlayer();
+  bool _initialized = false;
+  bool _isSpeaking = false;
+  bool _shouldStop = false;
 
+  // Stub state (STT/recording/playback — not implemented)
   bool _isListening = false;
   bool _isRecording = false;
   bool _isPlaying = false;
-  String _currentLocale = 'en_US';
-  String? _currentPlayingPath;
 
   bool get isListening => _isListening;
   bool get isRecording => _isRecording;
   bool get isPlaying => _isPlaying;
-  String? get currentPlayingPath => _currentPlayingPath;
+  bool get isSpeaking => _isSpeaking;
 
-  /// Stream of playback state changes (true = playing, false = stopped).
-  Stream<bool> get playingStateStream => _player.playerStateStream.map(
-        (state) => state.playing,
-      );
+  /// Stub stream — emits false (not playing). STT/playback deferred.
+  Stream<bool> get playingStateChanged => Stream.value(false);
 
-  /// Whether audio playback is supported on this device.
-  bool get isPlaybackSupported => true;
-
-  /// Initialize voice services
-  Future<bool> initialize({String locale = 'en_US'}) async {
-    _currentLocale = locale;
-
-    // Init speech recognition
-    final available = await _speech.initialize(
-      onError: (error) => debugPrint('Speech error: $error'),
-      onStatus: (status) => debugPrint('Speech status: $status'),
-    );
-
-    // Init TTS
-    await _tts.setLanguage(locale == 'am_ET' ? 'am-ET' : 'en-US');
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-
-    return available;
+  /// Whether the file at [path] exists and is non-empty.
+  static bool fileExists(String path) {
+    final f = File(path);
+    return f.existsSync() && f.lengthSync() > 0;
   }
 
-  /// Set locale for speech recognition and TTS
+  /// Initialize TTS engine. Safe to call multiple times.
+  Future<bool> initialize({String locale = 'en-US'}) async {
+    if (_initialized) return true;
+    try {
+      await _tts.setLanguage(locale);
+      await _tts.setSpeechRate(0.45); // Slower for clarity
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      _initialized = true;
+      debugPrint('[Voice] TTS initialized ($locale)');
+      return true;
+    } catch (e) {
+      debugPrint('[Voice] TTS init failed: $e');
+      return false;
+    }
+  }
+
+  /// Change TTS locale (e.g., 'en-US', 'am-ET' if available on device).
   Future<void> setLocale(String locale) async {
-    _currentLocale = locale;
-    await _tts.setLanguage(locale == 'am_ET' ? 'am-ET' : 'en-US');
+    try {
+      await _tts.setLanguage(locale);
+    } catch (e) {
+      debugPrint('[Voice] TTS locale change failed: $e');
+    }
   }
 
-  // ──── Speech to Text ────
+  // ──── Speech to Text (stub) ────
 
-  /// Start listening for speech input
   Future<void> startListening({
     required Function(String text) onResult,
     Function()? onDone,
     String? locale,
   }) async {
-    if (_isListening) return;
-
-    _isListening = true;
-    await _speech.listen(
-      onResult: (result) {
-        onResult(result.recognizedWords);
-        if (result.finalResult) {
-          _isListening = false;
-          onDone?.call();
-        }
-      },
-      localeId: locale ?? _currentLocale,
-      listenMode: stt.ListenMode.confirmation,
-      cancelOnError: true,
-    );
+    debugPrint('[Voice] Stub: startListening ignored (STT deferred to v0.3.0)');
   }
 
-  /// Stop listening
-  Future<void> stopListening() async {
-    _isListening = false;
-    await _speech.stop();
-  }
+  Future<void> stopListening() async {}
 
-  /// Get available locales for speech recognition
-  Future<List<stt.LocaleName>> getAvailableLocales() async {
-    return await _speech.locales();
-  }
+  Future<List<dynamic>> getAvailableLocales() async => [];
 
-  // ──── Text to Speech ────
+  // ──── Text to Speech (real) ────
 
-  /// Speak text aloud
+  /// Speak [text] aloud. Completes when speech finishes or is stopped.
   Future<void> speak(String text, {String? locale}) async {
-    if (locale != null) {
-      await _tts.setLanguage(locale == 'am_ET' ? 'am-ET' : 'en-US');
-    }
+    await initialize();
+    if (locale != null) await _tts.setLanguage(locale);
+    _isSpeaking = true;
+    _shouldStop = false;
+
+    final completer = Completer<void>();
+    _tts.setCompletionHandler(() {
+      _isSpeaking = false;
+      if (!completer.isCompleted) completer.complete();
+    });
+    _tts.setErrorHandler((msg) {
+      _isSpeaking = false;
+      debugPrint('[Voice] TTS error: $msg');
+      if (!completer.isCompleted) completer.complete();
+    });
+
     await _tts.speak(text);
+    return completer.future;
   }
 
-  /// Stop speaking
+  /// Stop speaking immediately.
   Future<void> stopSpeaking() async {
+    _shouldStop = true;
+    _isSpeaking = false;
     await _tts.stop();
   }
 
-  // ──── Audio Recording ────
+  // ──── Audio Recording (stub) ────
 
-  /// Start recording voice note
   Future<void> startRecording() async {
-    if (_isRecording) return;
-
-    final dir = await getApplicationDocumentsDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = '${dir.path}/voice_note_$timestamp.m4a';
-
-    if (await _recorder.hasPermission()) {
-      await _recorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 128000,
-          sampleRate: 44100,
-        ),
-        path: path,
-      );
-      _isRecording = true;
-    }
+    debugPrint(
+      '[Voice] Stub: startRecording ignored (recording deferred to v0.3.0)',
+    );
   }
 
-  /// Stop recording and return file path
-  Future<String?> stopRecording() async {
-    if (!_isRecording) return null;
+  Future<String?> stopRecording() async => null;
 
-    _isRecording = false;
-    final path = await _recorder.stop();
-    return path;
-  }
+  Future<double> getAmplitude() async => 0.0;
 
-  /// Get recording amplitude for waveform display
-  Future<double> getAmplitude() async {
-    final amplitude = await _recorder.getAmplitude();
-    return amplitude.current;
-  }
+  // ──── Audio Playback (stub) ────
 
-  /// Play a recorded voice note.
-  /// Returns a Future that completes when playback starts, or throws on error.
   Future<void> playRecording(String path) async {
-    final file = File(path);
-    if (!await file.exists()) {
-      throw VoicePlaybackException('Voice note file not found');
-    }
-
-    // Stop any current playback first.
-    if (_isPlaying) {
-      await stopPlayback();
-    }
-
-    try {
-      _currentPlayingPath = path;
-      _isPlaying = true;
-      await _player.setFilePath(path);
-      await _player.play();
-
-      // Listen for completion to reset state.
-      _player.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          _isPlaying = false;
-          _currentPlayingPath = null;
-        }
-      });
-    } catch (e) {
-      _isPlaying = false;
-      _currentPlayingPath = null;
-      debugPrint('[Voice] Playback error: $e');
-      rethrow;
-    }
+    debugPrint(
+      '[Voice] Stub: playRecording ignored (playback deferred to v0.3.0)',
+    );
   }
 
-  /// Stop current playback.
   Future<void> stopPlayback() async {
     _isPlaying = false;
-    _currentPlayingPath = null;
-    await _player.stop();
   }
 
-  /// Pause current playback.
-  Future<void> pausePlayback() async {
-    _isPlaying = false;
-    await _player.pause();
-  }
+  // ──── Convenience (real TTS) ────
 
-  /// Resume paused playback.
-  Future<void> resumePlayback() async {
-    _isPlaying = true;
-    await _player.play();
-  }
-
-  /// Get playback duration of a voice note file.
-  Future<Duration?> getRecordingDuration(String path) async {
-    final file = File(path);
-    if (!await file.exists()) return null;
-    try {
-      final source = AudioSource.uri(Uri.file(path));
-      await _player.setAudioSource(source);
-      final duration = _player.duration;
-      await _player.stop();
-      return duration;
-    } catch (e) {
-      debugPrint('[Voice] Duration query error: $e');
-      return null;
-    }
-  }
-
-  // ──── Convenience ────
-
-  /// Read score aloud to teacher
+  /// Read a single student's score aloud.
   Future<void> readScore({
     required String studentName,
     required double score,
     required double maxScore,
     required String grade,
-    bool isAmharic = false,
+    VoiceFeedbackMode mode = VoiceFeedbackMode.scoreOnly,
+    bool needsReview = false,
   }) async {
-    final percentage = (score / maxScore * 100).toStringAsFixed(0);
-    String text;
-
-    if (isAmharic) {
-      text = '$studentName ውጤት: $score ከ $maxScore. '
-          'ፐርሰንት $percentage%. ደረጃ $grade.';
-    } else {
-      text = '$studentName scored $score out of $maxScore. '
-          'Percentage $percentage%. Grade $grade.';
-    }
-
+    final text = scoreReadoutText(
+      score: score,
+      maxScore: maxScore,
+      grade: grade,
+      mode: mode,
+      needsReview: needsReview,
+    );
+    if (text.isEmpty) return;
     await speak(text);
   }
 
-  /// Dispose resources
-  void dispose() {
-    _speech.cancel();
-    _tts.stop();
-    _recorder.dispose();
-    _player.dispose();
+  /// Read all students' scores sequentially.
+  ///
+  /// [onReadingIndex] fires before each student is spoken (0-based index).
+  /// Call [stopSpeaking] to cancel mid-read.
+  Future<void> readAllScores({
+    required List<String> studentNames,
+    required List<double> scores,
+    required List<double> maxScores,
+    required List<double> percentages,
+    required List<String> grades,
+    VoiceFeedbackMode mode = VoiceFeedbackMode.scoreOnly,
+    List<bool>? needsReview,
+    void Function(int index)? onReadingIndex,
+  }) async {
+    if (mode == VoiceFeedbackMode.off) return;
+    await initialize();
+    _shouldStop = false;
+
+    for (int i = 0; i < studentNames.length; i++) {
+      if (_shouldStop) break;
+
+      onReadingIndex?.call(i);
+
+      final score = scores[i];
+      final maxScore = maxScores[i];
+      final grade = grades[i];
+      final text = scoreReadoutText(
+        score: score,
+        maxScore: maxScore,
+        grade: grade,
+        mode: mode,
+        needsReview: needsReview != null && i < needsReview.length
+            ? needsReview[i]
+            : false,
+      );
+      if (text.isEmpty) continue;
+
+      await speak(text);
+      // Small pause between students for clarity
+      if (!_shouldStop && i < studentNames.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+    }
+
+    _isSpeaking = false;
   }
-}
 
-/// Exception thrown when voice playback fails.
-class VoicePlaybackException implements Exception {
-  final String message;
-  VoicePlaybackException(this.message);
+  /// Dispose TTS engine.
+  void dispose() {
+    _tts.stop().catchError((e) {
+      debugPrint('[Voice] TTS dispose stop failed: $e');
+    });
+    _initialized = false;
+  }
 
-  @override
-  String toString() => 'VoicePlaybackException: $message';
+  /// Builds safe classroom speech. It never includes student name or id.
+  @visibleForTesting
+  static String scoreReadoutText({
+    required double score,
+    required double maxScore,
+    required String grade,
+    required VoiceFeedbackMode mode,
+    bool needsReview = false,
+  }) {
+    final statusText = needsReview ? 'needs review' : 'graded';
+    final scoreText = _formatScore(score);
+    final gradeText = grade.trim().isEmpty ? 'not graded' : grade.trim();
+
+    switch (mode) {
+      case VoiceFeedbackMode.off:
+        return '';
+      case VoiceFeedbackMode.statusOnly:
+        return statusText;
+      case VoiceFeedbackMode.scoreOnly:
+        return needsReview ? '$scoreText, needs review' : scoreText;
+      case VoiceFeedbackMode.gradeOnly:
+        return needsReview ? '$gradeText, needs review' : gradeText;
+      case VoiceFeedbackMode.scoreAndGrade:
+        final text = '$scoreText, $gradeText';
+        return needsReview ? '$text, needs review' : text;
+    }
+  }
+
+  static String _formatScore(double score) {
+    if (score == score.roundToDouble()) {
+      return score.toInt().toString();
+    }
+    return score.toStringAsFixed(1);
+  }
 }

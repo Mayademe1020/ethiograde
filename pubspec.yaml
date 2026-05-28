@@ -4,12 +4,11 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: '>=3.1.0 <4.0.0'
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: '>=3.41.6'
 
 dependencies:
   flutter:
-    sdk: flutter
-  flutter_localizations:
     sdk: flutter
 
   # State Management
@@ -19,47 +18,32 @@ dependencies:
 
   # Camera & Image
   camera: ^0.10.5+9
-  image_picker: ^1.0.7
   image: ^4.1.3
   path_provider: ^2.1.2
-  permission_handler: ^11.3.0
 
-  # PDF & Excel
+  # PDF & CSV
   pdf: ^3.10.7
-  printing: ^5.12.0
-  excel: ^4.0.3
-  file_picker: ^6.1.1
-  open_file: ^3.3.2
+  csv: ^6.0.0
+  file_picker: ^8.0.0+1
 
-  # Voice
-  speech_to_text: ^6.6.0
-  flutter_tts: ^3.8.5
-  record: ^5.0.4
-  just_audio: ^0.9.36
+  # Voice (TTS only — STT/record/playback deferred to v0.3.0)
+  flutter_tts: ^4.2.5
+  # speech_to_text: ^7.3.0
+  # record: ^6.2.0
+  # just_audio: ^0.9.36
 
-  # ML (placeholders for local models)
-  tflite_flutter: ^0.10.4
+  # ML
   google_mlkit_text_recognition: ^0.15.1
   # google_mlkit_commons is transitive — don't pin it directly
 
   # Security
   flutter_secure_storage: ^9.0.0
+  encrypt: ^5.0.3
 
   # UI & Utilities
-  flutter_animate: ^4.3.0
-  shimmer: ^3.0.0
-  fl_chart: ^0.66.2
-  percent_indicator: ^4.2.3
-  google_fonts: ^6.1.0
   share_plus: ^7.2.1
-  url_launcher: ^6.2.3
-  intl: ^0.20.0
   uuid: ^4.2.2
-  connectivity_plus: ^5.0.2
   shared_preferences: ^2.2.2
-  qr_flutter: ^4.1.0
-  flutter_svg: ^2.0.9
-  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -69,18 +53,7 @@ dev_dependencies:
   flutter_lints: ^3.0.1
   hive_generator: ^2.0.1
   build_runner: ^2.4.8
+  path_provider_platform_interface: ^2.0.0
 
 flutter:
   uses-material-design: true
-
-  assets:
-    - assets/images/
-    - assets/fonts/
-    - assets/models/
-
-  fonts:
-    - family: NotoSansEthiopic
-      fonts:
-        - asset: assets/fonts/NotoSansEthiopic-Regular.ttf
-        - asset: assets/fonts/NotoSansEthiopic-Bold.ttf
-          weight: 700

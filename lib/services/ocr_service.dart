@@ -10,6 +10,99 @@ import 'scoring_service.dart';
 import 'image_hash_service.dart';
 import 'perspective_correction_service.dart';
 
+// ── Isolate entry points ─────────────────────────────────────────────
+// These must be top-level functions for compute() to use them.
+
+/// Wrapper for perspective correction in a background isolate.
+/// PerspectiveCorrectionService is pure Dart — safe for isolates.
+Future<String> _perspectiveIsolate(String imagePath) async {
+  final service = PerspectiveCorrectionService();
+  return service.correctPerspective(imagePath);
+}
+
+/// Parameters for [_enhanceImageIsolate].
+class _EnhanceParams {
+  final String inputPath;
+  final String outputPath;
+  final int maxDim;
+  const _EnhanceParams({
+    required this.inputPath,
+    required this.outputPath,
+    required this.maxDim,
+  });
+}
+
+/// Runs image enhancement in a background isolate.
+/// Pure Dart (image package) — no platform channels needed.
+///
+/// Decodes → EXIF bake → downscale → grayscale → contrast → encode JPEG.
+/// Returns the [outputPath] on success, [inputPath] on failure.
+Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
+  try {
+    final file = File(params.inputPath);
+    if (!await file.exists()) return params.inputPath;
+
+    final bytes = await file.readAsBytes();
+    img.Image? image = img.decodeImage(bytes);
+    if (image == null) return params.inputPath;
+
+    // EXIF rotation correction
+    image = img.bakeOrientation(image);
+
+    // Downscale for memory protection + ML Kit speed
+    if (image.width > params.maxDim || image.height > params.maxDim) {
+      final longer = image.width > image.height ? image.width : image.height;
+      final ratio = params.maxDim / longer;
+      image = img.copyResize(
+        image,
+        width: (image.width * ratio).round(),
+        height: (image.height * ratio).round(),
+        interpolation: img.Interpolation.cubic);
+    }
+
+    // Grayscale + contrast boost
+    image = img.grayscale(image);
+    image = img.adjustColor(image, contrast: 1.2);
+
+    // Save enhanced image
+    await File(
+      params.outputPath).writeAsBytes(img.encodeJpg(image, quality: 92));
+    return params.outputPath;
+  } catch (_) {
+    return params.inputPath;
+  }
+}
+
+/// Runs image rotation correction in a background isolate.
+Future<String> _correctRotationIsolate(_CorrectRotationParams params) async {
+  try {
+    final file = File(params.inputPath);
+    if (!await file.exists()) return params.inputPath;
+
+    final bytes = await file.readAsBytes();
+    img.Image? image = img.decodeImage(bytes);
+    if (image == null) return params.inputPath;
+
+    image = img.copyRotate(image, angle: -params.angleDegrees);
+    await File(
+      params.outputPath).writeAsBytes(img.encodeJpg(image, quality: 92));
+    return params.outputPath;
+  } catch (_) {
+    return params.inputPath;
+  }
+}
+
+class _CorrectRotationParams {
+  final String inputPath;
+  final String outputPath;
+  final double angleDegrees;
+  const _CorrectRotationParams({
+    required this.inputPath,
+    required this.outputPath,
+    required this.angleDegrees,
+  });
+}
+
 /// Offline OCR and image processing service.
 /// Uses ML Kit text recognition (runs on-device, no internet required).
 ///
@@ -27,7 +120,6 @@ class OcrService {
   final AnswerParser _parser = const AnswerParser();
   final ScoringService _scoring = const ScoringService();
   final ImageHashService _hasher = ImageHashService();
-  final PerspectiveCorrectionService _perspective = PerspectiveCorrectionService();
   bool _isInitialized = false;
 
   /// Minimum confidence to accept a detected text line.
@@ -54,6 +146,15 @@ class OcrService {
     _isInitialized = true;
   }
 
+  /// Re-initialize (e.g., after language change). Closes old recognizer first.
+  Future<void> reinitialize() async {
+    if (_isInitialized) {
+      _textRecognizer.close();
+      _isInitialized = false;
+    }
+    await initialize();
+  }
+
   /// Enhance image for OCR with minimal processing.
   ///
   /// Strategy: ML Kit does its own preprocessing. We only do what it can't:
@@ -62,109 +163,70 @@ class OcrService {
   /// 3. Grayscale (halves data, text is luminance)
   /// 4. Contrast boost (ink/paper separation in poor lighting)
   ///
-  /// No pixel loops. No binarization. No sharpening. No denoising.
-  /// All operations use the `image` package's native-compiled routines.
+  /// Image processing runs in a **background isolate** via [compute()]
+  /// to keep the UI thread free. Only ML Kit stays on the main thread
+  /// (platform channels).
   ///
   /// On [OutOfMemoryError], retries at [_oomRetryDimension] (1080p).
   /// Returns original path on total failure — never crashes the pipeline.
   Future<String> enhanceImage(String imagePath) async {
+    final dotIndex = imagePath.lastIndexOf('.');
+    final basePath = dotIndex > 0
+        ? imagePath.substring(0, dotIndex)
+        : imagePath;
+    final enhancedPath = '${basePath}_enhanced.jpg';
+
     try {
-      final result = await _enhanceImageAtDimension(imagePath, _maxImageDimension);
+      final result = await compute(
+        _enhanceImageIsolate,
+        _EnhanceParams(
+          inputPath: imagePath,
+          outputPath: enhancedPath,
+          maxDim: _maxImageDimension));
       return result;
-    } on OutOfMemoryError {
-      debugPrint('OCR: OOM at ${_maxImageDimension}px, retrying at ${_oomRetryDimension}px');
+    } catch (e) {
+      debugPrint(
+        'OCR: enhanceImage isolate failed at ${_maxImageDimension}px ($e)');
+      // OOM retry at lower resolution
       try {
-        final result = await _enhanceImageAtDimension(imagePath, _oomRetryDimension);
+        final result = await compute(
+          _enhanceImageIsolate,
+          _EnhanceParams(
+            inputPath: imagePath,
+            outputPath: enhancedPath,
+            maxDim: _oomRetryDimension));
         return result;
-      } catch (e, st) {
-        debugPrint('OCR: enhanceImage OOM retry failed ($e)\n$st');
+      } catch (e2, st) {
+        debugPrint('OCR: enhanceImage OOM retry failed ($e2)\n$st');
         return imagePath;
       }
-    } catch (e, st) {
-      debugPrint('OCR: enhanceImage failed ($e)\n$st');
-      return imagePath;
     }
-  }
-
-  /// Core image enhancement at a given max dimension.
-  /// Extracted so [enhanceImage] can retry at lower resolution on OOM.
-  Future<String> _enhanceImageAtDimension(String imagePath, int maxDim) async {
-    final file = File(imagePath);
-    if (!await file.exists()) return imagePath;
-
-    final bytes = await file.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
-    if (image == null) return imagePath;
-
-    // ── EXIF rotation correction ──
-    // Camera photos often have orientation metadata (phone held landscape,
-    // front camera mirror, etc.). ML Kit reads raw pixels, not EXIF, so we
-    // must bake the orientation into the pixel data first.
-    image = img.bakeOrientation(image);
-
-    // Downscale — protects memory on cheap phones, speeds up ML Kit
-    if (image.width > maxDim || image.height > maxDim) {
-      final longer = image.width > image.height ? image.width : image.height;
-      final ratio = maxDim / longer;
-      image = img.copyResize(
-        image,
-        width: (image.width * ratio).round(),
-        height: (image.height * ratio).round(),
-        interpolation: img.Interpolation.cubic, // best quality for text
-      );
-    }
-
-    // Grayscale — text recognition is about luminance, not color
-    image = img.grayscale(image);
-
-    // Histogram normalization — stretches pixel range to full 0-255.
-    // In bright sunlight, paper is ~200-255 (narrow range). In dim light,
-    // paper is ~0-150. normalize() stretches whatever range exists to use
-    // the full brightness spectrum, making ink/paper separation consistent
-    // regardless of lighting. This is NOT pixel-level binarization — it's
-    // a global contrast stretch that preserves grayscale gradients.
-    img.normalize(image, min: 0, max: 255);
-
-    // Contrast boost — further separates ink from paper after normalization.
-    // Moderate values: too aggressive destroys subtle ink differences.
-    image = img.adjustColor(image, contrast: 1.2);
-
-    // Save as JPEG (smaller than PNG, faster to load for ML Kit)
-    final dotIndex = imagePath.lastIndexOf('.');
-    final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
-    final enhancedPath = '${basePath}_enhanced.jpg';
-    await File(enhancedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
-
-    return enhancedPath;
   }
 
   /// Correct paper rotation by rotating the image by -[angleDegrees].
   ///
-  /// Called after ML Kit detects significant skew (> [_skewCorrectionThreshold]).
-  /// Uses the `image` package's native copyRotate — pure Dart, no pixel loops.
-  ///
+  /// Runs in a **background isolate** to keep the UI responsive.
   /// Returns the path to the corrected image, or the original path if
   /// correction fails (never crashes the grading pipeline).
   Future<String> correctRotation(String imagePath, double angleDegrees) async {
     try {
-      final file = File(imagePath);
-      if (!await file.exists()) return imagePath;
-
-      final bytes = await file.readAsBytes();
-      img.Image? image = img.decodeImage(bytes);
-      if (image == null) return imagePath;
-
-      // Rotate by negative angle (undo the skew)
-      image = img.copyRotate(image, angle: -angleDegrees);
-
-      // Save corrected image alongside the original
       final dotIndex = imagePath.lastIndexOf('.');
-      final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+      final basePath = dotIndex > 0
+          ? imagePath.substring(0, dotIndex)
+          : imagePath;
       final correctedPath = '${basePath}_corrected.jpg';
-      await File(correctedPath).writeAsBytes(img.encodeJpg(image, quality: 92));
 
-      debugPrint('OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°');
-      return correctedPath;
+      final result = await compute(
+        _correctRotationIsolate,
+        _CorrectRotationParams(
+          inputPath: imagePath,
+          outputPath: correctedPath,
+          angleDegrees: angleDegrees));
+      if (result != imagePath) {
+        debugPrint(
+          'OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°');
+      }
+      return result;
     } catch (e, st) {
       debugPrint('OCR: correctRotation failed ($e)\n$st');
       return imagePath;
@@ -198,7 +260,7 @@ class OcrService {
     var workingResult = extractionResult;
     if (extractionResult.skewAngle.abs() > _skewCorrectionThreshold) {
       // Try perspective correction first (handles angled photos on cheap phones)
-      final perspectivePath = await _perspective.correctPerspective(enhancedPath);
+      final perspectivePath = await compute(_perspectiveIsolate, enhancedPath);
       if (perspectivePath != enhancedPath) {
         final perspOcrResult = await extractTextRegions(perspectivePath);
         if (perspOcrResult.regions.length >= workingResult.regions.length) {
@@ -211,8 +273,7 @@ class OcrService {
       if (workingPath == enhancedPath) {
         final correctedPath = await correctRotation(
           enhancedPath,
-          extractionResult.skewAngle,
-        );
+          extractionResult.skewAngle);
         if (correctedPath != enhancedPath) {
           final reOcrResult = await extractTextRegions(correctedPath);
           if (reOcrResult.regions.length >= workingResult.regions.length) {
@@ -232,16 +293,14 @@ class OcrService {
     // 5. Score against answer key
     final scoredAnswers = _scoring.scoreAnswers(
       detected: deduplicated,
-      assessment: assessment,
-    );
+      assessment: assessment);
 
     // 6. Calculate totals
     final totalScore = _scoring.calculateTotalScore(scoredAnswers);
     final maxScore = assessment.maxScore;
     final percentage = _scoring.calculatePercentage(
       totalScore: totalScore,
-      maxScore: maxScore,
-    );
+      maxScore: maxScore);
     final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
 
     // 7. Build metadata with quality signals
@@ -265,12 +324,15 @@ class OcrService {
       totalScore: totalScore,
       maxScore: maxScore,
       percentage: percentage,
-      grade: _scoring.calculateGrade(percentage.toDouble(), assessment.rubricType),
-      status: overallConfidence < 0.6 ? ScanStatus.needsRescan : ScanStatus.graded,
+      grade: _scoring.calculateGrade(
+        percentage.toDouble(),
+        assessment.rubricType),
+      status: overallConfidence < 0.6
+          ? ScanStatus.needsRescan
+          : ScanStatus.graded,
       confidence: overallConfidence,
       imageHash: imageHash,
-      metadata: metadata,
-    );
+      metadata: metadata);
   }
 
   /// Extract text regions from an enhanced image using ML Kit.
@@ -279,13 +341,13 @@ class OcrService {
   /// Public so HybridGradingService can run OCR and OMR on the same
   /// enhanced image without double-enhancing.
   Future<({List<TextRegion> regions, double skewAngle})> extractTextRegions(
-    String imagePath,
-  ) async {
+    String imagePath) async {
     await initialize();
 
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
-      final RecognizedText recognized = await _textRecognizer.processImage(inputImage);
+      final RecognizedText recognized = await _textRecognizer.processImage(
+        inputImage);
 
       final regions = <TextRegion>[];
       double totalAngle = 0;
@@ -298,8 +360,7 @@ class OcrService {
           final p2 = block.cornerPoints[1];
           final angle = math.atan2(
             (p2.y - p1.y).toDouble(),
-            (p2.x - p1.x).toDouble(),
-          );
+            (p2.x - p1.x).toDouble());
           totalAngle += angle;
           angleCount++;
         }
@@ -314,7 +375,8 @@ class OcrService {
             final confidences = line.elements
                 .map((e) => e.confidence ?? 0.8)
                 .toList();
-            confidence = confidences.reduce((a, b) => a + b) / confidences.length;
+            confidence =
+                confidences.reduce((a, b) => a + b) / confidences.length;
           }
 
           if (confidence < _minConfidence) continue;
@@ -322,17 +384,17 @@ class OcrService {
           // Position from bounding box
           final points = line.cornerPoints;
           double x = 0, y = 0;
-          if (points != null && points.isNotEmpty) {
+          if (points.isNotEmpty) {
             x = points.map((p) => p.x.toDouble()).reduce(math.min);
             y = points.map((p) => p.y.toDouble()).reduce(math.min);
           }
 
-          regions.add(TextRegion(
-            text: text,
-            confidence: confidence.clamp(0.0, 1.0),
-            x: x,
-            y: y,
-          ));
+          regions.add(
+            TextRegion(
+              text: text,
+              confidence: confidence.clamp(0.0, 1.0),
+              x: x,
+              y: y));
         }
       }
 
@@ -352,7 +414,8 @@ class OcrService {
           ? (totalAngle / angleCount) * 180 / math.pi
           : 0.0;
 
-      debugPrint('OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°');
+      debugPrint(
+        'OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°');
       return (regions: regions, skewAngle: skewDegrees);
     } catch (e, st) {
       debugPrint('OCR: recognition failed ($e)\n$st');
@@ -362,24 +425,23 @@ class OcrService {
 
   List<DetectedAnswer> _parseAnswers(
     List<TextRegion> regions,
-    Assessment assessment,
-  ) {
+    Assessment assessment) {
     final inputs = regions
-        .map((r) => TextRegionInput(
-              text: r.text,
-              confidence: r.confidence,
-              x: r.x,
-              y: r.y,
-            ))
+        .map(
+          (r) => TextRegionInput(
+            text: r.text,
+            confidence: r.confidence,
+            x: r.x,
+            y: r.y))
         .toList();
     return _parser
         .parseAnswers(inputs)
-        .map((p) => DetectedAnswer(
-              questionNumber: p.questionNumber,
-              answer: p.answer,
-              confidence: p.confidence,
-              rawText: p.rawText,
-            ))
+        .map(
+          (p) => DetectedAnswer(
+            questionNumber: p.questionNumber,
+            answer: p.answer,
+            confidence: p.confidence,
+            rawText: p.rawText))
         .toList();
   }
 
@@ -399,7 +461,9 @@ class OcrService {
   Future<void> cleanupEnhancedImages(String imagePath) async {
     try {
       final dotIndex = imagePath.lastIndexOf('.');
-      final basePath = dotIndex > 0 ? imagePath.substring(0, dotIndex) : imagePath;
+      final basePath = dotIndex > 0
+          ? imagePath.substring(0, dotIndex)
+          : imagePath;
       final enhanced = File('${basePath}_enhanced.jpg');
       if (await enhanced.exists()) await enhanced.delete();
       final corrected = File('${basePath}_corrected.jpg');

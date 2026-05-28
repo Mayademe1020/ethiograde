@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -32,7 +35,7 @@ class ImportResult {
 
 /// Export / import / auto-backup for all EthioGrade data.
 ///
-/// Exports are human-readable JSON files. Imports validate every record
+/// Manual exports are encrypted backup files. Imports validate every record
 /// via [ValidationService] before writing.
 class BackupService {
   BackupService._();
@@ -44,13 +47,15 @@ class BackupService {
   static const String _scanResultsBox = 'scan_results';
   static const String _metadataBox = 'metadata';
   static const String _autoBackupCountKey = 'auto_backup_scan_count';
+  static const String _hiveKeyStorageKey = 'hive_encryption_key';
 
   static const int _autoBackupInterval = 10; // every N scans
   static const int _maxAutoBackups = 3;
 
   // ── Export ─────────────────────────────────────────────────────────
 
-  /// Export all data to a timestamped JSON file.
+  /// Export all data to an encrypted timestamped backup file.
+  /// Uses the same AES-256 key as Hive storage.
   /// Returns the file path on success, null on failure.
   Future<String?> exportAllData() async {
     try {
@@ -60,13 +65,20 @@ class BackupService {
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final filePath = '${dir.path}/ethiograde_backup_$timestamp.json';
+      final filePath = '${dir.path}/ethiograde_backup_$timestamp.enc';
 
       final data = await _collectAllData();
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-      await File(filePath).writeAsString(jsonStr);
 
-      debugPrint('[Backup] Exported to $filePath');
+      // Encrypt with the same key as Hive
+      final encrypted = await _encryptData(jsonStr);
+      if (encrypted == null) {
+        debugPrint('[Backup] Encryption failed, aborting export');
+        return null;
+      }
+
+      await File(filePath).writeAsBytes(encrypted);
+      debugPrint('[Backup] Exported encrypted to $filePath');
       return filePath;
     } catch (e) {
       debugPrint('[Backup] Export failed: $e');
@@ -108,17 +120,39 @@ class BackupService {
       final file = File(filePath);
       if (!await file.exists()) {
         return ImportResult(
-          imported: 0, skipped: 0, errors: ['File not found: $filePath'],
+          imported: 0,
+          skipped: 0,
+          errors: ['File not found: $filePath'],
         );
       }
 
-      final jsonStr = await file.readAsString();
+      late final String jsonStr;
+      if (filePath.endsWith('.enc')) {
+        // Encrypted backup — decrypt first
+        final decrypted = await _decryptData(await file.readAsBytes());
+        if (decrypted == null) {
+          return ImportResult(
+            imported: 0,
+            skipped: 0,
+            errors: [
+              'Failed to decrypt backup — wrong device or corrupted file',
+            ],
+          );
+        }
+        jsonStr = decrypted;
+      } else {
+        // Legacy unencrypted backup
+        jsonStr = await file.readAsString();
+      }
+
       final Map<String, dynamic> data;
       try {
         data = jsonDecode(jsonStr) as Map<String, dynamic>;
       } catch (e) {
         return ImportResult(
-          imported: 0, skipped: 0, errors: ['Invalid JSON: $e'],
+          imported: 0,
+          skipped: 0,
+          errors: ['Invalid JSON: $e'],
         );
       }
 
@@ -126,7 +160,8 @@ class BackupService {
       final version = data['version'] as int? ?? 0;
       if (version < 1) {
         return ImportResult(
-          imported: 0, skipped: 0,
+          imported: 0,
+          skipped: 0,
           errors: ['Unsupported backup version: $version'],
         );
       }
@@ -144,7 +179,9 @@ class BackupService {
           final student = Student.fromMap(map);
           final validation = _validator.validateStudent(student);
           if (!validation.isValid) {
-            errors.add('Student ${student.id}: ${validation.errors.join("; ")}');
+            errors.add(
+              'Student ${student.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -170,7 +207,9 @@ class BackupService {
           final assessment = Assessment.fromMap(map);
           final validation = _validator.validateAssessment(assessment);
           if (!validation.isValid) {
-            errors.add('Assessment ${assessment.id}: ${validation.errors.join("; ")}');
+            errors.add(
+              'Assessment ${assessment.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -196,7 +235,9 @@ class BackupService {
           final scan = ScanResult.fromMap(map);
           final validation = _validator.validateScanResult(scan);
           if (!validation.isValid) {
-            errors.add('ScanResult ${scan.id}: ${validation.errors.join("; ")}');
+            errors.add(
+              'ScanResult ${scan.id}: ${validation.errors.join("; ")}',
+            );
             skipped++;
             continue;
           }
@@ -217,13 +258,17 @@ class BackupService {
         }
       }
 
-      debugPrint('[Backup] Import done: $imported imported, $skipped skipped, '
-          '${errors.length} errors');
+      debugPrint(
+        '[Backup] Import done: $imported imported, $skipped skipped, '
+        '${errors.length} errors',
+      );
       return ImportResult(imported: imported, skipped: skipped, errors: errors);
     } catch (e) {
       debugPrint('[Backup] Import failed: $e');
       return ImportResult(
-        imported: 0, skipped: 0, errors: ['Import failed: $e'],
+        imported: 0,
+        skipped: 0,
+        errors: ['Import failed: $e'],
       );
     }
   }
@@ -234,7 +279,8 @@ class BackupService {
   Future<void> recordScanAndMaybeBackup() async {
     try {
       final metaBox = Hive.box(_metadataBox);
-      final count = (metaBox.get(_autoBackupCountKey, defaultValue: 0) as int) + 1;
+      final count =
+          (metaBox.get(_autoBackupCountKey, defaultValue: 0) as int) + 1;
 
       if (count >= _autoBackupInterval) {
         await metaBox.put(_autoBackupCountKey, 0);
@@ -256,21 +302,28 @@ class BackupService {
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final filePath = '${dir.path}/ethiograde_auto_$timestamp.json';
+      final filePath = '${dir.path}/ethiograde_auto_$timestamp.enc';
 
       final data = await _collectAllData();
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-      await File(filePath).writeAsString(jsonStr);
+      final encrypted = await _encryptData(jsonStr);
+      if (encrypted == null) {
+        debugPrint('[Backup] Auto-backup encryption failed, aborting backup');
+        return;
+      }
+
+      await File(filePath).writeAsBytes(encrypted);
 
       debugPrint('[Backup] Auto-backup saved to $filePath');
 
       // Prune: keep only last N auto-backups
-      final autoBackups = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.contains('ethiograde_auto_'))
-          .toList()
-        ..sort((a, b) => b.path.compareTo(a.path)); // newest first
+      final autoBackups =
+          dir
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.contains('ethiograde_auto_'))
+              .toList()
+            ..sort((a, b) => b.path.compareTo(a.path)); // newest first
 
       for (int i = _maxAutoBackups; i < autoBackups.length; i++) {
         try {
@@ -294,19 +347,22 @@ class BackupService {
       for (final entity in dir.listSync()) {
         if (entity is! File) continue;
         if (!entity.path.contains('ethiograde_')) continue;
-        if (!entity.path.endsWith('.json')) continue;
+        if (!entity.path.endsWith('.json') && !entity.path.endsWith('.enc'))
+          continue;
 
         try {
           final stat = await entity.stat();
-          final name = entity.path.split('/').last;
+          final name = entity.path.split(RegExp(r'[\\/]')).last;
           final isAuto = name.contains('_auto_');
-          backups.add(BackupInfo(
-            filePath: entity.path,
-            fileName: name,
-            date: stat.modified,
-            sizeBytes: stat.size,
-            isAutoBackup: isAuto,
-          ));
+          backups.add(
+            BackupInfo(
+              filePath: entity.path,
+              fileName: name,
+              date: stat.modified,
+              sizeBytes: stat.size,
+              isAutoBackup: isAuto,
+            ),
+          );
         } catch (_) {}
       }
 
@@ -315,6 +371,73 @@ class BackupService {
     } catch (e) {
       debugPrint('[Backup] listBackups failed: $e');
       return [];
+    }
+  }
+
+  // ── Encryption ─────────────────────────────────────────────────────
+
+  /// Encrypt JSON string with AES-256-CBC using the Hive encryption key.
+  /// Returns bytes: [16-byte IV][encrypted data].
+  /// Returns null if key not available.
+  Future<Uint8List?> _encryptData(String plainText) async {
+    try {
+      final keyBytes = await _getEncryptionKey();
+      if (keyBytes == null) return null;
+
+      final iv = enc.IV(
+        Uint8List.fromList(
+          List<int>.generate(16, (_) => Random.secure().nextInt(256)),
+        ),
+      );
+      final encrypter = enc.Encrypter(
+        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc),
+      );
+      final encrypted = encrypter.encrypt(plainText, iv: iv);
+
+      // Prepend IV (16 bytes) + encrypted data
+      final result = Uint8List(16 + encrypted.bytes.length);
+      result.setAll(0, iv.bytes);
+      result.setAll(16, encrypted.bytes);
+      return result;
+    } catch (e) {
+      debugPrint('[Backup] encryptData failed: $e');
+      return null;
+    }
+  }
+
+  /// Decrypt AES-256-CBC bytes. Expects [16-byte IV][encrypted data].
+  /// Returns JSON string or null on failure.
+  Future<String?> _decryptData(Uint8List data) async {
+    try {
+      if (data.length < 17) return null; // Need at least IV + 1 block
+
+      final keyBytes = await _getEncryptionKey();
+      if (keyBytes == null) return null;
+
+      final iv = enc.IV(data.sublist(0, 16));
+      final encryptedBytes = data.sublist(16);
+      final encrypter = enc.Encrypter(
+        enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc),
+      );
+      return encrypter.decrypt64(base64Encode(encryptedBytes), iv: iv);
+    } catch (e) {
+      debugPrint('[Backup] decryptData failed: $e');
+      return null;
+    }
+  }
+
+  /// Read the AES-256 key from secure storage (same as Hive uses).
+  Future<Uint8List?> _getEncryptionKey() async {
+    try {
+      const storage = FlutterSecureStorage(
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
+      final storedKey = await storage.read(key: _hiveKeyStorageKey);
+      if (storedKey == null || storedKey.isEmpty) return null;
+      return base64Decode(storedKey);
+    } catch (e) {
+      debugPrint('[Backup] getEncryptionKey failed: $e');
+      return null;
     }
   }
 
@@ -382,7 +505,8 @@ class BackupInfo {
 
   String get sizeFormatted {
     if (sizeBytes < 1024) return '$sizeBytes B';
-    if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
+    if (sizeBytes < 1024 * 1024)
+      return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }
