@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
+import 'settings_provider.dart';
+
 /// Voice service — TTS via flutter_tts for reading scores aloud.
 ///
 /// STT, recording, and playback remain stubs (deferred to v0.3.0).
@@ -61,7 +63,11 @@ class VoiceService {
 
   /// Change TTS locale (e.g., 'en-US', 'am-ET' if available on device).
   Future<void> setLocale(String locale) async {
-    await _tts.setLanguage(locale);
+    try {
+      await _tts.setLanguage(locale);
+    } catch (e) {
+      debugPrint('[Voice] TTS locale change failed: $e');
+    }
   }
 
   // ──── Speech to Text (stub) ────
@@ -112,7 +118,9 @@ class VoiceService {
   // ──── Audio Recording (stub) ────
 
   Future<void> startRecording() async {
-    debugPrint('[Voice] Stub: startRecording ignored (recording deferred to v0.3.0)');
+    debugPrint(
+      '[Voice] Stub: startRecording ignored (recording deferred to v0.3.0)',
+    );
   }
 
   Future<String?> stopRecording() async => null;
@@ -122,7 +130,9 @@ class VoiceService {
   // ──── Audio Playback (stub) ────
 
   Future<void> playRecording(String path) async {
-    debugPrint('[Voice] Stub: playRecording ignored (playback deferred to v0.3.0)');
+    debugPrint(
+      '[Voice] Stub: playRecording ignored (playback deferred to v0.3.0)',
+    );
   }
 
   Future<void> stopPlayback() async {
@@ -137,10 +147,17 @@ class VoiceService {
     required double score,
     required double maxScore,
     required String grade,
+    VoiceFeedbackMode mode = VoiceFeedbackMode.scoreOnly,
+    bool needsReview = false,
   }) async {
-    final pct = maxScore > 0 ? (score / maxScore * 100).toStringAsFixed(0) : '0';
-    final text = '$studentName: ${score.toInt()} out of ${maxScore.toInt()}, '
-        '$pct percent, grade $grade';
+    final text = scoreReadoutText(
+      score: score,
+      maxScore: maxScore,
+      grade: grade,
+      mode: mode,
+      needsReview: needsReview,
+    );
+    if (text.isEmpty) return;
     await speak(text);
   }
 
@@ -154,8 +171,11 @@ class VoiceService {
     required List<double> maxScores,
     required List<double> percentages,
     required List<String> grades,
+    VoiceFeedbackMode mode = VoiceFeedbackMode.scoreOnly,
+    List<bool>? needsReview,
     void Function(int index)? onReadingIndex,
   }) async {
+    if (mode == VoiceFeedbackMode.off) return;
     await initialize();
     _shouldStop = false;
 
@@ -164,16 +184,19 @@ class VoiceService {
 
       onReadingIndex?.call(i);
 
-      final name = studentNames[i];
       final score = scores[i];
       final maxScore = maxScores[i];
       final grade = grades[i];
-      final pct = maxScore > 0
-          ? (score / maxScore * 100).toStringAsFixed(0)
-          : '0';
-
-      final text = '$name: ${score.toInt()} out of ${maxScore.toInt()}, '
-          '$pct percent, grade $grade';
+      final text = scoreReadoutText(
+        score: score,
+        maxScore: maxScore,
+        grade: grade,
+        mode: mode,
+        needsReview: needsReview != null && i < needsReview.length
+            ? needsReview[i]
+            : false,
+      );
+      if (text.isEmpty) continue;
 
       await speak(text);
       // Small pause between students for clarity
@@ -187,7 +210,44 @@ class VoiceService {
 
   /// Dispose TTS engine.
   void dispose() {
-    _tts.stop();
+    _tts.stop().catchError((e) {
+      debugPrint('[Voice] TTS dispose stop failed: $e');
+    });
     _initialized = false;
+  }
+
+  /// Builds safe classroom speech. It never includes student name or id.
+  @visibleForTesting
+  static String scoreReadoutText({
+    required double score,
+    required double maxScore,
+    required String grade,
+    required VoiceFeedbackMode mode,
+    bool needsReview = false,
+  }) {
+    final statusText = needsReview ? 'needs review' : 'graded';
+    final scoreText = _formatScore(score);
+    final gradeText = grade.trim().isEmpty ? 'not graded' : grade.trim();
+
+    switch (mode) {
+      case VoiceFeedbackMode.off:
+        return '';
+      case VoiceFeedbackMode.statusOnly:
+        return statusText;
+      case VoiceFeedbackMode.scoreOnly:
+        return needsReview ? '$scoreText, needs review' : scoreText;
+      case VoiceFeedbackMode.gradeOnly:
+        return needsReview ? '$gradeText, needs review' : gradeText;
+      case VoiceFeedbackMode.scoreAndGrade:
+        final text = '$scoreText, $gradeText';
+        return needsReview ? '$text, needs review' : text;
+    }
+  }
+
+  static String _formatScore(double score) {
+    if (score == score.roundToDouble()) {
+      return score.toInt().toString();
+    }
+    return score.toStringAsFixed(1);
   }
 }

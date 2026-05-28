@@ -1,13 +1,17 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ethiograde/services/settings_provider.dart';
 import 'package:ethiograde/services/voice_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('VoiceService.fileExists', () {
     test('returns false for non-existent file', () {
       expect(
         VoiceService.fileExists('/tmp/nonexistent_voice_note.m4a'),
-        isFalse);
+        isFalse,
+      );
     });
 
     test('returns false for empty file', () {
@@ -111,6 +115,74 @@ void main() {
       final voice = VoiceService();
       final events = await voice.playingStateChanged.toList();
       expect(events, [false]);
+    });
+  });
+
+  group('VoiceService score readout text', () {
+    test('never includes student identity', () {
+      final text = VoiceService.scoreReadoutText(
+        score: 8,
+        maxScore: 10,
+        grade: 'A',
+        mode: VoiceFeedbackMode.scoreAndGrade,
+      );
+
+      expect(text, '8, A');
+      expect(text, isNot(contains('Student')));
+      expect(text, isNot(contains('ID')));
+      expect(text, isNot(contains('out of')));
+    });
+
+    test('honors each teacher voice mode', () {
+      expect(
+        VoiceService.scoreReadoutText(
+          score: 8,
+          maxScore: 10,
+          grade: 'A',
+          mode: VoiceFeedbackMode.off,
+        ),
+        isEmpty,
+      );
+      expect(
+        VoiceService.scoreReadoutText(
+          score: 8,
+          maxScore: 10,
+          grade: 'A',
+          mode: VoiceFeedbackMode.statusOnly,
+        ),
+        'graded',
+      );
+      expect(
+        VoiceService.scoreReadoutText(
+          score: 8,
+          maxScore: 10,
+          grade: 'A',
+          mode: VoiceFeedbackMode.scoreOnly,
+        ),
+        '8',
+      );
+      expect(
+        VoiceService.scoreReadoutText(
+          score: 8,
+          maxScore: 10,
+          grade: 'A',
+          mode: VoiceFeedbackMode.gradeOnly,
+        ),
+        'A',
+      );
+    });
+
+    test('adds review warning without exposing identity', () {
+      expect(
+        VoiceService.scoreReadoutText(
+          score: 7.5,
+          maxScore: 10,
+          grade: 'B',
+          mode: VoiceFeedbackMode.scoreOnly,
+          needsReview: true,
+        ),
+        '7.5, needs review',
+      );
     });
   });
 }
