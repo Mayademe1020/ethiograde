@@ -13,10 +13,15 @@ import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/excel_service.dart';
 import '../../services/student_provider.dart';
+import '../../services/settings_provider.dart';
+import '../../services/paper_image_intake_service.dart';
+import '../../services/ocr_service.dart';
+import '../../services/draft_service.dart';
 import '../../services/correction_learner.dart';
 import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
+import '../assessment/answer_key_screen.dart';
 import '../scanning/camera_screen.dart';
 import 'audit_trail_sheet.dart' as audit;
 
@@ -38,6 +43,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool _hasUnsavedChanges = false;
   bool _isSaving = false;
   bool _isExporting = false;
+  bool _isRegrading = false;
   final VoiceService _voice = VoiceService();
   bool _isReading = false;
   int _readingIndex = -1; // which student is currently being read aloud
@@ -54,6 +60,25 @@ class _ReviewScreenState extends State<ReviewScreen> {
   void _applySort() {
     setState(() {
       switch (_sortMode) {
+        case _SortMode.answerKeyFirst:
+          _results!.sort((a, b) {
+            final aNeedsKey =
+                a.metadata['answerKeyChangedNeedsRegrade'] == true;
+            final bNeedsKey =
+                b.metadata['answerKeyChangedNeedsRegrade'] == true;
+            if (aNeedsKey != bNeedsKey) return aNeedsKey ? -1 : 1;
+            return a.percentage.compareTo(b.percentage);
+          });
+        case _SortMode.identityFirst:
+          _results!.sort((a, b) {
+            final aNeedsName = _needsStudentIdentity(a);
+            final bNeedsName = _needsStudentIdentity(b);
+            if (aNeedsName != bNeedsName) return aNeedsName ? -1 : 1;
+            if (a.needsReview != b.needsReview) {
+              return a.needsReview ? -1 : 1;
+            }
+            return a.percentage.compareTo(b.percentage);
+          });
         case _SortMode.lowestFirst:
           _results!.sort((a, b) => a.percentage.compareTo(b.percentage));
         case _SortMode.highestFirst:
@@ -70,12 +95,43 @@ class _ReviewScreenState extends State<ReviewScreen> {
     });
   }
 
+  static bool _needsStudentIdentity(ScanResult result) {
+    return result.studentId.isEmpty ||
+        result.studentName.trim().isEmpty ||
+        result.studentName.startsWith('Paper ');
+  }
+
+  void _focusReviewQueue(_SortMode mode) {
+    _sortMode = mode;
+    _applySort();
+  }
+
   /// Replace a single result after teacher overrides scores.
   void _updateResult(int index, ScanResult updated) {
     setState(() {
       _results![index] = updated;
       _hasUnsavedChanges = true;
     });
+  }
+
+  void _markResultReviewed(int index, ScanResult result, _ReviewIssue issue) {
+    final metadata = Map<String, dynamic>.from(result.metadata)
+      ..remove('answerKeyChangedNeedsRegrade')
+      ..['teacherReviewed'] = true
+      ..['teacherReviewedAt'] = DateTime.now().toIso8601String();
+    if (issue == _ReviewIssue.duplicate) {
+      metadata['duplicateReviewed'] = true;
+      metadata['duplicateReviewedAt'] = DateTime.now().toIso8601String();
+    }
+
+    _updateResult(
+      index,
+      result.copyWith(status: ScanStatus.reviewed, metadata: metadata),
+    );
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Marked reviewed')));
   }
 
   /// Reassign a scan result to a different student.
@@ -197,28 +253,48 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   /// Save every result in the batch so clean scans are not lost.
-  Future<int> _saveAll({bool showMessage = true}) async {
+  Future<int> _saveAll({
+    bool showMessage = true,
+    bool skipReviewGate = false,
+  }) async {
     if (_results == null || _results!.isEmpty) return 0;
+    if (!skipReviewGate) {
+      final canProceed = await _confirmFinalSaveIfNeeded();
+      if (!canProceed) return 0;
+    }
     setState(() => _isSaving = true);
 
     final grading = HybridGradingService();
     int saved = 0;
     int failed = 0;
+    final updatedResults = <ScanResult>[];
+    final imageIntake = PaperImageIntakeService();
 
     for (final result in _results!) {
-      final ok = await grading.saveScanResult(result);
+      final resultToSave = _gradesOnlyIfTemporaryImage(result);
+      final ok = await grading.saveScanResult(resultToSave);
       if (ok) {
+        await _deleteTemporaryPaperImages(result, imageIntake);
+        updatedResults.add(resultToSave);
         saved++;
       } else {
+        updatedResults.add(result);
         failed++;
       }
     }
 
     if (mounted) {
       setState(() {
+        _results!
+          ..clear()
+          ..addAll(updatedResults);
         _isSaving = false;
         _hasUnsavedChanges = false;
       });
+      if (failed == 0 && updatedResults.isNotEmpty) {
+        await DraftService().clearDraft(updatedResults.first.assessmentId);
+        if (!mounted) return saved;
+      }
       if (showMessage) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -235,12 +311,234 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return saved;
   }
 
+  Future<void> _deleteTemporaryPaperImages(
+    ScanResult result,
+    PaperImageIntakeService imageIntake,
+  ) async {
+    if (result.metadata['paperImageRetention'] !=
+        PaperImageIntakeService.temporaryRetention) {
+      return;
+    }
+
+    final paths = [
+      result.imagePath,
+      result.enhancedImagePath,
+    ].whereType<String>().where((path) => path.isNotEmpty).toList();
+    if (paths.isEmpty) return;
+
+    switch (result.metadata['imageSource']) {
+      case 'camera':
+        await OcrService().cleanupImages(paths);
+        break;
+      case 'upload':
+        await imageIntake.deleteManagedTemporaryFiles(paths);
+        break;
+    }
+  }
+
+  ScanResult _gradesOnlyIfTemporaryImage(ScanResult result) {
+    if (result.metadata['paperImageRetention'] !=
+        PaperImageIntakeService.temporaryRetention) {
+      return result;
+    }
+    final metadata = Map<String, dynamic>.from(result.metadata)
+      ..remove('paperImageRetention')
+      ..['paperImagesRemovedAfterSave'] = true;
+    return result.copyWith(
+      imagePath: '',
+      enhancedImagePath: null,
+      metadata: metadata,
+    );
+  }
+
+  Future<void> _rescanResult(int index, ScanResult result) async {
+    final assessment = context
+        .read<AssessmentProvider>()
+        .assessments
+        .cast<Assessment?>()
+        .firstWhere((a) => a?.id == result.assessmentId, orElse: () => null);
+    if (assessment == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Assessment not found')));
+      return;
+    }
+
+    final newResult = await Navigator.pushNamed(
+      context,
+      AppRoutes.camera,
+      arguments: ReScanArguments(
+        existingResult: result,
+        assessment: assessment,
+      ),
+    );
+    if (!mounted || newResult is! ScanResult) return;
+
+    final metadata = {
+      ...newResult.metadata,
+      'imageSource': PaperImageSource.camera.name,
+      'paperImageRetention': PaperImageIntakeService.temporaryRetention,
+      'rescannedFromResultId': result.id,
+      'rescannedAt': DateTime.now().toIso8601String(),
+    }..remove('answerKeyChangedNeedsRegrade');
+
+    _updateResult(index, newResult.copyWith(metadata: metadata));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${newResult.studentName} re-scanned')),
+    );
+  }
+
+  Future<void> _showDuplicateResolution(int index) async {
+    final results = _results;
+    if (results == null || index < 0 || index >= results.length) return;
+
+    final pairs = _duplicatePairsFor(index, results);
+    if (pairs.isEmpty) {
+      _markResultReviewed(index, results[index], _ReviewIssue.duplicate);
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Possible duplicate',
+                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Choose what should happen before final save.',
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                ...pairs.map(
+                  (pair) => _DuplicatePairTile(
+                    pair: pair,
+                    results: results,
+                    focusIndex: index,
+                    onKeepBoth: () {
+                      Navigator.pop(sheetContext);
+                      _markDuplicatePairReviewed(pair);
+                    },
+                    onKeepIndex: (keepIndex) {
+                      Navigator.pop(sheetContext);
+                      _keepDuplicateIndex(pair, keepIndex);
+                    },
+                    onAssign: () {
+                      Navigator.pop(sheetContext);
+                      _reassignStudent(results[index]);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<AnswerDuplicate> _duplicatePairsFor(
+    int index,
+    List<ScanResult> results,
+  ) {
+    return HybridGradingService().detectBatchDuplicates(results).where((
+      duplicate,
+    ) {
+      final involvesIndex =
+          duplicate.scanIndexA == index || duplicate.scanIndexB == index;
+      if (!involvesIndex ||
+          duplicate.scanIndexA >= results.length ||
+          duplicate.scanIndexB >= results.length) {
+        return false;
+      }
+      return results[duplicate.scanIndexA].metadata['duplicateReviewed'] !=
+              true ||
+          results[duplicate.scanIndexB].metadata['duplicateReviewed'] != true;
+    }).toList();
+  }
+
+  void _markDuplicatePairReviewed(AnswerDuplicate pair) {
+    final results = _results;
+    if (results == null ||
+        pair.scanIndexA >= results.length ||
+        pair.scanIndexB >= results.length) {
+      return;
+    }
+
+    setState(() {
+      for (final index in [pair.scanIndexA, pair.scanIndexB]) {
+        final result = results[index];
+        results[index] = result.copyWith(
+          status: ScanStatus.reviewed,
+          metadata: {
+            ...result.metadata,
+            'duplicateReviewed': true,
+            'duplicateReviewedAt': DateTime.now().toIso8601String(),
+          },
+        );
+      }
+      _hasUnsavedChanges = true;
+    });
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Duplicate checked')));
+  }
+
+  void _keepDuplicateIndex(AnswerDuplicate pair, int keepIndex) {
+    final results = _results;
+    if (results == null) return;
+    final removeIndex = keepIndex == pair.scanIndexA
+        ? pair.scanIndexB
+        : pair.scanIndexA;
+    if (removeIndex < 0 || removeIndex >= results.length) return;
+
+    final removed = results[removeIndex];
+    setState(() {
+      results.removeAt(removeIndex);
+      _hasUnsavedChanges = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${removed.studentName} removed from review')),
+    );
+  }
+
   Future<void> _saveAndExportCsv() async {
     final results = _results;
     if (results == null || results.isEmpty || _isExporting) return;
 
+    final canProceed = await _confirmFinalSaveIfNeeded();
+    if (!canProceed) return;
+
     setState(() => _isExporting = true);
-    final saved = await _saveAll(showMessage: false);
+    final saved = await _saveAll(showMessage: false, skipReviewGate: true);
     if (!mounted) return;
 
     try {
@@ -287,9 +585,77 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return assessment?.title ?? 'EthioGrade Results';
   }
 
+  Future<bool> _confirmFinalSaveIfNeeded() async {
+    final results = _results;
+    if (results == null || results.isEmpty) return true;
+
+    final queue = _ReviewQueue.fromResults(results);
+    if (!queue.hasBlockingIssues) return true;
+
+    final action = await showDialog<_ReviewSaveAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review issues remain'),
+        content: Text(
+          '${queue.blockingCount} paper(s) still need attention. '
+          'You can save a draft now, keep reviewing, or final save anyway.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, _ReviewSaveAction.keepReviewing),
+            child: const Text('Review remaining'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, _ReviewSaveAction.draft),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Save draft'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, _ReviewSaveAction.finalSaveAnyway),
+            child: const Text('Final save anyway'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return false;
+    if (action == _ReviewSaveAction.finalSaveAnyway) return true;
+    if (action == _ReviewSaveAction.draft) {
+      await _saveReviewDraft(queue);
+    }
+    return false;
+  }
+
+  Future<void> _saveReviewDraft(_ReviewQueue queue) async {
+    final results = _results;
+    if (results == null || results.isEmpty) return;
+
+    await DraftService().saveDraft(
+      assessmentId: results.first.assessmentId,
+      completedResults: results.map((result) => result.toMap()).toList(),
+      currentStudentIndex: results.length,
+      metadata: {
+        'source': 'review_queue',
+        'openReviewIssues': queue.blockingCount,
+        'savedFromReviewAt': DateTime.now().toIso8601String(),
+      },
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Draft saved with ${queue.blockingCount} issue(s) open'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = _results ?? [];
+    final assessment = _assessmentForResults(context, results);
+    final queue = _ReviewQueue.fromResults(results);
 
     return Scaffold(
       appBar: AppBar(
@@ -322,6 +688,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+          if (_isRegrading)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.sort),
             onPressed: () => _showSortOptions(context),
@@ -342,28 +717,61 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ],
               ),
             )
-          : ListView.builder(
+          : ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: results.length,
-              itemBuilder: (context, index) {
-                final result = results[index];
-                return _ResultCard(
-                  result: result,
-                  isReading: index == _readingIndex,
-                  onReassign: () => _reassignStudent(result),
-                  onRevert: (entry) => _revertToEntry(index, result, entry),
-                  onTap: () async {
-                    final updated = await Navigator.pushNamed(
-                      context,
-                      AppRoutes.sideBySide,
-                      arguments: result,
-                    );
-                    if (updated is ScanResult) {
-                      _updateResult(index, updated);
-                    }
-                  },
-                );
-              },
+              children: [
+                _ReviewSituationPanel(
+                  results: results,
+                  queue: queue,
+                  assessment: assessment,
+                  onReviewFlagged: () =>
+                      _focusReviewQueue(_SortMode.needsReviewFirst),
+                  onMatchStudents: () =>
+                      _focusReviewQueue(_SortMode.identityFirst),
+                  onRegradeNeeded: () =>
+                      _focusReviewQueue(_SortMode.answerKeyFirst),
+                  onFixAnswerKey: assessment == null
+                      ? null
+                      : () => _openAnswerKeyEditor(assessment),
+                ),
+                ...queue.sections.expand(
+                  (section) => [
+                    _ReviewQueueHeader(section: section),
+                    ...section.items.map(
+                      (item) => _ResultCard(
+                        result: item.result,
+                        issue: item.issue,
+                        isReading: item.resultIndex == _readingIndex,
+                        onReassign: () => _reassignStudent(item.result),
+                        onMarkReviewed: () => _markResultReviewed(
+                          item.resultIndex,
+                          item.result,
+                          item.issue,
+                        ),
+                        onRescan: () =>
+                            _rescanResult(item.resultIndex, item.result),
+                        onResolveDuplicate: () =>
+                            _showDuplicateResolution(item.resultIndex),
+                        onRevert: (entry) => _revertToEntry(
+                          item.resultIndex,
+                          item.result,
+                          entry,
+                        ),
+                        onTap: () async {
+                          final updated = await Navigator.pushNamed(
+                            context,
+                            AppRoutes.sideBySide,
+                            arguments: item.result,
+                          );
+                          if (updated is ScanResult) {
+                            _updateResult(item.resultIndex, updated);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
       bottomNavigationBar: results.isEmpty
           ? null
@@ -378,18 +786,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _isSaving || _isExporting
+                        onPressed: _isSaving || _isExporting || _isRegrading
                             ? null
-                            : () => _saveAll(),
+                            : () => _saveReviewDraft(queue),
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text('Save'),
+                        label: const Text('Save draft'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
                       child: FilledButton.icon(
-                        onPressed: _isSaving || _isExporting
+                        onPressed: _isSaving || _isExporting || _isRegrading
                             ? null
                             : _saveAndExportCsv,
                         icon: _isExporting
@@ -403,7 +811,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                               )
                             : const Icon(Icons.ios_share_outlined),
                         label: Text(
-                          _isExporting ? 'Exporting...' : 'Save and export',
+                          _isExporting ? 'Exporting...' : 'Final save',
                         ),
                       ),
                     ),
@@ -411,6 +819,163 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Assessment? _assessmentForResults(
+    BuildContext context,
+    List<ScanResult> results,
+  ) {
+    if (results.isEmpty) return null;
+    final assessmentId = results.first.assessmentId;
+    if (assessmentId.isEmpty) return null;
+
+    final assessments = context.watch<AssessmentProvider>().assessments;
+    for (final assessment in assessments) {
+      if (assessment.id == assessmentId) return assessment;
+    }
+    return null;
+  }
+
+  Future<void> _openAnswerKeyEditor(Assessment assessment) async {
+    final before = _answerKeySignature(assessment);
+    final updated = await Navigator.pushNamed(
+      context,
+      AppRoutes.answerKey,
+      arguments: AnswerKeyRouteArgs(
+        assessment: assessment,
+        returnToReview: true,
+      ),
+    );
+    if (!mounted) return;
+
+    final updatedAssessment = updated is Assessment
+        ? updated
+        : _assessmentForResults(context, _results ?? []);
+    if (updatedAssessment == null) return;
+
+    if (before == _answerKeySignature(updatedAssessment)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Answer key unchanged')));
+      return;
+    }
+
+    await _showAnswerKeyChangedPrompt(updatedAssessment);
+  }
+
+  String _answerKeySignature(Assessment assessment) {
+    return assessment.questions
+        .map((question) => '${question.id}:${question.correctAnswer}')
+        .join('|');
+  }
+
+  Future<void> _showAnswerKeyChangedPrompt(Assessment assessment) async {
+    final canRegrade = (_results ?? []).any(
+      (result) => result.imagePath.isNotEmpty,
+    );
+
+    final action = await showDialog<_AnswerKeyChangedAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Answer key changed'),
+        content: Text(
+          canRegrade
+              ? 'Some scores may be outdated. Regrade the scanned papers before final save?'
+              : 'Some scores may be outdated, but paper images are no longer available for regrading.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(
+              context,
+              _AnswerKeyChangedAction.keepCurrentScores,
+            ),
+            child: const Text('Keep current'),
+          ),
+          if (canRegrade)
+            FilledButton.icon(
+              onPressed: () =>
+                  Navigator.pop(context, _AnswerKeyChangedAction.regradeAll),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Regrade all'),
+            ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    if (action == _AnswerKeyChangedAction.regradeAll) {
+      await _regradeAllWithAssessment(assessment);
+    } else {
+      setState(() {
+        _results = _results?.map(_markAnswerKeyChanged).toList();
+        _hasUnsavedChanges = true;
+      });
+    }
+  }
+
+  Future<void> _regradeAllWithAssessment(Assessment assessment) async {
+    final results = _results;
+    if (results == null || results.isEmpty) return;
+
+    setState(() => _isRegrading = true);
+    final grading = HybridGradingService();
+    final updatedResults = <ScanResult>[];
+    var regraded = 0;
+    var skipped = 0;
+
+    for (final result in results) {
+      if (result.imagePath.isEmpty) {
+        updatedResults.add(_markAnswerKeyChanged(result));
+        skipped++;
+        continue;
+      }
+
+      final next = await grading.gradePaper(
+        imagePath: result.imagePath,
+        assessment: assessment,
+        studentId: result.studentId,
+        studentName: result.studentName,
+      );
+      if (next.id != result.id) {
+        await grading.deleteScanResult(result.id);
+      }
+      updatedResults.add(
+        next.copyWith(
+          metadata: {
+            ...result.metadata,
+            ...next.metadata,
+            'answerKeyRegraded': true,
+            'answerKeyRegradedAt': DateTime.now().toIso8601String(),
+          },
+        ),
+      );
+      regraded++;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _results = updatedResults;
+      _hasUnsavedChanges = true;
+      _isRegrading = false;
+      _sortMode = _SortMode.needsReviewFirst;
+    });
+    _applySort();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          skipped == 0
+              ? '$regraded result(s) regraded'
+              : '$regraded regraded, $skipped need re-scan',
+        ),
+      ),
+    );
+  }
+
+  ScanResult _markAnswerKeyChanged(ScanResult result) {
+    return result.copyWith(
+      metadata: {...result.metadata, 'answerKeyChangedNeedsRegrade': true},
     );
   }
 
@@ -433,6 +998,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
       maxScores: results.map((r) => r.maxScore.toDouble()).toList(),
       percentages: results.map((r) => r.percentage).toList(),
       grades: results.map((r) => r.grade).toList(),
+      mode: context.read<SettingsProvider>().voiceFeedbackMode,
+      needsReview: results.map((r) => r.needsReview).toList(),
       onReadingIndex: (i) {
         if (mounted) setState(() => _readingIndex = i);
       },
@@ -494,6 +1061,30 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 Navigator.pop(c);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.person_search_outlined),
+              title: const Text('Missing Students First'),
+              trailing: _sortMode == _SortMode.identityFirst
+                  ? const Icon(Icons.check, color: AppTheme.primaryGreen)
+                  : null,
+              onTap: () {
+                _sortMode = _SortMode.identityFirst;
+                _applySort();
+                Navigator.pop(c);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.key_off_outlined),
+              title: const Text('Answer Key Changes First'),
+              trailing: _sortMode == _SortMode.answerKeyFirst
+                  ? const Icon(Icons.check, color: AppTheme.primaryGreen)
+                  : null,
+              onTap: () {
+                _sortMode = _SortMode.answerKeyFirst;
+                _applySort();
+                Navigator.pop(c);
+              },
+            ),
           ],
         ),
       ),
@@ -501,24 +1092,753 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 }
 
-enum _SortMode { lowestFirst, highestFirst, needsReviewFirst }
+enum _SortMode {
+  lowestFirst,
+  highestFirst,
+  needsReviewFirst,
+  identityFirst,
+  answerKeyFirst,
+}
+
+enum _AnswerKeyChangedAction { regradeAll, keepCurrentScores }
+
+enum _ReviewSaveAction { keepReviewing, draft, finalSaveAnyway }
+
+enum _ReviewIssue { answerKey, missingStudent, duplicate, lowConfidence, ready }
+
+class _ReviewQueue {
+  const _ReviewQueue({required this.sections, required this.blockingCount});
+
+  final List<_ReviewQueueSection> sections;
+  final int blockingCount;
+
+  bool get hasBlockingIssues => blockingCount > 0;
+
+  factory _ReviewQueue.fromResults(List<ScanResult> results) {
+    final duplicateIndexes = _duplicateIndexes(results);
+    final grouped = <_ReviewIssue, List<_ReviewQueueItem>>{
+      for (final issue in _ReviewIssue.values) issue: [],
+    };
+
+    for (var i = 0; i < results.length; i++) {
+      final result = results[i];
+      final issue = _issueFor(result, duplicateIndexes.contains(i));
+      grouped[issue]!.add(
+        _ReviewQueueItem(resultIndex: i, result: result, issue: issue),
+      );
+    }
+
+    final sections = <_ReviewQueueSection>[
+      _ReviewQueueSection(
+        issue: _ReviewIssue.answerKey,
+        title: 'Regrade needed',
+        subtitle: 'Answer key changed after scoring.',
+        icon: Icons.key_off_outlined,
+        color: AppTheme.primaryRed,
+        items: grouped[_ReviewIssue.answerKey]!,
+      ),
+      _ReviewQueueSection(
+        issue: _ReviewIssue.missingStudent,
+        title: 'Needs student',
+        subtitle: 'Match these papers to the roster.',
+        icon: Icons.person_search_outlined,
+        color: AppTheme.warning,
+        items: grouped[_ReviewIssue.missingStudent]!,
+      ),
+      _ReviewQueueSection(
+        issue: _ReviewIssue.duplicate,
+        title: 'Possible duplicates',
+        subtitle: 'Check papers that look like repeat scans.',
+        icon: Icons.content_copy_outlined,
+        color: AppTheme.warning,
+        items: grouped[_ReviewIssue.duplicate]!,
+      ),
+      _ReviewQueueSection(
+        issue: _ReviewIssue.lowConfidence,
+        title: 'Needs review',
+        subtitle: 'Unclear answers or low confidence.',
+        icon: Icons.rule_folder_outlined,
+        color: AppTheme.warning,
+        items: grouped[_ReviewIssue.lowConfidence]!,
+      ),
+      _ReviewQueueSection(
+        issue: _ReviewIssue.ready,
+        title: 'Ready to save',
+        subtitle: 'These results look clean.',
+        icon: Icons.check_circle_outline,
+        color: AppTheme.primaryGreen,
+        items: grouped[_ReviewIssue.ready]!,
+      ),
+    ].where((section) => section.items.isNotEmpty).toList(growable: false);
+
+    return _ReviewQueue(
+      sections: sections,
+      blockingCount: results.length - grouped[_ReviewIssue.ready]!.length,
+    );
+  }
+
+  static Set<int> _duplicateIndexes(List<ScanResult> results) {
+    if (results.length < 2) return {};
+    final duplicates = HybridGradingService()
+        .detectBatchDuplicates(results)
+        .where((duplicate) {
+          if (duplicate.scanIndexA >= results.length ||
+              duplicate.scanIndexB >= results.length) {
+            return false;
+          }
+          return results[duplicate.scanIndexA].metadata['duplicateReviewed'] !=
+                  true ||
+              results[duplicate.scanIndexB].metadata['duplicateReviewed'] !=
+                  true;
+        });
+    return {
+      for (final duplicate in duplicates) ...[
+        duplicate.scanIndexA,
+        duplicate.scanIndexB,
+      ],
+    };
+  }
+
+  static _ReviewIssue _issueFor(ScanResult result, bool isDuplicate) {
+    if (result.metadata['answerKeyChangedNeedsRegrade'] == true) {
+      return _ReviewIssue.answerKey;
+    }
+    if (_ReviewScreenState._needsStudentIdentity(result)) {
+      return _ReviewIssue.missingStudent;
+    }
+    if (isDuplicate) return _ReviewIssue.duplicate;
+    if (result.needsReview) return _ReviewIssue.lowConfidence;
+    return _ReviewIssue.ready;
+  }
+}
+
+class _ReviewQueueSection {
+  const _ReviewQueueSection({
+    required this.issue,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.items,
+  });
+
+  final _ReviewIssue issue;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final List<_ReviewQueueItem> items;
+}
+
+class _ReviewQueueItem {
+  const _ReviewQueueItem({
+    required this.resultIndex,
+    required this.result,
+    required this.issue,
+  });
+
+  final int resultIndex;
+  final ScanResult result;
+  final _ReviewIssue issue;
+}
+
+class _ReviewQueueHeader extends StatelessWidget {
+  const _ReviewQueueHeader({required this.section});
+
+  final _ReviewQueueSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Row(
+        children: [
+          Icon(section.icon, size: 18, color: section.color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${section.title} (${section.items.length})',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  section.subtitle,
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DuplicatePairTile extends StatelessWidget {
+  const _DuplicatePairTile({
+    required this.pair,
+    required this.results,
+    required this.focusIndex,
+    required this.onKeepBoth,
+    required this.onKeepIndex,
+    required this.onAssign,
+  });
+
+  final AnswerDuplicate pair;
+  final List<ScanResult> results;
+  final int focusIndex;
+  final VoidCallback onKeepBoth;
+  final ValueChanged<int> onKeepIndex;
+  final VoidCallback onAssign;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = results[pair.scanIndexA];
+    final second = results[pair.scanIndexB];
+    final focus = results[focusIndex];
+    final otherIndex = focusIndex == pair.scanIndexA
+        ? pair.scanIndexB
+        : pair.scanIndexA;
+    final other = results[otherIndex];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.warning.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.warning.withOpacity(0.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.content_copy_outlined, color: AppTheme.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${first.studentName} and ${second.studentName}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${pair.matchPercent.toStringAsFixed(0)}% answer match',
+            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onKeepBoth,
+                icon: const Icon(Icons.done_all, size: 18),
+                label: const Text('Keep both'),
+              ),
+              FilledButton.icon(
+                onPressed: () => onKeepIndex(focusIndex),
+                icon: const Icon(Icons.check, size: 18),
+                label: Text('Keep ${focus.studentName}'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => onKeepIndex(otherIndex),
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: Text('Keep ${other.studentName}'),
+              ),
+              TextButton.icon(
+                onPressed: onAssign,
+                icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                label: const Text('Assign student'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewSituationPanel extends StatelessWidget {
+  final List<ScanResult> results;
+  final _ReviewQueue queue;
+  final Assessment? assessment;
+  final VoidCallback onReviewFlagged;
+  final VoidCallback onMatchStudents;
+  final VoidCallback onRegradeNeeded;
+  final VoidCallback? onFixAnswerKey;
+
+  const _ReviewSituationPanel({
+    required this.results,
+    required this.queue,
+    required this.assessment,
+    required this.onReviewFlagged,
+    required this.onMatchStudents,
+    required this.onRegradeNeeded,
+    required this.onFixAnswerKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final autoCount = results
+        .where((result) => result.metadata['autoCaptured'] == true)
+        .length;
+    final rosterCount = results
+        .where((result) => result.metadata['studentMatchMode'] == 'roster')
+        .length;
+    final paperNumberCount = results
+        .where(
+          (result) => result.metadata['studentMatchMode'] == 'paper-number',
+        )
+        .length;
+    final needsReviewCount = results
+        .where((result) => result.needsReview)
+        .length;
+    final missingIdentityCount = results
+        .where(_ReviewScreenState._needsStudentIdentity)
+        .length;
+    final staleKeyCount = results
+        .where(
+          (result) => result.metadata['answerKeyChangedNeedsRegrade'] == true,
+        )
+        .length;
+
+    final nextAction = staleKeyCount > 0
+        ? _QueueAction(
+            icon: Icons.key_off_outlined,
+            title: 'Regrade after answer-key change',
+            subtitle: '$staleKeyCount papers may have old scores.',
+            color: AppTheme.primaryRed,
+            onTap: onRegradeNeeded,
+          )
+        : needsReviewCount > 0
+        ? _QueueAction(
+            icon: Icons.rule_folder_outlined,
+            title: 'Check unclear answers',
+            subtitle: '$needsReviewCount papers need a teacher look.',
+            color: AppTheme.warning,
+            onTap: onReviewFlagged,
+          )
+        : missingIdentityCount > 0
+        ? _QueueAction(
+            icon: Icons.person_search_outlined,
+            title: 'Match paper names',
+            subtitle: '$missingIdentityCount papers need a student.',
+            color: AppTheme.warning,
+            onTap: onMatchStudents,
+          )
+        : _QueueAction(
+            icon: Icons.check_circle_outline,
+            title: 'Ready for final save',
+            subtitle: '${results.length} results look ready.',
+            color: AppTheme.primaryGreen,
+            onTap: () {},
+          );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.fact_check_outlined, color: AppTheme.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Review queue',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            assessment?.title ?? 'Review before final save',
+            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          _QueueActionTile(action: nextAction, isPrimary: true),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _ReviewChip(
+                icon: Icons.auto_awesome_motion_outlined,
+                label: autoCount > 0
+                    ? '$autoCount auto scanned'
+                    : 'Manual batch',
+                color: AppTheme.info,
+              ),
+              _ReviewChip(
+                icon: Icons.groups_outlined,
+                label: rosterCount > 0
+                    ? '$rosterCount roster matched'
+                    : paperNumberCount > 0
+                    ? '$paperNumberCount paper labels'
+                    : 'Roster not used',
+                color: rosterCount > 0
+                    ? AppTheme.primaryGreen
+                    : AppTheme.warning,
+              ),
+              _ReviewChip(
+                icon: needsReviewCount > 0
+                    ? Icons.warning_amber_outlined
+                    : Icons.check_circle_outline,
+                label: needsReviewCount > 0
+                    ? '$needsReviewCount need review'
+                    : 'No review flags',
+                color: needsReviewCount > 0
+                    ? AppTheme.warning
+                    : AppTheme.primaryGreen,
+              ),
+              _ReviewChip(
+                icon: queue.hasBlockingIssues
+                    ? Icons.playlist_add_check_circle_outlined
+                    : Icons.verified_outlined,
+                label: queue.hasBlockingIssues
+                    ? '${queue.blockingCount} open issue(s)'
+                    : 'Ready queue',
+                color: queue.hasBlockingIssues
+                    ? AppTheme.warning
+                    : AppTheme.primaryGreen,
+              ),
+              if (staleKeyCount > 0)
+                _ReviewChip(
+                  icon: Icons.key_off_outlined,
+                  label: '$staleKeyCount need regrade',
+                  color: AppTheme.primaryRed,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Column(
+            children: [
+              _QueueActionTile(
+                action: _QueueAction(
+                  icon: Icons.rule_folder_outlined,
+                  title: 'Check unclear answers',
+                  subtitle: needsReviewCount > 0
+                      ? '$needsReviewCount papers need review.'
+                      : 'No unclear answers flagged.',
+                  color: needsReviewCount > 0
+                      ? AppTheme.warning
+                      : AppTheme.primaryGreen,
+                  onTap: onReviewFlagged,
+                ),
+              ),
+              _QueueActionTile(
+                action: _QueueAction(
+                  icon: Icons.person_search_outlined,
+                  title: 'Match paper names',
+                  subtitle: missingIdentityCount > 0
+                      ? '$missingIdentityCount papers need a student.'
+                      : 'All papers have a student.',
+                  color: missingIdentityCount > 0
+                      ? AppTheme.warning
+                      : AppTheme.primaryGreen,
+                  onTap: onMatchStudents,
+                ),
+              ),
+              _QueueActionTile(
+                action: _QueueAction(
+                  icon: Icons.key_outlined,
+                  title: 'Answer key changes',
+                  subtitle: staleKeyCount > 0
+                      ? '$staleKeyCount papers need regrade.'
+                      : 'Key is stable for this review.',
+                  color: staleKeyCount > 0
+                      ? AppTheme.primaryRed
+                      : AppTheme.primaryGreen,
+                  onTap: staleKeyCount > 0 ? onRegradeNeeded : onFixAnswerKey,
+                ),
+              ),
+            ],
+          ),
+          if (missingIdentityCount > 0) ...[
+            const SizedBox(height: 10),
+            Text(
+              '$missingIdentityCount papers still need a student name or roster match.',
+              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'If the answer key is wrong, fix it before final save.',
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onFixAnswerKey,
+                icon: const Icon(Icons.key_outlined, size: 18),
+                label: const Text('Fix key'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueAction {
+  const _QueueAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback? onTap;
+}
+
+class _QueueActionTile extends StatelessWidget {
+  const _QueueActionTile({required this.action, this.isPrimary = false});
+
+  final _QueueAction action;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isPrimary ? 0 : 6),
+      child: Material(
+        color: isPrimary ? action.color.withOpacity(0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: action.onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isPrimary ? 12 : 0,
+              vertical: isPrimary ? 12 : 6,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: isPrimary
+                  ? Border.all(color: action.color.withOpacity(0.35))
+                  : null,
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: isPrimary ? 18 : 15,
+                  backgroundColor: action.color.withOpacity(0.12),
+                  child: Icon(action.icon, size: 18, color: action.color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        action.title,
+                        style: TextStyle(
+                          fontWeight: isPrimary
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          color: AppTheme.darkText,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        action.subtitle,
+                        style: TextStyle(
+                          color: AppTheme.lightText,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: action.onTap == null
+                      ? Colors.grey.shade300
+                      : Colors.grey.shade500,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ReviewChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ──── Result Card ────
 
 class _ResultCard extends StatelessWidget {
   final ScanResult result;
+  final _ReviewIssue issue;
   final bool isReading;
   final VoidCallback onTap;
   final VoidCallback onReassign;
+  final VoidCallback onMarkReviewed;
+  final VoidCallback onRescan;
+  final VoidCallback onResolveDuplicate;
   final void Function(AuditEntry entry) onRevert;
 
   const _ResultCard({
     required this.result,
+    required this.issue,
     this.isReading = false,
     required this.onTap,
     required this.onReassign,
+    required this.onMarkReviewed,
+    required this.onRescan,
+    required this.onResolveDuplicate,
     required this.onRevert,
   });
+
+  String get _studentMatchLabel {
+    switch (result.metadata['studentMatchMode']) {
+      case 'roster':
+        return result.studentName.startsWith('Paper ')
+            ? 'Roster check'
+            : 'Roster matched';
+      case 'paper-number':
+        return 'Needs name';
+      default:
+        return result.studentName.startsWith('Paper ') ? 'Needs name' : 'Named';
+    }
+  }
+
+  IconData get _studentMatchIcon {
+    switch (result.metadata['studentMatchMode']) {
+      case 'roster':
+        return result.studentName.startsWith('Paper ')
+            ? Icons.person_search_outlined
+            : Icons.verified_user_outlined;
+      case 'paper-number':
+        return Icons.drive_file_rename_outline;
+      default:
+        return result.studentName.startsWith('Paper ')
+            ? Icons.drive_file_rename_outline
+            : Icons.person_outline;
+    }
+  }
+
+  Color get _studentMatchColor {
+    switch (result.metadata['studentMatchMode']) {
+      case 'roster':
+        return result.studentName.startsWith('Paper ')
+            ? AppTheme.warning
+            : AppTheme.primaryGreen;
+      case 'paper-number':
+        return AppTheme.warning;
+      default:
+        return result.studentName.startsWith('Paper ')
+            ? AppTheme.warning
+            : AppTheme.info;
+    }
+  }
+
+  String get _issueActionLabel {
+    switch (issue) {
+      case _ReviewIssue.answerKey:
+        return result.imagePath.isEmpty ? 'Review score' : 'Re-scan';
+      case _ReviewIssue.missingStudent:
+        return 'Assign student';
+      case _ReviewIssue.duplicate:
+        return 'Resolve duplicate';
+      case _ReviewIssue.lowConfidence:
+        return result.imagePath.isEmpty ? 'Mark reviewed' : 'Re-scan';
+      case _ReviewIssue.ready:
+        return 'Open';
+    }
+  }
+
+  IconData get _issueActionIcon {
+    switch (issue) {
+      case _ReviewIssue.missingStudent:
+        return Icons.person_add_alt_1_outlined;
+      case _ReviewIssue.answerKey:
+      case _ReviewIssue.lowConfidence:
+        return result.imagePath.isEmpty
+            ? Icons.check_circle_outline
+            : Icons.camera_alt_outlined;
+      case _ReviewIssue.duplicate:
+        return Icons.rule_folder_outlined;
+      case _ReviewIssue.ready:
+        return Icons.open_in_new;
+    }
+  }
+
+  VoidCallback get _issueAction {
+    switch (issue) {
+      case _ReviewIssue.missingStudent:
+        return onReassign;
+      case _ReviewIssue.answerKey:
+      case _ReviewIssue.lowConfidence:
+        return result.imagePath.isEmpty ? onMarkReviewed : onRescan;
+      case _ReviewIssue.duplicate:
+        return onResolveDuplicate;
+      case _ReviewIssue.ready:
+        return onTap;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -594,27 +1914,50 @@ class _ResultCard extends StatelessWidget {
                           ),
                         const SizedBox(height: 4),
                         ActionChip(
-                          avatar: Icon(
-                            Icons.swap_horiz,
-                            size: 16,
-                            color: AppTheme.info,
-                          ),
+                          avatar: Icon(_issueActionIcon, size: 16),
                           label: Text(
-                            'Reassign',
+                            _issueActionLabel,
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.info,
                               fontWeight: FontWeight.w600,
                             ),
-                          ),
-                          backgroundColor: AppTheme.info.withOpacity(0.08),
-                          side: BorderSide(
-                            color: AppTheme.info.withOpacity(0.3),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
-                          onPressed: onReassign,
+                          onPressed: _issueAction,
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (result
+                                    .metadata['answerKeyChangedNeedsRegrade'] ==
+                                true)
+                              _ReviewChip(
+                                icon: Icons.key_off_outlined,
+                                label: 'Regrade needed',
+                                color: AppTheme.primaryRed,
+                              ),
+                            if (result.metadata['answerKeyRegraded'] == true)
+                              _ReviewChip(
+                                icon: Icons.refresh,
+                                label: 'Regraded',
+                                color: AppTheme.primaryGreen,
+                              ),
+                            if (result.metadata['autoCaptured'] == true)
+                              _ReviewChip(
+                                icon: Icons.auto_awesome_motion_outlined,
+                                label: 'Auto',
+                                color: AppTheme.info,
+                              ),
+                            _ReviewChip(
+                              icon: _studentMatchIcon,
+                              label: _studentMatchLabel,
+                              color: _studentMatchColor,
+                            ),
+                          ],
                         ),
                         if (needsReview)
                           Container(
@@ -901,6 +2244,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                   score: result.totalScore.toDouble(),
                   maxScore: result.maxScore.toDouble(),
                   grade: result.grade,
+                  mode: context.read<SettingsProvider>().voiceFeedbackMode,
+                  needsReview: result.needsReview,
                 );
                 if (mounted) setState(() => _isSpeakingTts = false);
               }
@@ -1196,8 +2541,6 @@ class _SideBySideReviewState extends State<SideBySideReview> {
     // Clamp index — safe to do here since it's just reading
     final safeIndex = _fixIndex.clamp(0, wrong.length - 1);
     final current = wrong[safeIndex];
-    final isMissing = current.detectedAnswer == '[MISSING]';
-
     return Column(
       key: ValueKey('fix_step_$safeIndex'),
       crossAxisAlignment: CrossAxisAlignment.stretch,

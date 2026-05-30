@@ -50,18 +50,18 @@ void main() {
     double percentage = 70,
     double confidence = 0.9,
     String grade = 'B',
-  }) =>
-      ScanResult(
-        assessmentId: 'a1',
-        studentId: 's1',
-        studentName: studentName,
-        imagePath: '/fake/path.png',
-        totalScore: totalScore,
-        maxScore: maxScore,
-        percentage: percentage,
-        grade: grade,
-        confidence: confidence,
-        status: ScanStatus.graded);
+  }) => ScanResult(
+    assessmentId: 'a1',
+    studentId: 's1',
+    studentName: studentName,
+    imagePath: '/fake/path.png',
+    totalScore: totalScore,
+    maxScore: maxScore,
+    percentage: percentage,
+    grade: grade,
+    confidence: confidence,
+    status: ScanStatus.graded,
+  );
 
   Widget wrapReview(List<ScanResult> results) {
     return MaterialApp(
@@ -73,19 +73,23 @@ void main() {
         child: Builder(
           builder: (context) => Scaffold(
             body: ElevatedButton(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/review',
-                arguments: results),
-              child: const Text('Go'))))),
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/review', arguments: results),
+              child: const Text('Go'),
+            ),
+          ),
+        ),
+      ),
       routes: {
         '/review': (_) => MultiProvider(
-              providers: [
-                ChangeNotifierProvider(create: (_) => StudentProvider()),
-                ChangeNotifierProvider(create: (_) => AssessmentProvider()),
-              ],
-              child: const ReviewScreen()),
-      });
+          providers: [
+            ChangeNotifierProvider(create: (_) => StudentProvider()),
+            ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+          ],
+          child: const ReviewScreen(),
+        ),
+      },
+    );
   }
 
   group('ReviewScreen', () {
@@ -109,7 +113,10 @@ void main() {
               ChangeNotifierProvider(create: (_) => StudentProvider()),
               ChangeNotifierProvider(create: (_) => AssessmentProvider()),
             ],
-            child: const ReviewScreen())));
+            child: const ReviewScreen(),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.sort), findsOneWidget);
@@ -123,7 +130,10 @@ void main() {
               ChangeNotifierProvider(create: (_) => StudentProvider()),
               ChangeNotifierProvider(create: (_) => AssessmentProvider()),
             ],
-            child: const ReviewScreen())));
+            child: const ReviewScreen(),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Review Results'), findsOneWidget);
@@ -143,8 +153,37 @@ void main() {
       await tester.pumpAndSettle();
 
       // Both student names should appear
+      await tester.scrollUntilVisible(
+        find.text('Abebe Kebede'),
+        120,
+        scrollable: find.byType(Scrollable),
+      );
       expect(find.text('Abebe Kebede'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Tigist Haile'),
+        120,
+        scrollable: find.byType(Scrollable),
+      );
       expect(find.text('Tigist Haile'), findsOneWidget);
+    });
+
+    testWidgets('shows teacher-first review queue actions', (tester) async {
+      final results = [
+        makeResult(studentName: 'Paper 1', confidence: 0.5, percentage: 45),
+        makeResult(studentName: 'Tigist Haile', percentage: 80),
+      ];
+
+      await tester.pumpWidget(wrapReview(results));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Go'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Review queue'), findsOneWidget);
+      expect(find.text('Check unclear answers'), findsWidgets);
+      expect(find.text('Match paper names'), findsOneWidget);
+      expect(find.text('Final save'), findsOneWidget);
+      expect(find.text('Save draft'), findsOneWidget);
     });
 
     testWidgets('shows sort options when sort button tapped', (tester) async {
@@ -155,7 +194,10 @@ void main() {
               ChangeNotifierProvider(create: (_) => StudentProvider()),
               ChangeNotifierProvider(create: (_) => AssessmentProvider()),
             ],
-            child: const ReviewScreen())));
+            child: const ReviewScreen(),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(Icons.sort));
@@ -165,6 +207,8 @@ void main() {
       expect(find.text('Lowest to Highest'), findsOneWidget);
       expect(find.text('Highest to Lowest'), findsOneWidget);
       expect(find.text('Needs Review First'), findsOneWidget);
+      expect(find.text('Missing Students First'), findsOneWidget);
+      expect(find.text('Answer Key Changes First'), findsOneWidget);
     });
   });
 }
