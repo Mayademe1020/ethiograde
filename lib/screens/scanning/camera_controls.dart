@@ -1,0 +1,294 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import '../../config/theme.dart';
+import 'camera_assistant_panel.dart';
+
+/// Bottom controls for the camera screen: capture button, thumbnail, done button.
+class CameraControls extends StatelessWidget {
+  const CameraControls({
+    super.key,
+    required this.isCapturing,
+    required this.capturedImages,
+    required this.lastCaptureTitle,
+    required this.lastCaptureDetail,
+    required this.isMasterKeyMode,
+    required this.onCapture,
+    required this.onFinishBatch,
+    required this.onViewCaptured,
+    required this.onCaptureMasterKey,
+  });
+
+  final bool isCapturing;
+  final List<String> capturedImages;
+  final String lastCaptureTitle;
+  final String lastCaptureDetail;
+  final bool isMasterKeyMode;
+  final VoidCallback onCapture;
+  final VoidCallback onFinishBatch;
+  final VoidCallback onViewCaptured;
+  final VoidCallback onCaptureMasterKey;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMasterKeyMode) {
+      return _buildMasterKeyControls();
+    }
+    return _buildBatchControls();
+  }
+
+  Widget _buildMasterKeyControls() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CameraAssistantPanel(
+            title: 'Scan master answer sheet',
+            detail: 'Place the answer key in frame',
+            capturedCount: 0,
+          ),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: isCapturing ? null : onCaptureMasterKey,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 4),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isCapturing ? Colors.grey : AppTheme.primaryGreen,
+                ),
+                child: isCapturing
+                    ? const CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      )
+                    : const Icon(
+                        Icons.document_scanner_outlined,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBatchControls() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CameraAssistantPanel(
+            title: lastCaptureTitle.isNotEmpty ? lastCaptureTitle : 'Align paper in frame',
+            detail: lastCaptureDetail.isNotEmpty ? lastCaptureDetail : 'Then tap capture',
+            capturedCount: capturedImages.length,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // Thumbnail of last captured image
+              GestureDetector(
+                onTap: capturedImages.isNotEmpty ? onViewCaptured : null,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white38),
+                  ),
+                  child: capturedImages.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(capturedImages.last),
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.photo_library,
+                          color: Colors.white54,
+                        ),
+                ),
+              ),
+
+              // Capture button
+              GestureDetector(
+                onTap: isCapturing ? null : onCapture,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCapturing ? Colors.grey : AppTheme.primaryGreen,
+                    ),
+                    child: isCapturing
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          )
+                        : const Icon(
+                            Icons.camera,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                  ),
+                ),
+              ),
+
+              // Done Scanning button
+              GestureDetector(
+                onTap: capturedImages.isNotEmpty ? onFinishBatch : null,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: capturedImages.isNotEmpty ? AppTheme.primaryGreen : Colors.white24,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: capturedImages.isNotEmpty ? Colors.white : Colors.white54,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Counter badge
+          if (capturedImages.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${capturedImages.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Tap \u2713 when done scanning',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows a grid of captured images for review.
+void showCapturedImagesSheet({
+  required BuildContext context,
+  required List<String> capturedImages,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (c) => DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.9,
+      builder: (c, scrollController) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              '${capturedImages.length} Papers Captured',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: GridView.builder(
+                controller: scrollController,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: capturedImages.length,
+                itemBuilder: (context, index) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(capturedImages[index]),
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Shows a duplicate warning dialog. Returns true if teacher wants to keep.
+Future<bool> showDuplicateDialog(BuildContext context) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: AppTheme.primaryYellow,
+            size: 22,
+          ),
+          const SizedBox(width: 8),
+          const Text('Possible Duplicate'),
+        ],
+      ),
+      content: const Text(
+        'This looks similar to a paper already captured. Not sure? '
+        'Answers will be double-checked after processing.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Keep'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryRed,
+          ),
+          child: const Text('Skip'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}

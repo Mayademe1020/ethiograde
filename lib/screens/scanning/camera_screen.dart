@@ -1,5 +1,4 @@
-﻿import 'dart:async';
-import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
@@ -7,13 +6,18 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
+import '../../models/student.dart';
 import '../../services/assessment_provider.dart';
-import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
-import '../../services/weighted_grade_provider.dart';
+import '../../services/student_provider.dart';
 import '../assessment/exam_day_create_screen.dart';
 import '../../widgets/paper_guide_overlay.dart';
+import 'camera_unavailable_view.dart';
+import 'camera_assistant_panel.dart';
+import 'camera_processor.dart';
+import 'camera_controls.dart';
+import 'assessment_selector.dart';
 
 /// Arguments for re-scan mode: replaces an existing ScanResult with a fresh scan.
 class ReScanArguments {
@@ -29,12 +33,6 @@ class ReScanArguments {
 enum _CameraScanMode { batch, masterKey }
 
 /// Camera screen with continuous batch capture flow.
-///
-/// Teacher taps capture â†’ image stored, counter increments.
-/// No per-scan processing â€” all images are batch-processed when the
-/// teacher taps "Done Scanning" (navigates to BatchScanScreen).
-///
-/// This keeps the capture loop fast and uninterrupted on 2GB devices.
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
 
@@ -53,25 +51,52 @@ class _CameraScreenState extends State<CameraScreen>
   String? _cameraError;
   final List<Timer> _cameraStartupTimers = [];
   final List<String> _capturedImages = [];
-  final List<int?> _capturedHashes = []; // Parallel hash cache for batch
-  List<int?> _existingHashes = []; // Hashes from previously saved scans
+  final List<int?> _capturedHashes = [];
+  List<int?> _existingHashes = [];
   bool _existingHashesLoaded = false;
 
-  /// Track whether images were handed off to batch processing.
-  /// If teacher backs out without scanning, clean up captured files.
   bool _batchStarted = false;
   Assessment? _selectedAssessment;
   PaperGuideState _guideState = PaperGuideState.idle;
   _CameraScanMode _scanMode = _CameraScanMode.batch;
 
-  /// Re-scan mode: non-null when re-scanning a specific student's paper.
   ReScanArguments? _reScanArgs;
   bool _isReScanProcessing = false;
+
+  String? _classId;
+  final List<ScanResult> _autoGradedResults = [];
+  String _lastCaptureTitle = '';
+  String _lastCaptureDetail = '';
+
+  late final CameraProcessor _processor;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _processor = CameraProcessor(
+      callbacks: CameraProcessorCallbacks(
+        onCapturingChanged: (capturing) {
+          if (mounted) setState(() => _isCapturing = capturing);
+        },
+        onCaptureFeedbackChanged: (title, detail) {
+          if (mounted) setState(() { _lastCaptureTitle = title; _lastCaptureDetail = detail; });
+        },
+        onGuideStateChanged: (state) {
+          if (mounted) setState(() => _guideState = state);
+        },
+        onBatchChanged: (images, hashes) {
+          if (mounted) setState(() {});
+        },
+        onAutoGradedResultsChanged: (results) {
+          if (mounted) setState(() { _autoGradedResults..clear()..addAll(results); });
+        },
+        onBatchStartedChanged: (started) {
+          if (mounted) setState(() => _batchStarted = started);
+        },
+        onShowDuplicateDialog: () => showDuplicateDialog(context),
+      ),
+    );
     _initializeCamera();
   }
 
@@ -191,9 +216,6 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   Widget build(BuildContext context) {
-    final assessments = context.watch<AssessmentProvider>().assessments;
-
-    // Detect re-scan mode from route arguments
     final routeArgs = ModalRoute.of(context)?.settings.arguments;
     if (_reScanArgs == null && routeArgs is ReScanArguments) {
       _reScanArgs = routeArgs;
@@ -210,7 +232,6 @@ class _CameraScreenState extends State<CameraScreen>
     }
     _selectedAssessment ??= routeArgs is Assessment ? routeArgs : null;
 
-    // Load existing hashes once when assessment is known
     if (_selectedAssessment != null && !_existingHashesLoaded) {
       _loadExistingHashes(_selectedAssessment!);
     }
@@ -218,7 +239,7 @@ class _CameraScreenState extends State<CameraScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       body: !_isInitialized
-          ? _CameraUnavailableView(
+          ? CameraUnavailableView(
               isStarting: _isCameraStarting,
               message: _cameraError,
               onBack: () => Navigator.pop(context),
@@ -241,427 +262,150 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : Stack(
               children: [
-                // Camera preview
                 Positioned.fill(child: CameraPreview(_cameraController!)),
-
-                // Scan guide overlay
                 Positioned.fill(child: PaperGuideOverlay(state: _guideState)),
-
-                // Top bar with counter
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.6),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.white,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          Expanded(
-                            child: Column(
-                              children: [
-                                Text(
-                                  _titleText,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (_reScanArgs == null &&
-                                    _scanMode != _CameraScanMode.masterKey)
-                                  Text(
-                                    '${_capturedImages.length} '
-                                    '${'papers captured'}',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                if (_scanMode == _CameraScanMode.masterKey)
-                                  const Text(
-                                    'Step 1 of grading',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              _isFlashOn ? Icons.flash_on : Icons.flash_off,
-                              color: Colors.white,
-                            ),
-                            onPressed: _toggleFlash,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Assessment selector (hidden in re-scan mode)
+                _buildTopBar(),
                 if (_selectedAssessment == null && _reScanArgs == null)
+                  AssessmentSelector(
+                    assessments: context.watch<AssessmentProvider>().assessments,
+                    selectedAssessment: _selectedAssessment,
+                    onChanged: (a) => setState(() {
+                      _selectedAssessment = a;
+                      if (a != null) _loadExistingHashes(a);
+                    }),
+                  ),
+                if (_reScanArgs != null)
                   Positioned(
-                    top: 100,
-                    left: 20,
-                    right: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(12),
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildReScanControls(),
+                  )
+                else
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: CameraControls(
+                      isCapturing: _isCapturing,
+                      capturedImages: _capturedImages,
+                      lastCaptureTitle: _lastCaptureTitle,
+                      lastCaptureDetail: _lastCaptureDetail,
+                      isMasterKeyMode: _scanMode == _CameraScanMode.masterKey,
+                      onCapture: _captureImage,
+                      onFinishBatch: _finishBatch,
+                      onViewCaptured: () => showCapturedImagesSheet(
+                        context: context,
+                        capturedImages: _capturedImages,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Select Assessment',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<Assessment>(
-                            dropdownColor: Colors.grey.shade900,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.grey.shade800,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                            ),
-                            items: assessments
-                                .where(
-                                  (a) => a.status == AssessmentStatus.active,
-                                )
-                                .map(
-                                  (a) => DropdownMenuItem(
-                                    value: a,
-                                    child: Text(
-                                      '${a.title} (${a.subject})',
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (a) {
-                              setState(() => _selectedAssessment = a);
-                              if (a != null) _loadExistingHashes(a);
-                            },
-                          ),
-                        ],
-                      ),
+                      onCaptureMasterKey: _captureMasterKey,
                     ),
                   ),
-
-                // Bottom controls
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.8),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          // Re-scan mode: single capture + process
-                          if (_reScanArgs != null) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Text(
-                                _isReScanProcessing
-                                    ? ('Re-grading...')
-                                    : ('Align paper, then tap to re-scan'),
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 13,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: (_isCapturing || _isReScanProcessing)
-                                  ? null
-                                  : _captureAndReGrade,
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 4,
-                                  ),
-                                ),
-                                child: Container(
-                                  margin: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: (_isCapturing || _isReScanProcessing)
-                                        ? Colors.grey
-                                        : AppTheme.primaryYellow,
-                                  ),
-                                  child: (_isCapturing || _isReScanProcessing)
-                                      ? const CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        )
-                                      : const Icon(
-                                          Icons.refresh,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ] else if (_scanMode ==
-                              _CameraScanMode.masterKey) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: Text(
-                                _isCapturing
-                                    ? 'Reading master answer sheet...'
-                                    : 'Scan only the filled master answer sheet. You will confirm answers before student papers.',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: _isCapturing ? null : _captureMasterKey,
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 4,
-                                  ),
-                                ),
-                                child: Container(
-                                  margin: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _isCapturing
-                                        ? Colors.grey
-                                        : AppTheme.primaryGreen,
-                                  ),
-                                  child: _isCapturing
-                                      ? const CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        )
-                                      : const Icon(
-                                          Icons.document_scanner_outlined,
-                                          color: Colors.white,
-                                          size: 32,
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ] else ...[
-                            // Capture hint when no images yet
-                            if (_capturedImages.isEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: Text(
-                                  'Align paper in frame, then tap capture',
-                                  style: const TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 13,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-
-                            // Capture button row
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                // Thumbnail of last captured image
-                                GestureDetector(
-                                  onTap: _capturedImages.isNotEmpty
-                                      ? _showCapturedImages
-                                      : null,
-                                  child: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white24,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.white38),
-                                    ),
-                                    child: _capturedImages.isNotEmpty
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Image.file(
-                                              File(_capturedImages.last),
-                                              fit: BoxFit.cover,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.photo_library,
-                                            color: Colors.white54,
-                                          ),
-                                  ),
-                                ),
-
-                                // Capture button
-                                GestureDetector(
-                                  onTap: _isCapturing ? null : _captureImage,
-                                  child: Container(
-                                    width: 72,
-                                    height: 72,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 4,
-                                      ),
-                                    ),
-                                    child: Container(
-                                      margin: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: _isCapturing
-                                            ? Colors.grey
-                                            : AppTheme.primaryGreen,
-                                      ),
-                                      child: _isCapturing
-                                          ? const CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2,
-                                            )
-                                          : const Icon(
-                                              Icons.camera,
-                                              color: Colors.white,
-                                              size: 32,
-                                            ),
-                                    ),
-                                  ),
-                                ),
-
-                                // Done Scanning button
-                                GestureDetector(
-                                  onTap: _capturedImages.isNotEmpty
-                                      ? _finishBatch
-                                      : null,
-                                  child: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: _capturedImages.isNotEmpty
-                                          ? AppTheme.primaryGreen
-                                          : Colors.white24,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.check,
-                                      color: _capturedImages.isNotEmpty
-                                          ? Colors.white
-                                          : Colors.white54,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            // "Done Scanning" label + counter
-                            if (_capturedImages.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    // Captured count badge
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white24,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${_capturedImages.length}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      'Tap âœ“ when done scanning',
-                                      style: const TextStyle(
-                                        color: Colors.white60,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
     );
   }
 
+  Widget _buildTopBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withOpacity(0.6),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      _titleText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (_reScanArgs == null)
+                      Text(
+                        _subtitleText,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                  color: Colors.white,
+                ),
+                onPressed: _toggleFlash,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReScanControls() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CameraAssistantPanel(
+            title: 'Re-Scan \u2014 ${_reScanArgs!.existingResult.studentName}',
+            detail: _isReScanProcessing ? 'Grading...' : 'Tap to re-scan',
+            capturedCount: 0,
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: (_isCapturing || _isReScanProcessing) ? null : _captureAndReGrade,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 4),
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: (_isCapturing || _isReScanProcessing) ? Colors.grey : AppTheme.primaryGreen,
+                ),
+                child: (_isCapturing || _isReScanProcessing)
+                    ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                    : const Icon(Icons.camera, color: Colors.white, size: 32),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String get _titleText {
     if (_reScanArgs != null) {
-      return "Re-Scan â€” ${_reScanArgs!.existingResult.studentName}";
+      return "Re-Scan \u2014 ${_reScanArgs!.existingResult.studentName}";
     }
     if (_scanMode == _CameraScanMode.masterKey) {
       return 'Scan master answer sheet';
@@ -669,49 +413,35 @@ class _CameraScreenState extends State<CameraScreen>
     return 'Scanning Mode';
   }
 
-  /// Capture the master answer sheet and process it before student scanning.
-  Future<void> _captureMasterKey() async {
-    if (_cameraController == null ||
-        !_cameraController!.value.isInitialized ||
-        _isCapturing) {
-      return;
+  String get _subtitleText {
+    if (_reScanArgs != null) {
+      return 'Tap to re-scan ${_reScanArgs!.existingResult.studentName}';
     }
-
-    if (_selectedAssessment == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select an assessment first')),
-      );
-      return;
+    if (_scanMode == _CameraScanMode.masterKey) {
+      return 'Step 1 of grading';
     }
-
-    setState(() => _isCapturing = true);
-
-    try {
-      final image = await _cameraController!.takePicture();
-      _batchStarted = true;
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        AppRoutes.batchScan,
-        arguments: {
-          'images': [image.path],
-          'assessment': _selectedAssessment,
-          'masterOnly': true,
-        },
-      );
-    } catch (e) {
-      debugPrint('Master key capture error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Master scan failed â€” try again')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isCapturing = false);
+    if (_processor.autoCaptureEnabled) {
+      return 'Auto-capture: hold steady';
     }
+    return '${_capturedImages.length} papers captured';
   }
 
-  /// Capture an image and add it to the batch â€” no processing.
+  String _effectiveClassId() {
+    if (_classId != null) return _classId!;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['classId'] is String) {
+      return args['classId'] as String;
+    }
+    return '';
+  }
+
+  List<Student> _classStudentsFor(String classId) {
+    if (classId.isEmpty) return [];
+    return context.read<StudentProvider>().studentsByClassId(classId);
+  }
+
+  // ── Capture methods ──
+
   Future<void> _captureImage() async {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
@@ -721,7 +451,30 @@ class _CameraScreenState extends State<CameraScreen>
 
     if (_selectedAssessment == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select an assessment first')),
+        const SnackBar(content: Text('Please select an assessment first')),
+      );
+      return;
+    }
+
+    await _processor.captureImage(
+      controller: _cameraController,
+      assessment: _selectedAssessment,
+      existingHashes: _existingHashes,
+      capturedImages: _capturedImages,
+      capturedHashes: _capturedHashes,
+    );
+  }
+
+  Future<void> _captureMasterKey() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing) {
+      return;
+    }
+
+    if (_selectedAssessment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an assessment first')),
       );
       return;
     }
@@ -730,85 +483,108 @@ class _CameraScreenState extends State<CameraScreen>
 
     try {
       final image = await _cameraController!.takePicture();
-      final hash = ImageHashService().computeHash(image.path);
+      _batchStarted = true;
+      _processor.stopFrameObservation(_cameraController);
 
-      // Check for duplicates against current batch + existing scans
-      if (hash != null) {
-        final allHashes = [..._existingHashes, ..._capturedHashes];
-        final dupIndex = ImageHashService().findDuplicate(hash, allHashes);
+      final cid = _effectiveClassId();
+      final students = _classStudentsFor(cid);
 
-        if (dupIndex >= 0) {
-          final isDuplicate = await _showDuplicateDialog();
-          if (!isDuplicate) {
-            // Teacher chose to skip â€” delete the captured file
-            try {
-              await File(image.path).delete();
-            } catch (_) {}
-            return;
-          }
-        }
-      }
-
-      _capturedImages.add(image.path);
-      _capturedHashes.add(hash);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.batchScan,
+        arguments: {
+          'images': [image.path],
+          'assessment': _selectedAssessment,
+          'masterOnly': true,
+          if (cid.isNotEmpty) 'classId': cid,
+          if (students.isNotEmpty) 'classStudents': students,
+        },
+      );
     } catch (e) {
-      debugPrint('Capture error: $e');
+      debugPrint('Master key capture error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Capture failed â€” try again')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Master scan failed \u2014 try again')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isCapturing = false);
     }
   }
 
-  /// Show grid of captured images for review.
-  void _showCapturedImages() {
-    showModalBottomSheet(
+  Future<void> _captureAndReGrade() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        _isCapturing ||
+        _isReScanProcessing ||
+        _reScanArgs == null) {
+      return;
+    }
+
+    setState(() {
+      _isCapturing = true;
+      _isReScanProcessing = false;
+    });
+
+    final newResult = await _processor.captureAndReGrade(
+      controller: _cameraController,
+      existingResult: _reScanArgs!.existingResult,
+      assessment: _reScanArgs!.assessment,
       context: context,
-      isScrollControlled: true,
-      builder: (c) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        builder: (c, scrollController) => Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Text(
-                '${_capturedImages.length} '
-                '${'Papers Captured'}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: GridView.builder(
-                  controller: scrollController,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: _capturedImages.length,
-                  itemBuilder: (context, index) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(_capturedImages[index]),
-                        fit: BoxFit.cover,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+    );
+
+    if (mounted) {
+      setState(() {
+        _isCapturing = false;
+        _isReScanProcessing = false;
+      });
+
+      if (newResult != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              newResult.status == ScanStatus.graded
+                  ? "${_reScanArgs!.existingResult.studentName} re-graded \u2014 ${newResult.percentage.toStringAsFixed(0)}%"
+                  : 'Re-scan failed \u2014 try again',
+            ),
           ),
-        ),
-      ),
+        );
+        Navigator.pop(context, newResult);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error \u2014 try again')),
+        );
+      }
+    }
+  }
+
+  void _finishBatch() {
+    _batchStarted = true;
+    _processor.stopFrameObservation(_cameraController);
+
+    final cid = _effectiveClassId();
+    Navigator.pushNamed(
+      context,
+      AppRoutes.batchScan,
+      arguments: {
+        'images': _capturedImages,
+        'assessment': _selectedAssessment,
+        if (cid.isNotEmpty) 'classId': cid,
+        if (_autoGradedResults.isNotEmpty)
+          'draftCompletedResults': _autoGradedResults,
+      },
     );
   }
 
-  /// Load hashes from previously saved scan results for this assessment.
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null) return;
+    setState(() => _isFlashOn = !_isFlashOn);
+    await _cameraController!.setFlashMode(
+      _isFlashOn ? FlashMode.torch : FlashMode.off,
+    );
+  }
+
   Future<void> _loadExistingHashes(Assessment assessment) async {
     if (_existingHashesLoaded) return;
     _existingHashesLoaded = true;
@@ -821,140 +597,15 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  /// Show bilingual possible-duplicate warning. Returns true if teacher wants to keep.
-  Future<bool> _showDuplicateDialog() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: AppTheme.primaryYellow,
-              size: 22,
-            ),
-            const SizedBox(width: 8),
-            Text('Possible Duplicate'),
-          ],
-        ),
-        content: Text(
-          'This looks similar to a paper already captured. Not sure? '
-          'Answers will be double-checked after processing.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true), // Keep
-            child: Text('Keep'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, false), // Skip
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryRed,
-            ),
-            child: Text('Skip'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false; // Default: keep (safe default)
-  }
-
-  /// Capture a single image and immediately re-grade it, replacing the
-  /// existing ScanResult. Only used in re-scan mode.
-  Future<void> _captureAndReGrade() async {
-    if (_cameraController == null ||
-        !_cameraController!.value.isInitialized ||
-        _isCapturing ||
-        _isReScanProcessing ||
-        _reScanArgs == null) {
-      return;
-    }
-
-    setState(() => _isCapturing = true);
-
-    try {
-      final image = await _cameraController!.takePicture();
-      setState(() {
-        _isCapturing = false;
-        _isReScanProcessing = true;
-      });
-
-      final existing = _reScanArgs!.existingResult;
-      final assessment = _reScanArgs!.assessment;
-      final grading = HybridGradingService();
-
-      // Load weighted scale if configured
-      final weightedScale = assessment.weightedScaleId != null
-          ? context.read<WeightedGradeProvider>().getForExam(assessment.id)
-          : null;
-
-      // Grade the new image with the same student identity
-      final newResult = await grading.gradePaper(
-        imagePath: image.path,
-        assessment: assessment,
-        studentId: existing.studentId,
-        studentName: existing.studentName,
-        weightedScale: weightedScale,
-      );
-
-      // Delete old result from Hive
-      await grading.deleteScanResult(existing.id);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              newResult.status == ScanStatus.graded
-                  ? ("${existing.studentName} re-graded â€” ${newResult.percentage.toStringAsFixed(0)}%")
-                  : ('Re-scan failed â€” try again'),
-            ),
-          ),
-        );
-
-        // Pop back to review with the new result
-        Navigator.pop(context, newResult);
-      }
-    } catch (e, st) {
-      debugPrint('Re-scan error: $e\n$st');
-      if (mounted) {
-        setState(() {
-          _isCapturing = false;
-          _isReScanProcessing = false;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error â€” try again')));
-      }
-    }
-  }
-
-  /// Navigate to BatchScanScreen for batch processing.
-  void _finishBatch() {
-    _batchStarted = true;
-    Navigator.pushNamed(
-      context,
-      AppRoutes.batchScan,
-      arguments: {'images': _capturedImages, 'assessment': _selectedAssessment},
-    );
-  }
-
-  Future<void> _toggleFlash() async {
-    if (_cameraController == null) return;
-    setState(() => _isFlashOn = !_isFlashOn);
-    await _cameraController!.setFlashMode(
-      _isFlashOn ? FlashMode.torch : FlashMode.off,
-    );
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _processor.stopFrameObservation(_cameraController);
     for (final timer in _cameraStartupTimers) {
       timer.cancel();
     }
     _cameraStartupTimers.clear();
     _cameraController?.dispose();
-    // Clean up captured images if teacher backed out without scanning
     if (!_batchStarted && _capturedImages.isNotEmpty) {
       OcrService().cleanupImages(_capturedImages);
     }
@@ -971,93 +622,5 @@ class _CameraScreenState extends State<CameraScreen>
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
-  }
-}
-
-class _CameraUnavailableView extends StatelessWidget {
-  final bool isStarting;
-  final String? message;
-  final VoidCallback onBack;
-  final VoidCallback onRetry;
-  final VoidCallback onManualEntry;
-
-  const _CameraUnavailableView({
-    required this.isStarting,
-    required this.message,
-    required this.onBack,
-    required this.onRetry,
-    required this.onManualEntry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final statusText = isStarting ? 'Camera is starting' : 'Camera not ready';
-    final helperText =
-        message ?? 'Hold the phone steady while EthioGrade opens the camera.';
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                tooltip: 'Back',
-              ),
-            ),
-            const Spacer(),
-            Icon(
-              isStarting ? Icons.camera_alt : Icons.no_photography_outlined,
-              color: Colors.white,
-              size: 56,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              statusText,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              helperText,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white70,
-                height: 1.35,
-              ),
-            ),
-            if (isStarting) ...[
-              const SizedBox(height: 22),
-              const Center(child: CircularProgressIndicator()),
-            ],
-            const Spacer(),
-            FilledButton.icon(
-              onPressed: isStarting ? null : onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try camera again'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: onManualEntry,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white54),
-              ),
-              icon: const Icon(Icons.edit_note),
-              label: const Text('Enter answer key manually'),
-            ),
-            TextButton(onPressed: onBack, child: const Text('Go back')),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
   }
 }
