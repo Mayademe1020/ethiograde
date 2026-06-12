@@ -67,26 +67,18 @@ class AnswerParser {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return '';
 
-    // Check if the entire text is already a valid answer
-    final normalized = normalizeAnswer(trimmed);
-    if (normalized.isNotEmpty) return trimmed;
-
     final words = trimmed.split(RegExp(r'\s+'));
     if (words.isEmpty) return trimmed;
 
     // ── Pattern 1: Matching pairs — multiple single letters at end ──
-    // "Match the words G D" → "G D"
-    // "G D" → "G D"
-    // "opposites: G D E" → "G D E"
     if (words.length >= 2) {
       final lastTwo = words.sublist(words.length - 2);
       final bothLetters = lastTwo.every(
-        (w) => RegExp(r'^[a-eA-E]$').hasMatch(w));
+        (w) => RegExp(r'^[a-zA-Z]$').hasMatch(w));
       if (bothLetters) {
-        // Check if there are more letters before (3+ matching answers)
         int letterStart = words.length - 2;
         while (letterStart > 0 &&
-            RegExp(r'^[a-eA-E]$').hasMatch(words[letterStart - 1])) {
+            RegExp(r'^[a-zA-Z]$').hasMatch(words[letterStart - 1])) {
           letterStart--;
         }
         return words.sublist(letterStart).join(' ');
@@ -94,8 +86,6 @@ class AnswerParser {
     }
 
     // ── Pattern 2: True/False at end ──
-    // "Is this true? True" → "True"
-    // "The answer is false" → "False"
     final lastWord = words.last;
     final lastNorm = normalizeAnswer(lastWord);
     if (lastNorm == 'True' || lastNorm == 'False') {
@@ -103,13 +93,14 @@ class AnswerParser {
     }
 
     // ── Pattern 3: Single MCQ letter at end ──
-    // "What is the capital? B" → "B"
-    // "The opposite of teacher is C" → "C"
     if (RegExp(r'^[a-eA-E]$').hasMatch(lastWord)) {
       return lastWord;
     }
 
-    // Fallback: return as-is
+    // Fallback: check if entire text is a known answer (MCQ, T/F, etc.)
+    final normalized = normalizeAnswer(trimmed);
+    if (normalized.isNotEmpty && normalized.length <= 20) return trimmed;
+
     return trimmed;
   }
 
@@ -189,12 +180,10 @@ class AnswerParser {
     if (!allSingleLetters) return null;
 
     // At least one letter beyond E (F-Z) → likely matching, not MCQ
-    // Or if we have 3+ tokens with all different letters → matching
     final hasNonMcq = tokens.any(
       (t) => RegExp(r'^[f-zF-Z]$').hasMatch(t));
     final uniqueTokens = tokens.toSet();
-    final isMatchingPattern =
-        hasNonMcq || (tokens.length >= 3 && uniqueTokens.length >= 2);
+    final isMatchingPattern = hasNonMcq;
 
     if (!isMatchingPattern) return null;
 

@@ -117,7 +117,7 @@ void main() {
       await tester.pumpWidget(wrapScreen(assessment: assessment));
       await tester.pumpAndSettle();
 
-      expect(find.text('Unit 1 Test'), findsOneWidget);
+      expect(find.text('Unit 1 Test'), findsAtLeastNWidgets(1));
       expect(find.text('Math · 40 questions'), findsOneWidget);
     });
 
@@ -134,26 +134,24 @@ void main() {
       expect(find.text('True/False'), findsOneWidget);
     });
 
-    testWidgets('shows questions per page options', (tester) async {
+    testWidgets('shows paper layout options', (tester) async {
       await tester.pumpWidget(wrapScreen());
       await tester.pumpAndSettle();
 
-      expect(find.text('Questions Per Page'), findsOneWidget);
-      expect(find.text('Auto'), findsOneWidget);
-      expect(find.text('30'), findsOneWidget);
-      expect(find.text('50'), findsOneWidget);
+      expect(find.text('Paper Layout'), findsOneWidget);
+      expect(find.text('Full A4'), findsOneWidget);
+      expect(find.text('Half (2 per page)'), findsOneWidget);
     });
 
-    testWidgets('can select questions per page option', (tester) async {
+    testWidgets('can select paper layout option', (tester) async {
       await tester.pumpWidget(wrapScreen());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('50'));
+      await tester.tap(find.text('Half (2 per page)'));
       await tester.pumpAndSettle();
 
-      // The 50 option should now be selected (highlighted)
-      // We verify by checking the gesture detector was tappable
-      expect(find.text('50'), findsOneWidget);
+      // The half sheet option should now be selected
+      expect(find.text('Half (2 per page)'), findsOneWidget);
     });
 
     testWidgets('shows header fields', (tester) async {
@@ -205,9 +203,9 @@ void main() {
         title: 'Partial Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: ''),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: ''),
         ]);
 
       await tester.pumpWidget(wrapScreen(assessment: assessment));

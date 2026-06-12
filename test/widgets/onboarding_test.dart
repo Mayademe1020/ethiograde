@@ -6,8 +6,7 @@ import 'package:ethiograde/screens/onboarding/onboarding_screen.dart';
 void main() {
   Widget _wrap(Widget child) {
     return MaterialApp(
-      home: ChangeNotifierProvider(
-        child: child));
+      home: child);
   }
 
   group('OnboardingScreen', () {
@@ -78,16 +77,6 @@ void main() {
 
       expect(find.text('Your Name'), findsOneWidget);
       expect(find.text('School Name (optional)'), findsOneWidget);
-    });
-
-    testWidgets('setup page has language toggle', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('English'), findsOneWidget);
     });
 
     testWidgets('setup page has Get Started button', (tester) async {

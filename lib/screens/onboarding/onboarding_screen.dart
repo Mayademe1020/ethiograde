@@ -59,7 +59,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
-                onPressed: _completeSetup,
+                onPressed: () {
+                  _pageController.animateToPage(
+                    _pages.length,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
                 child: Text(
                   'Skip',
                   style: TextStyle(color: AppTheme.lightText),
