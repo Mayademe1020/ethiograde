@@ -2,27 +2,34 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
+import '../../screens/home/dashboard_actions.dart';
 
 class AssessmentCard extends StatelessWidget {
   final Assessment assessment;
   final VoidCallback? onTap;
 
-  const AssessmentCard({
-    super.key,
-    required this.assessment,
-    this.onTap,
-  });
+  const AssessmentCard({super.key, required this.assessment, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    final (statusColor, statusLabel, statusIcon) = switch (assessment.status) {
-      AssessmentStatus.draft     => (cs.onSurfaceVariant, 'Draft', Icons.edit_outlined),
-      AssessmentStatus.active    => (AppTheme.success, 'Active', Icons.radio_button_on),
-      AssessmentStatus.grading   => (AppTheme.warning, 'Grading', Icons.pending_outlined),
-      AssessmentStatus.completed => (AppTheme.info, 'Done', Icons.check_circle_outline),
+    final resolved = resolveOperationalStatus(assessment);
+    final (statusColor, statusIcon) = switch (resolved.status) {
+      OperationalStatus.setupIncomplete => (
+        AppTheme.warning,
+        Icons.help_outline,
+      ),
+      OperationalStatus.readyToGrade => (
+        AppTheme.success,
+        Icons.radio_button_on,
+      ),
+      OperationalStatus.gradingInProgress => (AppTheme.info, Icons.sync),
+      OperationalStatus.graded => (
+        AppTheme.success,
+        Icons.check_circle_outline,
+      ),
     };
 
     return Padding(
@@ -31,12 +38,13 @@ class AssessmentCard extends StatelessWidget {
         color: cs.surface,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         child: InkWell(
-          onTap: onTap ??
+          onTap:
+              onTap ??
               () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.answerKey,
-                    arguments: assessment,
-                  ),
+                context,
+                AppRoutes.answerKey,
+                arguments: assessment,
+              ),
           borderRadius: BorderRadius.circular(AppRadius.xl),
           child: Container(
             decoration: BoxDecoration(
@@ -97,7 +105,9 @@ class AssessmentCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(AppRadius.full),
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.full,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -105,7 +115,7 @@ class AssessmentCard extends StatelessWidget {
                                 Icon(statusIcon, size: 11, color: statusColor),
                                 const SizedBox(width: 4),
                                 Text(
-                                  statusLabel,
+                                  resolved.label,
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: statusColor,
@@ -157,20 +167,24 @@ class AssessmentCard extends StatelessWidget {
                           children: [
                             if (assessment.mcqCount > 0)
                               _TypePill(
-                                  label: 'MCQ ${assessment.mcqCount}',
-                                  color: AppTheme.success),
+                                label: 'MCQ ${assessment.mcqCount}',
+                                color: AppTheme.success,
+                              ),
                             if (assessment.trueFalseCount > 0)
                               _TypePill(
-                                  label: 'T/F ${assessment.trueFalseCount}',
-                                  color: AppTheme.info),
+                                label: 'T/F ${assessment.trueFalseCount}',
+                                color: AppTheme.info,
+                              ),
                             if (assessment.shortAnswerCount > 0)
                               _TypePill(
-                                  label: 'Short ${assessment.shortAnswerCount}',
-                                  color: AppTheme.warning),
+                                label: 'Short ${assessment.shortAnswerCount}',
+                                color: AppTheme.warning,
+                              ),
                             if (assessment.essayCount > 0)
                               _TypePill(
-                                  label: 'Essay ${assessment.essayCount}',
-                                  color: AppTheme.error),
+                                label: 'Essay ${assessment.essayCount}',
+                                color: AppTheme.error,
+                              ),
                           ],
                         ),
                       ],
@@ -267,14 +281,14 @@ class _AnswerKeyBar extends StatelessWidget {
     final color = complete
         ? AppTheme.success
         : ratio > 0.5
-            ? AppTheme.warning
-            : cs.onSurfaceVariant;
+        ? AppTheme.warning
+        : cs.onSurfaceVariant;
 
     final icon = complete
         ? Icons.check_circle_outline
         : ratio > 0
-            ? Icons.pending_outlined
-            : Icons.radio_button_unchecked;
+        ? Icons.pending_outlined
+        : Icons.radio_button_unchecked;
 
     return Row(
       children: [

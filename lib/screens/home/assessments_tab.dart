@@ -51,6 +51,16 @@ class AssessmentsTab extends StatelessWidget {
                     label: const Text('Grade papers'),
                   ),
                 ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.quickGrade),
+                    icon: const Icon(Icons.flash_on),
+                    label: const Text('Quick Grade'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -105,9 +115,8 @@ class AssessmentsTab extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             sliver: SliverList.builder(
               itemCount: setup.length,
-              itemBuilder: (_, index) => AssessmentCard(
-                assessment: setup[index],
-              ),
+              itemBuilder: (_, index) =>
+                  AssessmentCard(assessment: setup[index]),
             ),
           ),
         ],
@@ -128,16 +137,13 @@ class AssessmentsTab extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             sliver: SliverList.builder(
               itemCount: ready.length,
-              itemBuilder: (_, index) => AssessmentCard(
-                assessment: ready[index],
-              ),
+              itemBuilder: (_, index) =>
+                  AssessmentCard(assessment: ready[index]),
             ),
           ),
         ],
         if (ready.isEmpty && setup.isEmpty)
-          SliverFillRemaining(
-            child: _buildEmptyState(context),
-          ),
+          SliverFillRemaining(child: _buildEmptyState(context)),
       ],
     );
   }
