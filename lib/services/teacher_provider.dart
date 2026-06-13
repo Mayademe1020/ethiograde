@@ -22,11 +22,10 @@ class TeacherProvider extends ChangeNotifier {
 
   /// The currently active teacher (first active one, or the single teacher).
   Teacher? get activeTeacher {
-    try {
-      return _teachers.firstWhere((t) => t.isActive);
-    } catch (_) {
-      return _teachers.isNotEmpty ? _teachers.first : null;
+    for (final t in _teachers) {
+      if (t.isActive) return t;
     }
+    return _teachers.isNotEmpty ? _teachers.first : null;
   }
 
   /// Convenience: active teacher name, or empty string.
@@ -156,10 +155,9 @@ class TeacherProvider extends ChangeNotifier {
 
   /// Get a teacher by ID.
   Teacher? getById(String id) {
-    try {
-      return _teachers.firstWhere((t) => t.id == id);
-    } catch (_) {
-      return null;
+    for (final t in _teachers) {
+      if (t.id == id) return t;
     }
+    return null;
   }
 }

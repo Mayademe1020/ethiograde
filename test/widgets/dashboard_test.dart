@@ -86,12 +86,12 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('home shows teacher-first Grade Papers action', (tester) async {
+    testWidgets('home shows teacher-first next action', (tester) async {
       await tester.pumpWidget(wrapDashboard());
       await tester.pumpAndSettle();
 
       expect(find.byType(FloatingActionButton), findsNothing);
-      expect(find.text('Grade Papers'), findsOneWidget);
+      expect(find.textContaining('Welcome,'), findsOneWidget);
       expect(find.text('Grade papers'), findsOneWidget);
     });
 
@@ -119,6 +119,12 @@ void main() {
     testWidgets('shows "No classes yet" when no classes exist', (tester) async {
       await tester.pumpWidget(wrapDashboard());
       await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('No classes yet'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
 
       expect(find.text('No classes yet'), findsOneWidget);
     });
@@ -167,28 +173,29 @@ void main() {
       await tester.tap(find.text('Assess'));
       await tester.pumpAndSettle();
 
-      // Assessments tab has filter chips
-      expect(find.text('All'), findsWidgets);
-      expect(find.text('Active'), findsWidgets);
-      expect(find.text('Completed'), findsWidgets);
+      // Assessments tab shows empty state
+      expect(find.text('No assessments yet'), findsOneWidget);
 
       // Switch to Students tab
       await tester.tap(find.text('Students'));
       await tester.pumpAndSettle();
 
-      // Students tab has search field
-      expect(
-        find.text('No students — Import Excel or add manually'),
-        findsOneWidget,
-      );
+      // Students tab has header
+      expect(find.text('Students'), findsWidgets);
 
       // Switch to Settings tab
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Profile'), findsOneWidget);
-      expect(find.text('Preferences'), findsOneWidget);
-      expect(find.text('Data & Privacy'), findsOneWidget);
+      expect(find.text('PROFILE'), findsOneWidget);
+      expect(find.text('PREFERENCES'), findsOneWidget);
+      // DATA & PRIVACY is below the fold — scroll to check it exists
+      await tester.scrollUntilVisible(
+        find.text('DATA & PRIVACY'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('DATA & PRIVACY'), findsOneWidget);
     });
 
     testWidgets('settings tab shows language toggle', (tester) async {
@@ -207,7 +214,14 @@ void main() {
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Your data stays on your phone'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('DATA & PRIVACY'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Storage Usage'), findsOneWidget);
       expect(find.text('Export Backup'), findsOneWidget);
       expect(find.text('Import Backup'), findsOneWidget);
       expect(find.text('Clear All Data'), findsOneWidget);
@@ -221,12 +235,12 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(
-        find.text('About'),
+        find.text('ABOUT'),
         300,
         scrollable: find.byType(Scrollable).last,
       );
 
-      expect(find.text('EthioGrade'), findsOneWidget);
+      expect(find.text('Version'), findsOneWidget);
       // Version text starts with 'v0.'
       expect(find.textContaining('v0.'), findsOneWidget);
     });

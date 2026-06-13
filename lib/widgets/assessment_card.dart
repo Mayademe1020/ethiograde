@@ -4,7 +4,8 @@ import '../../config/routes.dart';
 import '../../models/assessment.dart';
 
 class AssessmentCard extends StatelessWidget {
-  final Assessment assessment;final VoidCallback? onTap;
+  final Assessment assessment;
+  final VoidCallback? onTap;
 
   const AssessmentCard({
     super.key,
@@ -14,190 +15,292 @@ class AssessmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = {
-      AssessmentStatus.draft: Colors.grey,
-      AssessmentStatus.active: AppTheme.primaryGreen,
-      AssessmentStatus.grading: AppTheme.warning,
-      AssessmentStatus.completed: AppTheme.info,
-    }[assessment.status]!;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
 
-    final statusLabel = {
-      AssessmentStatus.draft: 'Draft',
-      AssessmentStatus.active: 'Active',
-      AssessmentStatus.grading: 'Grading',
-      AssessmentStatus.completed: 'Completed',
-    }[assessment.status]!;
+    final (statusColor, statusLabel, statusIcon) = switch (assessment.status) {
+      AssessmentStatus.draft     => (cs.onSurfaceVariant, 'Draft', Icons.edit_outlined),
+      AssessmentStatus.active    => (AppTheme.success, 'Active', Icons.radio_button_on),
+      AssessmentStatus.grading   => (AppTheme.warning, 'Grading', Icons.pending_outlined),
+      AssessmentStatus.completed => (AppTheme.info, 'Done', Icons.check_circle_outline),
+    };
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap:
-            onTap ??
-            () => Navigator.pushNamed(
-              context,
-              AppRoutes.answerKey,
-              arguments: assessment),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          assessment.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16)),
-                        const SizedBox(height: 4),
-                        Text(
-                          assessment.subject,
-                          style: TextStyle(
-                            color: AppTheme.lightText,
-                            fontSize: 13)),
-                      ])),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20)),
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: FontWeight.w600))),
-                ]),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _InfoChip(
-                    icon: Icons.help_outline,
-                    label:
-                        '${assessment.questionCount} ${'Q'}'),
-                  const SizedBox(width: 8),
-                  _InfoChip(
-                    icon: Icons.star_outline,
-                    label:
-                        '${assessment.maxScore.toInt()} ${'pts'}'),
-                  const SizedBox(width: 8),
-                  if (assessment.className.isNotEmpty)
-                    _InfoChip(
-                      icon: Icons.class_outlined,
-                      label: assessment.className),
-                ]),
-              const SizedBox(height: 8),
-              // Question type breakdown
-              Wrap(
-                spacing: 6,
-                children: [
-                  if (assessment.mcqCount > 0)
-                    _TypeChip(
-                      label: 'MCQ ${assessment.mcqCount}',
-                      color: AppTheme.primaryGreen),
-                  if (assessment.trueFalseCount > 0)
-                    _TypeChip(
-                      label: 'T/F ${assessment.trueFalseCount}',
-                      color: AppTheme.info),
-                  if (assessment.shortAnswerCount > 0)
-                    _TypeChip(
-                      label: 'Short ${assessment.shortAnswerCount}',
-                      color: AppTheme.warning),
-                  if (assessment.essayCount > 0)
-                    _TypeChip(
-                      label: 'Essay ${assessment.essayCount}',
-                      color: AppTheme.primaryRed),
-                ]),
-              // Answer key status
-              if (assessment.questions.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _AnswerKeyStatusChip(
-                  assessment: assessment),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm + 2),
+      child: Material(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        child: InkWell(
+          onTap: onTap ??
+              () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.answerKey,
+                    arguments: assessment,
+                  ),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: Column(
+              children: [
+                // ── Top accent bar (coloured by status) ──────────────
+                Container(
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(AppRadius.xl),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Title row ──────────────────────────────────
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  assessment.title,
+                                  style: tt.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (assessment.subject.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    assessment.subject,
+                                    style: tt.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          // Status badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(statusIcon, size: 11, color: statusColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  statusLabel,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: AppSpacing.sm + 2),
+
+                      // ── Metadata row ───────────────────────────────
+                      Row(
+                        children: [
+                          _MetaBadge(
+                            icon: Icons.help_outline,
+                            label: '${assessment.questionCount} Q',
+                            color: cs.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          _MetaBadge(
+                            icon: Icons.star_border_rounded,
+                            label: '${assessment.maxScore.toInt()} pts',
+                            color: cs.onSurfaceVariant,
+                          ),
+                          if (assessment.className.isNotEmpty) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            _MetaBadge(
+                              icon: Icons.class_outlined,
+                              label: assessment.className,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      ),
+
+                      // ── Question type pills ────────────────────────
+                      if (assessment.mcqCount > 0 ||
+                          assessment.trueFalseCount > 0 ||
+                          assessment.shortAnswerCount > 0 ||
+                          assessment.essayCount > 0) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: 5,
+                          runSpacing: 4,
+                          children: [
+                            if (assessment.mcqCount > 0)
+                              _TypePill(
+                                  label: 'MCQ ${assessment.mcqCount}',
+                                  color: AppTheme.success),
+                            if (assessment.trueFalseCount > 0)
+                              _TypePill(
+                                  label: 'T/F ${assessment.trueFalseCount}',
+                                  color: AppTheme.info),
+                            if (assessment.shortAnswerCount > 0)
+                              _TypePill(
+                                  label: 'Short ${assessment.shortAnswerCount}',
+                                  color: AppTheme.warning),
+                            if (assessment.essayCount > 0)
+                              _TypePill(
+                                  label: 'Essay ${assessment.essayCount}',
+                                  color: AppTheme.error),
+                          ],
+                        ),
+                      ],
+
+                      // ── Answer key status ──────────────────────────
+                      if (assessment.questions.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        _AnswerKeyBar(assessment: assessment),
+                      ],
+                    ],
+                  ),
+                ),
               ],
-            ]))));
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class _InfoChip extends StatelessWidget {
+// ── Helper widgets ────────────────────────────────────────────────────────────
+
+class _MetaBadge extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
 
-  const _InfoChip({required this.icon, required this.label});
+  const _MetaBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppTheme.lightText),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
-      ]);
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }
 
-class _TypeChip extends StatelessWidget {
+class _TypePill extends StatelessWidget {
   final String label;
   final Color color;
 
-  const _TypeChip({required this.label, required this.color});
+  const _TypePill({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4)),
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 10,
           color: color,
-          fontWeight: FontWeight.w600)));
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
   }
 }
 
-class _AnswerKeyStatusChip extends StatelessWidget {
-  final Assessment assessment;const _AnswerKeyStatusChip({
-    required this.assessment,
-    });
+/// Thin progress bar showing how complete the answer key is.
+class _AnswerKeyBar extends StatelessWidget {
+  final Assessment assessment;
+
+  const _AnswerKeyBar({required this.assessment});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final complete = assessment.isAnswerKeyComplete;
     final ratio = assessment.answerKeyCompleteness;
 
-    final Color color;
-    final IconData icon;
-    if (complete) {
-      color = AppTheme.primaryGreen;
-      icon = Icons.check_circle_outline;
-    } else if (ratio > 0.5) {
-      color = Colors.orange;
-      icon = Icons.warning_amber;
-    } else {
-      color = AppTheme.primaryRed;
-      icon = Icons.error_outline;
-    }
+    final color = complete
+        ? AppTheme.success
+        : ratio > 0.5
+            ? AppTheme.warning
+            : cs.onSurfaceVariant;
+
+    final icon = complete
+        ? Icons.check_circle_outline
+        : ratio > 0
+            ? Icons.pending_outlined
+            : Icons.radio_button_unchecked;
 
     return Row(
       children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 6),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 4,
+              backgroundColor: cs.outlineVariant,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(
           assessment.answerKeyStatus,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10,
             color: color,
-            fontWeight: FontWeight.w600)),
-      ]);
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 }

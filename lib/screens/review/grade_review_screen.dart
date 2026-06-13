@@ -6,7 +6,6 @@ import '../../models/scan_result.dart';
 import '../../models/assessment.dart';
 import '../../models/weighted_grade.dart';
 import '../../models/student.dart';
-import '../../services/scoring_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
@@ -15,6 +14,7 @@ import '../../services/weighted_grade_service.dart';
 import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
+import '../../services/settings_provider.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
 ///
@@ -63,15 +63,18 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       maxScores: results.map((r) => r.maxScore.toDouble()).toList(),
       percentages: results.map((r) => r.percentage).toList(),
       grades: results.map((r) => r.grade).toList(),
+      mode: context.read<SettingsProvider>().voiceFeedbackMode,
+      needsReview: results.map((r) => r.needsReview).toList(),
       onReadingIndex: (i) {
         if (mounted) setState(() => _readingIndex = i);
       },
     );
 
-    if (mounted) setState(() {
-      _isReading = false;
-      _readingIndex = -1;
-    });
+    if (mounted)
+      setState(() {
+        _isReading = false;
+        _readingIndex = -1;
+      });
   }
 
   @override
@@ -82,17 +85,16 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     // Compute stats
     final percentages = results.map((r) => r.percentage).toList()..sort();
     final avg = percentages.isNotEmpty
         ? percentages.reduce((a, b) => a + b) / percentages.length
         : 0.0;
-    final median = percentages.isNotEmpty
-        ? _median(percentages)
-        : 0.0;
+    final median = percentages.isNotEmpty ? _median(percentages) : 0.0;
     final passCount = results.where((r) => r.percentage >= 50).length;
-    final passRate = results.isNotEmpty ? passCount / results.length * 100 : 0.0;
+    final passRate = results.isNotEmpty
+        ? passCount / results.length * 100
+        : 0.0;
     final highest = percentages.isNotEmpty ? percentages.last : 0.0;
     final lowest = percentages.isNotEmpty ? percentages.first : 0.0;
 
@@ -100,8 +102,12 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     ScanResult? highestStudent;
     ScanResult? lowestStudent;
     if (results.isNotEmpty) {
-      highestStudent = results.reduce((a, b) => a.percentage > b.percentage ? a : b);
-      lowestStudent = results.reduce((a, b) => a.percentage < b.percentage ? a : b);
+      highestStudent = results.reduce(
+        (a, b) => a.percentage > b.percentage ? a : b,
+      );
+      lowestStudent = results.reduce(
+        (a, b) => a.percentage < b.percentage ? a : b,
+      );
     }
 
     return Scaffold(
@@ -111,15 +117,20 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
           IconButton(
             icon: Icon(
               _isReading ? Icons.stop_circle : Icons.volume_up,
-              color: _isReading ? AppTheme.primaryRed : null),
+              color: _isReading ? AppTheme.primaryRed : null,
+            ),
             onPressed: results.isNotEmpty ? () => _readAllScores() : null,
-            tooltip: _isReading ? 'Stop' : 'Read All Scores'),
-        ]),
+            tooltip: _isReading ? 'Stop' : 'Read All Scores',
+          ),
+        ],
+      ),
       body: results.isEmpty
           ? Center(
               child: Text(
                 'No results to review',
-                style: TextStyle(color: AppTheme.lightText)))
+                style: TextStyle(color: AppTheme.lightText),
+              ),
+            )
           : Column(
               children: [
                 // Stats summary
@@ -130,18 +141,19 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                   passCount: passCount,
                   total: results.length,
                   highest: highest,
-                  lowest: lowest),
+                  lowest: lowest,
+                ),
                 const Divider(height: 1),
                 // Weighted composite grade banner (if configured)
                 if (assessment.weightedScaleId != null)
-                  _WeightedGradeBanner(
-                    assessment: assessment),
+                  _WeightedGradeBanner(assessment: assessment),
                 // Student table
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, indent: 16, endIndent: 16),
                     itemBuilder: (context, index) {
                       final result = results[index];
                       final isHighest = result == highestStudent;
@@ -152,8 +164,11 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                         isHighest: isHighest,
                         isLowest: isLowest,
                         isReading: index == _readingIndex,
-                        onEdit: () => Navigator.pop(context, result));
-                    })),
+                        onEdit: () => Navigator.pop(context, result),
+                      );
+                    },
+                  ),
+                ),
                 // Confirm button
                 SafeArea(
                   child: Padding(
@@ -166,13 +181,25 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                         icon: const Icon(Icons.check_circle),
                         label: Text(
                           'Confirm & Save',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryGreen,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16))))))),
-              ]));
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
   }
 
   void _confirmAndSave(BuildContext context) async {
@@ -185,7 +212,8 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       await AuditService().recordCreated(
         result: result,
         teacherId: teacherId,
-        teacherName: teacherName);
+        teacherName: teacherName,
+      );
     }
 
     // Clear the grading draft
@@ -194,9 +222,10 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            "${results.length} results saved"),
-          backgroundColor: AppTheme.primaryGreen));
+          content: Text("${results.length} results saved"),
+          backgroundColor: AppTheme.primaryGreen,
+        ),
+      );
       // Pop with results to indicate success
       Navigator.pop(context, results);
     }
@@ -217,7 +246,8 @@ class _StatsHeader extends StatelessWidget {
   final int passCount;
   final int total;
   final double highest;
-  final double lowest;const _StatsHeader({
+  final double lowest;
+  const _StatsHeader({
     required this.average,
     required this.median,
     required this.passRate,
@@ -225,7 +255,7 @@ class _StatsHeader extends StatelessWidget {
     required this.total,
     required this.highest,
     required this.lowest,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -239,37 +269,49 @@ class _StatsHeader extends StatelessWidget {
               _StatChip(
                 label: 'Average',
                 value: '${average.toStringAsFixed(1)}%',
-                color: AppTheme.info),
+                color: AppTheme.info,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Median',
                 value: '${median.toStringAsFixed(1)}%',
-                color: AppTheme.info),
+                color: AppTheme.info,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Pass',
                 value: '$passCount/$total (${passRate.toStringAsFixed(0)}%)',
-                color: passRate >= 50 ? AppTheme.primaryGreen : AppTheme.primaryRed),
-            ]),
+                color: passRate >= 50
+                    ? AppTheme.primaryGreen
+                    : AppTheme.primaryRed,
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               _StatChip(
                 label: 'Highest',
                 value: '${highest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryGreen),
+                color: AppTheme.primaryGreen,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Lowest',
                 value: '${lowest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryRed),
+                color: AppTheme.primaryRed,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Total',
                 value: '$total',
-                color: AppTheme.darkText),
-            ]),
-        ]));
+                color: AppTheme.darkText,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -291,19 +333,23 @@ class _StatChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8)),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: color)),
+            Text(label, style: TextStyle(fontSize: 10, color: color)),
             Text(
               value,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: color)),
-          ])));
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -331,83 +377,121 @@ class _StudentRow extends StatelessWidget {
     final highlightColor = isHighest
         ? AppTheme.primaryGreen
         : isLowest
-            ? AppTheme.primaryRed
-            : null;
+        ? AppTheme.primaryRed
+        : null;
 
     return ColoredBox(
       color: isReading ? AppTheme.info.withOpacity(0.06) : Colors.transparent,
       child: ListTile(
-      leading: CircleAvatar(
-        backgroundColor: (highlightColor ?? AppTheme.lightText).withOpacity(0.1),
-        child: isReading
-            ? Icon(Icons.volume_up, color: AppTheme.info, size: 20)
-            : Text(
-          '$rank',
-          style: TextStyle(
-            color: highlightColor ?? AppTheme.darkText,
-            fontWeight: FontWeight.bold,
-            fontSize: 14))),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              result.studentName,
-              style: TextStyle(
-                fontWeight: isHighest || isLowest ? FontWeight.w700 : FontWeight.w500))),
-          if (isHighest)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                'Top',
-                style: const TextStyle(fontSize: 10, color: AppTheme.primaryGreen))),
-          if (isLowest)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryRed.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                'Low',
-                style: const TextStyle(fontSize: 10, color: AppTheme.primaryRed))),
-        ]),
-      subtitle: Text(
-        '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-        style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: passed
-                  ? AppTheme.primaryGreen.withOpacity(0.1)
-                  : AppTheme.primaryRed.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  result.grade,
+        leading: CircleAvatar(
+          backgroundColor: (highlightColor ?? AppTheme.lightText).withOpacity(
+            0.1,
+          ),
+          child: isReading
+              ? Icon(Icons.volume_up, color: AppTheme.info, size: 20)
+              : Text(
+                  '$rank',
                   style: TextStyle(
+                    color: highlightColor ?? AppTheme.darkText,
                     fontWeight: FontWeight.bold,
-                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed)),
-                Text(
-                  '${result.percentage.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed)),
-              ])),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
-            onPressed: onEdit,
-            tooltip: 'Edit',
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero),
-        ])),
+                    fontSize: 14,
+                  ),
+                ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                result.studentName,
+                style: TextStyle(
+                  fontWeight: isHighest || isLowest
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isHighest)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Top',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+              ),
+            if (isLowest)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryRed.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Low',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.primaryRed,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Text(
+          '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
+          style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: passed
+                    ? AppTheme.primaryGreen.withOpacity(0.1)
+                    : AppTheme.primaryRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    result.grade,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: passed
+                          ? AppTheme.primaryGreen
+                          : AppTheme.primaryRed,
+                    ),
+                  ),
+                  Text(
+                    '${result.percentage.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: passed
+                          ? AppTheme.primaryGreen
+                          : AppTheme.primaryRed,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
+              onPressed: onEdit,
+              tooltip: 'Edit',
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -419,9 +503,8 @@ class _StudentRow extends StatelessWidget {
 /// - Computes and displays composite grades when all component data is available
 /// - Shows which components are still pending
 class _WeightedGradeBanner extends StatelessWidget {
-  final Assessment assessment;const _WeightedGradeBanner({
-    required this.assessment,
-    });
+  final Assessment assessment;
+  const _WeightedGradeBanner({required this.assessment});
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +528,8 @@ class _WeightedGradeBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.info.withOpacity(0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.info.withOpacity(0.2))),
+        border: Border.all(color: AppTheme.info.withOpacity(0.2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -459,12 +543,17 @@ class _WeightedGradeBanner extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppTheme.info,
-                    fontSize: 13))),
-            ]),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           Text(
             weightSummary,
-            style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          ),
           // Composite grades via FutureBuilder
           FutureBuilder<List<CompositeGrade>?>(
             future: _loadCompositeGrades(context, weightedProvider),
@@ -472,7 +561,8 @@ class _WeightedGradeBanner extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.only(top: 8),
-                  child: LinearProgressIndicator(minHeight: 2));
+                  child: LinearProgressIndicator(minHeight: 2),
+                );
               }
 
               final grades = snapshot.data;
@@ -481,7 +571,9 @@ class _WeightedGradeBanner extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Composite grades appear once all components are graded',
-                    style: TextStyle(fontSize: 11, color: AppTheme.lightText)));
+                    style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                  ),
+                );
               }
 
               // Show composite stats
@@ -494,21 +586,30 @@ class _WeightedGradeBanner extends StatelessWidget {
                   children: [
                     _CompositeStat(
                       label: 'Average',
-                      value: '${stats.average.toStringAsFixed(1)}%'),
+                      value: '${stats.average.toStringAsFixed(1)}%',
+                    ),
                     _CompositeStat(
                       label: 'Pass Rate',
-                      value: '${stats.passRate.toStringAsFixed(0)}%'),
+                      value: '${stats.passRate.toStringAsFixed(0)}%',
+                    ),
                     _CompositeStat(
                       label: 'Students',
-                      value: '${stats.studentCount}'),
-                  ]));
-            }),
-        ]));
+                      value: '${stats.studentCount}',
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<List<CompositeGrade>?> _loadCompositeGrades(
     BuildContext context,
-    WeightedGradeProvider provider) async {
+    WeightedGradeProvider provider,
+  ) async {
     // Get students for the class
     final classProvider = context.read<ClassProvider>();
     final studentProvider = context.read<StudentProvider>();
@@ -527,19 +628,15 @@ class _WeightedGradeBanner extends StatelessWidget {
       students = studentProvider.students;
     }
 
-    return provider.computeForExam(
-      examId: assessment.id,
-      students: students);
+    return provider.computeForExam(examId: assessment.id, students: students);
   }
 }
 
 /// Small stat display for composite grade summary.
 class _CompositeStat extends StatelessWidget {
   final String label;
-  final String value;const _CompositeStat({
-    required this.label,
-    required this.value,
-    });
+  final String value;
+  const _CompositeStat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -550,10 +647,11 @@ class _CompositeStat extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: AppTheme.info)),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: AppTheme.lightText)),
-      ]);
+            color: AppTheme.info,
+          ),
+        ),
+        Text(label, style: TextStyle(fontSize: 11, color: AppTheme.lightText)),
+      ],
+    );
   }
 }

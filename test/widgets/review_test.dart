@@ -122,7 +122,7 @@ void main() {
       expect(find.byIcon(Icons.sort), findsOneWidget);
     });
 
-    testWidgets('app bar shows Review Results title', (tester) async {
+    testWidgets('app bar shows Review Queue title', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: MultiProvider(
@@ -136,7 +136,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Review Results'), findsOneWidget);
+      expect(find.text('Review Queue'), findsOneWidget);
     });
 
     testWidgets('renders result cards for each result', (tester) async {

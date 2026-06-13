@@ -60,14 +60,14 @@ class SettingsProvider extends ChangeNotifier {
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _schoolLogoPath = prefs.getString('school_logo') ?? '';
 
-      // PII: encrypted Hive box
-      Box piiBox;
-      if (Hive.isBoxOpen(_piiBoxName)) {
-        piiBox = Hive.box(_piiBoxName);
-      } else {
-        // Reuse the cipher from the main encryption setup
-        piiBox = await Hive.openBox(_piiBoxName);
+      // PII: encrypted Hive box — must already be opened by main.dart with cipher
+      if (!Hive.isBoxOpen(_piiBoxName)) {
+        throw StateError(
+          'PII box "$_piiBoxName" must be opened by main.dart with '
+          'HiveAesCipher before SettingsProvider.loadSettings() is called.',
+        );
       }
+      final piiBox = Hive.box(_piiBoxName);
       _schoolName = (piiBox.get('school_name') as String?) ?? '';
       _teacherName = (piiBox.get('teacher_name') as String?) ?? '';
       _telegramHandle = (piiBox.get('telegram_handle') as String?) ?? '';

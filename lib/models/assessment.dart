@@ -240,6 +240,8 @@ class Question {
           : null);
   }
 
+  static const _sentinel = Object();
+
   Question copyWith({
     String? id,
     int? number,
@@ -247,11 +249,11 @@ class Question {
     String? text,
     double? points,
     List<String>? options,
-    dynamic correctAnswer,
-    String? explanation,
-    String? topicTag,
-    List<String>? keywords,
-    EssayRubric? essayRubric,
+    dynamic correctAnswer = _sentinel,
+    dynamic explanation = _sentinel,
+    dynamic topicTag = _sentinel,
+    dynamic keywords = _sentinel,
+    dynamic essayRubric = _sentinel,
   }) => Question(
     id: id ?? this.id,
     number: number ?? this.number,
@@ -259,11 +261,11 @@ class Question {
     text: text ?? this.text,
     points: points ?? this.points,
     options: options ?? this.options,
-    correctAnswer: correctAnswer ?? this.correctAnswer,
-    explanation: explanation ?? this.explanation,
-    topicTag: topicTag ?? this.topicTag,
-    keywords: keywords ?? this.keywords,
-    essayRubric: essayRubric ?? this.essayRubric,
+    correctAnswer: correctAnswer == _sentinel ? this.correctAnswer : correctAnswer,
+    explanation: explanation == _sentinel ? this.explanation : explanation,
+    topicTag: topicTag == _sentinel ? this.topicTag : topicTag,
+    keywords: keywords == _sentinel ? this.keywords : keywords,
+    essayRubric: essayRubric == _sentinel ? this.essayRubric : essayRubric,
   );
 }
 

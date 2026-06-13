@@ -6,10 +6,6 @@
     <uses-feature android:name="android.hardware.camera" android:required="true" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
-    <!-- Storage -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-
     <!-- Audio (voice notes) — deferred to v0.2.0, uncomment when re-enabling -->
     <!-- <uses-permission android:name="android.permission.RECORD_AUDIO" /> -->
     <!-- <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" /> -->

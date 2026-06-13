@@ -262,7 +262,8 @@ class EthioGradeApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            themeMode: ThemeMode.light,            initialRoute: isFirstLaunch
+            themeMode: ThemeMode.system,
+            initialRoute: isFirstLaunch
                 ? AppRoutes.onboarding
                 : AppRoutes.dashboard,
             onGenerateRoute: AppRoutes.onGenerateRoute,
@@ -284,27 +285,40 @@ class _InitBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCorruption = status == _InitStatus.corruption;
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         MaterialBanner(
           content: Text(
             isCorruption
-                ? 'Some data was recovered from a corrupted storage file. '
-                    'Your latest grades are saved. '
-                    'Check Settings → Storage for details.'
-                : 'Storage unavailable — data will not be saved this session.'),
+                ? 'Some data was recovered from a corrupted file. '
+                    'Your grades are safe. See Settings → Storage.'
+                : 'Storage unavailable — grades will not be saved this session.',
+            style: TextStyle(
+              fontSize: 13,
+              color: isCorruption
+                  ? cs.onSecondaryContainer
+                  : cs.onErrorContainer,
+            ),
+          ),
           leading: Icon(
-            isCorruption ? Icons.healing : Icons.warning_amber_rounded),
+            isCorruption ? Icons.healing_outlined : Icons.warning_amber_rounded,
+            color: isCorruption ? cs.secondary : cs.error,
+          ),
           backgroundColor: isCorruption
-              ? Colors.orange.shade100
-              : Theme.of(context).colorScheme.errorContainer,
+              ? cs.secondaryContainer
+              : cs.errorContainer,
+          surfaceTintColor: Colors.transparent,
           actions: [
             TextButton(
               onPressed: () =>
                   ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-              child: Text('DISMISS')),
-          ]),
+              child: const Text('Dismiss'),
+            ),
+          ],
+        ),
         Expanded(child: child ?? const SizedBox.shrink()),
-      ]);
+      ],
+    );
   }
 }

@@ -22,11 +22,10 @@ class ClassProvider extends ChangeNotifier {
 
   ClassInfo? get selectedClass {
     if (_selectedClassId.isEmpty) return null;
-    try {
-      return _classes.firstWhere((c) => c.id == _selectedClassId);
-    } catch (_) {
-      return null;
+    for (final c in _classes) {
+      if (c.id == _selectedClassId) return c;
     }
+    return null;
   }
 
   /// Classes for a specific teacher.
@@ -36,11 +35,10 @@ class ClassProvider extends ChangeNotifier {
 
   /// Get a class by ID.
   ClassInfo? getClassById(String id) {
-    try {
-      return _classes.firstWhere((c) => c.id == id);
-    } catch (_) {
-      return null;
+    for (final c in _classes) {
+      if (c.id == id) return c;
     }
+    return null;
   }
 
   /// Classes a student belongs to.

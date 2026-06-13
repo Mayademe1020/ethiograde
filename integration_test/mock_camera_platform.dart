@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:math' as math;
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:camera_platform_interface/camera_platform_interface.dart';
@@ -179,7 +179,7 @@ class MockCameraPlatform extends CameraPlatform {
   }
 
   @override
-  Stream<VideoRecordingEvent> onVideoRecordingEvent(int cameraId) {
+  Stream<VideoRecordedEvent> onVideoRecordedEvent(int cameraId) {
     return const Stream.empty();
   }
 
@@ -242,16 +242,15 @@ class MockCameraPlatform extends CameraPlatform {
         if (isFilled) {
           // Filled bubble — dark circle
           img.fillCircle(image,
-            cx: x, cy: y,
+            x: x, y: y,
             radius: bubbleRadius,
             color: img.ColorRgb8(30, 30, 30));
         } else {
           // Empty bubble — thin outline
           img.drawCircle(image,
-            cx: x, cy: y,
+            x: x, y: y,
             radius: bubbleRadius,
-            color: img.ColorRgb8(180, 180, 180),
-            thickness: 1);
+            color: img.ColorRgb8(180, 180, 180));
         }
       }
 

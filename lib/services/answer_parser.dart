@@ -97,6 +97,12 @@ class AnswerParser {
       return lastWord;
     }
 
+    // ── Pattern 3b: Amharic MCQ letter at end (ሀ/A, ለ/B, ሐ/C, መ/D, ሠ/E) ──
+    const amharicMcq = {'ሀ': 'A', 'ለ': 'B', 'ሐ': 'C', 'መ': 'D', 'ሠ': 'E'};
+    if (amharicMcq.containsKey(lastWord)) {
+      return lastWord;
+    }
+
     // Fallback: check if entire text is a known answer (MCQ, T/F, etc.)
     final normalized = normalizeAnswer(trimmed);
     if (normalized.isNotEmpty && normalized.length <= 20) return trimmed;
@@ -128,6 +134,18 @@ class AnswerParser {
       return 'False';
     }
 
+    // ── Amharic True/False words ──
+    if (trimmed == 'እውነት' || trimmed == 'ት') return 'True';
+    if (trimmed == 'ሐሰት') return 'False';
+
+    // ── Amharic MCQ letters (ሀ=A, ለ=B, ሐ=C, መ=D, ሠ=E) ──
+    const amharicMcq = {
+      'ሀ': 'A', 'ለ': 'B', 'ሐ': 'C', 'መ': 'D', 'ሠ': 'E',
+    };
+    if (amharicMcq.containsKey(trimmed)) {
+      return amharicMcq[trimmed]!;
+    }
+
     // ── Matching pair sequences ──
     // "G D" or "G,D" or "G D E" — space/comma-separated single letters
     final matchingResult = _tryParseMatchingPair(stripped);
@@ -143,10 +161,10 @@ class AnswerParser {
     }
 
     // ── Short answer: accept multi-word text (e.g., "Addis Ababa", "42 km") ──
-    // Must contain at least 2 alphanumeric chars to filter OCR noise
+    // Must contain at least 2 alphanumeric chars (including Amharic) to filter OCR noise
     if (stripped.length >= 2 &&
         stripped.length <= 80 &&
-        RegExp(r'[a-zA-Z0-9]').hasMatch(stripped)) {
+        RegExp(r'[a-zA-Z0-9\u1200-\u137F]').hasMatch(stripped)) {
       return stripped;
     }
 

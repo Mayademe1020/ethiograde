@@ -151,7 +151,7 @@ void main() {
         newRubricType: 'private_international');
 
       expect(newGrades.length, 1);
-      expect(newGrades[0].letterGrade, 'C'); // private: 60-69
+      expect(newGrades[0].letterGrade, 'B'); // private: 70-79
       expect(newGrades[0].weightedPercentage, 72.0); // unchanged
     });
   });

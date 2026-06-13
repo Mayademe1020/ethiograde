@@ -6,6 +6,7 @@ import '../screens/assessment/answer_key_screen.dart';
 import '../screens/assessment/answer_sheet_setup_screen.dart';
 import '../screens/scanning/camera_screen.dart';
 import '../screens/scanning/batch_scan_screen.dart';
+import '../screens/scanning/uploaded_papers_review_screen.dart';
 import '../screens/quick_grade/quick_grade_screen.dart';
 import '../screens/quick_enter/quick_enter_screen.dart';
 import '../screens/review/review_screen.dart';
@@ -30,6 +31,7 @@ class AppRoutes {
   // Scanning
   static const String camera = '/scanning/camera';
   static const String batchScan = '/scanning/batch';
+  static const String uploadedPapersReview = '/scanning/uploaded-papers-review';
   static const String quickGrade = '/quick_grade';
   static const String quickEnter = '/quick_enter';
 
@@ -50,37 +52,40 @@ class AppRoutes {
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case onboarding:
-        return _fade(const OnboardingScreen());
+        return _fade(const OnboardingScreen(), settings);
       case dashboard:
-        return _fade(const MainDashboard());
+        return _fade(const MainDashboard(), settings);
 
       // Assessment
       case createAssessment:
         final args = settings.arguments;
         final mode = args is ExamDayStartMode ? args : null;
-        return _fade(ExamDayCreateScreen(initialMode: mode));
+        return _fade(ExamDayCreateScreen(initialMode: mode), settings);
       case answerKey:
-        return _fade(const AnswerKeyScreen());
+        return _fade(const AnswerKeyScreen(), settings);
       case answerSheetSetup:
         final args = settings.arguments;
         final assessment = args is Assessment ? args : null;
-        return _fade(AnswerSheetSetupScreen(assessment: assessment));
+        return _fade(AnswerSheetSetupScreen(assessment: assessment), settings);
 
       // Scanning
       case camera:
-        return _fade(const CameraScreen());
+        return _fade(const CameraScreen(), settings);
       case batchScan:
-        return _fade(const BatchScanScreen());
+        return _fade(const BatchScanScreen(), settings);
+      case uploadedPapersReview:
+        final args = settings.arguments as UploadedPapersReviewArgs;
+        return _fade(UploadedPapersReviewScreen(args: args), settings);
       case quickGrade:
-        return _fade(const QuickGradeScreen());
+        return _fade(const QuickGradeScreen(), settings);
       case quickEnter:
-        return _fade(const QuickEnterScreen());
+        return _fade(const QuickEnterScreen(), settings);
 
       // Review
       case review:
-        return _fade(const ReviewScreen());
+        return _fade(const ReviewScreen(), settings);
       case sideBySide:
-        return _fade(const SideBySideReview());
+        return _fade(const SideBySideReview(), settings);
       case gradeReview:
         final args = settings.arguments as Map<String, dynamic>;
         return _fade(
@@ -88,32 +93,37 @@ class AppRoutes {
             assessment: args['assessment'] as Assessment,
             results: (args['results'] as List<ScanResult>),
           ),
+          settings,
         );
 
       // Students
       case importExcel:
         final classId = settings.arguments as String?;
-        return _fade(ImportCsvScreen(classId: classId));
+        return _fade(ImportCsvScreen(classId: classId), settings);
       case addStudent:
         final args = settings.arguments;
         if (args is Student) {
-          return _fade(AddStudentScreen(existingStudent: args));
+          return _fade(AddStudentScreen(existingStudent: args), settings);
         }
         final classId = args as String?;
-        return _fade(AddStudentScreen(preselectedClassId: classId));
+        return _fade(AddStudentScreen(preselectedClassId: classId), settings);
 
       // Settings
       case gradingScaleEditor:
         final existing = settings.arguments as GradingScale?;
-        return _fade(GradingScaleEditorScreen(existingScale: existing));
+        return _fade(
+          GradingScaleEditorScreen(existingScale: existing),
+          settings,
+        );
 
       default:
-        return _fade(const MainDashboard());
+        return _fade(const MainDashboard(), settings);
     }
   }
 
-  static PageRouteBuilder<T> _fade<T>(Widget page) {
+  static PageRouteBuilder<T> _fade<T>(Widget page, [RouteSettings? settings]) {
     return PageRouteBuilder<T>(
+      settings: settings,
       pageBuilder: (_, __, ___) => page,
       transitionsBuilder: (_, animation, __, child) {
         return FadeTransition(opacity: animation, child: child);

@@ -20,21 +20,25 @@ void main() {
       studentId: '001',
       firstName: 'Abebe',
       lastName: 'Kebede',
+    ),
     makeStudent(
       id: 's2',
       studentId: '002',
       firstName: 'Habte',
       lastName: 'Woldemariam',
+    ),
     makeStudent(
       id: 's3',
       studentId: '003',
       firstName: 'Gebre',
       lastName: 'Hailu',
+    ),
     makeStudent(
       id: 's4',
       studentId: '004',
       firstName: 'Abebe',
-      lastName: 'Tadesse'), // duplicate first name
+      lastName: 'Tadesse',
+    ),
   ];
 
   group('StudentMatcher — exact match', () {

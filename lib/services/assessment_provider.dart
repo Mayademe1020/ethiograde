@@ -187,11 +187,10 @@ class AssessmentProvider extends ChangeNotifier {
 
   /// Single lookup by ID. Returns `null` when not found.
   Assessment? getAssessmentById(String id) {
-    try {
-      return _assessments.firstWhere((a) => a.id == id);
-    } catch (_) {
-      return null;
+    for (final a in _assessments) {
+      if (a.id == id) return a;
     }
+    return null;
   }
 
   /// Return the [limit] most recent assessments (newest first).

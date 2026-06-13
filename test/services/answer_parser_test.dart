@@ -428,49 +428,4 @@ void main() {
       expect(answers[1].answer, 'B');
     });
   });
-
-  // ══════════════════════════════════════════════════════════════════
-  // DualLabels — bilingual MCQ option labels
-  // ══════════════════════════════════════════════════════════════════
-
-  group('DualLabels', () {
-    test('label() maps English to dual-label', () {
-      expect(DualLabels.label('A'), 'A / ሀ');
-      expect(DualLabels.label('B'), 'B / ለ');
-      expect(DualLabels.label('C'), 'C / ሐ');
-      expect(DualLabels.label('D'), 'D / መ');
-      expect(DualLabels.label('E'), 'E / ሠ');
-    });
-
-    test('label() is case-insensitive for English', () {
-      expect(DualLabels.label('a'), 'a / ሀ');
-      expect(DualLabels.label('b'), 'b / ለ');
-    });
-
-    test('label() returns original for non-MCQ options', () {
-      expect(DualLabels.label('True'), 'True');
-      expect(DualLabels.label('False'), 'False');
-      expect(DualLabels.label('X'), 'X');
-    });
-
-    test('labels() maps a list of options', () {
-      final result = DualLabels.labels(['A', 'B', 'C', 'D', 'E']);
-      expect(result, ['A / ሀ', 'B / ለ', 'C / ሐ', 'D / መ', 'E / ሠ']);
-    });
-
-    test('labels() handles True/False', () {
-      final result = DualLabels.labels(['True', 'False']);
-      expect(result, ['True', 'False']);
-    });
-
-    test('labels() handles empty list', () {
-      expect(DualLabels.labels([]), <String>[]);
-    });
-
-    test('enToAm and amToEn are inverse mappings', () {
-      for (final entry in DualLabels.enToAm.entries) {
-        expect(DualLabels.amToEn[entry.value], entry.key);
-      }
-    });
-  });
 }

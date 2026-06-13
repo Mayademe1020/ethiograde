@@ -1,41 +1,101 @@
 import 'package:flutter/material.dart';
-
 import '../config/theme.dart';
 
-class AppCard extends StatelessWidget {
+// ─────────────────────────────────────────────
+//  AppCard — premium card with press animation
+// ─────────────────────────────────────────────
+
+class AppCard extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
+  final VoidCallback? onTap;
+  final Color? color;
+  final Color? borderColor;
+  final double radius;
+  final bool elevated;
 
   const AppCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(AppSpacing.md),
     this.margin,
+    this.onTap,
+    this.color,
+    this.borderColor,
+    this.radius = AppRadius.xl,
+    this.elevated = false,
   });
 
   @override
+  State<AppCard> createState() => _AppCardState();
+}
+
+class _AppCardState extends State<AppCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0.0,
+      upperBound: 0.015,
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.985).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: margin,
-      padding: padding,
+    final cs = Theme.of(context).colorScheme;
+    final cardColor = widget.color ?? cs.surface;
+    final border = widget.borderColor ?? cs.outlineVariant;
+
+    Widget card = Container(
+      margin: widget.margin,
+      padding: widget.padding,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.primaryGreen.withValues(alpha: 0.14),
-        ),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(widget.radius),
+        border: Border.all(color: border, width: 1),
+        boxShadow: widget.elevated ? AppShadows.card : null,
       ),
-      child: child,
+      child: widget.child,
+    );
+
+    if (widget.onTap == null) return card;
+
+    return GestureDetector(
+      onTapDown: (_) => _controller.forward(),
+      onTapUp: (_) => _controller.reverse(),
+      onTapCancel: () => _controller.reverse(),
+      onTap: widget.onTap,
+      child: ScaleTransition(scale: _scale, child: card),
     );
   }
 }
+
+// ─────────────────────────────────────────────
+//  AppSection — section header with optional CTA
+// ─────────────────────────────────────────────
 
 class AppSection extends StatelessWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   const AppSection({
     super.key,
@@ -43,40 +103,53 @@ class AppSection extends StatelessWidget {
     required this.child,
     this.actionLabel,
     this.onAction,
+    this.padding = EdgeInsets.zero,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+    return Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
-            ),
-            if (actionLabel != null && onAction != null)
-              TextButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        child,
-      ],
+              if (actionLabel != null && onAction != null)
+                TextButton(
+                  onPressed: onAction,
+                  child: Text(actionLabel!),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm + 4),
+          child,
+        ],
+      ),
     );
   }
 }
 
-class PrimaryActionCard extends StatelessWidget {
+// ─────────────────────────────────────────────
+//  PrimaryActionCard — the hero CTA card
+// ─────────────────────────────────────────────
+
+class PrimaryActionCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final String subtitle;
   final String buttonLabel;
   final VoidCallback onPressed;
+  final Color? accentColor;
 
   const PrimaryActionCard({
     super.key,
@@ -85,67 +158,128 @@ class PrimaryActionCard extends StatelessWidget {
     required this.subtitle,
     required this.buttonLabel,
     required this.onPressed,
+    this.accentColor,
   });
 
   @override
+  State<PrimaryActionCard> createState() => _PrimaryActionCardState();
+}
+
+class _PrimaryActionCardState extends State<PrimaryActionCard> {
+  @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: AppTheme.primaryGreen, size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    final cs = Theme.of(context).colorScheme;
+    final accent = widget.accentColor ?? cs.primary;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accent,
+            Color.lerp(accent, cs.primaryContainer, 0.35)!,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(0.28),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onPressed,
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
+          splashColor: Colors.white.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
+                      child: Icon(widget.icon, color: Colors.white, size: 28),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.lightText,
-                        height: 1.35,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.subtitle,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withOpacity(0.85),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onPressed,
-            icon: const Icon(Icons.arrow_forward),
-            label: Text(buttonLabel),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 54),
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onPressed,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            widget.buttonLabel,
+                            style: TextStyle(
+                              color: accent,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.arrow_forward, color: accent, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────
+//  AppEmptyState — illustrated empty state
+// ─────────────────────────────────────────────
 
 class AppEmptyState extends StatelessWidget {
   final IconData icon;
@@ -165,39 +299,210 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(24),
-      child: SingleChildScrollView(
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: AppTheme.primaryGreen),
-            const SizedBox(height: 14),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: cs.primary),
+            ),
+            const SizedBox(height: AppSpacing.md),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.lightText),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+                height: 1.5,
+              ),
             ),
             if (buttonLabel != null && onPressed != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
                 onPressed: onPressed,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add, size: 18),
                 label: Text(buttonLabel!),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(200, 48),
+                ),
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SkeletonLoader — shimmer placeholder
+// ─────────────────────────────────────────────
+
+class SkeletonBox extends StatefulWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const SkeletonBox({
+    super.key,
+    required this.width,
+    required this.height,
+    this.radius = AppRadius.sm,
+  });
+
+  @override
+  State<SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark
+        ? AppTheme.surfaceVariantDark
+        : const Color(0xFFE8EEE9);
+    final highlightColor = isDark
+        ? AppTheme.outlineDark
+        : const Color(0xFFF0F5F2);
+
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: Color.lerp(baseColor, highlightColor, _animation.value),
+            borderRadius: BorderRadius.circular(widget.radius),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  QuickActionTile — tappable action row
+// ─────────────────────────────────────────────
+
+class QuickActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? sublabel;
+  final VoidCallback onTap;
+  final Color? iconColor;
+  final Color? iconBg;
+  final Widget? trailing;
+
+  const QuickActionTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.sublabel,
+    this.iconColor,
+    this.iconBg,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ic = iconColor ?? cs.primary;
+    final bg = iconBg ?? cs.primaryContainer;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 4,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Icon(icon, color: ic, size: 22),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (sublabel != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        sublabel!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              trailing ??
+                  Icon(
+                    Icons.chevron_right,
+                    color: cs.onSurfaceVariant,
+                    size: 20,
+                  ),
+            ],
+          ),
         ),
       ),
     );

@@ -5,6 +5,8 @@ part 'scan_result.g.dart';
 
 @HiveType(typeId: 7)
 class ScanResult {
+  static const Object _copySentinel = Object();
+
   @HiveField(0)
   final String id;
   @HiveField(1)
@@ -119,6 +121,8 @@ class ScanResult {
   ScanResult copyWith({
     String? studentId,
     String? studentName,
+    String? imagePath,
+    Object? enhancedImagePath = _copySentinel,
     List<AnswerMatch>? answers,
     double? totalScore,
     double? maxScore,
@@ -136,8 +140,10 @@ class ScanResult {
     assessmentId: assessmentId,
     studentId: studentId ?? this.studentId,
     studentName: studentName ?? this.studentName,
-    imagePath: imagePath,
-    enhancedImagePath: enhancedImagePath,
+    imagePath: imagePath ?? this.imagePath,
+    enhancedImagePath: identical(enhancedImagePath, _copySentinel)
+        ? this.enhancedImagePath
+        : enhancedImagePath as String?,
     answers: answers ?? this.answers,
     totalScore: totalScore ?? this.totalScore,
     maxScore: maxScore ?? this.maxScore,

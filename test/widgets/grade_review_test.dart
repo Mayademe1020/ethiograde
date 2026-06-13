@@ -117,3 +117,5 @@ void main() {
 
       expect(find.text('No results to review'), findsOneWidget);
     });
+  });
+}

@@ -659,7 +659,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Review Results'),
+        title: const Text('Review Queue'),
         actions: [
           if (results.isNotEmpty)
             IconButton(
@@ -800,6 +800,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         onPressed: _isSaving || _isExporting || _isRegrading
                             ? null
                             : _saveAndExportCsv,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.primaryGreen,
+                          foregroundColor: Colors.white,
+                        ),
                         icon: _isExporting
                             ? const SizedBox(
                                 width: 18,
@@ -1411,7 +1415,7 @@ class _ReviewSituationPanel extends StatelessWidget {
     final nextAction = staleKeyCount > 0
         ? _QueueAction(
             icon: Icons.key_off_outlined,
-            title: 'Regrade after answer-key change',
+            title: 'Do first: regrade answer-key change',
             subtitle: '$staleKeyCount papers may have old scores.',
             color: AppTheme.primaryRed,
             onTap: onRegradeNeeded,
@@ -1798,7 +1802,7 @@ class _ResultCard extends StatelessWidget {
   String get _issueActionLabel {
     switch (issue) {
       case _ReviewIssue.answerKey:
-        return result.imagePath.isEmpty ? 'Review score' : 'Re-scan';
+        return result.imagePath.isEmpty ? 'Check score' : 'Re-scan';
       case _ReviewIssue.missingStudent:
         return 'Assign student';
       case _ReviewIssue.duplicate:

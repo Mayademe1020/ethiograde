@@ -175,11 +175,10 @@ class StudentProvider extends ChangeNotifier {
 
   /// Single lookup by ID. Returns `null` when not found (not an error).
   Student? getStudentById(String id) {
-    try {
-      return _students.firstWhere((s) => s.id == id);
-    } catch (_) {
-      return null;
+    for (final s in _students) {
+      if (s.id == id) return s;
     }
+    return null;
   }
 
   /// Filter students by class name.

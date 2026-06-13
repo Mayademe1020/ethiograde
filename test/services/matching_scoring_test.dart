@@ -330,7 +330,7 @@ void main() {
 
     test('3/5 correct → 6 points (proportional)', () {
       final score = scoring.scoreMatchingPartial(
-        detected: 'G-D-X-F-A',
+        detected: 'G-D-X-Y-A',
         correct: 'G-D-E-F-A',
         totalPoints: 10);
       expect(score, 6.0);

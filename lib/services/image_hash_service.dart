@@ -1,20 +1,64 @@
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+
+int? _computeHashFromPathIsolate(String imagePath) {
+  try {
+    final file = File(imagePath);
+    if (!file.existsSync()) return null;
+    return _computeHashFromBytesSync(file.readAsBytesSync());
+  } catch (_) {
+    return null;
+  }
+}
+
+int? _computeHashFromBytesIsolate(Uint8List bytes) {
+  return _computeHashFromBytesSync(bytes);
+}
+
+int? _computeHashFromBytesSync(Uint8List bytes) {
+  try {
+    final image = img.decodeImage(bytes);
+    if (image == null) return null;
+    return _dHash(image);
+  } catch (_) {
+    return null;
+  }
+}
+
+int _dHash(img.Image source) {
+  // Resize to 9x8: small enough to be fast, large enough to be accurate.
+  final resized = img.copyResize(source, width: 9, height: 8);
+
+  final bits = <int>[];
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      final left = _luminance(resized.getPixel(x, y));
+      final right = _luminance(resized.getPixel(x + 1, y));
+      bits.add(left > right ? 1 : 0);
+    }
+  }
+
+  int hash = 0;
+  for (int i = 0; i < 64; i++) {
+    if (bits[i] == 1) {
+      hash |= (1 << i);
+    }
+  }
+  return hash;
+}
+
+int _luminance(img.Pixel pixel) {
+  // ITU-R BT.601 luma coefficients.
+  return (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b).round();
+}
 
 /// Perceptual image hashing service for duplicate scan detection.
 ///
-/// Uses dHash (difference hash) — a fast, lightweight algorithm that:
-/// - Resizes to 9×8 grayscale
-/// - Compares adjacent pixel brightness → 64-bit hash
-/// - Hamming distance ≤ 10 = same paper (out of 64 bits)
-///
-/// Design choices for Ethiopian classroom reality:
-/// - Pure Dart using the `image` package (no native deps, no new packages)
-/// - ~1-2ms per hash on 2GB devices (tested with 9×8 resize)
-/// - Tolerant of minor lighting/crop differences
-/// - NOT rotation-invariant (45°+ rotations produce different hashes)
-///   — acceptable because teachers photograph papers flat, not rotated
+/// Uses dHash (difference hash): resize to 9x8 grayscale, compare adjacent
+/// pixel brightness, and pack the result into a 64-bit hash.
 class ImageHashService {
   static final ImageHashService _instance = ImageHashService._();
   factory ImageHashService() => _instance;
@@ -22,76 +66,37 @@ class ImageHashService {
 
   /// Compute a 64-bit dHash for the image at [imagePath].
   ///
-  /// Returns null if the image cannot be decoded (corrupt file, missing file).
-  /// This is intentionally non-throwing — hash failure must never block scanning.
+  /// Returns null if the image cannot be decoded. This synchronous API remains
+  /// for tests and non-UI code; camera/scan screens should prefer
+  /// [computeHashAsync] so image decoding does not stall the UI isolate.
   int? computeHash(String imagePath) {
-    try {
-      final file = File(imagePath);
-      if (!file.existsSync()) return null;
-      final bytes = file.readAsBytesSync();
-      final image = img.decodeImage(bytes);
-      if (image == null) return null;
-      return _dHash(image);
-    } catch (_) {
-      return null;
-    }
+    return _computeHashFromPathIsolate(imagePath);
   }
 
-  /// Compute dHash from raw image bytes (for testing or pre-decoded images).
+  /// Compute a 64-bit dHash for the image at [imagePath] off the UI isolate.
+  Future<int?> computeHashAsync(String imagePath) {
+    return compute(_computeHashFromPathIsolate, imagePath);
+  }
+
+  /// Compute dHash from raw image bytes.
   int? computeHashFromBytes(Uint8List bytes) {
-    try {
-      final image = img.decodeImage(bytes);
-      if (image == null) return null;
-      return _dHash(image);
-    } catch (_) {
-      return null;
-    }
+    return _computeHashFromBytesSync(bytes);
   }
 
-  /// dHash algorithm:
-  /// 1. Resize to 9×8 (width+1 so we can compare adjacent columns)
-  /// 2. Convert to grayscale
-  /// 3. For each row, compare pixel[i] > pixel[i+1] → 1 bit
-  /// 4. Result: 8 rows × 8 comparisons = 64-bit hash
-  int _dHash(img.Image source) {
-    // Resize to 9×8 — small enough to be fast, large enough to be accurate
-    final resized = img.copyResize(source, width: 9, height: 8);
-
-    final bits = <int>[];
-
-    for (int y = 0; y < 8; y++) {
-      for (int x = 0; x < 8; x++) {
-        final left = _luminance(resized.getPixel(x, y));
-        final right = _luminance(resized.getPixel(x + 1, y));
-        bits.add(left > right ? 1 : 0);
-      }
-    }
-
-    // Pack 64 bits into a single int
-    int hash = 0;
-    for (int i = 0; i < 64; i++) {
-      if (bits[i] == 1) {
-        hash |= (1 << i);
-      }
-    }
-    return hash;
+  /// Compute dHash from raw image bytes off the UI isolate.
+  Future<int?> computeHashFromBytesAsync(Uint8List bytes) {
+    return compute(_computeHashFromBytesIsolate, bytes);
   }
 
-  /// Extract luminance from a pixel (grayscale value 0-255).
-  int _luminance(img.Pixel pixel) {
-    // ITU-R BT.601 luma coefficients
-    return (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b).round();
-  }
-
-  /// Hamming distance between two hashes — count of differing bits.
+  /// Hamming distance between two hashes: count of differing bits.
   ///
-  /// Returns -1 if either hash is null (incomparable).
+  /// Returns -1 if either hash is null.
   int hammingDistance(int? hash1, int? hash2) {
     if (hash1 == null || hash2 == null) return -1;
     return _popcount(hash1 ^ hash2);
   }
 
-  /// Count set bits (population count) using Kernighan's algorithm.
+  /// Count set bits using Kernighan's algorithm.
   int _popcount(int n) {
     int count = 0;
     while (n != 0) {
@@ -101,12 +106,7 @@ class ImageHashService {
     return count;
   }
 
-  /// Threshold: images with Hamming distance ≤ this are "the same paper."
-  ///
-  /// 6 out of 64 bits = ~9% tolerance.
-  /// Catches: re-scans with noise (±20px), slight crop (3px), minor brightness.
-  /// Rejects: different-answer papers, different layouts.
-  /// False positives are low-cost: teacher taps "Keep" once.
+  /// Images with Hamming distance <= this are treated as the same paper.
   static const int duplicateThreshold = 6;
 
   /// Check if two hashes represent the same paper.

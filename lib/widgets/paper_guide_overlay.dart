@@ -12,6 +12,15 @@ enum PaperGuideState {
 
   /// Paper detected and properly aligned — green brackets.
   aligned,
+
+  /// The scene is too dark for reliable capture.
+  tooDark,
+
+  /// The phone or paper is moving too much.
+  moving,
+
+  /// The paper is outside the guide frame.
+  outsideFrame,
 }
 
 /// Draws a paper-alignment overlay on top of the camera preview.
@@ -19,10 +28,7 @@ enum PaperGuideState {
 /// Pure paint — no image processing, no allocations in [paint].
 /// Scales proportionally from 480p to 1440p screens.
 class PaperGuideOverlay extends StatelessWidget {
-  const PaperGuideOverlay({
-    super.key,
-    required this.state,
-  });
+  const PaperGuideOverlay({super.key, required this.state});
 
   final PaperGuideState state;
 
@@ -34,7 +40,10 @@ class PaperGuideOverlay extends StatelessWidget {
         alignment: Alignment.bottomCenter,
         child: Padding(
           padding: const EdgeInsets.only(bottom: 140),
-          child: _HintText(state: state))));
+          child: _HintText(state: state),
+        ),
+      ),
+    );
   }
 }
 
@@ -59,23 +68,35 @@ class _HintText extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.black54,
-          borderRadius: BorderRadius.circular(20)),
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Text(
           label,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 14,
-            fontWeight: FontWeight.w500),
-          textAlign: TextAlign.center)));
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
   }
 
   String? _label() {
     switch (state) {
       case PaperGuideState.idle:
+        return 'Place paper inside the frame';
       case PaperGuideState.detected:
         return 'Align paper within the frame';
       case PaperGuideState.aligned:
         return 'Hold steady';
+      case PaperGuideState.tooDark:
+        return 'Too dark - use flash or more light';
+      case PaperGuideState.moving:
+        return 'Hold still';
+      case PaperGuideState.outsideFrame:
+        return 'Move paper into the frame';
     }
   }
 }
@@ -105,6 +126,9 @@ class _PaperGuidePainter extends CustomPainter {
       case PaperGuideState.idle:
         return Colors.white;
       case PaperGuideState.detected:
+      case PaperGuideState.tooDark:
+      case PaperGuideState.moving:
+      case PaperGuideState.outsideFrame:
         return AppTheme.primaryYellow;
       case PaperGuideState.aligned:
         return AppTheme.primaryGreen;
@@ -123,7 +147,8 @@ class _PaperGuidePainter extends CustomPainter {
     final rect = Rect.fromCenter(
       center: Offset(centerX, centerY),
       width: guideWidth,
-      height: guideHeight);
+      height: guideHeight,
+    );
 
     // Semi-transparent fill.
     canvas.drawRect(rect, _fillPaint);
@@ -137,14 +162,16 @@ class _PaperGuidePainter extends CustomPainter {
       canvas,
       rect.bottomRight,
       arm,
-      _BracketCorner.bottomRight);
+      _BracketCorner.bottomRight,
+    );
   }
 
   void _drawCornerBracket(
     Canvas canvas,
     Offset origin,
     double arm,
-    _BracketCorner corner) {
+    _BracketCorner corner,
+  ) {
     late Offset hStart, hEnd, vStart, vEnd;
 
     switch (corner) {

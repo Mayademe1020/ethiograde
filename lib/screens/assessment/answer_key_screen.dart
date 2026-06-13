@@ -10,20 +10,52 @@ import '../../services/student_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/answer_sheet_pdf_service.dart';
 
-class AnswerKeyScreen extends StatelessWidget {
+class AnswerKeyRouteArgs {
+  final Assessment assessment;
+  final bool returnToReview;
+
+  const AnswerKeyRouteArgs({
+    required this.assessment,
+    this.returnToReview = false,
+  });
+}
+
+class AnswerKeyScreen extends StatefulWidget {
   const AnswerKeyScreen({super.key});
 
   @override
+  State<AnswerKeyScreen> createState() => _AnswerKeyScreenState();
+}
+
+class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
+  Assessment? _assessment;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_assessment != null) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is AnswerKeyRouteArgs) {
+      _assessment = args.assessment;
+    } else if (args is Assessment) {
+      _assessment = args;
+    } else {
+      _assessment = context.watch<AssessmentProvider>().currentAssessment;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final assessment =
-        ModalRoute.of(context)?.settings.arguments as Assessment? ??
-        context.watch<AssessmentProvider>().currentAssessment;
+    final assessment = _assessment;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final returnToReview = args is AnswerKeyRouteArgs && args.returnToReview;
 
     if (assessment == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: Center(
-          child: Text('No assessment selected')));
+        body: Center(child: Text('No assessment selected')),
+      );
     }
 
     return Scaffold(
@@ -33,14 +65,20 @@ class AnswerKeyScreen extends StatelessWidget {
           TextButton.icon(
             onPressed: () async {
               context.read<AssessmentProvider>().saveAssessment(assessment);
+              if (returnToReview) {
+                Navigator.pop(context, assessment);
+                return;
+              }
               await _showAnswerSheetPrompt(context, assessment);
               if (context.mounted) {
                 Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
               }
             },
             icon: const Icon(Icons.check),
-            label: Text('Done')),
-        ]),
+            label: Text('Done'),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -51,7 +89,8 @@ class AnswerKeyScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppTheme.primaryGreen.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -59,33 +98,43 @@ class AnswerKeyScreen extends StatelessWidget {
                     assessment.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 18)),
+                      fontSize: 18,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     '${assessment.subject} • ${assessment.questionCount} ${'questions'} • ${assessment.maxScore} ${'pts'}',
-                    style: TextStyle(color: AppTheme.lightText)),
-                ])),
+                    style: TextStyle(color: AppTheme.lightText),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
 
             // Answer key table
             Text(
               'Answer Key',
               style: Theme.of(
-                context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Text(
               'Tap answers to edit',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12)),
+              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            ),
             const SizedBox(height: 16),
 
             // Question answer cards
             ...assessment.questions.map(
               (q) => _AnswerKeyCard(
-                question: q,onChanged: (correctAnswer) {
+                question: q,
+                onChanged: (correctAnswer) {
                   // Update question answer
                   final index = assessment.questions.indexOf(q);
                   final updatedQuestions = List<Question>.from(
-                    assessment.questions);
+                    assessment.questions,
+                  );
                   updatedQuestions[index] = Question(
                     id: q.id,
                     number: q.number,
@@ -95,10 +144,18 @@ class AnswerKeyScreen extends StatelessWidget {
                     options: q.options,
                     correctAnswer: correctAnswer,
                     topicTag: q.topicTag,
-                    keywords: q.keywords);
+                    keywords: q.keywords,
+                  );
+                  final updatedAssessment = assessment.copyWith(
+                    questions: updatedQuestions,
+                  );
+                  setState(() => _assessment = updatedAssessment);
                   context.read<AssessmentProvider>().saveAssessment(
-                    assessment.copyWith(questions: updatedQuestions));
-                })),
+                    updatedAssessment,
+                  );
+                },
+              ),
+            ),
 
             const SizedBox(height: 24),
 
@@ -108,7 +165,8 @@ class AnswerKeyScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppTheme.info.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.info.withOpacity(0.2))),
+                border: Border.all(color: AppTheme.info.withOpacity(0.2)),
+              ),
               child: Column(
                 children: [
                   Row(
@@ -119,14 +177,18 @@ class AnswerKeyScreen extends StatelessWidget {
                         'Next Steps',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.info)),
-                    ]),
+                          color: AppTheme.info,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                        '1. Prepare student papers\n'
-                              '2. Open camera and scan\n'
-                              '3. Results are graded automatically',
-                    style: const TextStyle(fontSize: 13, height: 1.5)),
+                    '1. Prepare student papers\n'
+                    '2. Open camera and scan\n'
+                    '3. Results are graded automatically',
+                    style: const TextStyle(fontSize: 13, height: 1.5),
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -136,41 +198,58 @@ class AnswerKeyScreen extends StatelessWidget {
                           showDialog(
                             context: context,
                             builder: (_) => AlertDialog(
-                              icon: const Icon(Icons.warning_amber,
-                                  color: Colors.orange, size: 36),
+                              icon: const Icon(
+                                Icons.warning_amber,
+                                color: Colors.orange,
+                                size: 36,
+                              ),
                               title: Text('Answer Key Incomplete'),
                               content: Text(
-                                "${assessment.answerKeyStatus}. Set all answers for accurate grading."),
+                                "${assessment.answerKeyStatus}. Set all answers for accurate grading.",
+                              ),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: Text('Close')),
+                                  child: Text('Close'),
+                                ),
                                 ElevatedButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child:
-                                      Text('Set Answers')),
-                              ]));
+                                  child: Text('Set Answers'),
+                                ),
+                              ],
+                            ),
+                          );
                           return;
                         }
                         Navigator.pushNamed(
                           context,
                           AppRoutes.camera,
-                          arguments: assessment);
+                          arguments: assessment,
+                        );
                       },
                       icon: Icon(
                         Icons.camera_alt,
                         color: assessment.isAnswerKeyComplete
                             ? null
-                            : Colors.orange),
-                      label: Text('Start Scanning'))),
-                ])),
-          ])));
+                            : Colors.orange,
+                      ),
+                      label: Text('Start Scanning'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Show answer sheet generation prompt after assessment creation.
   Future<void> _showAnswerSheetPrompt(
     BuildContext context,
-    Assessment assessment) async {
+    Assessment assessment,
+  ) async {
     final generate = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -180,30 +259,40 @@ class AnswerKeyScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Create a printable answer sheet for students. They fill it → you scan it → 99% accurate.'),
+              'Create a printable answer sheet for students. They fill it → you scan it → 99% accurate.',
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Icon(
                   Icons.picture_as_pdf,
                   color: AppTheme.primaryGreen,
-                  size: 20),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Prints as PDF — photocopiable',
-                    style: TextStyle(fontSize: 12, color: AppTheme.lightText))),
-              ]),
-          ]),
+                    style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Not now')),
+            child: Text('Not now'),
+          ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(context, true),
             icon: const Icon(Icons.picture_as_pdf, size: 18),
-            label: Text('Generate')),
-        ]));
+            label: Text('Generate'),
+          ),
+        ],
+      ),
+    );
 
     if (generate == true && context.mounted) {
       await _generateAnswerSheet(context, assessment);
@@ -213,7 +302,8 @@ class AnswerKeyScreen extends StatelessWidget {
   /// Generate and show the answer sheet PDF.
   Future<void> _generateAnswerSheet(
     BuildContext context,
-    Assessment assessment) async {
+    Assessment assessment,
+  ) async {
     // Get students from linked class, or all students
     List<Student> students;
     final classProv = context.read<ClassProvider>();
@@ -222,7 +312,8 @@ class AnswerKeyScreen extends StatelessWidget {
     if (assessment.className.isNotEmpty) {
       final matchingClass = classProv.classes.cast<ClassInfo?>().firstWhere(
         (c) => c?.displayName == assessment.className,
-        orElse: () => null);
+        orElse: () => null,
+      );
       students = matchingClass != null
           ? matchingClass.studentIds
                 .map((id) => studentProv.getStudentById(id))
@@ -237,8 +328,9 @@ class AnswerKeyScreen extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Add students first to generate answer sheets')));
+            content: Text('Add students first to generate answer sheets'),
+          ),
+        );
       }
       return;
     }
@@ -247,35 +339,36 @@ class AnswerKeyScreen extends StatelessWidget {
       final file = await AnswerSheetPdfService().generateAnswerSheetTemplate(
         assessment: assessment,
         students: students,
-        prefillNames: true);
+        prefillNames: true,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              "PDF generated — ${students.length} sheets"),
+            content: Text("PDF generated — ${students.length} sheets"),
             backgroundColor: AppTheme.primaryGreen,
             action: SnackBarAction(
               label: 'Print',
-              onPressed: () => AnswerSheetPdfService().printPdf(file))));
+              onPressed: () => AnswerSheetPdfService().printPdf(file),
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not generate PDF')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not generate PDF')));
       }
     }
   }
 }
 
 class _AnswerKeyCard extends StatelessWidget {
-  final Question question;final Function(dynamic) onChanged;
+  final Question question;
+  final Function(dynamic) onChanged;
 
-  const _AnswerKeyCard({
-    required this.question,
-    required this.onChanged,
-  });
+  const _AnswerKeyCard({required this.question, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -306,7 +399,9 @@ class _AnswerKeyCard extends StatelessWidget {
               backgroundColor: typeColor.withOpacity(0.1),
               child: Text(
                 '${question.number}',
-                style: TextStyle(color: typeColor, fontWeight: FontWeight.bold))),
+                style: TextStyle(color: typeColor, fontWeight: FontWeight.bold),
+              ),
+            ),
             const SizedBox(width: 12),
 
             // Type and points
@@ -319,23 +414,31 @@ class _AnswerKeyCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
-                          vertical: 2),
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: typeColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                         child: Text(
                           typeLabel,
                           style: TextStyle(
                             fontSize: 10,
                             color: typeColor,
-                            fontWeight: FontWeight.w600))),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         '${question.points} ${'pts'}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: AppTheme.lightText)),
-                    ]),
+                          color: AppTheme.lightText,
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
 
                   // Answer options
@@ -343,15 +446,15 @@ class _AnswerKeyCard extends StatelessWidget {
                     Row(
                       children: question.options.map((opt) {
                         final isSelected = question.correctAnswer == opt;
-                        final displayLabel =
-                            opt;
+                        final displayLabel = opt;
                         return GestureDetector(
                           onTap: () => onChanged(opt),
                           child: Container(
                             margin: const EdgeInsets.only(right: 6),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 6),
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppTheme.primaryGreen
@@ -360,7 +463,9 @@ class _AnswerKeyCard extends StatelessWidget {
                               border: Border.all(
                                 color: isSelected
                                     ? AppTheme.primaryGreen
-                                    : Colors.grey.shade300)),
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
                             child: Text(
                               displayLabel,
                               style: TextStyle(
@@ -368,23 +473,27 @@ class _AnswerKeyCard extends StatelessWidget {
                                 fontSize: 13,
                                 color: isSelected
                                     ? Colors.white
-                                    : AppTheme.darkText))));
-                      }).toList()),
+                                    : AppTheme.darkText,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
 
                   if (question.type == QuestionType.trueFalse)
                     Row(
                       children: ['True', 'False'].map((opt) {
                         final isSelected = question.correctAnswer == opt;
-                        final label = opt == 'True'
-                            ? ('True')
-                            : ('False');
+                        final label = opt == 'True' ? ('True') : ('False');
                         return GestureDetector(
                           onTap: () => onChanged(opt),
                           child: Container(
                             margin: const EdgeInsets.only(right: 8),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 8),
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? (opt == 'True'
@@ -397,33 +506,48 @@ class _AnswerKeyCard extends StatelessWidget {
                                     ? (opt == 'True'
                                           ? AppTheme.primaryGreen
                                           : AppTheme.primaryRed)
-                                    : Colors.grey.shade300)),
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
                             child: Text(
                               label,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: isSelected
                                     ? Colors.white
-                                    : AppTheme.darkText))));
-                      }).toList()),
+                                    : AppTheme.darkText,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
 
                   if (question.type == QuestionType.shortAnswer ||
                       question.type == QuestionType.essay)
                     Text(
                       '${'Answer'}: ${question.correctAnswer ?? ('Not set')}',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 13)),
+                      style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                    ),
 
                   if (question.type == QuestionType.matching)
                     Text(
                       '${'Correct matches'}: ${question.correctAnswer ?? ('Not set')}',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 13)),
-                ])),
+                      style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                    ),
+                ],
+              ),
+            ),
 
             // Edit button
             IconButton(
               icon: const Icon(Icons.edit, size: 18),
-              onPressed: () => _editAnswer(context)),
-          ])));
+              onPressed: () => _editAnswer(context),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _editAnswer(BuildContext context) {
@@ -434,7 +558,8 @@ class _AnswerKeyCard extends StatelessWidget {
     }
 
     final ctrl = TextEditingController(
-      text: question.correctAnswer?.toString() ?? '');
+      text: question.correctAnswer?.toString() ?? '',
+    );
 
     showDialog(
       context: context,
@@ -443,22 +568,26 @@ class _AnswerKeyCard extends StatelessWidget {
         content: TextField(
           controller: ctrl,
           maxLines: question.type == QuestionType.essay ? 4 : 1,
-          decoration: InputDecoration(
-            labelText: 'Correct Answer')),
+          decoration: InputDecoration(labelText: 'Correct Answer'),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               ctrl.dispose();
               Navigator.pop(c);
             },
-            child: Text('Cancel')),
+            child: Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               onChanged(ctrl.text);
               ctrl.dispose();
               Navigator.pop(c);
             },
-            child: Text('Save')),
-        ]));
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 }

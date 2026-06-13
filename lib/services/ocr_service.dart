@@ -57,7 +57,8 @@ Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
         image,
         width: (image.width * ratio).round(),
         height: (image.height * ratio).round(),
-        interpolation: img.Interpolation.cubic);
+        interpolation: img.Interpolation.cubic,
+      );
     }
 
     // Grayscale + contrast boost
@@ -66,7 +67,8 @@ Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
 
     // Save enhanced image
     await File(
-      params.outputPath).writeAsBytes(img.encodeJpg(image, quality: 92));
+      params.outputPath,
+    ).writeAsBytes(img.encodeJpg(image, quality: 92));
     return params.outputPath;
   } catch (_) {
     return params.inputPath;
@@ -85,7 +87,8 @@ Future<String> _correctRotationIsolate(_CorrectRotationParams params) async {
 
     image = img.copyRotate(image, angle: -params.angleDegrees);
     await File(
-      params.outputPath).writeAsBytes(img.encodeJpg(image, quality: 92));
+      params.outputPath,
+    ).writeAsBytes(img.encodeJpg(image, quality: 92));
     return params.outputPath;
   } catch (_) {
     return params.inputPath;
@@ -182,11 +185,14 @@ class OcrService {
         _EnhanceParams(
           inputPath: imagePath,
           outputPath: enhancedPath,
-          maxDim: _maxImageDimension));
+          maxDim: _maxImageDimension,
+        ),
+      );
       return result;
     } catch (e) {
       debugPrint(
-        'OCR: enhanceImage isolate failed at ${_maxImageDimension}px ($e)');
+        'OCR: enhanceImage isolate failed at ${_maxImageDimension}px ($e)',
+      );
       // OOM retry at lower resolution
       try {
         final result = await compute(
@@ -194,7 +200,9 @@ class OcrService {
           _EnhanceParams(
             inputPath: imagePath,
             outputPath: enhancedPath,
-            maxDim: _oomRetryDimension));
+            maxDim: _oomRetryDimension,
+          ),
+        );
         return result;
       } catch (e2, st) {
         debugPrint('OCR: enhanceImage OOM retry failed ($e2)\n$st');
@@ -221,10 +229,13 @@ class OcrService {
         _CorrectRotationParams(
           inputPath: imagePath,
           outputPath: correctedPath,
-          angleDegrees: angleDegrees));
+          angleDegrees: angleDegrees,
+        ),
+      );
       if (result != imagePath) {
         debugPrint(
-          'OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°');
+          'OCR: rotation corrected by ${angleDegrees.toStringAsFixed(1)}°',
+        );
       }
       return result;
     } catch (e, st) {
@@ -244,7 +255,7 @@ class OcrService {
     await initialize();
 
     // 0. Compute perceptual hash for duplicate detection (before enhancement)
-    final imageHash = _hasher.computeHash(imagePath);
+    final imageHash = await _hasher.computeHashAsync(imagePath);
 
     // 1. Enhance image (downscale + grayscale + contrast)
     final enhancedPath = await enhanceImage(imagePath);
@@ -273,7 +284,8 @@ class OcrService {
       if (workingPath == enhancedPath) {
         final correctedPath = await correctRotation(
           enhancedPath,
-          extractionResult.skewAngle);
+          extractionResult.skewAngle,
+        );
         if (correctedPath != enhancedPath) {
           final reOcrResult = await extractTextRegions(correctedPath);
           if (reOcrResult.regions.length >= workingResult.regions.length) {
@@ -293,14 +305,16 @@ class OcrService {
     // 5. Score against answer key
     final scoredAnswers = _scoring.scoreAnswers(
       detected: deduplicated,
-      assessment: assessment);
+      assessment: assessment,
+    );
 
     // 6. Calculate totals
     final totalScore = _scoring.calculateTotalScore(scoredAnswers);
     final maxScore = assessment.maxScore;
     final percentage = _scoring.calculatePercentage(
       totalScore: totalScore,
-      maxScore: maxScore);
+      maxScore: maxScore,
+    );
     final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
 
     // 7. Build metadata with quality signals
@@ -326,13 +340,15 @@ class OcrService {
       percentage: percentage,
       grade: _scoring.calculateGrade(
         percentage.toDouble(),
-        assessment.rubricType),
+        assessment.rubricType,
+      ),
       status: overallConfidence < 0.6
           ? ScanStatus.needsRescan
           : ScanStatus.graded,
       confidence: overallConfidence,
       imageHash: imageHash,
-      metadata: metadata);
+      metadata: metadata,
+    );
   }
 
   /// Extract text regions from an enhanced image using ML Kit.
@@ -341,13 +357,15 @@ class OcrService {
   /// Public so HybridGradingService can run OCR and OMR on the same
   /// enhanced image without double-enhancing.
   Future<({List<TextRegion> regions, double skewAngle})> extractTextRegions(
-    String imagePath) async {
+    String imagePath,
+  ) async {
     await initialize();
 
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
       final RecognizedText recognized = await _textRecognizer.processImage(
-        inputImage);
+        inputImage,
+      );
 
       final regions = <TextRegion>[];
       double totalAngle = 0;
@@ -360,7 +378,8 @@ class OcrService {
           final p2 = block.cornerPoints[1];
           final angle = math.atan2(
             (p2.y - p1.y).toDouble(),
-            (p2.x - p1.x).toDouble());
+            (p2.x - p1.x).toDouble(),
+          );
           totalAngle += angle;
           angleCount++;
         }
@@ -394,7 +413,9 @@ class OcrService {
               text: text,
               confidence: confidence.clamp(0.0, 1.0),
               x: x,
-              y: y));
+              y: y,
+            ),
+          );
         }
       }
 
@@ -415,7 +436,8 @@ class OcrService {
           : 0.0;
 
       debugPrint(
-        'OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°');
+        'OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°',
+      );
       return (regions: regions, skewAngle: skewDegrees);
     } catch (e, st) {
       debugPrint('OCR: recognition failed ($e)\n$st');
@@ -425,14 +447,17 @@ class OcrService {
 
   List<DetectedAnswer> _parseAnswers(
     List<TextRegion> regions,
-    Assessment assessment) {
+    Assessment assessment,
+  ) {
     final inputs = regions
         .map(
           (r) => TextRegionInput(
             text: r.text,
             confidence: r.confidence,
             x: r.x,
-            y: r.y))
+            y: r.y,
+          ),
+        )
         .toList();
     return _parser
         .parseAnswers(inputs)
@@ -441,7 +466,9 @@ class OcrService {
             questionNumber: p.questionNumber,
             answer: p.answer,
             confidence: p.confidence,
-            rawText: p.rawText))
+            rawText: p.rawText,
+          ),
+        )
         .toList();
   }
 
@@ -500,8 +527,11 @@ class OcrService {
   /// proceed normally.
   ///
   /// This is intentionally non-blocking: hash failure never stops scanning.
-  int checkDuplicate(String imagePath, List<ScanResult> existingScans) {
-    final hash = _hasher.computeHash(imagePath);
+  Future<int> checkDuplicate(
+    String imagePath,
+    List<ScanResult> existingScans,
+  ) async {
+    final hash = await _hasher.computeHashAsync(imagePath);
     if (hash == null) return -2; // Can't compute — skip check
     final hashes = existingScans.map((s) => s.imageHash).toList();
     return _hasher.findDuplicate(hash, hashes);
