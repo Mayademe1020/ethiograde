@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/integrity_metadata_keys.dart';
 import '../../models/scan_result.dart';
 import '../../models/assessment.dart';
 import '../../models/student.dart';
@@ -18,6 +19,9 @@ import '../../services/paper_image_intake_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/correction_learner.dart';
+import '../../services/answer_key_fingerprint_service.dart';
+import '../../services/answer_key_recalculation_service.dart';
+import '../../services/integrity_state_resolver.dart';
 import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
@@ -589,7 +593,45 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final results = _results;
     if (results == null || results.isEmpty) return true;
 
-    final queue = _ReviewQueue.fromResults(results);
+    // Check for outdated results (answer key changed since scoring)
+    final assessment = results.isNotEmpty
+        ? context.read<AssessmentProvider>().getAssessmentById(results.first.assessmentId)
+        : null;
+    if (assessment != null) {
+      final resolver = const IntegrityStateResolver();
+      final outdatedCount = results.where((r) =>
+        resolver.resolve(result: r, assessment: assessment) == IntegrityState.outdated
+      ).length;
+      if (outdatedCount > 0) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Outdated scores'),
+            content: Text(
+              '$outdatedCount paper(s) have outdated scores from a previous answer key. '
+              'Recalculate before final save.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Review'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _openAnswerKeyEditor(assessment);
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Recalculate'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+    }
+
+    final queue = _ReviewQueue.fromResults(results, assessment: assessment);
     if (!queue.hasBlockingIssues) return true;
 
     final action = await showDialog<_ReviewSaveAction>(
@@ -655,7 +697,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   Widget build(BuildContext context) {
     final results = _results ?? [];
     final assessment = _assessmentForResults(context, results);
-    final queue = _ReviewQueue.fromResults(results);
+    final queue = _ReviewQueue.fromResults(results, assessment: assessment);
 
     return Scaffold(
       appBar: AppBar(
@@ -869,24 +911,20 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   String _answerKeySignature(Assessment assessment) {
-    return assessment.questions
-        .map((question) => '${question.id}:${question.correctAnswer}')
-        .join('|');
+    return const AnswerKeyFingerprintService().compute(assessment);
   }
 
   Future<void> _showAnswerKeyChangedPrompt(Assessment assessment) async {
-    final canRegrade = (_results ?? []).any(
-      (result) => result.imagePath.isNotEmpty,
-    );
+    final results = _results ?? [];
+    if (results.isEmpty) return;
 
     final action = await showDialog<_AnswerKeyChangedAction>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Answer key changed'),
         content: Text(
-          canRegrade
-              ? 'Some scores may be outdated. Regrade the scanned papers before final save?'
-              : 'Some scores may be outdated, but paper images are no longer available for regrading.',
+          '${results.length} paper${results.length == 1 ? ' was' : 's were'} graded '
+          'using the previous answer key. Their scores must be recalculated.',
         ),
         actions: [
           TextButton(
@@ -896,13 +934,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
             child: const Text('Keep current'),
           ),
-          if (canRegrade)
-            FilledButton.icon(
-              onPressed: () =>
-                  Navigator.pop(context, _AnswerKeyChangedAction.regradeAll),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Regrade all'),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(
+              context,
+              _AnswerKeyChangedAction.saveAndRecalculateLater,
             ),
+            child: const Text('Save and recalculate later'),
+          ),
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.pop(context, _AnswerKeyChangedAction.regradeAll),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Recalculate now'),
+          ),
         ],
       ),
     );
@@ -910,12 +954,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (!mounted) return;
     if (action == _AnswerKeyChangedAction.regradeAll) {
       await _regradeAllWithAssessment(assessment);
-    } else {
+    } else if (action == _AnswerKeyChangedAction.saveAndRecalculateLater) {
+      // Mark results as needing regrade
       setState(() {
         _results = _results?.map(_markAnswerKeyChanged).toList();
         _hasUnsavedChanges = true;
       });
     }
+    // keepCurrentScores: do nothing — results stay as-is
   }
 
   Future<void> _regradeAllWithAssessment(Assessment assessment) async {
@@ -923,56 +969,39 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (results == null || results.isEmpty) return;
 
     setState(() => _isRegrading = true);
-    final grading = HybridGradingService();
-    final updatedResults = <ScanResult>[];
-    var regraded = 0;
-    var skipped = 0;
 
-    for (final result in results) {
-      if (result.imagePath.isEmpty) {
-        updatedResults.add(_markAnswerKeyChanged(result));
-        skipped++;
-        continue;
-      }
-
-      final next = await grading.gradePaper(
-        imagePath: result.imagePath,
-        assessment: assessment,
-        studentId: result.studentId,
-        studentName: result.studentName,
-      );
-      if (next.id != result.id) {
-        await grading.deleteScanResult(result.id);
-      }
-      updatedResults.add(
-        next.copyWith(
-          metadata: {
-            ...result.metadata,
-            ...next.metadata,
-            'answerKeyRegraded': true,
-            'answerKeyRegradedAt': DateTime.now().toIso8601String(),
-          },
-        ),
-      );
-      regraded++;
-    }
+    // Use the recalculation service for persisted-response rescoring
+    final recalcService = AnswerKeyRecalculationService();
+    final recalcResult = await recalcService.recalculateAll(
+      assessment: assessment,
+      results: results,
+    );
 
     if (!mounted) return;
     setState(() {
-      _results = updatedResults;
+      _results = recalcResult.updatedResults;
       _hasUnsavedChanges = true;
       _isRegrading = false;
       _sortMode = _SortMode.needsReviewFirst;
     });
     _applySort();
 
+    final summary = StringBuffer();
+    summary.write('${recalcResult.recalculated} recalculated');
+    if (recalcResult.scoresChanged > 0) {
+      summary.write(', ${recalcResult.scoresChanged} scores changed');
+    }
+    if (recalcResult.preserved > 0) {
+      summary.write(', ${recalcResult.preserved} preserved (manual)');
+    }
+    if (recalcResult.failed > 0) {
+      summary.write(', ${recalcResult.failed} failed');
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          skipped == 0
-              ? '$regraded result(s) regraded'
-              : '$regraded regraded, $skipped need re-scan',
-        ),
+        content: Text(summary.toString()),
+        backgroundColor: recalcResult.allSucceeded ? AppTheme.primaryGreen : Colors.orange,
       ),
     );
   }
@@ -1104,7 +1133,7 @@ enum _SortMode {
   answerKeyFirst,
 }
 
-enum _AnswerKeyChangedAction { regradeAll, keepCurrentScores }
+enum _AnswerKeyChangedAction { regradeAll, keepCurrentScores, saveAndRecalculateLater }
 
 enum _ReviewSaveAction { keepReviewing, draft, finalSaveAnyway }
 
@@ -1118,15 +1147,16 @@ class _ReviewQueue {
 
   bool get hasBlockingIssues => blockingCount > 0;
 
-  factory _ReviewQueue.fromResults(List<ScanResult> results) {
+  factory _ReviewQueue.fromResults(List<ScanResult> results, {Assessment? assessment}) {
     final duplicateIndexes = _duplicateIndexes(results);
+    final resolver = const IntegrityStateResolver();
     final grouped = <_ReviewIssue, List<_ReviewQueueItem>>{
       for (final issue in _ReviewIssue.values) issue: [],
     };
 
     for (var i = 0; i < results.length; i++) {
       final result = results[i];
-      final issue = _issueFor(result, duplicateIndexes.contains(i));
+      final issue = _issueFor(result, duplicateIndexes.contains(i), assessment: assessment, resolver: resolver);
       grouped[issue]!.add(
         _ReviewQueueItem(resultIndex: i, result: result, issue: issue),
       );
@@ -1203,7 +1233,15 @@ class _ReviewQueue {
     };
   }
 
-  static _ReviewIssue _issueFor(ScanResult result, bool isDuplicate) {
+  static _ReviewIssue _issueFor(ScanResult result, bool isDuplicate, {Assessment? assessment, IntegrityStateResolver? resolver}) {
+    // Check integrity state first (new system)
+    if (assessment != null && resolver != null) {
+      final state = resolver.resolve(result: result, assessment: assessment);
+      if (state == IntegrityState.outdated) {
+        return _ReviewIssue.answerKey;
+      }
+    }
+    // Fallback to old flag for backward compatibility
     if (result.metadata['answerKeyChangedNeedsRegrade'] == true) {
       return _ReviewIssue.answerKey;
     }
@@ -1406,11 +1444,13 @@ class _ReviewSituationPanel extends StatelessWidget {
     final missingIdentityCount = results
         .where(_ReviewScreenState._needsStudentIdentity)
         .length;
-    final staleKeyCount = results
-        .where(
-          (result) => result.metadata['answerKeyChangedNeedsRegrade'] == true,
-        )
-        .length;
+    final staleKeyCount = assessment != null
+        ? results.where((result) =>
+            const IntegrityStateResolver().resolve(result: result, assessment: assessment!) == IntegrityState.outdated
+        ).length
+        : results.where(
+            (result) => result.metadata['answerKeyChangedNeedsRegrade'] == true,
+          ).length;
 
     final nextAction = staleKeyCount > 0
         ? _QueueAction(
@@ -1936,19 +1976,11 @@ class _ResultCard extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 4,
                           children: [
-                            if (result
-                                    .metadata['answerKeyChangedNeedsRegrade'] ==
-                                true)
+                            if (issue == _ReviewIssue.answerKey)
                               _ReviewChip(
                                 icon: Icons.key_off_outlined,
                                 label: 'Regrade needed',
                                 color: AppTheme.primaryRed,
-                              ),
-                            if (result.metadata['answerKeyRegraded'] == true)
-                              _ReviewChip(
-                                icon: Icons.refresh,
-                                label: 'Regraded',
-                                color: AppTheme.primaryGreen,
                               ),
                             if (result.metadata['autoCaptured'] == true)
                               _ReviewChip(

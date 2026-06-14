@@ -183,6 +183,8 @@ class HybridGradingService {
             : omrAnswers.fold(0.0, (s, a) => s + a.confidence) /
                   omrAnswers.length,
         'detectedMethod': omrAnswers.isNotEmpty ? 'hybrid' : 'ocr-only',
+        'ik_scoredWithKeyFingerprint': assessment.answerKeyFingerprint,
+        'ik_scoredWithKeyRevision': assessment.answerKeyRevision,
       };
 
       // ── Step 7: Apply weighted scoring if scale is provided ──

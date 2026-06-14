@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/assessment.dart';
 import '../config/constants.dart';
+import 'answer_key_fingerprint_service.dart';
 import 'validation_service.dart';
 import 'result.dart';
 
@@ -16,6 +17,7 @@ enum AssessmentFilter { all, active, completed }
 /// All operations wrapped in try/catch — persistence errors never crash the app.
 class AssessmentProvider extends ChangeNotifier {
   static const _validator = ValidationService();
+  static const _fingerprintService = AnswerKeyFingerprintService();
 
   List<Assessment> _assessments = [];
   Assessment? _currentAssessment;
@@ -174,13 +176,66 @@ class AssessmentProvider extends ChangeNotifier {
   // ── Compat ─────────────────────────────────────────────────────────
 
   /// Backward-compatible: save = update if exists, add if new.
+  /// Automatically manages answer-key fingerprint and revision.
   Future<void> saveAssessment(Assessment assessment) async {
     final box = Hive.box(AppConstants.assessmentsBox);
     if (box.containsKey(assessment.id)) {
-      await updateAssessment(assessment);
+      // Check if scoring key changed
+      final existing = getAssessmentById(assessment.id);
+      final updated = _applyFingerprintIfNeeded(assessment, existing);
+      await updateAssessment(updated);
     } else {
-      await addAssessment(assessment);
+      // New assessment — compute initial fingerprint
+      final withFingerprint = _applyFingerprintIfNeeded(assessment, null);
+      await addAssessment(withFingerprint);
     }
+  }
+
+  /// Save assessment with an explicit new answer key (from answer-key editor).
+  /// Increments revision and recomputes fingerprint.
+  Future<Assessment> saveAnswerKeyChange(Assessment assessment) async {
+    final existing = getAssessmentById(assessment.id);
+    final oldFingerprint = existing?.answerKeyFingerprint ?? '';
+    final newFingerprint = _fingerprintService.compute(assessment);
+
+    if (oldFingerprint == newFingerprint) {
+      // No scoring change — save without incrementing revision
+      await saveAssessment(assessment);
+      return assessment;
+    }
+
+    // Scoring key changed — increment revision
+    final newRevision = (existing?.answerKeyRevision ?? 0) + 1;
+    final updated = assessment.copyWith(
+      answerKeyRevision: newRevision,
+      answerKeyFingerprint: newFingerprint,
+    );
+    await saveAssessment(updated);
+    return updated;
+  }
+
+  /// Apply fingerprint to assessment if missing (legacy) or if key changed.
+  Assessment _applyFingerprintIfNeeded(Assessment assessment, Assessment? existing) {
+    final currentFingerprint = _fingerprintService.compute(assessment);
+
+    // Legacy: no fingerprint yet
+    if (assessment.answerKeyFingerprint.isEmpty) {
+      return assessment.copyWith(
+        answerKeyRevision: existing?.answerKeyRevision ?? 1,
+        answerKeyFingerprint: currentFingerprint,
+      );
+    }
+
+    // Fingerprint unchanged
+    if (assessment.answerKeyFingerprint == currentFingerprint) {
+      return assessment;
+    }
+
+    // Fingerprint changed — increment revision
+    return assessment.copyWith(
+      answerKeyRevision: assessment.answerKeyRevision + 1,
+      answerKeyFingerprint: currentFingerprint,
+    );
   }
 
   // ── Queries ───────────────────────────────────────────────────────

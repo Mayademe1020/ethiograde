@@ -39,6 +39,10 @@ class Assessment {
   final String? weightedScaleId;
   @HiveField(17)
   final String? coordinateMapPath; // Path to .coordmap.json from Phase 1
+  @HiveField(18)
+  final int answerKeyRevision;
+  @HiveField(19)
+  final String answerKeyFingerprint;
 
   Assessment({
     String? id,
@@ -58,6 +62,8 @@ class Assessment {
     this.settings = const {},
     this.weightedScaleId,
     this.coordinateMapPath,
+    this.answerKeyRevision = 0,
+    this.answerKeyFingerprint = '',
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now();
 
@@ -110,6 +116,8 @@ class Assessment {
     'settings': settings,
     'weightedScaleId': weightedScaleId,
     'coordinateMapPath': coordinateMapPath,
+    'answerKeyRevision': answerKeyRevision,
+    'answerKeyFingerprint': answerKeyFingerprint,
   };
 
   factory Assessment.fromMap(Map<String, dynamic> map) => Assessment(
@@ -133,7 +141,10 @@ class Assessment {
     isQuickGrade: map['isQuickGrade'] ?? false,
     settings: Map<String, dynamic>.from(map['settings'] ?? {}),
     weightedScaleId: map['weightedScaleId'],
-    coordinateMapPath: map['coordinateMapPath']);
+    coordinateMapPath: map['coordinateMapPath'],
+    answerKeyRevision: map['answerKeyRevision'] ?? 0,
+    answerKeyFingerprint: map['answerKeyFingerprint'] ?? '',
+  );
 
   Assessment copyWith({
     String? title,
@@ -145,6 +156,9 @@ class Assessment {
     AssessmentStatus? status,
     String? weightedScaleId,
     String? coordinateMapPath,
+    int? answerKeyRevision,
+    String? answerKeyFingerprint,
+    Map<String, dynamic>? settings,
   }) => Assessment(
     id: id,
     title: title ?? this.title,
@@ -156,7 +170,11 @@ class Assessment {
     createdAt: createdAt,
     status: status ?? this.status,
     weightedScaleId: weightedScaleId ?? this.weightedScaleId,
-    coordinateMapPath: coordinateMapPath ?? this.coordinateMapPath);
+    coordinateMapPath: coordinateMapPath ?? this.coordinateMapPath,
+    answerKeyRevision: answerKeyRevision ?? this.answerKeyRevision,
+    answerKeyFingerprint: answerKeyFingerprint ?? this.answerKeyFingerprint,
+    settings: settings ?? this.settings,
+  );
 }
 
 @HiveType(typeId: 5)

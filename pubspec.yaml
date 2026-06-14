@@ -16,6 +16,9 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
+  # Crypto (SHA-256 for answer-key fingerprinting)
+  crypto: ^3.0.3
+
   # Camera & Image
   camera: ^0.10.5+9
   image: ^4.1.3

@@ -3,12 +3,18 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
+import '../../models/scan_result.dart';
 import '../../models/student.dart';
 import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/hybrid_grading_service.dart';
+import '../../services/answer_key_recalculation_service.dart';
 import '../../services/student_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/answer_sheet_pdf_service.dart';
+import '../../services/answer_key_fingerprint_service.dart';
+
+enum _KeyChangeAction { recalculateNow, saveAndRecalculateLater, cancel }
 
 class AnswerKeyRouteArgs {
   final Assessment assessment;
@@ -29,6 +35,7 @@ class AnswerKeyScreen extends StatefulWidget {
 
 class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   Assessment? _assessment;
+  String? _preEditFingerprint;
 
   @override
   void didChangeDependencies() {
@@ -42,6 +49,13 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       _assessment = args;
     } else {
       _assessment = context.watch<AssessmentProvider>().currentAssessment;
+    }
+
+    // Capture pre-edit fingerprint for change detection
+    if (_assessment != null && _preEditFingerprint == null) {
+      _preEditFingerprint = _assessment!.answerKeyFingerprint.isNotEmpty
+          ? _assessment!.answerKeyFingerprint
+          : const AnswerKeyFingerprintService().compute(_assessment!);
     }
   }
 
@@ -63,17 +77,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         title: Text('Answer Key'),
         actions: [
           TextButton.icon(
-            onPressed: () async {
-              context.read<AssessmentProvider>().saveAssessment(assessment);
-              if (returnToReview) {
-                Navigator.pop(context, assessment);
-                return;
-              }
-              await _showAnswerSheetPrompt(context, assessment);
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-              }
-            },
+            onPressed: () => _handleDone(context, assessment, returnToReview),
             icon: const Icon(Icons.check),
             label: Text('Done'),
           ),
@@ -106,6 +110,13 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                     '${assessment.subject} • ${assessment.questionCount} ${'questions'} • ${assessment.maxScore} ${'pts'}',
                     style: TextStyle(color: AppTheme.lightText),
                   ),
+                  if (assessment.answerKeyRevision > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Revision ${assessment.answerKeyRevision}',
+                      style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -145,14 +156,12 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                     correctAnswer: correctAnswer,
                     topicTag: q.topicTag,
                     keywords: q.keywords,
+                    essayRubric: q.essayRubric,
                   );
                   final updatedAssessment = assessment.copyWith(
                     questions: updatedQuestions,
                   );
                   setState(() => _assessment = updatedAssessment);
-                  context.read<AssessmentProvider>().saveAssessment(
-                    updatedAssessment,
-                  );
                 },
               ),
             ),
@@ -243,6 +252,195 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         ),
       ),
     );
+  }
+
+  /// Handle the Done button press with answer-key change detection.
+  Future<void> _handleDone(
+    BuildContext context,
+    Assessment assessment,
+    bool returnToReview,
+  ) async {
+    final provider = context.read<AssessmentProvider>();
+    final currentFingerprint = const AnswerKeyFingerprintService().compute(assessment);
+    final keyChanged = _preEditFingerprint != null &&
+        _preEditFingerprint!.isNotEmpty &&
+        currentFingerprint != _preEditFingerprint;
+
+    if (!keyChanged) {
+      // No scoring change — save normally
+      await provider.saveAssessment(assessment);
+      if (returnToReview) {
+        if (context.mounted) Navigator.pop(context, assessment);
+        return;
+      }
+      if (context.mounted) {
+        await _showAnswerSheetPrompt(context, assessment);
+        if (context.mounted) {
+          Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+        }
+      }
+      return;
+    }
+
+    // Scoring key changed — check for existing results
+    final List<ScanResult> results = await HybridGradingService().loadScanResults(assessment.id);
+
+    if (!context.mounted) return;
+
+    if (results.isEmpty) {
+      // No results — save normally with incremented revision
+      final updated = await provider.saveAnswerKeyChange(assessment);
+      if (returnToReview) {
+        Navigator.pop(context, updated);
+        return;
+      }
+      await _showAnswerSheetPrompt(context, updated);
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      }
+      return;
+    }
+
+    // Results exist — show recalculation dialog
+    await _showRecalculationDialog(context, assessment, results, returnToReview);
+  }
+
+  /// Show the three-action recalculation dialog.
+  Future<void> _showRecalculationDialog(
+    BuildContext context,
+    Assessment assessment,
+    List<ScanResult> results,
+    bool returnToReview,
+  ) async {
+    final action = await showDialog<_KeyChangeAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Answer key changed'),
+        content: Text(
+          '${results.length} paper${results.length == 1 ? ' was' : 's were'} graded '
+          'using the previous answer key. Their scores must be recalculated.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, _KeyChangeAction.cancel),
+            child: const Text('Cancel'),
+          ),
+          OutlinedButton(
+            onPressed: () =>
+                Navigator.pop(context, _KeyChangeAction.saveAndRecalculateLater),
+            child: const Text('Save and recalculate later'),
+          ),
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.pop(context, _KeyChangeAction.recalculateNow),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Recalculate now'),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    switch (action) {
+      case _KeyChangeAction.recalculateNow:
+        await _recalculateNow(context, assessment, results, returnToReview);
+        break;
+      case _KeyChangeAction.saveAndRecalculateLater:
+        await _saveAndRecalculateLater(context, assessment, returnToReview);
+        break;
+      case _KeyChangeAction.cancel:
+      case null:
+        // Do nothing — stay on screen
+        break;
+    }
+  }
+
+  /// Save the new key and immediately recalculate all results.
+  Future<void> _recalculateNow(
+    BuildContext context,
+    Assessment assessment,
+    List<ScanResult> results,
+    bool returnToReview,
+  ) async {
+    final provider = context.read<AssessmentProvider>();
+
+    // Save the new key with incremented revision
+    final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
+
+    if (!context.mounted) return;
+
+    // Show progress
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Recalculating ${results.length} results...'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    // Run recalculation
+    final recalcService = AnswerKeyRecalculationService();
+    final result = await recalcService.recalculateAll(
+      assessment: updatedAssessment,
+      results: results,
+    );
+
+    if (!context.mounted) return;
+
+    // Show summary
+    final summary = StringBuffer();
+    summary.write('${result.recalculated} recalculated');
+    if (result.scoresChanged > 0) {
+      summary.write(', ${result.scoresChanged} scores changed');
+    }
+    if (result.scoresUnchanged > 0) {
+      summary.write(', ${result.scoresUnchanged} unchanged');
+    }
+    if (result.preserved > 0) {
+      summary.write(', ${result.preserved} preserved (manual)');
+    }
+    if (result.failed > 0) {
+      summary.write(', ${result.failed} failed');
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(summary.toString()),
+        backgroundColor: result.allSucceeded ? AppTheme.primaryGreen : Colors.orange,
+      ),
+    );
+
+    if (returnToReview) {
+      Navigator.pop(context, updatedAssessment);
+    } else {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
+  }
+
+  /// Save the new key and mark results for later recalculation.
+  Future<void> _saveAndRecalculateLater(
+    BuildContext context,
+    Assessment assessment,
+    bool returnToReview,
+  ) async {
+    final provider = context.read<AssessmentProvider>();
+
+    // Save the new key with incremented revision
+    final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Key saved. Recalculate results when ready.'),
+      ),
+    );
+
+    if (returnToReview) {
+      Navigator.pop(context, updatedAssessment);
+    } else {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    }
   }
 
   /// Show answer sheet generation prompt after assessment creation.
