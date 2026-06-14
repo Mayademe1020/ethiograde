@@ -207,6 +207,17 @@ class BatchProcessor {
     final mapJson = jsonDecode(await mapFile.readAsString());
     final layout = mapJson['layout'] ?? 'fullA4';
 
+    // Template identity validation — reject papers from wrong assessment
+    final mapAssessmentId = mapJson['assessmentId'] ?? '';
+    if (mapAssessmentId.isNotEmpty && mapAssessmentId != assessment.id) {
+      debugPrint('BatchProcessor: WRONG TEMPLATE — map assessment $mapAssessmentId != current ${assessment.id}');
+      callbacks.onProcessingChanged(false);
+      return;
+    }
+    if (mapAssessmentId.isEmpty) {
+      debugPrint('BatchProcessor: WARNING — coordinate map has no assessmentId');
+    }
+
     List<CoordinateMap> mapsToTry;
     if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
       mapsToTry = (mapJson['halfSheets'] as List)

@@ -155,13 +155,17 @@ class CoordinateMapOmrService {
         double confidence = 0;
 
         if (bestFill > fillThreshold) {
-          answer = bestOption;
           // Count how many are above threshold
-          final filledCount =
-              fillRatios.values.where((f) => f > fillThreshold).length;
-          if (filledCount > 1) {
-            confidence = 0.5; // Ambiguous
+          final filledOptions = fillRatios.entries
+              .where((e) => e.value > fillThreshold)
+              .toList();
+
+          if (filledOptions.length > 1) {
+            // Multiple marks detected — invalid response, requires teacher review
+            answer = '[MULTIPLE]';
+            confidence = 0;
           } else {
+            answer = bestOption;
             confidence = _fillConfidence(bestFill, fillThreshold);
           }
         } else if (bestFill > pencilThreshold) {

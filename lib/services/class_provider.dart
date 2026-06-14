@@ -3,6 +3,18 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/class_info.dart';
 import '../models/student.dart';
+import '../config/integrity_metadata_keys.dart';
+
+/// Result of checking whether a class can be deleted.
+class ClassDeletionCheck {
+  final bool canDelete;
+  final List<String> blockingReasons;
+
+  const ClassDeletionCheck({
+    required this.canDelete,
+    required this.blockingReasons,
+  });
+}
 
 /// Manages class profiles — the primary organizational unit.
 ///
@@ -111,6 +123,61 @@ class ClassProvider extends ChangeNotifier {
       debugPrint('ClassProvider: updateClass failed ($e)');
       return false;
     }
+  }
+
+  // ── Dependency Check ────────────────────────────────────────────────
+
+  /// Check if a class can be safely deleted.
+  ///
+  /// Returns blocking reasons if deletion is not safe.
+  ClassDeletionCheck canDeleteClass(String classId) {
+    final cls = _classes.firstWhere((c) => c.id == classId, orElse: () => ClassInfo(name: '', ownerId: ''));
+    if (cls.id.isEmpty) {
+      return const ClassDeletionCheck(canDelete: true, blockingReasons: []);
+    }
+
+    final reasons = <String>[];
+
+    // Check for students in the class
+    if (cls.studentIds.isNotEmpty) {
+      reasons.add('${cls.studentIds.length} student(s) still in this class. Remove them first.');
+    }
+
+    // Check for assessments linked to this class
+    try {
+      final assessBox = Hive.box('assessments');
+      for (final key in assessBox.keys) {
+        final data = assessBox.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['className'] == cls.displayName) {
+          reasons.add('Assessment "${map['title'] ?? 'Unknown'}" is linked to this class.');
+          break; // One assessment is enough to block
+        }
+      }
+    } catch (_) {}
+
+    // Check for grading drafts
+    try {
+      final draftBox = Hive.box('grading_drafts');
+      for (final key in draftBox.keys) {
+        final data = draftBox.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['metadata'] is Map) {
+          final meta = Map<String, dynamic>.from(map['metadata']);
+          if (meta['classId'] == classId) {
+            reasons.add('Grading draft exists for this class.');
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    return ClassDeletionCheck(
+      canDelete: reasons.isEmpty,
+      blockingReasons: reasons,
+    );
   }
 
   // ── Delete ────────────────────────────────────────────────────────

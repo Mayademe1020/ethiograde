@@ -72,20 +72,34 @@ OmrResult _detectBubblesIsolate(_DetectBubblesParams params) {
       if (bestOption != null) {
         final filledOptions = optionFills.entries
             .where((e) => e.value > scaledTemplate.fillThreshold)
-            .length;
+            .toList();
 
-        final confidence = filledOptions > 1
-            ? 0.5
-            : _fillConfidence(bestFill, scaledTemplate.fillThreshold);
-
-        detectedAnswers.add(
-          OmrAnswer(
-            questionNumber: qi + 1,
-            answer: bestOption,
-            confidence: confidence,
-            fillRatio: bestFill,
-          ),
-        );
+        if (filledOptions.length > 1) {
+          // Multiple marks detected — invalid response, requires teacher review
+          // Preserve original marks for inspection
+          final markedOptions = filledOptions
+              .map((e) => '${e.key}(${(e.value * 100).toStringAsFixed(0)}%)')
+              .join(',');
+          detectedAnswers.add(
+            OmrAnswer(
+              questionNumber: qi + 1,
+              answer: '[MULTIPLE]',
+              confidence: 0,
+              fillRatio: bestFill,
+              flagged: true,
+            ),
+          );
+        } else {
+          final confidence = _fillConfidence(bestFill, scaledTemplate.fillThreshold);
+          detectedAnswers.add(
+            OmrAnswer(
+              questionNumber: qi + 1,
+              answer: bestOption,
+              confidence: confidence,
+              fillRatio: bestFill,
+            ),
+          );
+        }
       } else {
         final mostFilled = optionFills.entries.reduce(
           (a, b) => a.value > b.value ? a : b,

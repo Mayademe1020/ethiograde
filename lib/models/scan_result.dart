@@ -69,8 +69,38 @@ class ScanResult {
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
 
-  bool get needsReview =>
-      confidence < 0.7 || answers.any((a) => a.confidence < 0.6);
+  /// Whether this result still requires teacher action.
+  ///
+  /// Returns true only for UNRESOLVED issues. Resolved items are excluded.
+  /// Uses centralized resolution logic — not duplicated in widgets.
+  ///
+  /// This getter specifically checks for low-confidence answers.
+  /// Unmatched students and other issues are checked separately.
+  bool get needsReview {
+    // If teacher has explicitly reviewed this result, it's resolved
+    if (status == ScanStatus.reviewed) return false;
+
+    // Check metadata-based resolution flags
+    if (metadata['teacherReviewed'] == true) return false;
+    if (metadata['batchReviewResolution'] != null) return false;
+    if (metadata['duplicateReviewed'] == true) return false;
+    if (metadata['studentMatchResolved'] == true) return false;
+
+    // Unresolved low-confidence overall
+    if (confidence < 0.7) return true;
+
+    // Unresolved low-confidence on individual answers
+    if (answers.any((a) => a.confidence < 0.6)) return true;
+
+    // Multiple-mark responses detected (confidence 0 from OMR)
+    if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
+
+    return false;
+  }
+
+  /// Whether this result has an unmatched student.
+  bool get isUnmatched =>
+      studentId.isEmpty || studentName.trim().isEmpty;
 
   Map<String, dynamic> toMap() => {
     'id': id,
