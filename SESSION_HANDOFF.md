@@ -3,7 +3,7 @@
 Created: 2026-06-13
 Updated: 2026-06-14
 Branch: `codex/review-queue-v2`
-HEAD: `4121f02`
+HEAD: `5100619`
 
 ---
 
@@ -101,20 +101,71 @@ Gradeflow exists to help teachers reduce repetitive exam-marking work from hours
 flutter test --reporter compact → 996 pass / 29 fail (pre-existing)
 ```
 
+---
+
+## C3. P0 Release-Critical Correctness (Completed)
+
+### Commits
+
+- `86b7701` — `fix: P0 release-critical correctness and data-integrity tranche`
+- `5100619` — `fix: complete P0 integration — gate, matching, review, marks, template, deletion`
+
+### What was implemented
+
+**P0.1 — Student matching precedence:**
+- Exact student ID beats fuzzy name
+- 5-step precedence: ID → exact name → normalized name → first name → fuzzy → manual
+- 17 tests passing
+
+**P0.2 — Centralized review-state resolver:**
+- `ScanResult.needsReview` excludes resolved items (teacherReviewed, batchReviewResolution, duplicateReviewed, studentMatchResolved)
+- Added `isUnmatched` getter for separate student-assignment tracking
+- 12 tests passing
+
+**P0.3 — Multiple-mark handling:**
+- OMR services return `[MULTIPLE]` when >1 bubble exceeds threshold
+- Confidence=0, requires teacher review
+- Never silently picks first detected answer
+- 9 tests passing
+
+**P0.4 — Wrong-template protection:**
+- Batch processor validates coordinate map assessmentId
+- Wrong template rejected, missing ID warned
+- 7 tests passing
+
+**P0.5 — Safe class deletion:**
+- `canDeleteClass()` checks students, assessments, drafts
+- Returns blocking reasons with actionable text
+- 5 tests passing
+
+**P0.6 — Unified completion gate:**
+- `AssessmentCompletionGate` with 14 checks
+- Each check has severity, explanation, action route/label
+- Wired into ReviewScreen and GradeReviewScreen
+- 17 integration tests + 9 unit tests passing
+
+### Test results
+
+```
+P0 tests: 78/78 pass
+Full suite: 1071 pass / 29 fail (pre-existing)
+```
+
 ### What is NOT verified
 
 - Real-device Android behavior
-- Classroom teacher feedback
-- 50-paper batch recalculation performance
-- Essay rescoring with deleted images
+- Physical paper scanning
+- Camera permission on real device
+- APK build (Android SDK not installed)
 
 ### Next tasks (in order)
 
-1. Real-device smoke test (script provided in ANSWER_KEY_SAFETY_ARCHITECTURE.md)
-2. Fix resolved vs unresolved review state (`requiresTeacherAction` resolver)
-3. Match exact student ID before fuzzy name in StudentMatcher
-4. Add scanned-master workflow to Quick Grade
-5. Redesign grading entry around teacher decisions (Phase 2)
+1. **Install Android SDK** — required for APK build
+2. Build and install APK on device
+3. Run real-device smoke test
+4. Fix resolved vs unresolved review state (`requiresTeacherAction` resolver)
+5. Add scanned-master workflow to Quick Grade
+6. Redesign grading entry around teacher decisions (Phase 2)
 
 ---
 
@@ -292,7 +343,7 @@ Failure: "AssessmentCard shows English status label" — test expects "Completed
 ### Full suite
 
 ```
-flutter test --reporter compact → 920 pass / 29 fail
+flutter test --reporter compact → 1071 pass / 29 fail
 ```
 
 **29 failing tests (all pre-existing, confirmed identical at HEAD b06b3d5):**
