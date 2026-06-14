@@ -22,6 +22,7 @@ import '../../services/correction_learner.dart';
 import '../../services/answer_key_fingerprint_service.dart';
 import '../../services/answer_key_recalculation_service.dart';
 import '../../services/integrity_state_resolver.dart';
+import '../../services/assessment_completion_gate.dart';
 import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
@@ -593,59 +594,86 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final results = _results;
     if (results == null || results.isEmpty) return true;
 
-    // Check for outdated results (answer key changed since scoring)
+    // Use centralized completion gate
     final assessment = results.isNotEmpty
         ? context.read<AssessmentProvider>().getAssessmentById(results.first.assessmentId)
         : null;
-    if (assessment != null) {
-      final resolver = const IntegrityStateResolver();
-      final outdatedCount = results.where((r) =>
-        resolver.resolve(result: r, assessment: assessment) == IntegrityState.outdated
-      ).length;
-      if (outdatedCount > 0) {
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Outdated scores'),
-            content: Text(
-              '$outdatedCount paper(s) have outdated scores from a previous answer key. '
-              'Recalculate before final save.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Review'),
-              ),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _openAnswerKeyEditor(assessment);
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Recalculate'),
-              ),
-            ],
-          ),
-        );
-        return false;
-      }
-    }
+    if (assessment == null) return true;
 
-    final queue = _ReviewQueue.fromResults(results, assessment: assessment);
-    if (!queue.hasBlockingIssues) return true;
+    final gate = const AssessmentCompletionGate();
+    final check = gate.check(assessment: assessment, results: results);
+
+    if (check.isReady) return true;
+
+    // Show blocking issues dialog
+    final blockingItems = check.blocking;
+    final attentionItems = check.needsAttention;
+
+    if (!mounted) return false;
 
     final action = await showDialog<_ReviewSaveAction>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Review issues remain'),
-        content: Text(
-          '${queue.blockingCount} paper(s) still need attention. '
-          'You can save a draft now, keep reviewing, or final save anyway.',
+        title: const Text('Assessment not ready'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (blockingItems.isNotEmpty) ...[
+                const Text('Blocking issues:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...blockingItems.map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.block, size: 16, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                            if (item.explanation != null)
+                              Text(item.explanation!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+              if (attentionItems.isNotEmpty) ...[
+                const Text('Needs attention:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ...attentionItems.map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
+                            if (item.explanation != null)
+                              Text(item.explanation!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, _ReviewSaveAction.keepReviewing),
+            onPressed: () => Navigator.pop(context, _ReviewSaveAction.keepReviewing),
             child: const Text('Review remaining'),
           ),
           OutlinedButton.icon(
@@ -653,11 +681,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
             icon: const Icon(Icons.save_outlined),
             label: const Text('Save draft'),
           ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, _ReviewSaveAction.finalSaveAnyway),
-            child: const Text('Final save anyway'),
-          ),
+          if (blockingItems.isEmpty)
+            FilledButton(
+              onPressed: () => Navigator.pop(context, _ReviewSaveAction.finalSaveAnyway),
+              child: const Text('Final save anyway'),
+            ),
         ],
       ),
     );
@@ -665,7 +693,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (!mounted) return false;
     if (action == _ReviewSaveAction.finalSaveAnyway) return true;
     if (action == _ReviewSaveAction.draft) {
-      await _saveReviewDraft(queue);
+      await _saveReviewDraft(_ReviewQueue.fromResults(results, assessment: assessment));
     }
     return false;
   }

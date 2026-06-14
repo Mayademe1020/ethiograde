@@ -15,6 +15,7 @@ import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
+import '../../services/assessment_completion_gate.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
 ///
@@ -203,6 +204,37 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
   }
 
   void _confirmAndSave(BuildContext context) async {
+    // Check completion gate before saving
+    final gate = const AssessmentCompletionGate();
+    final check = gate.check(assessment: assessment, results: results);
+
+    if (!check.isReady) {
+      final blockingLabels = check.blocking.map((i) => '• ${i.label}').join('\n');
+      if (context.mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Issues remain'),
+            content: Text(
+              'The following blocking issues exist:\n\n$blockingLabels\n\n'
+              'Save anyway?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save anyway'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+      }
+    }
+
     // Pull real teacher identity from TeacherProvider
     final teacher = context.read<TeacherProvider>().activeTeacher;
     final teacherName = teacher?.name ?? ('Unknown Teacher');

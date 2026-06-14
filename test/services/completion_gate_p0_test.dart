@@ -169,7 +169,9 @@ void main() {
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: null, points: 1),
       ]);
       final results = [
-        _makeResult(studentId: '', studentName: ''),
+        _makeResult(studentId: '', studentName: '', answers: [
+          AnswerMatch(questionNumber: 1, detectedAnswer: 'A', correctAnswer: '', isCorrect: false, score: 0, maxScore: 1, confidence: 0.95),
+        ]),
       ];
 
       final gate = const AssessmentCompletionGate();
