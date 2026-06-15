@@ -69,7 +69,7 @@ class _CameraScreenState extends State<CameraScreen>
   String _lastCaptureDetail = '';
   String? _captureErrorMessage;
   VoidCallback? _captureErrorOnRetry;
-  VoidCallback? _captureErrorOnManualEntry;
+  Assessment? _captureErrorAssessment;
 
   late final CameraProcessor _processor;
 
@@ -88,7 +88,7 @@ class _CameraScreenState extends State<CameraScreen>
             _lastCaptureDetail = detail;
             _captureErrorMessage = null;
             _captureErrorOnRetry = null;
-            _captureErrorOnManualEntry = null;
+            _captureErrorAssessment = null;
           });
         },
         onGuideStateChanged: (state) {
@@ -104,11 +104,11 @@ class _CameraScreenState extends State<CameraScreen>
           if (mounted) setState(() => _batchStarted = started);
         },
         onShowDuplicateDialog: () => showDuplicateDialog(context),
-        onCaptureError: (message, onRetry, onManualEntry) {
+        onCaptureError: (message, onRetry, assessment) {
           if (mounted) setState(() {
             _captureErrorMessage = message;
             _captureErrorOnRetry = onRetry;
-            _captureErrorOnManualEntry = onManualEntry;
+            _captureErrorAssessment = assessment;
             _lastCaptureTitle = '';
             _lastCaptureDetail = '';
           });
@@ -319,7 +319,7 @@ class _CameraScreenState extends State<CameraScreen>
                       onCaptureMasterKey: _captureMasterKey,
                       captureErrorMessage: _captureErrorMessage,
                       captureErrorOnRetry: _captureErrorOnRetry,
-                      captureErrorOnManualEntry: _captureErrorOnManualEntry,
+                      captureErrorAssessment: _captureErrorAssessment,
                     ),
                   ),
               ],

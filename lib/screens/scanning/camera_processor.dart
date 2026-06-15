@@ -30,7 +30,7 @@ class CameraProcessorCallbacks {
   final void Function(List<ScanResult> results) onAutoGradedResultsChanged;
   final void Function(bool batchStarted) onBatchStartedChanged;
   final Future<bool> Function() onShowDuplicateDialog;
-  final void Function(String message, VoidCallback onRetry, VoidCallback onManualEntry)? onCaptureError;
+  final void Function(String message, VoidCallback onRetry, Assessment assessment)? onCaptureError;
 
   const CameraProcessorCallbacks({
     required this.onCapturingChanged,
@@ -338,12 +338,9 @@ class CameraProcessor {
         final onRetry = () {
           callbacks.onCaptureFeedbackChanged('Retrying...', 'Place paper in frame');
         };
-        final onManualEntry = () {
-          callbacks.onCaptureFeedbackChanged('Manual entry', 'Enter score for this paper');
-        };
 
         if (callbacks.onCaptureError != null) {
-          callbacks.onCaptureError!(errorMessage, onRetry, onManualEntry);
+          callbacks.onCaptureError!(errorMessage, onRetry, assessment);
         } else {
           callbacks.onCaptureFeedbackChanged(errorMessage, 'Tap capture to retry');
         }

@@ -18,7 +18,7 @@ class CameraControls extends StatelessWidget {
     required this.onCaptureMasterKey,
     this.captureErrorMessage,
     this.captureErrorOnRetry,
-    this.captureErrorOnManualEntry,
+    this.captureErrorAssessment,
   });
 
   final bool isCapturing;
@@ -32,7 +32,7 @@ class CameraControls extends StatelessWidget {
   final VoidCallback onCaptureMasterKey;
   final String? captureErrorMessage;
   final VoidCallback? captureErrorOnRetry;
-  final VoidCallback? captureErrorOnManualEntry;
+  final dynamic captureErrorAssessment;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +141,15 @@ class CameraControls extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: captureErrorOnManualEntry,
+                          onPressed: captureErrorAssessment != null
+                              ? () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/quick_enter',
+                                    arguments: captureErrorAssessment,
+                                  );
+                                }
+                              : null,
                           icon: const Icon(Icons.edit, size: 16),
                           label: const Text('Enter Score'),
                           style: OutlinedButton.styleFrom(
