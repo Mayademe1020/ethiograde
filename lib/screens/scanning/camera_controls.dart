@@ -16,6 +16,9 @@ class CameraControls extends StatelessWidget {
     required this.onFinishBatch,
     required this.onViewCaptured,
     required this.onCaptureMasterKey,
+    this.captureErrorMessage,
+    this.captureErrorOnRetry,
+    this.captureErrorOnManualEntry,
   });
 
   final bool isCapturing;
@@ -27,6 +30,9 @@ class CameraControls extends StatelessWidget {
   final VoidCallback onFinishBatch;
   final VoidCallback onViewCaptured;
   final VoidCallback onCaptureMasterKey;
+  final String? captureErrorMessage;
+  final VoidCallback? captureErrorOnRetry;
+  final VoidCallback? captureErrorOnManualEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -82,16 +88,81 @@ class CameraControls extends StatelessWidget {
   }
 
   Widget _buildBatchControls() {
+    final hasError = captureErrorMessage != null;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CameraAssistantPanel(
-            title: lastCaptureTitle.isNotEmpty ? lastCaptureTitle : 'Align paper in frame',
-            detail: lastCaptureDetail.isNotEmpty ? lastCaptureDetail : 'Then tap capture',
-            capturedCount: capturedImages.length,
-          ),
+          if (hasError) ...[
+            // Error state: show error message with retry and manual buttons
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.red.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          captureErrorMessage!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: captureErrorOnRetry,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Retry'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: captureErrorOnManualEntry,
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Enter Score'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Normal state: show assistant panel
+            CameraAssistantPanel(
+              title: lastCaptureTitle.isNotEmpty ? lastCaptureTitle : 'Align paper in frame',
+              detail: lastCaptureDetail.isNotEmpty ? lastCaptureDetail : 'Then tap capture',
+              capturedCount: capturedImages.length,
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,

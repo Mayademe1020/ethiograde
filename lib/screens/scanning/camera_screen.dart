@@ -67,6 +67,9 @@ class _CameraScreenState extends State<CameraScreen>
   final List<ScanResult> _autoGradedResults = [];
   String _lastCaptureTitle = '';
   String _lastCaptureDetail = '';
+  String? _captureErrorMessage;
+  VoidCallback? _captureErrorOnRetry;
+  VoidCallback? _captureErrorOnManualEntry;
 
   late final CameraProcessor _processor;
 
@@ -80,7 +83,13 @@ class _CameraScreenState extends State<CameraScreen>
           if (mounted) setState(() => _isCapturing = capturing);
         },
         onCaptureFeedbackChanged: (title, detail) {
-          if (mounted) setState(() { _lastCaptureTitle = title; _lastCaptureDetail = detail; });
+          if (mounted) setState(() {
+            _lastCaptureTitle = title;
+            _lastCaptureDetail = detail;
+            _captureErrorMessage = null;
+            _captureErrorOnRetry = null;
+            _captureErrorOnManualEntry = null;
+          });
         },
         onGuideStateChanged: (state) {
           if (mounted) setState(() => _guideState = state);
@@ -95,6 +104,15 @@ class _CameraScreenState extends State<CameraScreen>
           if (mounted) setState(() => _batchStarted = started);
         },
         onShowDuplicateDialog: () => showDuplicateDialog(context),
+        onCaptureError: (message, onRetry, onManualEntry) {
+          if (mounted) setState(() {
+            _captureErrorMessage = message;
+            _captureErrorOnRetry = onRetry;
+            _captureErrorOnManualEntry = onManualEntry;
+            _lastCaptureTitle = '';
+            _lastCaptureDetail = '';
+          });
+        },
       ),
     );
     _initializeCamera();
@@ -299,6 +317,9 @@ class _CameraScreenState extends State<CameraScreen>
                         capturedImages: _capturedImages,
                       ),
                       onCaptureMasterKey: _captureMasterKey,
+                      captureErrorMessage: _captureErrorMessage,
+                      captureErrorOnRetry: _captureErrorOnRetry,
+                      captureErrorOnManualEntry: _captureErrorOnManualEntry,
                     ),
                   ),
               ],

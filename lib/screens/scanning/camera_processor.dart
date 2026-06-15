@@ -30,6 +30,7 @@ class CameraProcessorCallbacks {
   final void Function(List<ScanResult> results) onAutoGradedResultsChanged;
   final void Function(bool batchStarted) onBatchStartedChanged;
   final Future<bool> Function() onShowDuplicateDialog;
+  final void Function(String message, VoidCallback onRetry, VoidCallback onManualEntry)? onCaptureError;
 
   const CameraProcessorCallbacks({
     required this.onCapturingChanged,
@@ -39,6 +40,7 @@ class CameraProcessorCallbacks {
     required this.onAutoGradedResultsChanged,
     required this.onBatchStartedChanged,
     required this.onShowDuplicateDialog,
+    this.onCaptureError,
   });
 }
 
@@ -325,17 +327,62 @@ class CameraProcessor {
         assessment: assessment,
       );
 
-      callbacks.onCaptureFeedbackChanged(
-        result.status == ScanStatus.graded
-            ? '${result.percentage.toStringAsFixed(0)}%'
-            : result.status.name,
-        result.studentName.isNotEmpty ? result.studentName : 'Paper captured',
-      );
+      if (result.status == ScanStatus.graded) {
+        callbacks.onCaptureFeedbackChanged(
+          '${result.percentage.toStringAsFixed(0)}%',
+          result.studentName.isNotEmpty ? result.studentName : 'Paper captured',
+        );
+        await _speakAutoResult(result);
+      } else {
+        final errorMessage = _translateError(result);
+        final onRetry = () {
+          callbacks.onCaptureFeedbackChanged('Retrying...', 'Place paper in frame');
+        };
+        final onManualEntry = () {
+          callbacks.onCaptureFeedbackChanged('Manual entry', 'Enter score for this paper');
+        };
 
-      await _speakAutoResult(result);
+        if (callbacks.onCaptureError != null) {
+          callbacks.onCaptureError!(errorMessage, onRetry, onManualEntry);
+        } else {
+          callbacks.onCaptureFeedbackChanged(errorMessage, 'Tap capture to retry');
+        }
+      }
     } catch (e) {
       debugPrint('Auto-grade error: $e');
+      callbacks.onCaptureFeedbackChanged(
+        'Scanning failed',
+        'Tap capture to try again',
+      );
     }
+  }
+
+  String _translateError(ScanResult result) {
+    final error = result.metadata['error'] as String?;
+
+    if (error == null) {
+      return 'Could not read answers. Try scanning again.';
+    }
+
+    if (error == 'Image file not found') {
+      return 'Photo not saved. Try scanning again.';
+    }
+
+    if (error.startsWith('Processing error:')) {
+      final type = error.substring('Processing error:'.length).trim();
+      if (type.contains('FileSystemException')) {
+        return 'File error. Try again.';
+      }
+      if (type.contains('OutOfMemoryError')) {
+        return 'Phone memory low. Close other apps and retry.';
+      }
+      if (type.contains('TimeoutException')) {
+        return 'Scanning took too long. Improve lighting and retry.';
+      }
+      return 'Scanning failed. Try again.';
+    }
+
+    return 'Scanning failed. Try again.';
   }
 
   Future<void> _speakAutoResult(ScanResult result) async {
