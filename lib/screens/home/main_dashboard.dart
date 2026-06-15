@@ -198,7 +198,7 @@ class _DashboardHome extends StatelessWidget {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 100,
+                height: 130,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
