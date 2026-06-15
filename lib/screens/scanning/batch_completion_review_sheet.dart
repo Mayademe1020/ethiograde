@@ -87,9 +87,9 @@ Future<bool?> showBatchCompletionReview({
                   ),
                   BatchReviewMetric(
                     icon: Icons.report_gmailerrorred_outlined,
-                    label: 'Low-confidence papers',
-                    value: '${summary.lowConfidencePapers}',
-                    color: summary.lowConfidencePapers == 0
+                    label: 'Papers needing action',
+                    value: '${summary.papersNeedingAction}',
+                    color: summary.papersNeedingAction == 0
                         ? AppTheme.primaryGreen
                         : AppTheme.warning,
                   ),
@@ -109,13 +109,6 @@ Future<bool?> showBatchCompletionReview({
                       color: summary.missingStudents.isEmpty
                           ? AppTheme.primaryGreen
                           : AppTheme.warning,
-                    ),
-                  if (noRoster)
-                    BatchReviewMetric(
-                      icon: Icons.label_outline,
-                      label: 'Unassigned papers',
-                      value: '${summary.unassignedPapers}',
-                      color: AppTheme.info,
                     ),
                   Flexible(
                     child: SingleChildScrollView(

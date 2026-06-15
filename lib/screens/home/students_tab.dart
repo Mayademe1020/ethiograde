@@ -76,7 +76,7 @@ class StudentsTab extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Add students manually or import from Excel',
+            'Add students to get started',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -86,7 +86,14 @@ class StudentsTab extends StatelessWidget {
             onPressed: () =>
                 Navigator.pushNamed(context, AppRoutes.addStudent),
             icon: const Icon(Icons.person_add),
-            label: const Text('Add Student'),
+            label: const Text('Add Students'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.importExcel),
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Import from Excel'),
           ),
         ],
       ),

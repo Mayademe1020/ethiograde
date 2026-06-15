@@ -10,7 +10,7 @@ import '../../services/teacher_provider.dart';
 import '../../services/class_provider.dart';
 import '../../models/class_info.dart';
 import '../../widgets/assessment_card.dart';
-import '../../widgets/product_components.dart';
+import '../../widgets/ui_components.dart';
 import '../../services/draft_service.dart';
 import '../../models/scan_result.dart';
 import '../classes/create_class_sheet.dart';
@@ -383,10 +383,9 @@ class _DashboardHome extends StatelessWidget {
 
   void _resumeDraft(BuildContext context, Assessment assessment) {
     final drafts = DraftService().getAllDrafts();
-    final draft = drafts.firstWhere(
-      (d) => d.assessmentId == assessment.id,
-      orElse: () => drafts.first,
-    );
+    final matches = drafts.where((d) => d.assessmentId == assessment.id);
+    if (matches.isEmpty || !context.mounted) return;
+    final draft = matches.first;
 
     final completedResults = draft.completedResults
         .map((m) => ScanResult.fromMap(Map<String, dynamic>.from(m)))
@@ -481,38 +480,51 @@ class _EmptyClassesCard extends StatelessWidget {
       onTap: onCreate,
       color: cs.primaryContainer.withOpacity(0.3),
       borderColor: cs.primary.withOpacity(0.15),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.group_add, color: cs.primary, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Create your first class',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface,
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Group students by grade, subject, or section',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                child: Icon(Icons.group_add, color: cs.primary, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Create your first class',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Group students by grade, subject, or section',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              Icon(Icons.arrow_forward_ios, size: 14, color: cs.primary),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Create First Class'),
             ),
           ),
-          Icon(Icons.arrow_forward_ios, size: 14, color: cs.primary),
         ],
       ),
     );
@@ -611,8 +623,17 @@ class _EmptyAssessments extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Tap "Grade Papers" above to start',
+                  'Create a test or quiz',
                   style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.createAssessment,
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Create First Assessment'),
                 ),
               ],
             ),

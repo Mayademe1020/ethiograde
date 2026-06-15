@@ -2221,7 +2221,6 @@ class _SideBySideReviewState extends State<SideBySideReview> {
   // Mutable copy of the result — override buttons modify this.
   late ScanResult _result;
   bool _initialized = false;
-  bool _isPlayingVoice = false;
   bool _isSpeakingTts = false; // TTS reading score aloud
 
   // Fix-wrong mode: show only incorrect/MISSING answers
@@ -2315,11 +2314,6 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               }
             },
             tooltip: _isSpeakingTts ? 'Stop' : 'Read Score',
-          ),
-          IconButton(
-            icon: const Icon(Icons.mic),
-            onPressed: () => _recordVoiceNote(),
-            tooltip: 'Voice Note',
           ),
         ],
       ),
@@ -2439,58 +2433,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'Write feedback for this student...',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.mic),
-                  onPressed: () => _recordVoiceNote(),
-                ),
               ),
             ),
             const SizedBox(height: 16),
-
-            // Voice note indicator with playback
-            if (result.voiceNotePath != null)
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _toggleVoicePlayback(),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _isPlayingVoice
-                        ? AppTheme.primaryGreen.withOpacity(0.1)
-                        : AppTheme.info.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isPlayingVoice ? Icons.stop_circle : Icons.play_circle,
-                        color: _isPlayingVoice
-                            ? AppTheme.primaryGreen
-                            : AppTheme.info,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _isPlayingVoice
-                              ? ('Playing...')
-                              : ('Tap to play voice note'),
-                          style: TextStyle(
-                            color: _isPlayingVoice
-                                ? AppTheme.primaryGreen
-                                : AppTheme.info,
-                          ),
-                        ),
-                      ),
-                      if (_isPlayingVoice)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
 
             const SizedBox(height: 24),
 
@@ -3261,70 +3206,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
     );
   }
 
-  // ── Voice note ──────────────────────────────────────────────────
-
-  void _recordVoiceNote() async {
-    if (_voice.isRecording) {
-      final path = await _voice.stopRecording();
-      if (path != null && mounted) {
-        setState(() {
-          _result = _result.copyWith(voiceNotePath: path);
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Voice note saved')));
-      }
-    } else {
-      await _voice.startRecording();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Recording...')));
-      }
-    }
-  }
-
-  /// Toggle voice note playback (play / stop).
-  Future<void> _toggleVoicePlayback() async {
-    final path = _result.voiceNotePath;
-    if (path == null) return;
-
-    if (_isPlayingVoice) {
-      await _voice.stopPlayback();
-      if (mounted) {
-        setState(() => _isPlayingVoice = false);
-      }
-    } else {
-      try {
-        if (!VoiceService.fileExists(path)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Voice note file not found')),
-            );
-          }
-          return;
-        }
-        setState(() => _isPlayingVoice = true);
-        await _voice.playRecording(path);
-        // Playback finished naturally
-        if (mounted) {
-          setState(() => _isPlayingVoice = false);
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isPlayingVoice = false);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Could not play voice note')));
-        }
-      }
-    }
-  }
-
   @override
   void dispose() {
     _voice.stopSpeaking();
-    _voice.stopPlayback();
     _commentController.dispose();
     super.dispose();
   }

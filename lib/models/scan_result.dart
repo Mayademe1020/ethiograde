@@ -69,22 +69,57 @@ class ScanResult {
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
 
+  /// Whether this result has been resolved by the teacher.
+  ///
+  /// A result is resolved when any of these conditions hold:
+  /// - status is ScanStatus.reviewed
+  /// - metadata['teacherReviewed'] is true
+  /// - metadata['batchReviewResolution'] is non-null
+  /// - metadata['duplicateReviewed'] is true
+  /// - metadata['studentMatchResolved'] is true
+  bool get isResolved {
+    if (status == ScanStatus.reviewed) return true;
+    if (metadata['teacherReviewed'] == true) return true;
+    if (metadata['batchReviewResolution'] != null) return true;
+    if (metadata['duplicateReviewed'] == true) return true;
+    if (metadata['studentMatchResolved'] == true) return true;
+    return false;
+  }
+
   /// Whether this result still requires teacher action.
   ///
   /// Returns true only for UNRESOLVED issues. Resolved items are excluded.
-  /// Uses centralized resolution logic — not duplicated in widgets.
+  /// This is the canonical resolver — use this instead of checking
+  /// needsReview and isUnmatched separately.
   ///
-  /// This getter specifically checks for low-confidence answers.
-  /// Unmatched students and other issues are checked separately.
-  bool get needsReview {
-    // If teacher has explicitly reviewed this result, it's resolved
-    if (status == ScanStatus.reviewed) return false;
+  /// Combines:
+  /// - Low-confidence answers (needsReview)
+  /// - Unmatched student identity (isUnmatched)
+  bool get requiresTeacherAction {
+    if (isResolved) return false;
 
-    // Check metadata-based resolution flags
-    if (metadata['teacherReviewed'] == true) return false;
-    if (metadata['batchReviewResolution'] != null) return false;
-    if (metadata['duplicateReviewed'] == true) return false;
-    if (metadata['studentMatchResolved'] == true) return false;
+    // Unresolved low-confidence overall
+    if (confidence < 0.7) return true;
+
+    // Unresolved low-confidence on individual answers
+    if (answers.any((a) => a.confidence < 0.6)) return true;
+
+    // Multiple-mark responses detected (confidence 0 from OMR)
+    if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
+
+    // Unresolved unmatched student
+    if (studentId.isEmpty || studentName.trim().isEmpty) return true;
+
+    return false;
+  }
+
+  /// Whether this result still requires teacher review (low-confidence only).
+  ///
+  /// Returns true only for UNRESOLVED low-confidence issues.
+  /// Unmatched students and other issues are checked separately.
+  /// Prefer [requiresTeacherAction] for unified checking.
+  bool get needsReview {
+    if (isResolved) return false;
 
     // Unresolved low-confidence overall
     if (confidence < 0.7) return true;

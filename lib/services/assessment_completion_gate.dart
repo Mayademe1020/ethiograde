@@ -103,7 +103,7 @@ class AssessmentCompletionGate {
       ));
     }
 
-    // 4. Unresolved teacher-review items (low confidence, unreadable, etc.)
+    // 4. Unresolved teacher-review items (low confidence, multiple marks)
     final unresolvedCount = results.where((r) => r.needsReview).length;
     if (unresolvedCount > 0) {
       items.add(CompletionItem(

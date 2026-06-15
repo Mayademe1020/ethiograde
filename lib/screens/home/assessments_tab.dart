@@ -6,7 +6,7 @@ import '../../config/routes.dart';
 import '../../services/assessment_provider.dart';
 import '../../models/assessment.dart';
 import '../../widgets/assessment_card.dart';
-import '../../widgets/product_components.dart';
+import '../../widgets/ui_components.dart';
 
 class AssessmentsTab extends StatelessWidget {
   const AssessmentsTab({super.key});

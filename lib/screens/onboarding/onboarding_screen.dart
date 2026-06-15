@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -257,8 +258,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     }
 
-    // Seed demo data so the dashboard isn't empty on first launch
-    if (mounted) {
+    // Seed demo data in debug builds so the dashboard isn't empty on first launch
+    if (mounted && kDebugMode) {
       await DemoDataService.seed(
         classProvider: context.read<ClassProvider>(),
         studentProvider: context.read<StudentProvider>(),
