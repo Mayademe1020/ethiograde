@@ -17,6 +17,22 @@ class AnswerParser {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return null;
 
+    // ── Format 1: Answer BEFORE question number (Ethiopian format) ──
+    // "B 1. What is..." → Q1, answer B
+    // "AC 4. Name two..." → Q4, answer A,C
+    // Pattern: 1-2 letters + space + digit + rest
+    final format1 = RegExp(r'^([a-eA-E]{1,2})\s+(\d+)\s*[.\-):]?\s*(.+)$');
+    final fmt1Match = format1.firstMatch(trimmed);
+    if (fmt1Match != null) {
+      final answerRaw = fmt1Match.group(1)!;
+      final number = int.tryParse(fmt1Match.group(2)!);
+      if (number != null && number > 0 && number <= 200) {
+        // Normalize to uppercase, handle multi-letter (AC → A,C)
+        final answer = _normalizeMcqAnswer(answerRaw);
+        if (answer.isNotEmpty) return (number, answer);
+      }
+    }
+
     // Order matters: try most specific patterns first
     final patterns = <RegExp>[
       // "1. A" or "1-A" or "1) True" — standard format
@@ -47,6 +63,16 @@ class AnswerParser {
     }
 
     return null;
+  }
+
+  /// Normalize MCQ answer letters to canonical form.
+  /// "B" → "B", "b" → "B", "AC" → "A,C", "aC" → "A,C"
+  static String _normalizeMcqAnswer(String raw) {
+    final letters = raw.split('').where((c) => RegExp(r'[a-eA-E]').hasMatch(c)).toList();
+    if (letters.isEmpty) return '';
+    if (letters.length == 1) return letters.first.toUpperCase();
+    // Multiple letters → comma-separated
+    return letters.map((c) => c.toUpperCase()).join(',');
   }
 
   /// Extract the actual answer from text that may contain question content.

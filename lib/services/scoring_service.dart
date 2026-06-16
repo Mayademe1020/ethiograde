@@ -104,8 +104,22 @@ class ScoringService {
     if (detected == null || correct == null) return false;
 
     if (type == QuestionType.mcq || type == QuestionType.trueFalse) {
-      return _normalizeWhitespace(detected.toString()).toUpperCase() ==
-          _normalizeWhitespace(correct.toString()).toUpperCase();
+      final detectedNorm = _normalizeWhitespace(detected.toString()).toUpperCase();
+      final correctStr = correct.toString();
+
+      // Support multiple correct answers: "A,C" or List ["A", "C"]
+      if (correct is List) {
+        return correct.any((c) =>
+            _normalizeWhitespace(c.toString()).toUpperCase() == detectedNorm);
+      }
+
+      // Support comma-separated answers: "A,C" matches "A" or "C" or "A,C"
+      if (correctStr.contains(',')) {
+        final correctOptions = correctStr.split(',').map((s) => s.trim().toUpperCase()).toList();
+        return correctOptions.contains(detectedNorm);
+      }
+
+      return detectedNorm == _normalizeWhitespace(correctStr).toUpperCase();
     }
 
     if (type == QuestionType.matching) {
