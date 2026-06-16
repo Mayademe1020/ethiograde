@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Parses question-answer pairs from OCR-detected text.
 ///
 /// Extracted from OcrService for testability. Handles:
@@ -242,6 +244,12 @@ class AnswerParser {
 
     for (final region in regions) {
       final parsed = parseQuestionAnswer(region.text);
+      // DEBUG: Show what parser receives and what it extracts
+      if (parsed != null) {
+        debugPrint('PARSER: "${region.text}" → Q${parsed.$1} = ${parsed.$2}');
+      } else {
+        debugPrint('PARSER: "${region.text}" → NO MATCH');
+      }
       if (parsed != null) {
         answers.add(
           ParsedAnswer(

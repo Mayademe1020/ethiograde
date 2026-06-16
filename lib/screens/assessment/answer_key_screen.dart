@@ -19,10 +19,12 @@ enum _KeyChangeAction { recalculateNow, saveAndRecalculateLater, cancel }
 class AnswerKeyRouteArgs {
   final Assessment assessment;
   final bool returnToReview;
+  final bool returnToConfirmation;
 
   const AnswerKeyRouteArgs({
     required this.assessment,
     this.returnToReview = false,
+    this.returnToConfirmation = false,
   });
 }
 
@@ -269,6 +271,22 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     if (!keyChanged) {
       // No scoring change — save normally
       await provider.saveAssessment(assessment);
+
+      // Check if we should go to confirmation screen (new flow)
+      final args = ModalRoute.of(context)?.settings.arguments;
+      final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
+
+      if (returnToConfirmation) {
+        if (context.mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            AppRoutes.answerKeyConfirmation,
+            arguments: assessment,
+          );
+        }
+        return;
+      }
+
       if (returnToReview) {
         if (context.mounted) Navigator.pop(context, assessment);
         return;
@@ -290,6 +308,22 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     if (results.isEmpty) {
       // No results — save normally with incremented revision
       final updated = await provider.saveAnswerKeyChange(assessment);
+
+      // Check if we should go to confirmation screen (new flow)
+      final args = ModalRoute.of(context)?.settings.arguments;
+      final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
+
+      if (returnToConfirmation) {
+        if (context.mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            AppRoutes.answerKeyConfirmation,
+            arguments: updated,
+          );
+        }
+        return;
+      }
+
       if (returnToReview) {
         Navigator.pop(context, updated);
         return;

@@ -8,6 +8,7 @@ import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/settings_provider.dart';
+import 'answer_key_screen.dart';
 
 enum ExamDayStartMode { masterScan, noRoster, classList, manualKey }
 
@@ -359,15 +360,27 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     if (!mounted) return;
 
     if (_answerKeyMode == _AnswerKeyMode.scanMaster) {
-      Navigator.pushNamed(
+      // Navigate directly to camera in master key mode
+      Navigator.pushReplacementNamed(
         context,
-        AppRoutes.answerSheetSetup,
-        arguments: assessment,
+        AppRoutes.camera,
+        arguments: {
+          'assessment': assessment,
+          'scanMode': 'masterKey',
+        },
       );
       return;
     }
 
-    Navigator.pushNamed(context, AppRoutes.answerKey, arguments: assessment);
+    // Manual answer key — go to answer key screen, then confirmation
+    Navigator.pushReplacementNamed(
+      context,
+      AppRoutes.answerKey,
+      arguments: AnswerKeyRouteArgs(
+        assessment: assessment,
+        returnToConfirmation: true,
+      ),
+    );
   }
 
   List<Question> _buildQuestions() {

@@ -438,6 +438,8 @@ class OcrService {
       debugPrint(
         'OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°',
       );
+      // DEBUG: Show exactly what ML Kit detected
+      debugPrint('OCR RAW: ${regions.map((r) => '"${r.text}" (${r.confidence.toStringAsFixed(2)})').join(', ')}');
       return (regions: regions, skewAngle: skewDegrees);
     } catch (e, st) {
       debugPrint('OCR: recognition failed ($e)\n$st');

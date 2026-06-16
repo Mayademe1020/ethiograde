@@ -185,7 +185,22 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
       assessment: assessment,
     );
 
-    if (mounted) setState(() => _isProcessing = false);
+    if (mounted) {
+      setState(() => _isProcessing = false);
+
+      // After master key is confirmed, navigate to confirmation screen
+      if (_masterKeyReady && mounted) {
+        // Reload assessment to get updated answer key
+        final updatedAssessment = context.read<AssessmentProvider>().getAssessmentById(assessment.id);
+        if (updatedAssessment != null && mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            AppRoutes.answerKeyConfirmation,
+            arguments: updatedAssessment,
+          );
+        }
+      }
+    }
   }
 
 

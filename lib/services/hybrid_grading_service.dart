@@ -105,6 +105,8 @@ class HybridGradingService {
       // ── Step 2: Run OCR and OMR ──
       // No parallelism — sequential is safe for 2GB devices
       final extractionResult = await _ocr.extractTextRegions(enhancedPath);
+      debugPrint('PIPELINE: OCR returned ${extractionResult.regions.length} text regions');
+      debugPrint('PIPELINE: OCR texts: ${extractionResult.regions.map((r) => r.text).join(" | ")}');
 
       // ── Step 2.5: Class-aware student matching ──
 
@@ -141,16 +143,20 @@ class HybridGradingService {
       }
 
       final ocrAnswers = _parseOcrAnswers(extractionResult.regions, assessment);
+      debugPrint('PIPELINE: OCR parsed ${ocrAnswers.length} answers: ${ocrAnswers.map((a) => 'Q${a.questionNumber}=${a.answer}').join(", ")}');
+
       final omrAnswers = await _omr.detectAndParse(
         enhancedImagePath: enhancedPath,
         assessment: assessment,
         template: template);
+      debugPrint('PIPELINE: OMR detected ${omrAnswers.length} answers: ${omrAnswers.map((a) => 'Q${a.questionNumber}=${a.answer}').join(", ")}');
 
       // ── Step 3: Merge OCR + OMR results ──
       final mergedAnswers = _mergeAnswers(
         ocrAnswers: ocrAnswers,
         omrAnswers: omrAnswers,
         assessment: assessment);
+      debugPrint('PIPELINE: Merged ${mergedAnswers.length} answers after merge');
 
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);

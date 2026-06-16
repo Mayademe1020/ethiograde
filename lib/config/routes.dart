@@ -3,6 +3,7 @@ import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/home/main_dashboard.dart';
 import '../screens/assessment/exam_day_create_screen.dart';
 import '../screens/assessment/answer_key_screen.dart';
+import '../screens/assessment/answer_key_confirmation_screen.dart';
 import '../screens/assessment/answer_sheet_setup_screen.dart';
 import '../screens/scanning/camera_screen.dart';
 import '../screens/scanning/batch_scan_screen.dart';
@@ -26,6 +27,7 @@ class AppRoutes {
   // Assessment
   static const String createAssessment = '/assessment/create';
   static const String answerKey = '/assessment/answer-key';
+  static const String answerKeyConfirmation = '/assessment/answer-key-confirmation';
   static const String answerSheetSetup = '/assessment/answer-sheet-setup';
 
   // Scanning
@@ -63,6 +65,9 @@ class AppRoutes {
         return _fade(ExamDayCreateScreen(initialMode: mode), settings);
       case answerKey:
         return _fade(const AnswerKeyScreen(), settings);
+      case answerKeyConfirmation:
+        final args = settings.arguments as Assessment;
+        return _fade(AnswerKeyConfirmationScreen(assessment: args), settings);
       case answerSheetSetup:
         final args = settings.arguments;
         final assessment = args is Assessment ? args : null;
