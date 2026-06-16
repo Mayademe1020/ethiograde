@@ -61,20 +61,20 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     final effectiveSelectedClassId = _effectiveSelectedClassId(classes);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Grade papers')),
+      appBar: AppBar(title: const Text('Create Exam')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
             Text(
-              'I have papers. I need grades.',
+              'Create your exam',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
             Text(
-              'Choose how to make the answer key and whether to use a class list. The app creates the exam in the background.',
+              'Set up the exam title, answer key method, and question count.',
               style: TextStyle(color: AppTheme.lightText, height: 1.35),
             ),
             const SizedBox(height: 18),
@@ -106,25 +106,25 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Choose how the correct answers will be created.',
+              'How will correct answers be set?',
               style: TextStyle(color: AppTheme.lightText, height: 1.35),
             ),
             const SizedBox(height: 10),
             _ModeCard(
               selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
               icon: Icons.document_scanner_outlined,
-              title: 'Scan master answer sheet',
+              title: 'Scan Answer Sheet',
               subtitle:
-                  'Best for long exams. Scan the filled key first, confirm weak answers, then grade papers.',
+                  'Camera reads answers from paper',
               onTap: () =>
                   setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
             ),
             _ModeCard(
               selected: _answerKeyMode == _AnswerKeyMode.manual,
               icon: Icons.edit_note,
-              title: 'Enter answer key manually',
+              title: 'Type Answers',
               subtitle:
-                  'Use quick taps when the master sheet is not ready or scanning is not suitable.',
+                  'Tap correct answers directly',
               onTap: () =>
                   setState(() => _answerKeyMode = _AnswerKeyMode.manual),
             ),
@@ -220,10 +220,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                   setState(() => _advancedOpen = open),
               tilePadding: EdgeInsets.zero,
               childrenPadding: EdgeInsets.zero,
-              title: const Text('Advanced question types'),
-              subtitle: const Text(
-                'Short answers are detect-and-review. Essays stay manual.',
-              ),
+              title: const Text('Question Types'),
               children: [
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -272,8 +269,8 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
 
   String get _buttonLabel {
     return _answerKeyMode == _AnswerKeyMode.scanMaster
-        ? 'Continue to master scan'
-        : 'Continue to answer key';
+        ? 'Continue to Scan'
+        : 'Continue to Answer Key';
   }
 
   void _applyInitialMode(ExamDayStartMode mode) {

@@ -222,7 +222,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_masterOnly ? 'Grading Session' : 'Batch Scan'),
+        title: Text(_masterOnly ? 'Answer Key Setup' : 'Scan Student Papers'),
         actions: [
           if (_results.isNotEmpty && !_isProcessing)
             TextButton.icon(
@@ -621,8 +621,8 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                       children: [
                         Text(
                           ready
-                              ? 'Master answer key saved'
-                              : 'Master scan needs attention',
+                              ? 'Answer key saved'
+                              : 'Answer key needs attention',
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 16,
@@ -633,7 +633,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                           ready
                               ? '$completeCount/$totalCount answers confirmed. Student papers will use this key.'
                               : (_masterKeyError ??
-                                    'Rescan the master answer sheet or enter the answer key manually.'),
+                                    'Rescan the answer sheet or enter answers manually.'),
                           style: TextStyle(
                             color: AppTheme.lightText,
                             height: 1.35,
@@ -681,7 +681,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 OutlinedButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Rescan master answer sheet'),
+                  label: const Text('Rescan answer sheet'),
                 ),
               if (!ready)
                 TextButton.icon(

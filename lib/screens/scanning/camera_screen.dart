@@ -429,9 +429,9 @@ class _CameraScreenState extends State<CameraScreen>
       return "Re-Scan \u2014 ${_reScanArgs!.existingResult.studentName}";
     }
     if (_scanMode == _CameraScanMode.masterKey) {
-      return 'Scan master answer sheet';
+      return 'Scan Answer Sheet';
     }
-    return 'Scanning Mode';
+    return 'Scan Student Papers';
   }
 
   String get _subtitleText {
@@ -439,7 +439,7 @@ class _CameraScreenState extends State<CameraScreen>
       return 'Tap to re-scan ${_reScanArgs!.existingResult.studentName}';
     }
     if (_scanMode == _CameraScanMode.masterKey) {
-      return 'Step 1 of grading';
+      return 'Point camera at answer key';
     }
     if (_processor.autoCaptureEnabled) {
       return 'Auto-capture: hold steady';

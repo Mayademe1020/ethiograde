@@ -39,7 +39,7 @@ class CameraControls extends StatelessWidget {
     if (isMasterKeyMode) {
       return _buildMasterKeyControls();
     }
-    return _buildBatchControls();
+    return _buildBatchControls(context);
   }
 
   Widget _buildMasterKeyControls() {
@@ -49,7 +49,7 @@ class CameraControls extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           CameraAssistantPanel(
-            title: 'Scan master answer sheet',
+            title: 'Scan Answer Sheet',
             detail: 'Place the answer key in frame',
             capturedCount: 0,
           ),
@@ -87,7 +87,7 @@ class CameraControls extends StatelessWidget {
     );
   }
 
-  Widget _buildBatchControls() {
+  Widget _buildBatchControls(BuildContext context) {
     final hasError = captureErrorMessage != null;
 
     return Container(

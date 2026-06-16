@@ -96,7 +96,7 @@ class BatchProcessor {
     if (!assessment.hasCoordinateMap) {
       callbacks.onMasterKeyStateChanged(
         false,
-        'Generate an EthioGrade answer sheet before scanning a master key.',
+        'Generate an EthioGrade answer sheet before scanning.',
       );
       return;
     }
@@ -115,7 +115,7 @@ class BatchProcessor {
       } else {
         callbacks.onMasterKeyStateChanged(
           false,
-          'The answer sheet map is missing. Generate the PDF again, then rescan the master key.',
+          'The answer sheet map is missing. Generate the PDF again, then rescan.',
         );
         return;
       }
@@ -148,7 +148,7 @@ class BatchProcessor {
     if (bestResult == null || !bestResult.isAnswerKey) {
       callbacks.onMasterKeyStateChanged(
         false,
-        'I could not detect the master checkbox. Check the answer-key box on the sheet, then rescan.',
+        'I could not detect the answer key checkbox. Check the answer-key box on the sheet, then rescan.',
       );
       return;
     }
@@ -160,7 +160,7 @@ class BatchProcessor {
     );
 
     if (confirmedKey == null || confirmedKey.isEmpty) {
-      callbacks.onMasterKeyStateChanged(false, 'Master answer key was not saved.');
+      callbacks.onMasterKeyStateChanged(false, 'Answer key was not saved.');
       return;
     }
 

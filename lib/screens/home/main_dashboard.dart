@@ -439,7 +439,7 @@ void _handleScanTap(BuildContext context) {
         icon: const Icon(Icons.info_outline, color: AppTheme.info, size: 36),
         title: Text('Answer Key Needed'),
         content: Text(
-          '"${incomplete.first.title}" does not have an answer key yet. You can scan the master paper or enter answers manually.',
+          '"${incomplete.first.title}" does not have an answer key yet. You can scan the answer sheet or enter answers manually.',
         ),
         actions: [
           TextButton(
