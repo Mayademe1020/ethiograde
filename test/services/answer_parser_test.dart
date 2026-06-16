@@ -428,4 +428,105 @@ void main() {
       expect(answers[1].answer, 'B');
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // FORMAT 1: Ethiopian answer-before-question (most common format)
+  // ══════════════════════════════════════════════════════════════════
+
+  group('parseQuestionAnswer — Format 1: Ethiopian answer-before-question', () {
+    test('"B 1. What is the capital of France?" → Q1, B', () {
+      final result = parser.parseQuestionAnswer('B 1. What is the capital of France?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+
+    test('"b 1. What is..." → Q1, B (lowercase)', () {
+      final result = parser.parseQuestionAnswer('b 1. What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+
+    test('"A 2. What is 2+2?" → Q2, A', () {
+      final result = parser.parseQuestionAnswer('A 2. What is 2+2?');
+      expect(result, isNotNull);
+      expect(result!.$1, 2);
+      expect(result.$2, 'A');
+    });
+
+    test('"C 3. Who wrote Hamlet?" → Q3, C', () {
+      final result = parser.parseQuestionAnswer('C 3. Who wrote Hamlet?');
+      expect(result, isNotNull);
+      expect(result!.$1, 3);
+      expect(result.$2, 'C');
+    });
+
+    test('"AC 4. Name two colors" → Q4, A,C (multi-letter)', () {
+      final result = parser.parseQuestionAnswer('AC 4. Name two colors in the flag');
+      expect(result, isNotNull);
+      expect(result!.$1, 4);
+      expect(result.$2, 'A,C');
+    });
+
+    test('"aC 4. Name two colors" → Q4, A,C (mixed case)', () {
+      final result = parser.parseQuestionAnswer('aC 4. Name two colors');
+      expect(result, isNotNull);
+      expect(result!.$1, 4);
+      expect(result.$2, 'A,C');
+    });
+
+    test('"D 5. Largest ocean?" → Q5, D', () {
+      final result = parser.parseQuestionAnswer('D 5. Largest ocean?');
+      expect(result, isNotNull);
+      expect(result!.$1, 5);
+      expect(result.$2, 'D');
+    });
+
+    test('"a 10. Which planet..." → Q10, A (double-digit Q#)', () {
+      final result = parser.parseQuestionAnswer('a 10. Which planet is closest?');
+      expect(result, isNotNull);
+      expect(result!.$1, 10);
+      expect(result.$2, 'A');
+    });
+
+    test('"B 1 What is..." → Q1, B (no period delimiter)', () {
+      final result = parser.parseQuestionAnswer('B 1 What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+
+    test('"B 1- What is..." → Q1, B (dash delimiter)', () {
+      final result = parser.parseQuestionAnswer('B 1- What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+  });
+
+  group('parseAnswers — Ethiopian format full simulation', () {
+    test('5-question Ethiopian exam paper', () {
+      final regions = [
+        const TextRegionInput(text: 'B 1. What is the capital of France?', confidence: 0.92),
+        const TextRegionInput(text: 'A 2. What is 2+2?', confidence: 0.88),
+        const TextRegionInput(text: 'C 3. Who wrote Hamlet?', confidence: 0.91),
+        const TextRegionInput(text: 'AC 4. Name two colors in the flag', confidence: 0.85),
+        const TextRegionInput(text: 'D 5. Largest ocean?', confidence: 0.90),
+      ];
+
+      final answers = parser.parseAnswers(regions);
+      expect(answers.length, 5);
+      expect(answers[0].questionNumber, 1);
+      expect(answers[0].answer, 'B');
+      expect(answers[1].questionNumber, 2);
+      expect(answers[1].answer, 'A');
+      expect(answers[2].questionNumber, 3);
+      expect(answers[2].answer, 'C');
+      expect(answers[3].questionNumber, 4);
+      expect(answers[3].answer, 'A,C');
+      expect(answers[4].questionNumber, 5);
+      expect(answers[4].answer, 'D');
+    });
+  });
 }
