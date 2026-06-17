@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../models/student.dart';
@@ -14,6 +15,8 @@ import '../../services/paper_image_intake_service.dart';
 import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/cloud_ocr_service.dart';
+import '../../services/scan_queue_service.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
 import '../../services/student_provider.dart';
@@ -240,6 +243,9 @@ class CameraProcessor {
   // ── Capture logic ──
 
   /// Capture an image and add it to the batch.
+  ///
+  /// If online: processes immediately via cloud OCR or local OCR.
+  /// If offline: saves to queue for batch processing later.
   Future<void> captureImage({
     required CameraController? controller,
     required Assessment? assessment,
@@ -279,17 +285,67 @@ class CameraProcessor {
 
       _signalCaptureSuccess();
 
-      // Auto-grade if auto-capture is enabled
-      if (_autoCaptureEnabled) {
-        await gradeAutoCapturedPaper(
+      // Check connectivity and process accordingly
+      final connectivity = await Connectivity().checkConnectivity();
+      final isOnline = connectivity != ConnectivityResult.none;
+
+      if (isOnline) {
+        // Online: process immediately
+        callbacks.onCaptureFeedbackChanged('Processing...', 'Reading answers');
+        await _processOnline(imagePath: image.path, assessment: assessment);
+      } else {
+        // Offline: save to queue
+        final queue = ScanQueueService();
+        await queue.enqueue(
           imagePath: image.path,
-          assessment: assessment,
+          assessmentId: assessment.id,
+        );
+        callbacks.onCaptureFeedbackChanged(
+          'Saved for processing',
+          'Will process when online',
         );
       }
     } catch (e) {
       debugPrint('Capture error: $e');
     } finally {
       callbacks.onCapturingChanged(false);
+    }
+  }
+
+  /// Process a captured image online (cloud OCR or local fallback).
+  Future<void> _processOnline({
+    required String imagePath,
+    required Assessment assessment,
+  }) async {
+    try {
+      final cloudOcr = CloudOcrService();
+      if (cloudOcr.isConfigured) {
+        // Use cloud OCR
+        final result = await cloudOcr.processImage(imagePath);
+        if (result.hasAnswers) {
+          callbacks.onCaptureFeedbackChanged(
+            '${result.answers.length} answers detected',
+            'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%',
+          );
+        } else {
+          callbacks.onCaptureFeedbackChanged(
+            'No answers detected',
+            'Try scanning again',
+          );
+        }
+      } else {
+        // Fall back to local OCR via auto-grade
+        await gradeAutoCapturedPaper(
+          imagePath: imagePath,
+          assessment: assessment,
+        );
+      }
+    } catch (e) {
+      debugPrint('Online processing error: $e');
+      callbacks.onCaptureFeedbackChanged(
+        'Processing failed',
+        'Tap capture to retry',
+      );
     }
   }
 

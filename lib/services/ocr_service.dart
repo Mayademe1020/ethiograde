@@ -35,8 +35,13 @@ class _EnhanceParams {
 /// Runs image enhancement in a background isolate.
 /// Pure Dart (image package) — no platform channels needed.
 ///
-/// Decodes → EXIF bake → downscale → grayscale → contrast → encode JPEG.
+/// Decodes → EXIF bake → downscale → blue channel → Otsu binarize → sharpen → encode JPEG.
 /// Returns the [outputPath] on success, [inputPath] on failure.
+///
+/// Pipeline:
+/// 1. Blue channel extraction: ink goes dark, paper stays bright
+/// 2. Otsu binarization: pure black/white eliminates notebook lines
+/// 3. Sharpening: crisp letter edges for ML Kit
 Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
   try {
     final file = File(params.inputPath);
@@ -61,18 +66,99 @@ Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
       );
     }
 
-    // Grayscale + contrast boost
-    image = img.grayscale(image);
-    image = img.adjustColor(image, contrast: 1.2);
+    // ── Step 1: Blue channel extraction ──
+    // Dark blue ink absorbs more blue light → low blue value
+    // White paper reflects all light → high blue value
+    // Notebook lines (light blue) → medium value, less prominent
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        final pixel = image.getPixel(x, y);
+        final b = pixel.b.toInt();
+        pixel
+          ..r = b
+          ..g = b
+          ..b = b;
+      }
+    }
+
+    // ── Step 2: Otsu binarization ──
+    // Calculate optimal threshold from histogram
+    // Pure black/white eliminates notebook lines entirely
+    final histogram = List<int>.filled(256, 0);
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        histogram[image.getPixel(x, y).r.toInt()]++;
+      }
+    }
+    final totalPixels = image.width * image.height;
+    final threshold = _otsuThreshold(histogram, totalPixels);
+
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        final pixel = image.getPixel(x, y);
+        final v = pixel.r.toInt() < threshold ? 0 : 255;
+        pixel
+          ..r = v
+          ..g = v
+          ..b = v;
+      }
+    }
+
+    // ── Step 3: Sharpening kernel ──
+    // Makes letter edges crisp for ML Kit
+    final w = image.width;
+    final h = image.height;
+    final sharpened = img.Image(width: w, height: h, numChannels: 3);
+    for (int y = 0; y < h; y++) {
+      for (int x = 0; x < w; x++) {
+        final c = image.getPixel(x, y).r.toInt();
+        final l = (x > 0) ? image.getPixel(x - 1, y).r.toInt() : c;
+        final r = (x < w - 1) ? image.getPixel(x + 1, y).r.toInt() : c;
+        final t = (y > 0) ? image.getPixel(x, y - 1).r.toInt() : c;
+        final b = (y < h - 1) ? image.getPixel(x, y + 1).r.toInt() : c;
+        // kernel: [0,-1,0 / -1,5,-1 / 0,-1,0]
+        final v = (5 * c - l - r - t - b).clamp(0, 255);
+        sharpened.setPixel(x, y, img.ColorRgb8(v, v, v));
+      }
+    }
 
     // Save enhanced image
     await File(
       params.outputPath,
-    ).writeAsBytes(img.encodeJpg(image, quality: 92));
+    ).writeAsBytes(img.encodeJpg(sharpened, quality: 92));
     return params.outputPath;
   } catch (_) {
     return params.inputPath;
   }
+}
+
+/// Otsu's method: find optimal threshold to separate foreground/background.
+/// Minimizes intra-class variance (maximizes inter-class variance).
+int _otsuThreshold(List<int> histogram, int totalPixels) {
+  double sum = 0;
+  for (int i = 0; i < 256; i++) sum += i * histogram[i];
+
+  double sumB = 0;
+  int wB = 0;
+  double maxVariance = 0;
+  int bestThreshold = 0;
+
+  for (int t = 0; t < 256; t++) {
+    wB += histogram[t];
+    if (wB == 0) continue;
+    final wF = totalPixels - wB;
+    if (wF == 0) break;
+
+    sumB += t * histogram[t];
+    final mB = sumB / wB;
+    final mF = (sum - sumB) / wF;
+    final variance = wB * wF * (mB - mF) * (mB - mF);
+    if (variance > maxVariance) {
+      maxVariance = variance;
+      bestThreshold = t;
+    }
+  }
+  return bestThreshold;
 }
 
 /// Runs image rotation correction in a background isolate.
@@ -129,8 +215,9 @@ class OcrService {
   static const double _minConfidence = 0.5;
 
   /// Maximum image dimension for enhancement.
-  /// Scales down to protect 2GB devices and speed up processing.
-  static const int _maxImageDimension = 1600;
+  /// 2000px preserves handwriting detail that 1600px loses.
+  /// Handwriting is finer than printed text — needs more pixels.
+  static const int _maxImageDimension = 2000;
 
   /// Fallback dimension when OOM occurs during enhancement.
   /// 1080p is still readable by ML Kit while using ~4x less memory than 1600px.
@@ -158,13 +245,14 @@ class OcrService {
     await initialize();
   }
 
-  /// Enhance image for OCR with minimal processing.
+  /// Enhance image for OCR.
   ///
-  /// Strategy: ML Kit does its own preprocessing. We only do what it can't:
+  /// Pipeline: blue channel extraction → Otsu binarization → sharpening.
   /// 1. EXIF rotation correction (camera orientation)
   /// 2. Downscale to [_maxImageDimension] (memory protection)
-  /// 3. Grayscale (halves data, text is luminance)
-  /// 4. Contrast boost (ink/paper separation in poor lighting)
+  /// 3. Blue channel extraction (ink dark, paper bright)
+  /// 4. Otsu binarization (pure black/white, eliminates lines)
+  /// 5. Sharpening (crisp edges for ML Kit)
   ///
   /// Image processing runs in a **background isolate** via [compute()]
   /// to keep the UI thread free. Only ML Kit stays on the main thread

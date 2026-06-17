@@ -8,6 +8,7 @@ import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/settings_provider.dart';
+import '../../services/teacher_provider.dart';
 import 'answer_key_screen.dart';
 
 enum ExamDayStartMode { masterScan, noRoster, classList, manualKey }
@@ -34,17 +35,20 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   _AnswerKeyMode _answerKeyMode = _AnswerKeyMode.scanMaster;
   String _selectedClassId = '';
   int _questionCount = 20;
-  bool _advancedOpen = false;
-  bool _includeShortAnswer = false;
-  bool _includeTrueFalse = false;
-
-  static const _presets = [10, 20, 30, 50, 100];
 
   @override
   void initState() {
     super.initState();
     _applyInitialMode(widget.initialMode ?? ExamDayStartMode.masterScan);
     _customQuestionController.text = _questionCount.toString();
+    // Auto-fill subject from teacher profile (read after first frame)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final teacher = context.read<TeacherProvider>().activeTeacher;
+      if (teacher != null && teacher.subject.isNotEmpty && _subjectController.text.isEmpty) {
+        _subjectController.text = teacher.subject;
+      }
+    });
   }
 
   @override
@@ -66,18 +70,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
-            Text(
-              'Create your exam',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Set up the exam title, answer key method, and question count.',
-              style: TextStyle(color: AppTheme.lightText, height: 1.35),
-            ),
-            const SizedBox(height: 18),
             TextField(
               controller: _titleController,
               textInputAction: TextInputAction.next,
@@ -103,11 +95,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'How will correct answers be set?',
-              style: TextStyle(color: AppTheme.lightText, height: 1.35),
             ),
             const SizedBox(height: 10),
             _ModeCard(
@@ -136,35 +123,23 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ..._presets.map(
-                  (count) => ChoiceChip(
-                    label: Text('$count'),
-                    selected: _questionCount == count,
-                    onSelected: (_) => _setQuestionCount(count),
-                  ),
+            SizedBox(
+              width: 120,
+              child: TextField(
+                controller: _customQuestionController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Count',
+                  prefixIcon: Icon(Icons.numbers),
+                  isDense: true,
                 ),
-                SizedBox(
-                  width: 96,
-                  child: TextField(
-                    controller: _customQuestionController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Custom',
-                      isDense: true,
-                    ),
-                    onChanged: (value) {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null && parsed > 0 && parsed <= 200) {
-                        setState(() => _questionCount = parsed);
-                      }
-                    },
-                  ),
-                ),
-              ],
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null && parsed > 0 && parsed <= 200) {
+                    setState(() => _questionCount = parsed);
+                  }
+                },
+              ),
             ),
             const SizedBox(height: 18),
             Text(
@@ -178,20 +153,18 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               selected: _studentMode == _StudentMode.noRoster,
               icon: Icons.person_off_outlined,
               title: 'Grade without student list',
-              subtitle:
-                  'Start now as Paper 1, Paper 2, Paper 3. Names can be assigned after scanning.',
+              subtitle: 'Paper 1, Paper 2, etc.',
               onTap: () => setState(() => _studentMode = _StudentMode.noRoster),
             ),
             _ModeCard(
               selected: _studentMode == _StudentMode.classList,
               icon: Icons.groups_outlined,
               title: 'Grade with class list',
-              subtitle:
-                  'Use registered students and review missing, duplicate, and unassigned papers before saving.',
+              subtitle: 'Use registered students',
               onTap: () =>
                   setState(() => _studentMode = _StudentMode.classList),
             ),
-            if (_studentMode == _StudentMode.classList) ...[
+            if (_studentMode == _StudentMode.classList && classes.length > 1) ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: effectiveSelectedClassId.isEmpty
@@ -213,34 +186,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                     setState(() => _selectedClassId = value ?? ''),
               ),
             ],
-            const SizedBox(height: 18),
-            ExpansionTile(
-              initiallyExpanded: _advancedOpen,
-              onExpansionChanged: (open) =>
-                  setState(() => _advancedOpen = open),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              title: const Text('Question Types'),
-              children: [
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Include true/false questions'),
-                  value: _includeTrueFalse,
-                  onChanged: (value) =>
-                      setState(() => _includeTrueFalse = value ?? false),
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Include short-answer review placeholders'),
-                  subtitle: const Text(
-                    'The app highlights them for teacher review instead of promising automatic grading.',
-                  ),
-                  value: _includeShortAnswer,
-                  onChanged: (value) =>
-                      setState(() => _includeShortAnswer = value ?? false),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -288,13 +233,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         _answerKeyMode = _AnswerKeyMode.manual;
         break;
     }
-  }
-
-  void _setQuestionCount(int count) {
-    setState(() {
-      _questionCount = count;
-      _customQuestionController.text = count.toString();
-    });
   }
 
   String _effectiveSelectedClassId(List<ClassInfo> classes) {
@@ -381,38 +319,16 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   }
 
   List<Question> _buildQuestions() {
-    final questions = <Question>[];
-    final shortAnswerStart = _includeShortAnswer
-        ? (_questionCount - (_questionCount * 0.1).ceil() + 1).clamp(
-            1,
-            _questionCount,
-          )
-        : _questionCount + 1;
-
-    for (var i = 1; i <= _questionCount; i++) {
-      final isShortAnswer = _includeShortAnswer && i >= shortAnswerStart;
-      final isTrueFalse = _includeTrueFalse && !isShortAnswer && i % 5 == 0;
-      questions.add(
-        Question(
-          number: i,
-          type: isShortAnswer
-              ? QuestionType.shortAnswer
-              : isTrueFalse
-              ? QuestionType.trueFalse
-              : QuestionType.mcq,
-          text: 'Question $i',
-          points: 1,
-          options: isTrueFalse
-              ? const ['True', 'False']
-              : isShortAnswer
-              ? const []
-              : const ['A', 'B', 'C', 'D', 'E'],
-          correctAnswer: '',
-        ),
+    return List.generate(_questionCount, (i) {
+      return Question(
+        number: i + 1,
+        type: QuestionType.mcq,
+        text: 'Question ${i + 1}',
+        points: 1,
+        options: const ['A', 'B', 'C', 'D', 'E'],
+        correctAnswer: '',
       );
-    }
-
-    return questions;
+    });
   }
 }
 
