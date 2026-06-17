@@ -319,6 +319,11 @@ class CameraProcessor {
   }) async {
     try {
       final cloudOcr = CloudOcrService();
+      // Auto-configure from settings if not yet configured
+      if (!cloudOcr.isConfigured) {
+        await cloudOcr.autoConfigure();
+      }
+
       if (cloudOcr.isConfigured) {
         // Use cloud OCR
         final result = await cloudOcr.processImage(imagePath);

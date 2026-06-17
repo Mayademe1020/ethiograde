@@ -26,6 +26,12 @@ class SettingsProvider extends ChangeNotifier {
   String _whatsappNumber = '';
   bool _loaded = false;
 
+  // Cloud OCR settings
+  bool _cloudOcrEnabled = false;
+  String _cloudOcrEndpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+  String _cloudOcrApiKey = '';
+  String _cloudOcrModel = 'qwen-vl-plus';
+
   // Custom grading scales
   List<GradingScale> _customScales = [];
   List<GradingScale> get customScales => _customScales;
@@ -44,6 +50,12 @@ class SettingsProvider extends ChangeNotifier {
   String get telegramHandle => _telegramHandle;
   String get whatsappNumber => _whatsappNumber;
   bool get isLoaded => _loaded;
+
+  // Cloud OCR getters
+  bool get cloudOcrEnabled => _cloudOcrEnabled;
+  String get cloudOcrEndpoint => _cloudOcrEndpoint;
+  String get cloudOcrApiKey => _cloudOcrApiKey;
+  String get cloudOcrModel => _cloudOcrModel;
 
   /// Explicit load — call from widget tree, not constructor.
   Future<void> loadSettings() async {
@@ -72,6 +84,12 @@ class SettingsProvider extends ChangeNotifier {
       _teacherName = (piiBox.get('teacher_name') as String?) ?? '';
       _telegramHandle = (piiBox.get('telegram_handle') as String?) ?? '';
       _whatsappNumber = (piiBox.get('whatsapp_number') as String?) ?? '';
+
+      // Cloud OCR settings (encrypted — API key is sensitive)
+      _cloudOcrEnabled = piiBox.get('cloud_ocr_enabled') == true;
+      _cloudOcrEndpoint = (piiBox.get('cloud_ocr_endpoint') as String?) ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+      _cloudOcrApiKey = (piiBox.get('cloud_ocr_api_key') as String?) ?? '';
+      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'qwen-vl-plus';
 
       // Custom grading scales
       final scalesJson = prefs.getString('custom_grading_scales');
@@ -163,6 +181,34 @@ class SettingsProvider extends ChangeNotifier {
     if (whatsapp != null) {
       _whatsappNumber = whatsapp;
       await piiBox.put('whatsapp_number', whatsapp);
+    }
+    notifyListeners();
+  }
+
+  // ── Cloud OCR Settings ──
+
+  Future<void> updateCloudOcr({
+    bool? enabled,
+    String? endpoint,
+    String? apiKey,
+    String? model,
+  }) async {
+    final piiBox = await _getPiiBox();
+    if (enabled != null) {
+      _cloudOcrEnabled = enabled;
+      await piiBox.put('cloud_ocr_enabled', enabled);
+    }
+    if (endpoint != null) {
+      _cloudOcrEndpoint = endpoint;
+      await piiBox.put('cloud_ocr_endpoint', endpoint);
+    }
+    if (apiKey != null) {
+      _cloudOcrApiKey = apiKey;
+      await piiBox.put('cloud_ocr_api_key', apiKey);
+    }
+    if (model != null) {
+      _cloudOcrModel = model;
+      await piiBox.put('cloud_ocr_model', model);
     }
     notifyListeners();
   }

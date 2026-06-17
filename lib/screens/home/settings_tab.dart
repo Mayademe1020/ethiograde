@@ -95,6 +95,39 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Cloud OCR section
+          SettingsSection(
+            title: 'Cloud OCR',
+            children: [
+              SettingsTile(
+                icon: Icons.cloud_outlined,
+                title: 'Enable Cloud OCR',
+                subtitle: settings.cloudOcrEnabled
+                    ? 'Active — uses ${settings.cloudOcrModel}'
+                    : 'Off — using local ML Kit',
+                trailing: Switch(
+                  value: settings.cloudOcrEnabled,
+                  onChanged: (value) => settings.updateCloudOcr(enabled: value),
+                ),
+              ),
+              SettingsTile(
+                icon: Icons.key_outlined,
+                title: 'API Key',
+                subtitle: settings.cloudOcrApiKey.isEmpty
+                    ? 'Not set — tap to add'
+                    : '••••${settings.cloudOcrApiKey.length > 4 ? settings.cloudOcrApiKey.substring(settings.cloudOcrApiKey.length - 4) : settings.cloudOcrApiKey}',
+                onTap: () => _editCloudOcrApiKey(context, settings),
+              ),
+              SettingsTile(
+                icon: Icons.link_outlined,
+                title: 'Endpoint',
+                subtitle: settings.cloudOcrEndpoint,
+                onTap: () => _editCloudOcrEndpoint(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
           // Data & Privacy section
           SettingsSection(
             title: 'Data & Privacy',
@@ -399,6 +432,112 @@ class SettingsTab extends StatelessWidget {
     );
     if (result == true) {
       settings.updateSchoolInfo(name: ctrl.text.trim());
+    }
+  }
+
+  Future<void> _editCloudOcrApiKey(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final ctrl = TextEditingController(text: settings.cloudOcrApiKey);
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cloud OCR API Key',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your key is stored encrypted on this device only.',
+              style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'API Key',
+                prefixIcon: Icon(Icons.key_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      settings.updateCloudOcr(apiKey: ctrl.text.trim());
+    }
+  }
+
+  Future<void> _editCloudOcrEndpoint(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final ctrl = TextEditingController(text: settings.cloudOcrEndpoint);
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 24,
+          right: 24,
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cloud OCR Endpoint',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'API Endpoint URL',
+                prefixIcon: Icon(Icons.link_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      settings.updateCloudOcr(endpoint: ctrl.text.trim());
     }
   }
 

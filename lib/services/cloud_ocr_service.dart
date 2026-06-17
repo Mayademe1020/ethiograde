@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
-/// Cloud OCR service using Qwen3-VL-Flash vision API.
+import 'settings_provider.dart';
+
+/// Cloud OCR service using Qwen-VL vision API (DashScope compatible mode).
 ///
 /// Sends compressed paper images to the API and receives structured
 /// text recognition results. Handles compression, error recovery,
@@ -29,9 +31,29 @@ class CloudOcrService {
   /// API endpoint — set via [configure].
   String _apiEndpoint = '';
   String _apiKey = '';
+  String _modelName = 'qwen-vl-plus';
   bool _configured = false;
 
   bool get isConfigured => _configured;
+
+  /// Auto-configure from SettingsProvider (called before each scan).
+  Future<bool> autoConfigure() async {
+    try {
+      final settings = SettingsProvider();
+      await settings.loadSettings();
+      if (settings.cloudOcrEnabled && settings.cloudOcrApiKey.isNotEmpty) {
+        configure(
+          apiEndpoint: settings.cloudOcrEndpoint,
+          apiKey: settings.cloudOcrApiKey,
+        );
+        _modelName = settings.cloudOcrModel;
+        return true;
+      }
+    } catch (e) {
+      debugPrint('CloudOcr: autoConfigure failed: $e');
+    }
+    return false;
+  }
 
   /// Configure the API credentials.
   void configure({required String apiEndpoint, required String apiKey}) {
@@ -136,19 +158,31 @@ class CloudOcrService {
   Future<CloudOcrResult> _sendToApi(List<int> imageBytes) async {
     final base64Image = base64Encode(imageBytes);
 
-    final prompt = '''Analyze this image of a handwritten exam paper.
-For each question, extract:
-- Question number
-- The student's answer (single letter A-E for MCQ, True/False for T/F, or text for short answer)
-- Confidence level (high/medium/low)
+    final prompt = '''You are an exam answer extractor for Ethiopian teachers.
 
-Return a JSON array like:
-[{"q": 1, "answer": "B", "confidence": "high"}, {"q": 2, "answer": "A", "confidence": "medium"}]
+Look at this image of a student's exam paper.
+Extract the answer for each question number.
 
-Only include questions you can clearly read. If you cannot read an answer, set confidence to "low".''';
+Common Ethiopian format: the answer letter appears
+BEFORE the question number like:
+B 1. What is the capital?
+A 2. What is 2+2?
+
+Rules:
+- For MCQ: extract single letter (A, B, C, D, or E)
+- For multiple correct: extract all letters (e.g., "A,C")
+- For True/False: extract T or F
+- For short answer: extract the text after the question number
+- Ignore student name, ID, and any non-answer text
+- If an answer is unclear or unreadable, skip it
+
+Return ONLY a JSON array. No other text.
+Format: [{"q":1,"answer":"B","confidence":"high"},...]
+
+If you detect zero answers, return an empty array: []''';
 
     final requestBody = jsonEncode({
-      'model': 'qwen3-vl-flash',
+      'model': _modelName,
       'messages': [
         {
           'role': 'user',

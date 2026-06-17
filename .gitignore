@@ -80,3 +80,6 @@ Thumbs.db
 # Dependency source cache (depfetch)
 .depfetch/
 exam_refs/
+
+# Environment variables
+.env
