@@ -28,9 +28,10 @@ class SettingsProvider extends ChangeNotifier {
 
   // Cloud OCR settings
   bool _cloudOcrEnabled = false;
-  String _cloudOcrEndpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+  String _cloudOcrEndpoint =
+      'https://models.github.ai/inference/chat/completions';
   String _cloudOcrApiKey = '';
-  String _cloudOcrModel = 'qwen-vl-plus';
+  String _cloudOcrModel = 'gpt-4o';
 
   // Custom grading scales
   List<GradingScale> _customScales = [];
@@ -87,9 +88,11 @@ class SettingsProvider extends ChangeNotifier {
 
       // Cloud OCR settings (encrypted — API key is sensitive)
       _cloudOcrEnabled = piiBox.get('cloud_ocr_enabled') == true;
-      _cloudOcrEndpoint = (piiBox.get('cloud_ocr_endpoint') as String?) ?? 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+      _cloudOcrEndpoint =
+          (piiBox.get('cloud_ocr_endpoint') as String?) ??
+          'https://models.github.ai/inference/chat/completions';
       _cloudOcrApiKey = (piiBox.get('cloud_ocr_api_key') as String?) ?? '';
-      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'qwen-vl-plus';
+      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'gpt-4o';
 
       // Custom grading scales
       final scalesJson = prefs.getString('custom_grading_scales');

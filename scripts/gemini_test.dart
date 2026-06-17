@@ -21,12 +21,17 @@ Return ONLY a JSON array.
 Format: [{"q":1,"answer":"B","confidence":"high"},...]''';
 
 Future<void> main(List<String> args) async {
+  final useGemini = Platform.environment['USE_GEMINI'] == '1';
+
   if (args.isEmpty) {
-    print('Usage: dart scripts/gemini_test.dart <image_path>');
+    print('Usage:');
+    print('  dart scripts/gemini_test.dart <image_path>           (image OCR test)');
+    print('  dart scripts/gemini_test.dart "text prompt"          (text-only test)');
+    print('  USE_GEMINI=1 dart scripts/gemini_test.dart <path>   (force Gemini)');
     exit(1);
   }
 
-  // Load API key
+  // Load API keys from .env
   final envFile = File('.env');
   if (!await envFile.exists()) {
     print('Error: .env file not found');
@@ -34,39 +39,152 @@ Future<void> main(List<String> args) async {
   }
 
   final envContent = await envFile.readAsString();
-  final apiKey = envContent
-      .split('\n')
-      .map((l) => l.trim())
+  final envLines = envContent.split('\n').map((l) => l.trim()).toList();
+
+  String? geminiKey = envLines
       .where((l) => l.startsWith('GEMINI_API_KEY='))
       .map((l) => l.substring('GEMINI_API_KEY='.length))
       .firstOrNull;
 
-  if (apiKey == null || apiKey.isEmpty) {
-    print('Error: GEMINI_API_KEY not found in .env');
+  String? githubToken = envLines
+      .where((l) => l.startsWith('GITHUB_TOKEN='))
+      .map((l) => l.substring('GITHUB_TOKEN='.length))
+      .firstOrNull;
+
+  // Decide provider: GitHub Models primary, Gemini fallback
+  final bool useGitHub = !useGemini && githubToken != null && githubToken.isNotEmpty;
+  final bool useGeminiProvider = useGemini || (!useGitHub && geminiKey != null && geminiKey.isNotEmpty);
+
+  if (!useGitHub && !useGeminiProvider) {
+    print('Error: No API key found in .env (need GITHUB_TOKEN or GEMINI_API_KEY)');
     exit(1);
   }
 
-  print('API key loaded (${apiKey.substring(0, 8)}...)');
+  final provider = useGitHub ? 'GitHub Models (GPT-4o)' : 'Gemini (gemini-2.0-flash)';
+  print('Provider: $provider');
 
-  // Read and compress image
-  final imagePath = args.first;
-  final imageFile = File(imagePath);
-  if (!await imageFile.exists()) {
-    print('Error: Image not found: $imagePath');
+  // Check if argument is an image file or text prompt
+  final inputPath = args.first;
+  final imageFile = File(inputPath);
+  final isImage = await imageFile.exists() &&
+      (inputPath.toLowerCase().endsWith('.jpg') ||
+       inputPath.toLowerCase().endsWith('.jpeg') ||
+       inputPath.toLowerCase().endsWith('.png'));
+
+  String responseBody;
+  if (isImage) {
+    // Image mode: compress and send with vision prompt
+    print('Image mode: $inputPath');
+    print('Compressing image...');
+    final compressedBytes = await _compressImage(inputPath);
+    final sizeKB = compressedBytes.length ~/ 1024;
+    print('Compressed to ${sizeKB}KB');
+    final base64Image = base64Encode(compressedBytes);
+
+    print('Sending to $provider...\n');
+    responseBody = useGitHub
+        ? await _sendGitHubModels(base64Image, githubToken!)
+        : await _sendGemini(base64Image, geminiKey!);
+  } else {
+    // Text mode: send text prompt directly
+    print('Text mode: $inputPath');
+    print('Sending to $provider...\n');
+    responseBody = useGitHub
+        ? await _sendGitHubText(inputPath, githubToken!)
+        : await _sendGeminiText(inputPath, geminiKey!);
+  }
+
+  // Print raw response
+  print('=== Raw Response ===');
+  print(responseBody);
+  print('');
+
+  // Parse response
+  final json = jsonDecode(responseBody);
+
+  if (json['error'] != null) {
+    print('API Error: ${json['error']['message'] ?? json['error']}');
     exit(1);
   }
 
-  print('Compressing image...');
-  final compressedBytes = await _compressImage(imagePath);
-  final sizeKB = compressedBytes.length ~/ 1024;
-  print('Compressed to ${sizeKB}KB');
+  // Extract text from response (different format per provider)
+  String? text;
+  if (useGitHub) {
+    text = json['choices']?[0]?['message']?['content'];
+  } else {
+    text = json['candidates']?[0]?['content']?['parts']?[0]?['text'];
+  }
 
-  // Base64 encode
-  final base64Image = base64Encode(compressedBytes);
+  if (text == null) {
+    print('No text in response');
+    exit(1);
+  }
 
-  // Send to Gemini
-  print('Sending to Gemini...\n');
+  print('=== Model Output ===');
+  print(text);
+  print('');
 
+  if (!isImage) {
+    print('✅ Text test passed!');
+    return;
+  }
+
+  // Parse extracted answers (image mode only)
+  final jsonMatch = RegExp(r'\[.*\]', dotAll: true).firstMatch(text);
+  if (jsonMatch == null) {
+    print('No JSON array found in response');
+    exit(1);
+  }
+
+  final answers = jsonDecode(jsonMatch.group(0)!) as List;
+
+  print('=== Extracted Answers ===');
+  if (answers.isEmpty) {
+    print('No answers detected');
+  } else {
+    for (final a in answers) {
+      final q = a['q'] ?? '?';
+      final answer = a['answer'] ?? '?';
+      final confidence = a['confidence'] ?? '?';
+      print('  Q$q: $answer (confidence: $confidence)');
+    }
+    print('\nTotal: ${answers.length} answers extracted');
+  }
+}
+
+Future<String> _sendGitHubModels(String base64Image, String token) async {
+  final url = Uri.parse('https://models.github.ai/inference/chat/completions');
+
+  final requestBody = jsonEncode({
+    'model': 'gpt-4o',
+    'messages': [
+      {
+        'role': 'user',
+        'content': [
+          {'type': 'text', 'text': _prompt},
+          {
+            'type': 'image_url',
+            'image_url': {
+              'url': 'data:image/jpeg;base64,$base64Image',
+            },
+          },
+        ],
+      },
+    ],
+    'max_tokens': 1024,
+    'temperature': 0.1,
+  });
+
+  final httpClient = HttpClient();
+  final request = await httpClient.postUrl(url);
+  request.headers.contentType = ContentType.json;
+  request.headers.set('Authorization', 'Bearer $token');
+  request.write(requestBody);
+  final response = await request.close();
+  return response.transform(utf8.decoder).join();
+}
+
+Future<String> _sendGemini(String base64Image, String apiKey) async {
   final url = Uri.parse(
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey',
   );
@@ -92,52 +210,50 @@ Future<void> main(List<String> args) async {
   request.headers.contentType = ContentType.json;
   request.write(requestBody);
   final response = await request.close();
-  final responseBody = await response.transform(utf8.decoder).join();
+  return response.transform(utf8.decoder).join();
+}
 
-  // Print raw response
-  print('=== Raw Response ===');
-  print(responseBody);
-  print('');
+Future<String> _sendGitHubText(String prompt, String token) async {
+  final url = Uri.parse('https://models.github.ai/inference/chat/completions');
 
-  // Parse response
-  final json = jsonDecode(responseBody);
+  final requestBody = jsonEncode({
+    'model': 'gpt-4o',
+    'messages': [
+      {'role': 'user', 'content': prompt},
+    ],
+    'max_tokens': 256,
+  });
 
-  if (json['error'] != null) {
-    print('API Error: ${json['error']['message']}');
-    exit(1);
-  }
+  final httpClient = HttpClient();
+  final request = await httpClient.postUrl(url);
+  request.headers.contentType = ContentType.json;
+  request.headers.set('Authorization', 'Bearer $token');
+  request.write(requestBody);
+  final response = await request.close();
+  return response.transform(utf8.decoder).join();
+}
 
-  final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'];
-  if (text == null) {
-    print('No text in response');
-    exit(1);
-  }
+Future<String> _sendGeminiText(String prompt, String apiKey) async {
+  final url = Uri.parse(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey',
+  );
 
-  print('=== Model Output ===');
-  print(text);
-  print('');
+  final requestBody = jsonEncode({
+    'contents': [
+      {
+        'parts': [
+          {'text': prompt},
+        ],
+      },
+    ],
+  });
 
-  // Parse extracted answers
-  final jsonMatch = RegExp(r'\[.*\]', dotAll: true).firstMatch(text);
-  if (jsonMatch == null) {
-    print('No JSON array found in response');
-    exit(1);
-  }
-
-  final answers = jsonDecode(jsonMatch.group(0)!) as List;
-
-  print('=== Extracted Answers ===');
-  if (answers.isEmpty) {
-    print('No answers detected');
-  } else {
-    for (final a in answers) {
-      final q = a['q'] ?? '?';
-      final answer = a['answer'] ?? '?';
-      final confidence = a['confidence'] ?? '?';
-      print('  Q$q: $answer (confidence: $confidence)');
-    }
-    print('\nTotal: ${answers.length} answers extracted');
-  }
+  final httpClient = HttpClient();
+  final request = await httpClient.postUrl(url);
+  request.headers.contentType = ContentType.json;
+  request.write(requestBody);
+  final response = await request.close();
+  return response.transform(utf8.decoder).join();
 }
 
 Future<List<int>> _compressImage(String imagePath) async {

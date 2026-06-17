@@ -31,8 +31,12 @@ class CloudOcrService {
   /// API endpoint — set via [configure].
   String _apiEndpoint = '';
   String _apiKey = '';
-  String _modelName = 'qwen-vl-plus';
+  String _modelName = 'gpt-4o';
   bool _configured = false;
+
+  /// Fallback: Gemini config loaded from .env at runtime.
+  String? _geminiKey;
+  bool _fallbackAttempted = false;
 
   bool get isConfigured => _configured;
 
@@ -60,7 +64,9 @@ class CloudOcrService {
     _apiEndpoint = apiEndpoint;
     _apiKey = apiKey;
     _configured = true;
-    debugPrint('CloudOcr: configured with endpoint ${_apiEndpoint.substring(0, (_apiEndpoint.length - 10).clamp(0, _apiEndpoint.length))}...');
+    debugPrint(
+      'CloudOcr: configured with endpoint ${_apiEndpoint.substring(0, (_apiEndpoint.length - 10).clamp(0, _apiEndpoint.length))}...',
+    );
   }
 
   /// Process a paper image and return recognized text regions.
@@ -120,7 +126,9 @@ class CloudOcrService {
     for (int quality = 90; quality >= _minQuality; quality -= 10) {
       final encoded = img.encodeJpg(image, quality: quality);
       if (encoded.lengthInBytes <= _maxImageBytes) {
-        debugPrint('CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$quality)');
+        debugPrint(
+          'CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$quality)',
+        );
         return encoded;
       }
     }
@@ -142,47 +150,136 @@ class CloudOcrService {
 
       final encoded = img.encodeJpg(resized, quality: _minQuality);
       if (encoded.lengthInBytes <= _maxImageBytes) {
-        debugPrint('CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$_minQuality, ${maxDim}px)');
+        debugPrint(
+          'CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$_minQuality, ${maxDim}px)',
+        );
         return encoded;
       }
     }
 
     // Fallback: lowest resolution, minimum quality
-    final fallback = img.copyResize(image, width: 600, height: (600 * image.height / image.width).round());
+    final fallback = img.copyResize(
+      image,
+      width: 600,
+      height: (600 * image.height / image.width).round(),
+    );
     final encoded = img.encodeJpg(fallback, quality: _minQuality);
-    debugPrint('CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$_minQuality, 600px, fallback)');
+    debugPrint(
+      'CloudOcr: compressed to ${encoded.lengthInBytes ~/ 1024}KB (q$_minQuality, 600px, fallback)',
+    );
     return encoded;
   }
 
-  /// Send compressed image to Qwen3-VL-Flash API.
+  /// Send compressed image to cloud vision API.
+  ///
+  /// Primary: GitHub Models (GPT-4o). Fallback: Gemini if quota exhausted.
   Future<CloudOcrResult> _sendToApi(List<int> imageBytes) async {
     final base64Image = base64Encode(imageBytes);
 
-    final prompt = '''You are an exam answer extractor for Ethiopian teachers.
+    // Try primary endpoint first
+    try {
+      return await _sendRequest(base64Image, _apiEndpoint, _apiKey, _modelName);
+    } on CloudOcrException catch (e) {
+      final msg = e.message.toLowerCase();
+      final isQuotaError =
+          msg.contains('quota') ||
+          msg.contains('rate limit') ||
+          msg.contains('429') ||
+          msg.contains('insufficient_quota');
 
-Look at this image of a student's exam paper.
-Extract the answer for each question number.
+      if (isQuotaError && !_fallbackAttempted) {
+        debugPrint(
+          'CloudOcr: primary endpoint quota exceeded, trying Gemini fallback',
+        );
+        return await _tryGeminiFallback(base64Image);
+      }
+      rethrow;
+    }
+  }
 
-Common Ethiopian format: the answer letter appears
-BEFORE the question number like:
-B 1. What is the capital?
-A 2. What is 2+2?
+  /// Attempt Gemini fallback using key from .env.
+  Future<CloudOcrResult> _tryGeminiFallback(String base64Image) async {
+    _fallbackAttempted = true;
+    _geminiKey ??= await _loadGeminiKey();
+    if (_geminiKey == null || _geminiKey!.isEmpty) {
+      throw CloudOcrException(
+        'Primary endpoint quota exceeded and no Gemini key in .env',
+      );
+    }
 
-Rules:
-- For MCQ: extract single letter (A, B, C, D, or E)
-- For multiple correct: extract all letters (e.g., "A,C")
-- For True/False: extract T or F
-- For short answer: extract the text after the question number
-- Ignore student name, ID, and any non-answer text
-- If an answer is unclear or unreadable, skip it
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$_geminiKey',
+    );
 
-Return ONLY a JSON array. No other text.
-Format: [{"q":1,"answer":"B","confidence":"high"},...]
+    final prompt = _buildPrompt();
+    final requestBody = jsonEncode({
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt},
+            {
+              'inline_data': {'mime_type': 'image/jpeg', 'data': base64Image},
+            },
+          ],
+        },
+      ],
+    });
 
-If you detect zero answers, return an empty array: []''';
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        throw CloudOcrException(
+          'Gemini fallback error ${response.statusCode}: ${response.body}',
+        );
+      }
+
+      final json = jsonDecode(response.body);
+      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'];
+      if (text == null) {
+        throw CloudOcrException('Gemini fallback: no text in response');
+      }
+
+      return _parseTextResponse(text);
+    } catch (e) {
+      if (e is CloudOcrException) rethrow;
+      throw CloudOcrException('Gemini fallback failed: $e');
+    }
+  }
+
+  Future<String?> _loadGeminiKey() async {
+    try {
+      final envFile = File('.env');
+      if (!await envFile.exists()) return null;
+      final content = await envFile.readAsString();
+      return content
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.startsWith('GEMINI_API_KEY='))
+          .map((l) => l.substring('GEMINI_API_KEY='.length))
+          .firstOrNull;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Send a single request to an OpenAI-compatible endpoint.
+  Future<CloudOcrResult> _sendRequest(
+    String base64Image,
+    String endpoint,
+    String apiKey,
+    String model,
+  ) async {
+    final prompt = _buildPrompt();
 
     final requestBody = jsonEncode({
-      'model': _modelName,
+      'model': model,
       'messages': [
         {
           'role': 'user',
@@ -190,9 +287,7 @@ If you detect zero answers, return an empty array: []''';
             {'type': 'text', 'text': prompt},
             {
               'type': 'image_url',
-              'image_url': {
-                'url': 'data:image/jpeg;base64,$base64Image',
-              },
+              'image_url': {'url': 'data:image/jpeg;base64,$base64Image'},
             },
           ],
         },
@@ -202,14 +297,16 @@ If you detect zero answers, return an empty array: []''';
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(_apiEndpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
-        body: requestBody,
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse(endpoint),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $apiKey',
+            },
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
         throw CloudOcrException(
@@ -264,7 +361,9 @@ If you detect zero answers, return an empty array: []''';
       for (final a in answers) {
         totalConfidence += a.confidence;
       }
-      final avgConfidence = answers.isNotEmpty ? totalConfidence / answers.length : 0.0;
+      final avgConfidence = answers.isNotEmpty
+          ? totalConfidence / answers.length
+          : 0.0;
 
       return CloudOcrResult(
         rawText: content,
@@ -275,6 +374,62 @@ If you detect zero answers, return an empty array: []''';
       if (e is CloudOcrException) rethrow;
       throw CloudOcrException('Failed to parse API response: $e');
     }
+  }
+
+  String _buildPrompt() {
+    return '''You are an exam answer extractor for Ethiopian teachers.
+
+Look at this image of a student's exam paper.
+Extract the answer for each question number.
+
+Common Ethiopian format: the answer letter appears
+BEFORE the question number like:
+B 1. What is the capital?
+A 2. What is 2+2?
+
+Rules:
+- For MCQ: extract single letter (A, B, C, D, or E)
+- For multiple correct: extract all letters (e.g., "A,C")
+- For True/False: extract T or F
+- For short answer: extract the text after the question number
+- Ignore student name, ID, and any non-answer text
+- If an answer is unclear or unreadable, skip it
+
+Return ONLY a JSON array. No other text.
+Format: [{"q":1,"answer":"B","confidence":"high"},...]
+
+If you detect zero answers, return an empty array: []''';
+  }
+
+  /// Parse raw text response (from Gemini fallback) into structured result.
+  CloudOcrResult _parseTextResponse(String text) {
+    final jsonMatch = RegExp(r'\[.*\]', dotAll: true).firstMatch(text);
+    if (jsonMatch == null) {
+      return CloudOcrResult(rawText: text, answers: const [], confidence: 0.0);
+    }
+
+    final answersJson = jsonDecode(jsonMatch.group(0)!) as List;
+    final answers = answersJson.map((a) {
+      return CloudOcrAnswer(
+        questionNumber: a['q'] as int? ?? 0,
+        answer: (a['answer'] as String? ?? '').toUpperCase(),
+        confidence: _parseConfidence(a['confidence'] as String? ?? 'low'),
+      );
+    }).toList();
+
+    double totalConfidence = 0;
+    for (final a in answers) {
+      totalConfidence += a.confidence;
+    }
+    final avgConfidence = answers.isNotEmpty
+        ? totalConfidence / answers.length
+        : 0.0;
+
+    return CloudOcrResult(
+      rawText: text,
+      answers: answers,
+      confidence: avgConfidence,
+    );
   }
 
   double _parseConfidence(String level) {
