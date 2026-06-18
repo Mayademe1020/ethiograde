@@ -342,6 +342,7 @@ class CameraProcessor {
     } catch (e) {
       debugPrint('Capture error: $e');
     } finally {
+      _autoCaptureInFlight = false;
       callbacks.onCapturingChanged(false);
     }
   }
