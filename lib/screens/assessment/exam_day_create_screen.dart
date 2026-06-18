@@ -143,49 +143,44 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             ),
             const SizedBox(height: 18),
             Text(
-              'Student list',
+              'Class',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
+            // Quick Grading card (no class)
             _ModeCard(
               selected: _studentMode == _StudentMode.noRoster,
-              icon: Icons.person_off_outlined,
-              title: 'Grade without student list',
-              subtitle: 'Paper 1, Paper 2, etc.',
-              onTap: () => setState(() => _studentMode = _StudentMode.noRoster),
+              icon: Icons.speed,
+              title: 'Quick Grading',
+              subtitle: 'Papers numbered automatically',
+              onTap: () => setState(() {
+                _studentMode = _StudentMode.noRoster;
+                _selectedClassId = '';
+              }),
             ),
-            _ModeCard(
-              selected: _studentMode == _StudentMode.classList,
-              icon: Icons.groups_outlined,
-              title: 'Grade with class list',
-              subtitle: 'Use registered students',
-              onTap: () =>
-                  setState(() => _studentMode = _StudentMode.classList),
-            ),
-            if (_studentMode == _StudentMode.classList && classes.length > 1) ...[
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: effectiveSelectedClassId.isEmpty
-                    ? null
-                    : effectiveSelectedClassId,
-                decoration: const InputDecoration(
-                  labelText: 'Class',
-                  prefixIcon: Icon(Icons.class_outlined),
-                ),
-                items: classes
-                    .map(
-                      (classInfo) => DropdownMenuItem(
-                        value: classInfo.id,
-                        child: Text(classInfo.displayName),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedClassId = value ?? ''),
+            // Class cards
+            for (final classInfo in classes)
+              _ModeCard(
+                selected: _studentMode == _StudentMode.classList &&
+                    _effectiveSelectedClassId(classes) == classInfo.id,
+                icon: Icons.class_outlined,
+                title: classInfo.displayName,
+                subtitle: '${classInfo.studentIds.length} students',
+                onTap: () => setState(() {
+                  _studentMode = _StudentMode.classList;
+                  _selectedClassId = classInfo.id;
+                }),
               ),
-            ],
+            if (classes.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'No classes yet — create one in Students tab',
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                ),
+              ),
           ],
         ),
       ),
