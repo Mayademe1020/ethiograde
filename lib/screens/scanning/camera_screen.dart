@@ -113,6 +113,10 @@ class _CameraScreenState extends State<CameraScreen>
             _lastCaptureDetail = '';
           });
         },
+        onAutoCaptureTriggered: () {
+          // Auto-capture: trigger the actual capture
+          _captureImage();
+        },
       ),
     );
     _initializeCamera();

@@ -35,6 +35,7 @@ class CameraProcessorCallbacks {
   final void Function(bool batchStarted) onBatchStartedChanged;
   final Future<bool> Function() onShowDuplicateDialog;
   final void Function(String message, VoidCallback onRetry, Assessment assessment)? onCaptureError;
+  final VoidCallback? onAutoCaptureTriggered;
 
   const CameraProcessorCallbacks({
     required this.onCapturingChanged,
@@ -45,6 +46,7 @@ class CameraProcessorCallbacks {
     required this.onBatchStartedChanged,
     required this.onShowDuplicateDialog,
     this.onCaptureError,
+    this.onAutoCaptureTriggered,
   });
 }
 
@@ -69,9 +71,20 @@ class CameraProcessor {
   // ── Auto-scan pipeline ──
 
   void startFrameObservation(CameraController? controller) {
-    if (controller == null || !controller.value.isInitialized) return;
-    if (_isImageStreamActive) return;
+    if (controller == null) {
+      debugPrint('AUTO_CAPTURE: startFrameObservation - controller is null');
+      return;
+    }
+    if (!controller.value.isInitialized) {
+      debugPrint('AUTO_CAPTURE: startFrameObservation - controller not initialized');
+      return;
+    }
+    if (_isImageStreamActive) {
+      debugPrint('AUTO_CAPTURE: startFrameObservation - stream already active');
+      return;
+    }
 
+    debugPrint('AUTO_CAPTURE: Starting image stream');
     controller.startImageStream((CameraImage image) {
       _observeCameraFrame(image, controller);
     });
@@ -105,6 +118,10 @@ class CameraProcessor {
         bytesPerRow: planes.first.bytesPerRow,
       );
 
+      debugPrint('FRAME: brightness=${signal.brightness.toStringAsFixed(3)}, '
+          'movement=${signal.movement.toStringAsFixed(3)}, '
+          'paperVisible=${signal.paperVisible}');
+
       final now = DateTime.now();
       final decision = _autoScanEngine.observe(
         frame: signal,
@@ -118,14 +135,18 @@ class CameraProcessor {
       final newGuideState = _guideStateForDecision();
       callbacks.onGuideStateChanged(newGuideState);
 
+      debugPrint('DECISION: ${decision.readiness}, shouldCapture=${decision.shouldCapture}');
+
       // Auto-capture decision
       if (decision.shouldCapture && !_autoCaptureInFlight) {
+        debugPrint('AUTO_CAPTURE: Triggering capture!');
         _autoCaptureInFlight = true;
         _signalCaptureSuccess();
         callbacks.onCaptureFeedbackChanged('Capturing...', 'Hold steady');
+        callbacks.onAutoCaptureTriggered?.call();
       }
-    } catch (_) {
-      // Frame analysis errors should not crash the camera
+    } catch (e) {
+      debugPrint('FRAME ERROR: $e');
     } finally {
       _isAnalyzingFrame = false;
     }
@@ -221,8 +242,10 @@ class CameraProcessor {
 
   void toggleAutoCapture(CameraController? controller) {
     if (_autoCaptureEnabled) {
+      debugPrint('AUTO_CAPTURE: Disabling auto-capture');
       _disableAutoCapture(controller);
     } else {
+      debugPrint('AUTO_CAPTURE: Enabling auto-capture');
       _autoCaptureEnabled = true;
       _autoCaptureInFlight = false;
       _autoScanEngine.reset();
