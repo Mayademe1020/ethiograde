@@ -62,6 +62,7 @@ class CameraProcessor {
   bool _isImageStreamActive = false;
   bool _isAnalyzingFrame = false;
   AutoScanDecision? _lastAutoScanDecision;
+  int _frameCount = 0;
 
   CameraProcessor({required this.callbacks});
 
@@ -111,6 +112,15 @@ class CameraProcessor {
       }
 
       final luma = planes.first.bytes;
+      // Log frame info once every 30 frames to avoid spam
+      _frameCount++;
+      if (_frameCount % 30 == 1) {
+        debugPrint('FRAME_INFO: planes=${planes.length}, '
+            'width=${image.width}, height=${image.height}, '
+            'lumaSize=${luma.length}, bytesPerRow=${planes.first.bytesPerRow}, '
+            'format=${image.format.group}');
+      }
+
       final signal = _autoScanFrameAnalyzer.analyzeLumaPlane(
         lumaBytes: luma,
         width: image.width,

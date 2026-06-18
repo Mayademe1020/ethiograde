@@ -169,7 +169,7 @@ class _CameraScreenState extends State<CameraScreen>
       backCamera,
       ResolutionPreset.high,
       enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
+      imageFormatGroup: ImageFormatGroup.yuv420,
     );
 
     try {
