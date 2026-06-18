@@ -12,6 +12,7 @@ class CameraControls extends StatelessWidget {
     required this.lastCaptureTitle,
     required this.lastCaptureDetail,
     required this.isMasterKeyMode,
+    required this.isAutoCapture,
     required this.onCapture,
     required this.onFinishBatch,
     required this.onViewCaptured,
@@ -26,6 +27,7 @@ class CameraControls extends StatelessWidget {
   final String lastCaptureTitle;
   final String lastCaptureDetail;
   final bool isMasterKeyMode;
+  final bool isAutoCapture;
   final VoidCallback onCapture;
   final VoidCallback onFinishBatch;
   final VoidCallback onViewCaptured;
@@ -39,7 +41,168 @@ class CameraControls extends StatelessWidget {
     if (isMasterKeyMode) {
       return _buildMasterKeyControls();
     }
+    if (isAutoCapture) {
+      return _buildAutoCaptureControls(context);
+    }
     return _buildBatchControls(context);
+  }
+
+  Widget _buildAutoCaptureControls(BuildContext context) {
+    final hasError = captureErrorMessage != null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasError) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.red.withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          captureErrorMessage!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: captureErrorOnRetry,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Retry'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: captureErrorAssessment != null
+                              ? () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/quick_enter',
+                                    arguments: captureErrorAssessment,
+                                  );
+                                }
+                              : null,
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Enter Score'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white38),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // Auto-capture status
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    isCapturing ? 'Processing...' : 'Place paper in frame',
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          // Done button only
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Thumbnail
+              GestureDetector(
+                onTap: capturedImages.isNotEmpty ? onViewCaptured : null,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white38),
+                  ),
+                  child: capturedImages.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(capturedImages.last),
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : const Icon(Icons.photo_library, color: Colors.white54),
+                ),
+              ),
+              const SizedBox(width: 24),
+              // Done button
+              GestureDetector(
+                onTap: capturedImages.isNotEmpty ? onFinishBatch : null,
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: capturedImages.isNotEmpty ? AppTheme.primaryGreen : Colors.white24,
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: capturedImages.isNotEmpty ? Colors.white : Colors.white54,
+                    size: 28,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              // Spacer for symmetry
+              const SizedBox(width: 44),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildMasterKeyControls() {

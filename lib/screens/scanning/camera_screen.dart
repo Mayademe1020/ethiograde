@@ -191,6 +191,10 @@ class _CameraScreenState extends State<CameraScreen>
         _isInitialized = true;
         _isCameraStarting = false;
       });
+      // Auto-enable auto-capture in batch mode
+      if (_scanMode == _CameraScanMode.batch) {
+        _processor.toggleAutoCapture(_cameraController);
+      }
     }
   }
 
@@ -311,6 +315,79 @@ class _CameraScreenState extends State<CameraScreen>
                       ),
                     ),
                   ),
+
+                // Result overlay after capture
+                if (_lastCaptureTitle.isNotEmpty)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 100,
+                    left: 24,
+                    right: 24,
+                    child: AnimatedOpacity(
+                      opacity: _lastCaptureTitle.isNotEmpty ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _lastCaptureTitle.contains('%') ? Icons.check_circle : Icons.info,
+                              color: AppTheme.primaryGreen,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _lastCaptureTitle,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  if (_lastCaptureDetail.isNotEmpty)
+                                    Text(
+                                      _lastCaptureDetail,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Progress counter
+                if (_capturedImages.isNotEmpty)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryGreen,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        '${_capturedImages.length} scanned',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_selectedAssessment == null && _reScanArgs == null)
                   AssessmentSelector(
                     assessments: context.watch<AssessmentProvider>().assessments,
@@ -338,6 +415,7 @@ class _CameraScreenState extends State<CameraScreen>
                       lastCaptureTitle: _lastCaptureTitle,
                       lastCaptureDetail: _lastCaptureDetail,
                       isMasterKeyMode: _scanMode == _CameraScanMode.masterKey,
+                      isAutoCapture: _processor.autoCaptureEnabled,
                       onCapture: _captureImage,
                       onFinishBatch: _finishBatch,
                       onViewCaptured: () => showCapturedImagesSheet(
