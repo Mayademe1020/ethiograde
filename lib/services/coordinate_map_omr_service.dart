@@ -30,6 +30,64 @@ class CoordinateMapOmrService {
   factory CoordinateMapOmrService() => _instance;
   CoordinateMapOmrService._();
 
+  /// Scan a multi-page answer sheet, auto-detecting which page is in the image.
+  ///
+  /// Tries each page's coordinate map. Since all pages share identical anchor
+  /// positions, we use the number of detected answers as the discriminator:
+  /// the correct page will have more successfully detected bubble fills.
+  ///
+  /// Returns [MultiPageScanResult] with the detected page index and OMR result.
+  Future<MultiPageScanResult> scanMultiPage({
+    required String imagePath,
+    required List<CoordinateMap> pages,
+    required Assessment assessment,
+  }) async {
+    if (pages.isEmpty) {
+      return MultiPageScanResult(
+        pageIndex: -1,
+        omrResult: CoordinateMapOmrResult.empty,
+        totalPages: 0,
+      );
+    }
+
+    int bestPageIndex = 0;
+    int bestDetectedCount = -1;
+    CoordinateMapOmrResult bestResult = CoordinateMapOmrResult.empty;
+
+    for (int i = 0; i < pages.length; i++) {
+      final result = await scan(
+        imagePath: imagePath,
+        coordinateMap: pages[i],
+        assessment: assessment,
+      );
+
+      // If anchors weren't detected, skip this page
+      if (result.anchorsDetected < 4) continue;
+
+      // Use detected answer count as discriminator:
+      // Correct page = more answers with valid fills
+      // Wrong page = few answers (bubbles at wrong positions are empty)
+      final detectedCount = result.answers
+          .where((a) => a.detectedAnswer.isNotEmpty && a.detectedAnswer != '[MULTIPLE]')
+          .length;
+
+      if (detectedCount > bestDetectedCount) {
+        bestDetectedCount = detectedCount;
+        bestPageIndex = i;
+        bestResult = result;
+
+        // Short-circuit: if we found 4 anchors and some answers, this is likely correct
+        if (bestDetectedCount > 0) break;
+      }
+    }
+
+    return MultiPageScanResult(
+      pageIndex: bestDetectedCount >= 0 ? bestPageIndex : -1,
+      omrResult: bestResult,
+      totalPages: pages.length,
+    );
+  }
+
   /// Scan a filled answer sheet image using a coordinate map.
   ///
   /// [imagePath] — path to the photo (raw or enhanced)
@@ -609,4 +667,22 @@ class CoordinateMapOmrResult {
     }
     return key;
   }
+}
+
+/// Result from multi-page OMR scanning.
+///
+/// Contains the detected page index and the OMR result for that page.
+class MultiPageScanResult {
+  final int pageIndex; // 0-based index of detected page (-1 if none detected)
+  final CoordinateMapOmrResult omrResult;
+  final int totalPages;
+
+  const MultiPageScanResult({
+    required this.pageIndex,
+    required this.omrResult,
+    required this.totalPages,
+  });
+
+  bool get isDetected => pageIndex >= 0;
+  String get pageLabel => isDetected ? 'Page ${pageIndex + 1}/$totalPages' : 'No page detected';
 }

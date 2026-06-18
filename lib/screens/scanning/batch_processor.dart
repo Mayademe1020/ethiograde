@@ -26,6 +26,7 @@ class BatchProcessorCallbacks {
   final void Function(List<AnswerDuplicate> duplicates) onDuplicatesChanged;
   final void Function(bool processing) onProcessingChanged;
   final void Function(bool ready, String? error) onMasterKeyStateChanged;
+  final void Function(String title, String detail)? onCaptureFeedbackChanged;
   final Future<Student?> Function(String scannedName, String classId)?
       onStudentNotFound;
 
@@ -35,6 +36,7 @@ class BatchProcessorCallbacks {
     required this.onDuplicatesChanged,
     required this.onProcessingChanged,
     required this.onMasterKeyStateChanged,
+    this.onCaptureFeedbackChanged,
     this.onStudentNotFound,
   });
 }
@@ -123,11 +125,19 @@ class BatchProcessor {
 
     final mapJson = jsonDecode(await mapFile.readAsString());
     final layout = mapJson['layout'] ?? 'fullA4';
-    final mapsToTry = layout == 'halfSheet' && mapJson['halfSheets'] is List
-        ? (mapJson['halfSheets'] as List)
-              .map((m) => CoordinateMap.fromMap(m))
-              .toList()
-        : [CoordinateMap.fromMap(mapJson)];
+
+    List<CoordinateMap> mapsToTry;
+    if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
+      mapsToTry = (mapJson['halfSheets'] as List)
+          .map((m) => CoordinateMap.fromMap(m))
+          .toList();
+    } else if (layout == 'multiPage' && mapJson['pages'] is List) {
+      mapsToTry = (mapJson['pages'] as List)
+          .map((m) => CoordinateMap.fromMap(m))
+          .toList();
+    } else {
+      mapsToTry = [CoordinateMap.fromMap(mapJson)];
+    }
 
     final omrService = CoordinateMapOmrService();
     CoordinateMapOmrResult? bestResult;
@@ -169,6 +179,11 @@ class BatchProcessor {
   }
 
   /// Process batch using coordinate-map OMR (Phase 4 pipeline).
+  ///
+  /// Supports three layouts:
+  /// - 'fullA4': Single page per student (legacy)
+  /// - 'halfSheet': Two half-sheets per A4
+  /// - 'multiPage': Multiple A4 pages per student (auto-detected)
   Future<void> _processBatchCoordinateMap({
     required BuildContext context,
     required List<String> images,
@@ -218,8 +233,18 @@ class BatchProcessor {
       debugPrint('BatchProcessor: WARNING — coordinate map has no assessmentId');
     }
 
+    // Determine coordinate maps based on layout
     List<CoordinateMap> mapsToTry;
-    if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
+    int totalPages = 1;
+
+    if (layout == 'multiPage' && mapJson['pages'] is List) {
+      // Multi-page layout: each page has its own coordinate map
+      mapsToTry = (mapJson['pages'] as List)
+          .map((m) => CoordinateMap.fromMap(m))
+          .toList();
+      totalPages = mapsToTry.length;
+      debugPrint('BatchProcessor: MULTI-PAGE layout detected ($totalPages pages)');
+    } else if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
       mapsToTry = (mapJson['halfSheets'] as List)
           .map((m) => CoordinateMap.fromMap(m))
           .toList();
@@ -232,19 +257,41 @@ class BatchProcessor {
     Map<int, String>? savedAnswerKey;
     int answerKeySheetsScanned = 0;
 
+    // Multi-page tracking
+    final isMultiPage = layout == 'multiPage' && totalPages > 1;
+    final scannedPages = <int, CoordinateMapOmrResult>{};
+    int currentStudentIndex = startCount;
+
     for (int i = 0; i < images.length; i++) {
       CoordinateMapOmrResult? bestResult;
+      int detectedPageIndex = -1;
 
-      for (final coordMap in mapsToTry) {
-        final result = await omrService.scan(
+      if (isMultiPage) {
+        // Multi-page: auto-detect which page is in the image
+        final multiResult = await omrService.scanMultiPage(
           imagePath: images[i],
-          coordinateMap: coordMap,
+          pages: mapsToTry,
           assessment: assessment,
         );
 
-        if (bestResult == null ||
-            result.anchorsDetected > bestResult.anchorsDetected) {
-          bestResult = result;
+        if (multiResult.isDetected) {
+          bestResult = multiResult.omrResult;
+          detectedPageIndex = multiResult.pageIndex;
+          debugPrint('BatchProcessor: Detected page ${detectedPageIndex + 1}/$totalPages');
+        }
+      } else {
+        // Single page or half-sheet: try all maps, pick best
+        for (final coordMap in mapsToTry) {
+          final result = await omrService.scan(
+            imagePath: images[i],
+            coordinateMap: coordMap,
+            assessment: assessment,
+          );
+
+          if (bestResult == null ||
+              result.anchorsDetected > bestResult.anchorsDetected) {
+            bestResult = result;
+          }
         }
       }
 
@@ -277,17 +324,54 @@ class BatchProcessor {
         continue;
       }
 
-      final scanResult = _omrResultToScanResult(
-        omrResult: bestResult,
-        assessment: assessment,
-        imagePath: images[i],
-        studentIndex: startCount + i + 1 - answerKeySheetsScanned,
-        answerKey: savedAnswerKey,
-        isNoRosterMode: isNoRosterMode,
-        temporaryImageSource: temporaryImageSource,
-      );
+      if (isMultiPage) {
+        // Multi-page: track scanned pages and auto-advance
+        scannedPages[detectedPageIndex] = bestResult;
 
-      results.add(scanResult);
+        // Notify UI of page detection
+        callbacks.onCaptureFeedbackChanged?.call(
+          'Page ${detectedPageIndex + 1}/$totalPages scanned',
+          '${scannedPages.length}/$totalPages pages complete',
+        );
+
+        // Check if all pages for this student are scanned
+        if (scannedPages.length == totalPages) {
+          // Merge all pages into one ScanResult
+          final mergedResult = _mergeMultiPageResults(
+            scannedPages: scannedPages,
+            assessment: assessment,
+            imagePath: images[i], // Use last image path
+            studentIndex: currentStudentIndex,
+            answerKey: savedAnswerKey,
+            isNoRosterMode: isNoRosterMode,
+            temporaryImageSource: temporaryImageSource,
+          );
+
+          results.add(mergedResult);
+          currentStudentIndex++;
+          scannedPages.clear(); // Reset for next student
+
+          // Auto-advance feedback
+          callbacks.onCaptureFeedbackChanged?.call(
+            'Student ${currentStudentIndex - startCount} complete!',
+            'Place page 1 for next student',
+          );
+        }
+      } else {
+        // Single page: create ScanResult directly
+        final scanResult = _omrResultToScanResult(
+          omrResult: bestResult,
+          assessment: assessment,
+          imagePath: images[i],
+          studentIndex: startCount + i + 1 - answerKeySheetsScanned,
+          answerKey: savedAnswerKey,
+          isNoRosterMode: isNoRosterMode,
+          temporaryImageSource: temporaryImageSource,
+        );
+
+        results.add(scanResult);
+      }
+
       callbacks.onProgress(startCount + i + 1, startCount + images.length);
     }
 
@@ -304,10 +388,65 @@ class BatchProcessor {
       DraftService().saveDraft(
         assessmentId: assessment.id,
         completedResults: allResults.map((r) => r.toMap()).toList(),
-        currentStudentIndex: startCount + images.length,
+        currentStudentIndex: currentStudentIndex,
         metadata: {'classId': classId ?? ''},
       );
     }
+  }
+
+  /// Merge multi-page OMR results into a single ScanResult.
+  ScanResult _mergeMultiPageResults({
+    required Map<int, CoordinateMapOmrResult> scannedPages,
+    required Assessment assessment,
+    required String imagePath,
+    required int studentIndex,
+    required bool isNoRosterMode,
+    Map<int, String>? answerKey,
+    String? temporaryImageSource,
+  }) {
+    // Combine answers from all pages
+    final allAnswers = <CoordinateMapAnswer>[];
+    for (final entry in scannedPages.entries) {
+      allAnswers.addAll(entry.value.answers);
+    }
+
+    // Sort by question number
+    allAnswers.sort((a, b) => a.questionNumber.compareTo(b.questionNumber));
+
+    // Compute average confidence across all pages
+    final avgConfidence = scannedPages.values.isEmpty
+        ? 0.0
+        : scannedPages.values.fold(0.0, (s, r) => s + r.averageConfidence) / scannedPages.length;
+
+    // Build ScanResult using combined answers from all pages
+    final combinedResult = CoordinateMapOmrResult(
+      answers: allAnswers,
+      totalQuestions: allAnswers.length,
+      correctAnswers: allAnswers.where((a) => a.isCorrect).length,
+      averageConfidence: avgConfidence,
+      anchorsDetected: 4, // All pages had anchors
+      isAnswerKey: false,
+    );
+
+    final scanResult = _omrResultToScanResult(
+      omrResult: combinedResult,
+      assessment: assessment,
+      imagePath: imagePath,
+      studentIndex: studentIndex,
+      answerKey: answerKey,
+      isNoRosterMode: isNoRosterMode,
+      temporaryImageSource: temporaryImageSource,
+    );
+
+    // Add multi-page metadata
+    return scanResult.copyWith(
+      metadata: {
+        ...scanResult.metadata,
+        'layout': 'multiPage',
+        'totalPages': scannedPages.length,
+        'scannedPages': scannedPages.keys.toList(),
+      },
+    );
   }
 
   /// Process batch using legacy hybrid grading (OCR + pixel-based OMR).

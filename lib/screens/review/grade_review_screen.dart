@@ -16,6 +16,7 @@ import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
 import '../../services/assessment_completion_gate.dart';
+import '../analytics/item_analysis_screen.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
 ///
@@ -115,6 +116,21 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       appBar: AppBar(
         title: Text('Review & Confirm'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            onPressed: results.isNotEmpty
+                ? () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ItemAnalysisScreen(
+                          assessment: assessment,
+                          results: results,
+                        ),
+                      ),
+                    )
+                : null,
+            tooltip: 'Item Analysis',
+          ),
           IconButton(
             icon: Icon(
               _isReading ? Icons.stop_circle : Icons.volume_up,

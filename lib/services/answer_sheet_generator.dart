@@ -92,6 +92,16 @@ class AnswerSheetGenerator {
         schoolName: schoolName,students: students,
         prefillNames: prefillNames);
     }
+
+    // Check if questions exceed single page capacity
+    if (assessment.questions.length > _maxQuestionsPerPage) {
+      return _generateMultiPage(
+        assessment: assessment,
+        outputDir: outputDir,
+        schoolName: schoolName,students: students,
+        prefillNames: prefillNames);
+    }
+
     return _generateFullA4(
       assessment: assessment,
       outputDir: outputDir,
@@ -616,6 +626,112 @@ class AnswerSheetGenerator {
             fontStyle: pw.FontStyle.italic,
             color: PdfColors.grey700)),
       ]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  MULTI-PAGE LAYOUT (when questions exceed single page capacity)
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Maximum questions that fit on a single A4 page (two columns).
+  static const int _maxQuestionsPerPage = _maxQuestionsPerColumn * 2; // 120
+
+  /// Generate multi-page answer sheets when questions exceed single page capacity.
+  ///
+  /// Returns multiple A4 pages, each with its own coordinate map.
+  /// Used when assessment has >120 questions (or >60 for single-column layout).
+  Future<(File, File, String)> _generateMultiPage({
+    required Assessment assessment,
+    String? outputDir,
+    String schoolName = '',
+    List<Student> students = const [],
+    bool prefillNames = false,
+  }) async {
+    final questions = assessment.questions;
+    final questionsPerPage = _maxQuestionsPerPage;
+    final totalPages = (questions.length / questionsPerPage).ceil();
+
+    // Split questions into pages
+    final pages = <List<Question>>[];
+    for (int i = 0; i < totalPages; i++) {
+      final start = i * questionsPerPage;
+      final end = (start + questionsPerPage).clamp(0, questions.length);
+      pages.add(questions.sublist(start, end));
+    }
+
+    // Build coordinate maps for each page
+    final coordMaps = <CoordinateMap>[];
+    for (int i = 0; i < totalPages; i++) {
+      final pageQuestions = pages[i];
+      final hasRightColumn = pageQuestions.length > _maxQuestionsPerColumn;
+      final leftQuestions = hasRightColumn
+          ? pageQuestions.sublist(0, _maxQuestionsPerColumn)
+          : pageQuestions;
+      final rightQuestions = hasRightColumn
+          ? pageQuestions.sublist(_maxQuestionsPerColumn)
+          : <Question>[];
+
+      final coordMap = _buildFullA4CoordinateMap(
+        assessmentId: assessment.id,
+        leftQuestions: leftQuestions,
+        rightQuestions: rightQuestions,
+      );
+      coordMaps.add(coordMap);
+    }
+
+    // Build PDF
+    final pdf = pw.Document();
+    final usePrefill = prefillNames && students.isNotEmpty;
+
+    for (final pageQuestions in pages) {
+      final hasRightColumn = pageQuestions.length > _maxQuestionsPerColumn;
+      final leftQuestions = hasRightColumn
+          ? pageQuestions.sublist(0, _maxQuestionsPerColumn)
+          : pageQuestions;
+      final rightQuestions = hasRightColumn
+          ? pageQuestions.sublist(_maxQuestionsPerColumn)
+          : <Question>[];
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (context) => _buildFullA4Page(
+            assessment: assessment,
+            leftQuestions: leftQuestions,
+            rightQuestions: rightQuestions,
+            hasRightColumn: hasRightColumn,
+            schoolName: schoolName,
+            student: null,
+          ),
+        ),
+      );
+    }
+
+    // Save files
+    final dir = outputDir ?? (await getApplicationDocumentsDirectory()).path;
+    final baseName = _safeName(assessment.title);
+
+    final pdfFile = File('$dir/answer_sheet_$baseName.pdf');
+    await pdfFile.writeAsBytes(await pdf.save());
+
+    // Save coordinate maps as multi-page structure
+    final combinedMap = {
+      'layout': 'multiPage',
+      'assessmentId': assessment.id,
+      'totalPages': totalPages,
+      'pages': coordMaps.map((m) => m.toMap()).toList(),
+      'metadata': {
+        'generatedAt': DateTime.now().toIso8601String(),
+        'totalQuestions': questions.length,
+        'questionsPerPage': questionsPerPage,
+      },
+    };
+
+    final mapFile = File('$dir/answer_sheet_$baseName.coordmap.json');
+    await mapFile.writeAsString(jsonEncode(combinedMap));
+
+    final relativeName = 'answer_sheet_$baseName.coordmap.json';
+    return (pdfFile, mapFile, relativeName);
   }
 
   // ══════════════════════════════════════════════════════════════════
