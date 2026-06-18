@@ -368,8 +368,8 @@ class CameraProcessor {
           // Build and persist ScanResult
           final scanResult = ScanResult(
             assessmentId: assessment.id,
-            studentId: '',
-            studentName: '',
+            studentId: 'paper-${DateTime.now().millisecondsSinceEpoch}',
+            studentName: 'Paper ${cloudResult.answers.length} answers',
             imagePath: imagePath,
             answers: scoredAnswers,
             totalScore: totalScore,

@@ -283,6 +283,34 @@ class _CameraScreenState extends State<CameraScreen>
                 Positioned.fill(child: CameraPreview(_cameraController!)),
                 Positioned.fill(child: PaperGuideOverlay(state: _guideState)),
                 _buildTopBar(),
+                // Active assessment banner
+                if (_selectedAssessment != null)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 56,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.assignment, color: Colors.white70, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Scanning: ${_selectedAssessment!.title} (${_selectedAssessment!.questionCount} questions)',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 if (_selectedAssessment == null && _reScanArgs == null)
                   AssessmentSelector(
                     assessments: context.watch<AssessmentProvider>().assessments,
