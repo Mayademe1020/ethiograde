@@ -4,14 +4,9 @@ import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
-import '../../models/student.dart';
-import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/answer_key_recalculation_service.dart';
-import '../../services/student_provider.dart';
-import '../../services/class_provider.dart';
-import '../../services/answer_sheet_pdf_service.dart';
 import '../../services/answer_key_fingerprint_service.dart';
 
 enum _KeyChangeAction { recalculateNow, saveAndRecalculateLater, cancel }
@@ -138,118 +133,96 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Question answer cards
+            // Bulk "Set All" option
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.tune, size: 16, color: AppTheme.lightText),
+                  const SizedBox(width: 8),
+                  Text('Set all ', style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
+                  // Set all type
+                  DropdownButton<QuestionType>(
+                    value: null,
+                    hint: Text('Type', style: TextStyle(fontSize: 12)),
+                    isDense: true,
+                    underline: const SizedBox(),
+                    items: QuestionType.values.map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text({
+                        QuestionType.mcq: 'MCQ',
+                        QuestionType.trueFalse: 'T/F',
+                        QuestionType.shortAnswer: 'Short',
+                        QuestionType.essay: 'Essay',
+                        QuestionType.matching: 'Match',
+                      }[t]!, style: const TextStyle(fontSize: 12)),
+                    )).toList(),
+                    onChanged: (type) {
+                      if (type == null) return;
+                      final updated = assessment.questions.map((q) => Question(
+                        id: q.id, number: q.number, type: type,
+                        text: q.text, points: q.points, options: q.options,
+                        correctAnswer: q.correctAnswer,
+                      )).toList();
+                      setState(() => _assessment = assessment.copyWith(questions: updated));
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  // Set all points
+                  DropdownButton<double>(
+                    value: null,
+                    hint: Text('Points', style: TextStyle(fontSize: 12)),
+                    isDense: true,
+                    underline: const SizedBox(),
+                    items: [1.0, 2.0, 5.0, 10.0].map((p) => DropdownMenuItem(
+                      value: p,
+                      child: Text('${p.toInt()} pts', style: const TextStyle(fontSize: 12)),
+                    )).toList(),
+                    onChanged: (pts) {
+                      if (pts == null) return;
+                      final updated = assessment.questions.map((q) => Question(
+                        id: q.id, number: q.number, type: q.type,
+                        text: q.text, points: pts, options: q.options,
+                        correctAnswer: q.correctAnswer,
+                      )).toList();
+                      setState(() => _assessment = assessment.copyWith(questions: updated));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Question rows with inline type/weight editing
             ...assessment.questions.map(
-              (q) => _AnswerKeyCard(
+              (q) => _QuestionRow(
                 question: q,
-                onChanged: (correctAnswer) {
-                  // Update question answer
+                onAnswerChanged: (correctAnswer) {
                   final index = assessment.questions.indexOf(q);
-                  final updatedQuestions = List<Question>.from(
-                    assessment.questions,
-                  );
-                  updatedQuestions[index] = Question(
-                    id: q.id,
-                    number: q.number,
-                    type: q.type,
-                    text: q.text,
-                    points: q.points,
-                    options: q.options,
-                    correctAnswer: correctAnswer,
-                    topicTag: q.topicTag,
-                    keywords: q.keywords,
-                    essayRubric: q.essayRubric,
-                  );
-                  final updatedAssessment = assessment.copyWith(
-                    questions: updatedQuestions,
-                  );
-                  setState(() => _assessment = updatedAssessment);
+                  final updated = List<Question>.from(assessment.questions);
+                  updated[index] = q.copyWith(correctAnswer: correctAnswer);
+                  setState(() => _assessment = assessment.copyWith(questions: updated));
+                },
+                onTypeChanged: (type) {
+                  final index = assessment.questions.indexOf(q);
+                  final updated = List<Question>.from(assessment.questions);
+                  updated[index] = q.copyWith(type: type);
+                  setState(() => _assessment = assessment.copyWith(questions: updated));
+                },
+                onPointsChanged: (points) {
+                  final index = assessment.questions.indexOf(q);
+                  final updated = List<Question>.from(assessment.questions);
+                  updated[index] = q.copyWith(points: points);
+                  setState(() => _assessment = assessment.copyWith(questions: updated));
                 },
               ),
             ),
 
             const SizedBox(height: 24),
-
-            // Next steps info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.info.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.info.withOpacity(0.2)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: AppTheme.info),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Next Steps',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.info,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '1. Prepare student papers\n'
-                    '2. Open camera and scan\n'
-                    '3. Results are graded automatically',
-                    style: const TextStyle(fontSize: 13, height: 1.5),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (!assessment.isAnswerKeyComplete) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              icon: const Icon(
-                                Icons.warning_amber,
-                                color: Colors.orange,
-                                size: 36,
-                              ),
-                              title: Text('Answer Key Incomplete'),
-                              content: Text(
-                                "${assessment.answerKeyStatus}. Set all answers for accurate grading.",
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text('Close'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text('Set Answers'),
-                                ),
-                              ],
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.pushNamed(
-                          context,
-                          AppRoutes.camera,
-                          arguments: assessment,
-                        );
-                      },
-                      icon: Icon(
-                        Icons.camera_alt,
-                        color: assessment.isAnswerKeyComplete
-                            ? null
-                            : Colors.orange,
-                      ),
-                      label: Text('Start Scanning'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -272,16 +245,20 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       // No scoring change — save normally
       await provider.saveAssessment(assessment);
 
-      // Check if we should go to confirmation screen (new flow)
+      // Check if we should go directly to camera (manual answer key path)
       final args = ModalRoute.of(context)?.settings.arguments;
       final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
 
       if (returnToConfirmation) {
+        // Manual path: go directly to camera for student paper scanning
         if (context.mounted) {
           Navigator.pushReplacementNamed(
             context,
-            AppRoutes.answerKeyConfirmation,
-            arguments: assessment,
+            AppRoutes.camera,
+            arguments: {
+              'assessment': assessment,
+              'scanMode': 'batch',
+            },
           );
         }
         return;
@@ -292,10 +269,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         return;
       }
       if (context.mounted) {
-        await _showAnswerSheetPrompt(context, assessment);
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-        }
+        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
       }
       return;
     }
@@ -309,16 +283,20 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       // No results — save normally with incremented revision
       final updated = await provider.saveAnswerKeyChange(assessment);
 
-      // Check if we should go to confirmation screen (new flow)
+      // Check if we should go directly to camera (manual answer key path)
       final args = ModalRoute.of(context)?.settings.arguments;
       final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
 
       if (returnToConfirmation) {
+        // Manual path: go directly to camera for student paper scanning
         if (context.mounted) {
           Navigator.pushReplacementNamed(
             context,
-            AppRoutes.answerKeyConfirmation,
-            arguments: updated,
+            AppRoutes.camera,
+            arguments: {
+              'assessment': updated,
+              'scanMode': 'batch',
+            },
           );
         }
         return;
@@ -328,7 +306,6 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         Navigator.pop(context, updated);
         return;
       }
-      await _showAnswerSheetPrompt(context, updated);
       if (context.mounted) {
         Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
       }
@@ -476,319 +453,230 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
     }
   }
-
-  /// Show answer sheet generation prompt after assessment creation.
-  Future<void> _showAnswerSheetPrompt(
-    BuildContext context,
-    Assessment assessment,
-  ) async {
-    final generate = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Generate answer sheet?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Create a printable answer sheet for students. They fill it → you scan it → 99% accurate.',
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(
-                  Icons.picture_as_pdf,
-                  color: AppTheme.primaryGreen,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Prints as PDF — photocopiable',
-                    style: TextStyle(fontSize: 12, color: AppTheme.lightText),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Not now'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.picture_as_pdf, size: 18),
-            label: Text('Generate'),
-          ),
-        ],
-      ),
-    );
-
-    if (generate == true && context.mounted) {
-      await _generateAnswerSheet(context, assessment);
-    }
-  }
-
-  /// Generate and show the answer sheet PDF.
-  Future<void> _generateAnswerSheet(
-    BuildContext context,
-    Assessment assessment,
-  ) async {
-    // Get students from linked class, or all students
-    List<Student> students;
-    final classProv = context.read<ClassProvider>();
-    final studentProv = context.read<StudentProvider>();
-
-    if (assessment.className.isNotEmpty) {
-      final matchingClass = classProv.classes.cast<ClassInfo?>().firstWhere(
-        (c) => c?.displayName == assessment.className,
-        orElse: () => null,
-      );
-      students = matchingClass != null
-          ? matchingClass.studentIds
-                .map((id) => studentProv.getStudentById(id))
-                .whereType<Student>()
-                .toList()
-          : List.from(studentProv.students);
-    } else {
-      students = List.from(studentProv.students);
-    }
-
-    if (students.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Add students first to generate answer sheets'),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      final file = await AnswerSheetPdfService().generateAnswerSheetTemplate(
-        assessment: assessment,
-        students: students,
-        prefillNames: true,
-      );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("PDF generated — ${students.length} sheets"),
-            backgroundColor: AppTheme.primaryGreen,
-            action: SnackBarAction(
-              label: 'Print',
-              onPressed: () => AnswerSheetPdfService().printPdf(file),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not generate PDF')));
-      }
-    }
-  }
 }
 
-class _AnswerKeyCard extends StatelessWidget {
+class _QuestionRow extends StatelessWidget {
   final Question question;
-  final Function(dynamic) onChanged;
+  final Function(dynamic) onAnswerChanged;
+  final Function(QuestionType) onTypeChanged;
+  final Function(double) onPointsChanged;
 
-  const _AnswerKeyCard({required this.question, required this.onChanged});
+  const _QuestionRow({
+    required this.question,
+    required this.onAnswerChanged,
+    required this.onTypeChanged,
+    required this.onPointsChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = {
-      QuestionType.mcq: 'MCQ',
-      QuestionType.trueFalse: 'T/F',
-      QuestionType.shortAnswer: 'Short',
-      QuestionType.essay: 'Essay',
-      QuestionType.matching: 'Match',
-    }[question.type]!;
-
-    final typeColor = {
-      QuestionType.mcq: AppTheme.primaryGreen,
-      QuestionType.trueFalse: AppTheme.info,
-      QuestionType.shortAnswer: AppTheme.warning,
-      QuestionType.essay: AppTheme.primaryRed,
-      QuestionType.matching: AppTheme.primaryGreen,
-    }[question.type]!;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Question number
-            CircleAvatar(
-              backgroundColor: typeColor.withOpacity(0.1),
-              child: Text(
-                '${question.number}',
-                style: TextStyle(color: typeColor, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Type and points
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: typeColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          typeLabel,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: typeColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${question.points} ${'pts'}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.lightText,
-                        ),
-                      ),
-                    ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          // Row 1: Q# + Type dropdown + Points dropdown
+          Row(
+            children: [
+              // Question number
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                child: Text(
+                  '${question.number}',
+                  style: TextStyle(
+                    color: AppTheme.primaryGreen,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
-                  const SizedBox(height: 8),
+                ),
+              ),
+              const SizedBox(width: 8),
 
-                  // Answer options
-                  if (question.type == QuestionType.mcq)
-                    Row(
-                      children: question.options.map((opt) {
-                        final isSelected = question.correctAnswer == opt;
-                        final displayLabel = opt;
-                        return GestureDetector(
-                          onTap: () => onChanged(opt),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppTheme.primaryGreen
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppTheme.primaryGreen
-                                    : Colors.grey.shade300,
-                              ),
-                            ),
-                            child: Text(
-                              displayLabel,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppTheme.darkText,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
+              // Type dropdown
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: DropdownButton<QuestionType>(
+                  value: question.type,
+                  isDense: true,
+                  underline: const SizedBox(),
+                  style: TextStyle(fontSize: 11, color: AppTheme.darkText),
+                  items: QuestionType.values.map((t) => DropdownMenuItem(
+                    value: t,
+                    child: Text({
+                      QuestionType.mcq: 'MCQ',
+                      QuestionType.trueFalse: 'T/F',
+                      QuestionType.shortAnswer: 'Short',
+                      QuestionType.essay: 'Essay',
+                      QuestionType.matching: 'Match',
+                    }[t]!),
+                  )).toList(),
+                  onChanged: (t) => onTypeChanged(t!),
+                ),
+              ),
+              const SizedBox(width: 6),
 
-                  if (question.type == QuestionType.trueFalse)
-                    Row(
-                      children: ['True', 'False'].map((opt) {
-                        final isSelected = question.correctAnswer == opt;
-                        final label = opt == 'True' ? ('True') : ('False');
-                        return GestureDetector(
-                          onTap: () => onChanged(opt),
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? (opt == 'True'
-                                        ? AppTheme.primaryGreen
-                                        : AppTheme.primaryRed)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? (opt == 'True'
-                                          ? AppTheme.primaryGreen
-                                          : AppTheme.primaryRed)
-                                    : Colors.grey.shade300,
-                              ),
-                            ),
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppTheme.darkText,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
+              // Points dropdown
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: DropdownButton<double>(
+                  value: question.points,
+                  isDense: true,
+                  underline: const SizedBox(),
+                  style: TextStyle(fontSize: 11, color: AppTheme.darkText),
+                  items: [1.0, 2.0, 5.0, 10.0].map((p) => DropdownMenuItem(
+                    value: p,
+                    child: Text('${p.toInt()}pt'),
+                  )).toList(),
+                  onChanged: (p) => onPointsChanged(p!),
+                ),
+              ),
 
-                  if (question.type == QuestionType.shortAnswer ||
-                      question.type == QuestionType.essay)
-                    Text(
-                      '${'Answer'}: ${question.correctAnswer ?? ('Not set')}',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 13),
-                    ),
+              const Spacer(),
 
-                  if (question.type == QuestionType.matching)
-                    Text(
-                      '${'Correct matches'}: ${question.correctAnswer ?? ('Not set')}',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+              // Answer indicator
+              if (question.correctAnswer != null &&
+                  question.correctAnswer.toString().isNotEmpty)
+                Icon(Icons.check_circle, color: AppTheme.primaryGreen, size: 16)
+              else
+                Icon(Icons.circle_outlined, color: Colors.grey.shade300, size: 16),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          // Row 2: Answer options
+          if (question.type == QuestionType.mcq)
+            Row(
+              children: question.options.map((opt) {
+                final isSelected = question.correctAnswer == opt;
+                return GestureDetector(
+                  onTap: () => onAnswerChanged(opt),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
+                      ),
                     ),
-                ],
+                    child: Text(
+                      opt,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: isSelected ? Colors.white : AppTheme.darkText,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+
+          if (question.type == QuestionType.trueFalse)
+            Row(
+              children: ['True', 'False'].map((opt) {
+                final isSelected = question.correctAnswer == opt;
+                return GestureDetector(
+                  onTap: () => onAnswerChanged(opt),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? (opt == 'True' ? AppTheme.primaryGreen : AppTheme.primaryRed)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isSelected
+                            ? (opt == 'True' ? AppTheme.primaryGreen : AppTheme.primaryRed)
+                            : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Text(
+                      opt,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: isSelected ? Colors.white : AppTheme.darkText,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+
+          if (question.type == QuestionType.shortAnswer ||
+              question.type == QuestionType.essay)
+            GestureDetector(
+              onTap: () => _editAnswer(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  question.correctAnswer?.toString().isNotEmpty == true
+                      ? question.correctAnswer.toString()
+                      : 'Tap to set answer',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: question.correctAnswer?.toString().isNotEmpty == true
+                        ? AppTheme.darkText
+                        : AppTheme.lightText,
+                  ),
+                ),
               ),
             ),
 
-            // Edit button
-            IconButton(
-              icon: const Icon(Icons.edit, size: 18),
-              onPressed: () => _editAnswer(context),
+          if (question.type == QuestionType.matching)
+            GestureDetector(
+              onTap: () => _editAnswer(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  question.correctAnswer?.toString().isNotEmpty == true
+                      ? question.correctAnswer.toString()
+                      : 'Tap to set matches',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: question.correctAnswer?.toString().isNotEmpty == true
+                        ? AppTheme.darkText
+                        : AppTheme.lightText,
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   void _editAnswer(BuildContext context) {
-    if (question.type == QuestionType.mcq ||
-        question.type == QuestionType.trueFalse) {
-      // Options already tappable
-      return;
-    }
-
     final ctrl = TextEditingController(
       text: question.correctAnswer?.toString() ?? '',
     );
@@ -796,27 +684,24 @@ class _AnswerKeyCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('${'Question'} ${question.number}'),
+        title: Text('Q${question.number} Answer'),
         content: TextField(
           controller: ctrl,
           maxLines: question.type == QuestionType.essay ? 4 : 1,
-          decoration: InputDecoration(labelText: 'Correct Answer'),
+          decoration: const InputDecoration(labelText: 'Correct Answer'),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              ctrl.dispose();
-              Navigator.pop(c);
-            },
-            child: Text('Cancel'),
+            onPressed: () { ctrl.dispose(); Navigator.pop(c); },
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              onChanged(ctrl.text);
+              onAnswerChanged(ctrl.text);
               ctrl.dispose();
               Navigator.pop(c);
             },
-            child: Text('Save'),
+            child: const Text('Save'),
           ),
         ],
       ),
