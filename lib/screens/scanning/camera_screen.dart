@@ -158,8 +158,15 @@ class _CameraScreenState extends State<CameraScreen>
       return;
     }
 
+    // Prefer back camera — front camera gives darkness for paper scanning
+    final backCamera = _cameras.firstWhere(
+      (c) => c.lensDirection == CameraLensDirection.back,
+      orElse: () => _cameras.first,
+    );
+    debugPrint('CAMERA: using ${backCamera.lensDirection} (${backCamera.name})');
+
     _cameraController = CameraController(
-      _cameras.first,
+      backCamera,
       ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,

@@ -128,6 +128,32 @@ class _DashboardHome extends StatelessWidget {
             ),
           ),
 
+          // ── Quick actions row ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.add_circle_outline,
+                      label: 'Create Exam',
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.createAssessment),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.group_add_outlined,
+                      label: 'Create Class',
+                      onTap: () => _createClass(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // ── Recent Assessments ──────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
@@ -584,6 +610,49 @@ class _ClassCard extends StatelessWidget {
             Text(
               '$studentCount student${studentCount == 1 ? '' : 's'}',
               style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: cs.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: cs.onSurface,
+              ),
             ),
           ],
         ),
