@@ -353,12 +353,15 @@ class CameraProcessor {
   }) async {
     try {
       final cloudOcr = CloudOcrService();
+      debugPrint('PROCESS_ONLINE: cloudOcr.isConfigured=${cloudOcr.isConfigured}');
       // Auto-configure from settings if not yet configured
       if (!cloudOcr.isConfigured) {
-        await cloudOcr.autoConfigure();
+        final configured = await cloudOcr.autoConfigure();
+        debugPrint('PROCESS_ONLINE: autoConfigure returned $configured');
       }
 
       if (cloudOcr.isConfigured) {
+        debugPrint('PROCESS_ONLINE: Using Cloud OCR');
         // Use cloud OCR — convert to DetectedAnswer, score, persist
         final cloudResult = await cloudOcr.processImage(imagePath);
         if (cloudResult.hasAnswers) {
@@ -430,6 +433,7 @@ class CameraProcessor {
         }
       } else {
         // Fall back to local OCR via auto-grade
+        debugPrint('PROCESS_ONLINE: Cloud OCR NOT configured — falling back to ML Kit');
         await gradeAutoCapturedPaper(
           imagePath: imagePath,
           assessment: assessment,
