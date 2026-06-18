@@ -16,6 +16,7 @@ import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/cloud_ocr_service.dart';
+import '../../services/scoring_service.dart';
 import '../../services/scan_queue_service.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
@@ -325,13 +326,69 @@ class CameraProcessor {
       }
 
       if (cloudOcr.isConfigured) {
-        // Use cloud OCR
-        final result = await cloudOcr.processImage(imagePath);
-        if (result.hasAnswers) {
-          callbacks.onCaptureFeedbackChanged(
-            '${result.answers.length} answers detected',
-            'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%',
+        // Use cloud OCR — convert to DetectedAnswer, score, persist
+        final cloudResult = await cloudOcr.processImage(imagePath);
+        if (cloudResult.hasAnswers) {
+          debugPrint('CLOUD_OCR: Detected ${cloudResult.answers.length} answers:');
+          for (final a in cloudResult.answers) {
+            debugPrint('  Q${a.questionNumber}: ${a.answer} (${a.confidence})');
+          }
+
+          debugPrint('ASSESSMENT: ${assessment.questions.length} questions');
+          for (final q in assessment.questions) {
+            debugPrint('  Q${q.number}: type=${q.type}, correctAnswer=${q.correctAnswer}, points=${q.points}');
+          }
+
+          // Convert CloudOcrAnswer → DetectedAnswer
+          final detectedAnswers = cloudResult.answers.map((a) => DetectedAnswer(
+            questionNumber: a.questionNumber,
+            answer: a.answer,
+            confidence: a.confidence,
+            rawText: a.answer,
+          )).toList();
+
+          // Score against answer key
+          final scoring = const ScoringService();
+          final scoredAnswers = scoring.scoreAnswers(
+            detected: detectedAnswers,
+            assessment: assessment,
           );
+
+          debugPrint('SCORING: ${scoredAnswers.length} answers scored');
+          for (final m in scoredAnswers) {
+            debugPrint('  Q${m.questionNumber}: detected=${m.detectedAnswer}, correct=${m.correctAnswer}, isCorrect=${m.isCorrect}, score=${m.score}/${m.maxScore}');
+          }
+
+          // Calculate totals
+          final totalScore = scoring.calculateTotalScore(scoredAnswers);
+          final maxScore = assessment.maxScore;
+          final percentage = scoring.calculatePercentage(
+            totalScore: totalScore, maxScore: maxScore);
+
+          // Build and persist ScanResult
+          final scanResult = ScanResult(
+            assessmentId: assessment.id,
+            studentId: '',
+            studentName: '',
+            imagePath: imagePath,
+            answers: scoredAnswers,
+            totalScore: totalScore,
+            maxScore: maxScore,
+            percentage: percentage,
+            grade: scoring.calculateGrade(percentage, assessment.rubricType),
+            confidence: cloudResult.confidence,
+            status: ScanStatus.graded,
+            metadata: {'detectedMethod': 'cloud-ocr'},
+          );
+
+          await HybridGradingService().saveScanResult(scanResult);
+
+          // Feedback with score
+          callbacks.onCaptureFeedbackChanged(
+            '${cloudResult.answers.length} answers — ${percentage.toStringAsFixed(0)}%',
+            scanResult.grade,
+          );
+          await _speakAutoResult(scanResult);
         } else {
           callbacks.onCaptureFeedbackChanged(
             'No answers detected',

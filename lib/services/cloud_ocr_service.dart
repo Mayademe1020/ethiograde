@@ -41,6 +41,9 @@ class CloudOcrService {
   bool get isConfigured => _configured;
 
   /// Auto-configure from SettingsProvider (called before each scan).
+  ///
+  /// In debug builds, falls back to a hardcoded key so the app works
+  /// out of the box for testing. Remove before production release.
   Future<bool> autoConfigure() async {
     try {
       final settings = SettingsProvider();
@@ -56,6 +59,18 @@ class CloudOcrService {
     } catch (e) {
       debugPrint('CloudOcr: autoConfigure failed: $e');
     }
+
+    // Debug-only hardcoded fallback — remove before production release.
+    if (kDebugMode) {
+      configure(
+        apiEndpoint: 'https://models.github.ai/inference/chat/completions',
+        apiKey: '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',
+      );
+      _modelName = 'gpt-4o';
+      debugPrint('CloudOcr: using debug hardcoded key');
+      return true;
+    }
+
     return false;
   }
 
