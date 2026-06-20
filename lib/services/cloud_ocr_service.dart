@@ -61,17 +61,8 @@ class CloudOcrService {
       debugPrint('CloudOcr: autoConfigure failed: $e');
     }
 
-    // Debug-only hardcoded fallback — remove before production release.
-    if (kDebugMode) {
-      configure(
-        apiEndpoint: 'https://models.github.ai/inference/chat/completions',
-        apiKey: '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',
-      );
-      _modelName = 'gpt-4o';
-      debugPrint('CloudOcr: using debug hardcoded key');
-      return true;
-    }
-
+    // Debug-only fallback — reads key from settings or .env
+    // No hardcoded keys allowed in source code
     return false;
   }
 
