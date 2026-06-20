@@ -98,6 +98,15 @@ class HybridGradingService {
     String resolvedName = studentName ?? 'Student';
 
     try {
+      // Check if this image was already graded by cloud OCR
+      final existingResults = await loadScanResults(assessment.id);
+      final alreadyGraded = existingResults.where((r) =>
+          r.imagePath == imagePath && r.metadata['detectedMethod'] == 'cloud-ocr');
+      if (alreadyGraded.isNotEmpty) {
+        debugPrint('HybridGrading: Skipping — already graded by cloud OCR');
+        return alreadyGraded.first;
+      }
+
       // ── Step 1: Enhance image (once) ──
       // Both OCR and OMR work on the same enhanced image
       final enhancedPath = await _ocr.enhanceImage(imagePath);
@@ -145,18 +154,9 @@ class HybridGradingService {
       final ocrAnswers = _parseOcrAnswers(extractionResult.regions, assessment);
       debugPrint('PIPELINE: OCR parsed ${ocrAnswers.length} answers: ${ocrAnswers.map((a) => 'Q${a.questionNumber}=${a.answer}').join(", ")}');
 
-      final omrAnswers = await _omr.detectAndParse(
-        enhancedImagePath: enhancedPath,
-        assessment: assessment,
-        template: template);
-      debugPrint('PIPELINE: OMR detected ${omrAnswers.length} answers: ${omrAnswers.map((a) => 'Q${a.questionNumber}=${a.answer}').join(", ")}');
-
-      // ── Step 3: Merge OCR + OMR results ──
-      final mergedAnswers = _mergeAnswers(
-        ocrAnswers: ocrAnswers,
-        omrAnswers: omrAnswers,
-        assessment: assessment);
-      debugPrint('PIPELINE: Merged ${mergedAnswers.length} answers after merge');
+      // Skip OMR — we only use OCR for answer sheet scanning
+      final mergedAnswers = ocrAnswers;
+      debugPrint('PIPELINE: Using OCR answers directly (${mergedAnswers.length} answers)');
 
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
@@ -178,19 +178,10 @@ class HybridGradingService {
       final metadata = <String, dynamic>{
         'textLinesDetected': extractionResult.regions.length,
         'ocrAnswersDetected': ocrAnswers.length,
-        'omrAnswersDetected': omrAnswers.length,
-        'questionsMerged': mergedAnswers.length,
-        'questionsDeduplicated': deduplicated.length,
-        'duplicatesRemoved': mergedAnswers.length - deduplicated.length,
+        'questionsDetected': mergedAnswers.length,
         'skewAngle': extractionResult.skewAngle,
         'skewWarning': extractionResult.skewAngle.abs() > 8.0,
-        'omrConfidence': omrAnswers.isEmpty
-            ? 0.0
-            : omrAnswers.fold(0.0, (s, a) => s + a.confidence) /
-                  omrAnswers.length,
-        'detectedMethod': omrAnswers.isNotEmpty ? 'hybrid' : 'ocr-only',
-        'ik_scoredWithKeyFingerprint': assessment.answerKeyFingerprint,
-        'ik_scoredWithKeyRevision': assessment.answerKeyRevision,
+        'detectedMethod': 'ocr-only',
       };
 
       // ── Step 7: Apply weighted scoring if scale is provided ──
@@ -506,7 +497,7 @@ class HybridGradingService {
       for (final key in box.keys) {
         final data = await box.get(key);
         if (data == null) continue;
-        final map = Map<String, dynamic>.from(data as Map);
+        final map = _deepCastMap(data);
         if (map['assessmentId'] == assessmentId) {
           results.add(ScanResult.fromMap(map));
         }
@@ -526,11 +517,29 @@ class HybridGradingService {
       final box = Hive.lazyBox(_scanResultsBoxName);
       final data = await box.get(id);
       if (data == null) return null;
-      return ScanResult.fromMap(Map<String, dynamic>.from(data as Map));
+      return ScanResult.fromMap(_deepCastMap(data));
     } catch (e) {
       debugPrint('HybridGrading: getScanResultById failed ($e)');
       return null;
     }
+  }
+
+  /// Deep-cast a Map from Hive (Map<dynamic,dynamic>) to Map<String,dynamic>.
+  static Map<String, dynamic> _deepCastMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) {
+      return data.map((key, value) {
+        if (value is Map) return MapEntry(key.toString(), _deepCastMap(value));
+        if (value is List) {
+          return MapEntry(key.toString(), value.map((e) {
+            if (e is Map) return _deepCastMap(e);
+            return e;
+          }).toList());
+        }
+        return MapEntry(key.toString(), value);
+      });
+    }
+    return {};
   }
 
   /// Remove a scan result from the box AND delete associated image files.

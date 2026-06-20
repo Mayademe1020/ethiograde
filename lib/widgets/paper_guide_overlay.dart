@@ -28,21 +28,94 @@ enum PaperGuideState {
 /// Pure paint — no image processing, no allocations in [paint].
 /// Scales proportionally from 480p to 1440p screens.
 class PaperGuideOverlay extends StatelessWidget {
-  const PaperGuideOverlay({super.key, required this.state});
+  const PaperGuideOverlay({
+    super.key,
+    required this.state,
+    this.countdown,
+    this.feedbackText,
+  });
 
   final PaperGuideState state;
+
+  /// 3, 2, 1, or null when not counting down.
+  final int? countdown;
+
+  /// Real-time position feedback text (e.g. "Move closer").
+  final String? feedbackText;
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _PaperGuidePainter(state: state),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 140),
-          child: _HintText(state: state),
-        ),
+      painter: _PaperGuidePainter(
+        state: state,
+        countdown: countdown,
       ),
+      child: Stack(
+        children: [
+          // Hint text at bottom of guide
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 140),
+              child: _HintText(state: state, feedbackText: feedbackText),
+            ),
+          ),
+          // Countdown overlay in center
+          if (countdown != null)
+            Center(
+              child: _CountdownDisplay(countdown: countdown!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Countdown display
+// ---------------------------------------------------------------------------
+
+class _CountdownDisplay extends StatelessWidget {
+  final int countdown;
+  const _CountdownDisplay({required this.countdown});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(countdown),
+      tween: Tween(begin: 1.5, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOut,
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.primaryGreen.withOpacity(0.9),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primaryGreen.withOpacity(0.4),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '$countdown',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -52,13 +125,14 @@ class PaperGuideOverlay extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _HintText extends StatelessWidget {
-  const _HintText({required this.state});
+  const _HintText({required this.state, this.feedbackText});
 
   final PaperGuideState state;
+  final String? feedbackText;
 
   @override
   Widget build(BuildContext context) {
-    final label = _label();
+    final label = feedbackText ?? _label();
     if (label == null) return const SizedBox.shrink();
 
     return AnimatedOpacity(
@@ -90,9 +164,9 @@ class _HintText extends StatelessWidget {
       case PaperGuideState.detected:
         return 'Align paper within the frame';
       case PaperGuideState.aligned:
-        return 'Hold steady';
+        return 'Hold steady — preparing to capture';
       case PaperGuideState.tooDark:
-        return 'Too dark - use flash or more light';
+        return 'Too dark — use flash or more light';
       case PaperGuideState.moving:
         return 'Hold still';
       case PaperGuideState.outsideFrame:
@@ -106,9 +180,10 @@ class _HintText extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PaperGuidePainter extends CustomPainter {
-  _PaperGuidePainter({required this.state});
+  _PaperGuidePainter({required this.state, this.countdown});
 
   final PaperGuideState state;
+  final int? countdown;
 
   // Pre-allocated paints (created once per painter, reused in paint).
   late final _bracketPaint = Paint()
@@ -122,6 +197,7 @@ class _PaperGuidePainter extends CustomPainter {
     ..style = PaintingStyle.fill;
 
   Color get _bracketColor {
+    if (countdown != null) return AppTheme.primaryGreen;
     switch (state) {
       case PaperGuideState.idle:
         return Colors.white;
@@ -164,6 +240,15 @@ class _PaperGuidePainter extends CustomPainter {
       arm,
       _BracketCorner.bottomRight,
     );
+
+    // During countdown, draw a pulsing border around the guide
+    if (countdown != null) {
+      final pulsePaint = Paint()
+        ..color = AppTheme.primaryGreen.withOpacity(0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
+      canvas.drawRect(rect, pulsePaint);
+    }
   }
 
   void _drawCornerBracket(
@@ -207,7 +292,7 @@ class _PaperGuidePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PaperGuidePainter oldDelegate) {
-    return oldDelegate.state != state;
+    return oldDelegate.state != state || oldDelegate.countdown != countdown;
   }
 }
 

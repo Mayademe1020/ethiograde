@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 
 import 'settings_provider.dart';
 
@@ -18,15 +19,15 @@ class CloudOcrService {
   factory CloudOcrService() => _instance;
   CloudOcrService._();
 
-  /// Maximum image file size in bytes after compression (300KB).
-  /// Clear image at 300KB is better than blurry at 200KB.
-  static const int _maxImageBytes = 300 * 1024;
+  /// Maximum image file size in bytes after compression (800KB).
+  /// Higher quality = better handwritten text recognition.
+  static const int _maxImageBytes = 800 * 1024;
 
   /// Maximum image dimension for compression.
-  static const int _maxDimension = 1600;
+  static const int _maxDimension = 3000;
 
-  /// Minimum JPEG quality — below this, text becomes unreadable.
-  static const int _minQuality = 70;
+  /// Minimum JPEG quality — below this, handwritten text becomes unreadable.
+  static const int _minQuality = 75;
 
   /// API endpoint — set via [configure].
   String _apiEndpoint = '';
@@ -86,12 +87,13 @@ class CloudOcrService {
 
   /// Process a paper image and return recognized text regions.
   ///
-  /// 1. Compresses image to under 200KB
-  /// 2. Sends to Qwen3-VL-Flash API
+  /// 1. Compresses image for API transmission
+  /// 2. Sends to cloud vision API with answer sheet prompt
   /// 3. Returns structured text response
   ///
+  /// [questionCount] — number of items on the answer sheet (for prompt).
   /// Throws [CloudOcrException] on failure.
-  Future<CloudOcrResult> processImage(String imagePath) async {
+  Future<CloudOcrResult> processImage(String imagePath, {int? questionCount}) async {
     if (!_configured) {
       throw CloudOcrException('Cloud OCR not configured');
     }
@@ -105,7 +107,7 @@ class CloudOcrService {
     final compressedBytes = await _compressImage(imagePath);
 
     // Send to API
-    final response = await _sendToApi(compressedBytes);
+    final response = await _sendToApi(compressedBytes, questionCount: questionCount);
 
     return response;
   }
@@ -188,12 +190,12 @@ class CloudOcrService {
   /// Send compressed image to cloud vision API.
   ///
   /// Primary: GitHub Models (GPT-4o). Fallback: Gemini if quota exhausted.
-  Future<CloudOcrResult> _sendToApi(List<int> imageBytes) async {
+  Future<CloudOcrResult> _sendToApi(List<int> imageBytes, {int? questionCount}) async {
     final base64Image = base64Encode(imageBytes);
 
     // Try primary endpoint first
     try {
-      return await _sendRequest(base64Image, _apiEndpoint, _apiKey, _modelName);
+      return await _sendRequest(base64Image, _apiEndpoint, _apiKey, _modelName, questionCount: questionCount);
     } on CloudOcrException catch (e) {
       final msg = e.message.toLowerCase();
       final isQuotaError =
@@ -206,14 +208,14 @@ class CloudOcrService {
         debugPrint(
           'CloudOcr: primary endpoint quota exceeded, trying Gemini fallback',
         );
-        return await _tryGeminiFallback(base64Image);
+        return await _tryGeminiFallback(base64Image, questionCount: questionCount);
       }
       rethrow;
     }
   }
 
   /// Attempt Gemini fallback using key from .env.
-  Future<CloudOcrResult> _tryGeminiFallback(String base64Image) async {
+  Future<CloudOcrResult> _tryGeminiFallback(String base64Image, {int? questionCount}) async {
     _fallbackAttempted = true;
     _geminiKey ??= await _loadGeminiKey();
     if (_geminiKey == null || _geminiKey!.isEmpty) {
@@ -226,7 +228,7 @@ class CloudOcrService {
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$_geminiKey',
     );
 
-    final prompt = _buildPrompt();
+    final prompt = _buildPrompt(questionCount: questionCount);
     final requestBody = jsonEncode({
       'contents': [
         {
@@ -289,9 +291,15 @@ class CloudOcrService {
     String base64Image,
     String endpoint,
     String apiKey,
-    String model,
-  ) async {
-    final prompt = _buildPrompt();
+    String model, {
+    int? questionCount,
+  }) async {
+    final prompt = _buildPrompt(questionCount: questionCount);
+
+    // Debug: save the compressed image sent to API
+    if (kDebugMode) {
+      await _saveDebugImage(base64Image);
+    }
 
     final requestBody = jsonEncode({
       'model': model,
@@ -323,6 +331,15 @@ class CloudOcrService {
           )
           .timeout(const Duration(seconds: 30));
 
+      // Debug: log raw response
+      if (kDebugMode) {
+        debugPrint('CloudOcr: === RAW API RESPONSE ===');
+        debugPrint('CloudOcr: status=${response.statusCode}');
+        debugPrint('CloudOcr: body=${response.body}');
+        debugPrint('CloudOcr: === END RESPONSE ===');
+        await _saveDebugResponse(response.body);
+      }
+
       if (response.statusCode != 200) {
         throw CloudOcrException(
           'API error ${response.statusCode}: ${response.body}',
@@ -337,6 +354,40 @@ class CloudOcrService {
     } catch (e) {
       if (e is CloudOcrException) rethrow;
       throw CloudOcrException('API request failed: $e');
+    }
+  }
+
+  /// Save the compressed image sent to Cloud OCR for debugging.
+  Future<void> _saveDebugImage(String base64Image) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final debugDir = Directory('${dir.path}/cloud_ocr_debug');
+      if (!await debugDir.exists()) {
+        await debugDir.create(recursive: true);
+      }
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${debugDir.path}/ocr_input_$timestamp.jpg');
+      await file.writeAsBytes(base64Decode(base64Image));
+      debugPrint('CloudOcr: DEBUG image saved to ${file.path}');
+    } catch (e) {
+      debugPrint('CloudOcr: Failed to save debug image: $e');
+    }
+  }
+
+  /// Save the raw API response for debugging.
+  Future<void> _saveDebugResponse(String responseBody) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final debugDir = Directory('${dir.path}/cloud_ocr_debug');
+      if (!await debugDir.exists()) {
+        await debugDir.create(recursive: true);
+      }
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${debugDir.path}/ocr_response_$timestamp.txt');
+      await file.writeAsString(responseBody);
+      debugPrint('CloudOcr: DEBUG response saved to ${file.path}');
+    } catch (e) {
+      debugPrint('CloudOcr: Failed to save debug response: $e');
     }
   }
 
@@ -391,29 +442,36 @@ class CloudOcrService {
     }
   }
 
-  String _buildPrompt() {
-    return '''You are an exam answer extractor for Ethiopian teachers.
+  String _buildPrompt({int? questionCount}) {
+    final qCountHint = questionCount != null
+        ? ' The sheet should have $questionCount numbered items.'
+        : '';
 
-Look at this image of a student's exam paper.
-Extract the answer for each question number.
+    return '''You are reading a student's answer sheet from an exam.$qCountHint
 
-Common Ethiopian format: the answer letter appears
-BEFORE the question number like:
-B 1. What is the capital?
-A 2. What is 2+2?
+The sheet has numbered items (1, 2, 3...). Next to each number, the student wrote their answer by hand.
 
-Rules:
-- For MCQ: extract single letter (A, B, C, D, or E)
-- For multiple correct: extract all letters (e.g., "A,C")
-- For True/False: extract T or F
-- For short answer: extract the text after the question number
-- Ignore student name, ID, and any non-answer text
-- If an answer is unclear or unreadable, skip it
+FOR EACH NUMBERED ITEM:
+1. Find the number (1, 2, 3...)
+2. Read exactly what the student wrote next to it
+3. Return the answer as-is — do not correct spelling or guess
 
-Return ONLY a JSON array. No other text.
-Format: [{"q":1,"answer":"B","confidence":"high"},...]
+ANSWER TYPES YOU WILL SEE:
+- Single letters: A, B, C, D, E (multiple choice)
+- Words or phrases: "Addis Ababa", "photosynthesis", "42 km"
+- True/False: T, F, True, False, Yes, No
+- Numbers: 3, 14, 2.5
+- Amharic text: እውነት, ሐሰት, ሀ, ለ, ሐ, መ, ሠ
 
-If you detect zero answers, return an empty array: []''';
+RULES:
+- Read EXACTLY what is written — do not guess, interpret, or correct
+- If a number has no handwritten answer, return BLANK
+- If handwriting is completely illegible, return UNREADABLE
+- Do not confuse printed section headers, instructions, or page numbers with answers
+- Ignore all printed text — only read handwritten content
+
+Return JSON array: [{"q":1,"answer":"B","confidence":"high"}, {"q":2,"answer":"BLANK","confidence":"high"}]
+Confidence: "high" if clearly readable, "medium" if somewhat unclear, "low" if barely readable''';
   }
 
   /// Parse raw text response (from Gemini fallback) into structured result.

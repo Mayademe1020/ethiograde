@@ -49,7 +49,8 @@ class BatchProcessor {
 
   const BatchProcessor({required this.callbacks});
 
-  /// Process a batch of images — routes to coordinate-map OMR or hybrid grading.
+  /// Process a batch of images — uses OCR-only hybrid grading.
+  /// Coordinate-map OMR path is disabled for answer sheet scanning.
   Future<void> processBatch({
     required BuildContext context,
     required List<String> images,
@@ -62,394 +63,34 @@ class BatchProcessor {
   }) async {
     callbacks.onProcessingChanged(true);
 
-    if (assessment.hasCoordinateMap) {
-      await _processBatchCoordinateMap(
-        context: context,
-        images: images,
-        assessment: assessment,
-        classId: classId,
-        isNoRosterMode: isNoRosterMode,
-        temporaryImageSource: temporaryImageSource,
-        existingResults: existingResults,
-        startCount: startCount,
-      );
-    } else {
-      await _processBatchHybrid(
-        context: context,
-        images: images,
-        assessment: assessment,
-        classId: classId,
-        isNoRosterMode: isNoRosterMode,
-        temporaryImageSource: temporaryImageSource,
-        existingResults: existingResults,
-      );
-    }
+    // Always use hybrid grading (OCR only) — skip coordinate-map OMR
+    await _processBatchHybrid(
+      context: context,
+      images: images,
+      assessment: assessment,
+      classId: classId,
+      isNoRosterMode: isNoRosterMode,
+      temporaryImageSource: temporaryImageSource,
+      existingResults: existingResults,
+    );
   }
 
   /// Process master answer sheet scan.
+  /// Disabled for answer sheet scanning mode — teacher enters answers manually.
   Future<void> processMasterKey({
     required BuildContext context,
     required String imagePath,
     required Assessment assessment,
   }) async {
     callbacks.onProgress(0, 1);
-    callbacks.onMasterKeyStateChanged(false, null);
-
-    if (!assessment.hasCoordinateMap) {
-      callbacks.onMasterKeyStateChanged(
-        false,
-        'Generate an EthioGrade answer sheet before scanning.',
-      );
-      return;
-    }
-
-    String resolvedPath = await AnswerSheetGenerator.resolveCoordinateMapPath(
-      assessment.coordinateMapPath!,
+    callbacks.onMasterKeyStateChanged(
+      false,
+      'Enter the answer key manually when creating the exam.',
     );
-    var mapFile = File(resolvedPath);
-
-    if (!await mapFile.exists()) {
-      final regenerated = await AnswerSheetGenerator.regenerateCoordinateMap(
-        assessment,
-      );
-      if (regenerated != null && await regenerated.exists()) {
-        mapFile = regenerated;
-      } else {
-        callbacks.onMasterKeyStateChanged(
-          false,
-          'The answer sheet map is missing. Generate the PDF again, then rescan.',
-        );
-        return;
-      }
-    }
-
-    final mapJson = jsonDecode(await mapFile.readAsString());
-    final layout = mapJson['layout'] ?? 'fullA4';
-
-    List<CoordinateMap> mapsToTry;
-    if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
-      mapsToTry = (mapJson['halfSheets'] as List)
-          .map((m) => CoordinateMap.fromMap(m))
-          .toList();
-    } else if (layout == 'multiPage' && mapJson['pages'] is List) {
-      mapsToTry = (mapJson['pages'] as List)
-          .map((m) => CoordinateMap.fromMap(m))
-          .toList();
-    } else {
-      mapsToTry = [CoordinateMap.fromMap(mapJson)];
-    }
-
-    final omrService = CoordinateMapOmrService();
-    CoordinateMapOmrResult? bestResult;
-    for (final coordMap in mapsToTry) {
-      final result = await omrService.scan(
-        imagePath: imagePath,
-        coordinateMap: coordMap,
-        assessment: assessment,
-      );
-      if (bestResult == null ||
-          result.anchorsDetected > bestResult.anchorsDetected) {
-        bestResult = result;
-      }
-    }
-
-    callbacks.onProgress(1, 1);
-
-    if (bestResult == null || !bestResult.isAnswerKey) {
-      callbacks.onMasterKeyStateChanged(
-        false,
-        'I could not detect the answer key checkbox. Check the answer-key box on the sheet, then rescan.',
-      );
-      return;
-    }
-
-    final confirmedKey = await showMasterKeyConfirmation(
-      context: context,
-      assessment: assessment,
-      omrResult: bestResult,
-    );
-
-    if (confirmedKey == null || confirmedKey.isEmpty) {
-      callbacks.onMasterKeyStateChanged(false, 'Answer key was not saved.');
-      return;
-    }
-
-    await _saveAnswerKeyToAssessment(context, assessment, confirmedKey);
-    callbacks.onMasterKeyStateChanged(true, null);
+    return;
   }
 
-  /// Process batch using coordinate-map OMR (Phase 4 pipeline).
-  ///
-  /// Supports three layouts:
-  /// - 'fullA4': Single page per student (legacy)
-  /// - 'halfSheet': Two half-sheets per A4
-  /// - 'multiPage': Multiple A4 pages per student (auto-detected)
-  Future<void> _processBatchCoordinateMap({
-    required BuildContext context,
-    required List<String> images,
-    required Assessment assessment,
-    required String? classId,
-    required bool isNoRosterMode,
-    required String? temporaryImageSource,
-    required List<ScanResult> existingResults,
-    required int startCount,
-  }) async {
-    String resolvedPath = await AnswerSheetGenerator.resolveCoordinateMapPath(
-      assessment.coordinateMapPath!,
-    );
-    var mapFile = File(resolvedPath);
-
-    if (!await mapFile.exists()) {
-      final regenerated = await AnswerSheetGenerator.regenerateCoordinateMap(
-        assessment,
-      );
-      if (regenerated != null && await regenerated.exists()) {
-        mapFile = regenerated;
-      } else {
-        await _processBatchHybrid(
-          context: context,
-          images: images,
-          assessment: assessment,
-          classId: classId,
-          isNoRosterMode: isNoRosterMode,
-          temporaryImageSource: temporaryImageSource,
-          existingResults: existingResults,
-        );
-        return;
-      }
-    }
-
-    final mapJson = jsonDecode(await mapFile.readAsString());
-    final layout = mapJson['layout'] ?? 'fullA4';
-
-    // Template identity validation — reject papers from wrong assessment
-    final mapAssessmentId = mapJson['assessmentId'] ?? '';
-    if (mapAssessmentId.isNotEmpty && mapAssessmentId != assessment.id) {
-      debugPrint('BatchProcessor: WRONG TEMPLATE — map assessment $mapAssessmentId != current ${assessment.id}');
-      callbacks.onProcessingChanged(false);
-      return;
-    }
-    if (mapAssessmentId.isEmpty) {
-      debugPrint('BatchProcessor: WARNING — coordinate map has no assessmentId');
-    }
-
-    // Determine coordinate maps based on layout
-    List<CoordinateMap> mapsToTry;
-    int totalPages = 1;
-
-    if (layout == 'multiPage' && mapJson['pages'] is List) {
-      // Multi-page layout: each page has its own coordinate map
-      mapsToTry = (mapJson['pages'] as List)
-          .map((m) => CoordinateMap.fromMap(m))
-          .toList();
-      totalPages = mapsToTry.length;
-      debugPrint('BatchProcessor: MULTI-PAGE layout detected ($totalPages pages)');
-    } else if (layout == 'halfSheet' && mapJson['halfSheets'] is List) {
-      mapsToTry = (mapJson['halfSheets'] as List)
-          .map((m) => CoordinateMap.fromMap(m))
-          .toList();
-    } else {
-      mapsToTry = [CoordinateMap.fromMap(mapJson)];
-    }
-
-    final omrService = CoordinateMapOmrService();
-    final results = <ScanResult>[];
-    Map<int, String>? savedAnswerKey;
-    int answerKeySheetsScanned = 0;
-
-    // Multi-page tracking
-    final isMultiPage = layout == 'multiPage' && totalPages > 1;
-    final scannedPages = <int, CoordinateMapOmrResult>{};
-    int currentStudentIndex = startCount;
-
-    for (int i = 0; i < images.length; i++) {
-      CoordinateMapOmrResult? bestResult;
-      int detectedPageIndex = -1;
-
-      if (isMultiPage) {
-        // Multi-page: auto-detect which page is in the image
-        final multiResult = await omrService.scanMultiPage(
-          imagePath: images[i],
-          pages: mapsToTry,
-          assessment: assessment,
-        );
-
-        if (multiResult.isDetected) {
-          bestResult = multiResult.omrResult;
-          detectedPageIndex = multiResult.pageIndex;
-          debugPrint('BatchProcessor: Detected page ${detectedPageIndex + 1}/$totalPages');
-        }
-      } else {
-        // Single page or half-sheet: try all maps, pick best
-        for (final coordMap in mapsToTry) {
-          final result = await omrService.scan(
-            imagePath: images[i],
-            coordinateMap: coordMap,
-            assessment: assessment,
-          );
-
-          if (bestResult == null ||
-              result.anchorsDetected > bestResult.anchorsDetected) {
-            bestResult = result;
-          }
-        }
-      }
-
-      if (bestResult == null) continue;
-
-      if (bestResult.isAnswerKey) {
-        answerKeySheetsScanned++;
-        final confirmedKey = await showMasterKeyConfirmation(
-          context: context,
-          assessment: assessment,
-          omrResult: bestResult,
-        );
-        if (confirmedKey != null && confirmedKey.isNotEmpty) {
-          savedAnswerKey = confirmedKey;
-          await _saveAnswerKeyToAssessment(context, assessment, confirmedKey);
-
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  "Master answer key saved (${confirmedKey.length})",
-                ),
-                backgroundColor: const Color(0xFF2E7D32),
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-        callbacks.onProgress(startCount + i + 1, startCount + images.length);
-        continue;
-      }
-
-      if (isMultiPage) {
-        // Multi-page: track scanned pages and auto-advance
-        scannedPages[detectedPageIndex] = bestResult;
-
-        // Notify UI of page detection
-        callbacks.onCaptureFeedbackChanged?.call(
-          'Page ${detectedPageIndex + 1}/$totalPages scanned',
-          '${scannedPages.length}/$totalPages pages complete',
-        );
-
-        // Check if all pages for this student are scanned
-        if (scannedPages.length == totalPages) {
-          // Merge all pages into one ScanResult
-          final mergedResult = _mergeMultiPageResults(
-            scannedPages: scannedPages,
-            assessment: assessment,
-            imagePath: images[i], // Use last image path
-            studentIndex: currentStudentIndex,
-            answerKey: savedAnswerKey,
-            isNoRosterMode: isNoRosterMode,
-            temporaryImageSource: temporaryImageSource,
-          );
-
-          results.add(mergedResult);
-          currentStudentIndex++;
-          scannedPages.clear(); // Reset for next student
-
-          // Auto-advance feedback
-          callbacks.onCaptureFeedbackChanged?.call(
-            'Student ${currentStudentIndex - startCount} complete!',
-            'Place page 1 for next student',
-          );
-        }
-      } else {
-        // Single page: create ScanResult directly
-        final scanResult = _omrResultToScanResult(
-          omrResult: bestResult,
-          assessment: assessment,
-          imagePath: images[i],
-          studentIndex: startCount + i + 1 - answerKeySheetsScanned,
-          answerKey: savedAnswerKey,
-          isNoRosterMode: isNoRosterMode,
-          temporaryImageSource: temporaryImageSource,
-        );
-
-        results.add(scanResult);
-      }
-
-      callbacks.onProgress(startCount + i + 1, startCount + images.length);
-    }
-
-    final allResults = List<ScanResult>.from(existingResults)..addAll(results);
-    callbacks.onResultsChanged(allResults);
-    callbacks.onProcessingChanged(false);
-
-    if (allResults.length >= 2) {
-      final duplicates = HybridGradingService().detectBatchDuplicates(allResults);
-      callbacks.onDuplicatesChanged(duplicates);
-    }
-
-    if (allResults.isNotEmpty) {
-      DraftService().saveDraft(
-        assessmentId: assessment.id,
-        completedResults: allResults.map((r) => r.toMap()).toList(),
-        currentStudentIndex: currentStudentIndex,
-        metadata: {'classId': classId ?? ''},
-      );
-    }
-  }
-
-  /// Merge multi-page OMR results into a single ScanResult.
-  ScanResult _mergeMultiPageResults({
-    required Map<int, CoordinateMapOmrResult> scannedPages,
-    required Assessment assessment,
-    required String imagePath,
-    required int studentIndex,
-    required bool isNoRosterMode,
-    Map<int, String>? answerKey,
-    String? temporaryImageSource,
-  }) {
-    // Combine answers from all pages
-    final allAnswers = <CoordinateMapAnswer>[];
-    for (final entry in scannedPages.entries) {
-      allAnswers.addAll(entry.value.answers);
-    }
-
-    // Sort by question number
-    allAnswers.sort((a, b) => a.questionNumber.compareTo(b.questionNumber));
-
-    // Compute average confidence across all pages
-    final avgConfidence = scannedPages.values.isEmpty
-        ? 0.0
-        : scannedPages.values.fold(0.0, (s, r) => s + r.averageConfidence) / scannedPages.length;
-
-    // Build ScanResult using combined answers from all pages
-    final combinedResult = CoordinateMapOmrResult(
-      answers: allAnswers,
-      totalQuestions: allAnswers.length,
-      correctAnswers: allAnswers.where((a) => a.isCorrect).length,
-      averageConfidence: avgConfidence,
-      anchorsDetected: 4, // All pages had anchors
-      isAnswerKey: false,
-    );
-
-    final scanResult = _omrResultToScanResult(
-      omrResult: combinedResult,
-      assessment: assessment,
-      imagePath: imagePath,
-      studentIndex: studentIndex,
-      answerKey: answerKey,
-      isNoRosterMode: isNoRosterMode,
-      temporaryImageSource: temporaryImageSource,
-    );
-
-    // Add multi-page metadata
-    return scanResult.copyWith(
-      metadata: {
-        ...scanResult.metadata,
-        'layout': 'multiPage',
-        'totalPages': scannedPages.length,
-        'scannedPages': scannedPages.keys.toList(),
-      },
-    );
-  }
-
-  /// Process batch using legacy hybrid grading (OCR + pixel-based OMR).
+  /// Process batch using hybrid grading (OCR only).
   Future<void> _processBatchHybrid({
     required BuildContext context,
     required List<String> images,

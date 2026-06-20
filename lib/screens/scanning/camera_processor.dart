@@ -23,9 +23,13 @@ import '../../services/settings_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/weighted_grade_provider.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/auto_crop_service.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Callbacks for camera processor to communicate state changes back to the UI.
+void _noopString(String? _) {}
+void _noopInt(int? _) {}
+
 class CameraProcessorCallbacks {
   final void Function(bool capturing) onCapturingChanged;
   final void Function(String title, String detail) onCaptureFeedbackChanged;
@@ -36,6 +40,8 @@ class CameraProcessorCallbacks {
   final Future<bool> Function() onShowDuplicateDialog;
   final void Function(String message, VoidCallback onRetry, Assessment assessment)? onCaptureError;
   final VoidCallback? onAutoCaptureTriggered;
+  final void Function(String? feedbackText) onFeedbackTextChanged;
+  final void Function(int? countdown) onCountdownChanged;
 
   const CameraProcessorCallbacks({
     required this.onCapturingChanged,
@@ -47,6 +53,8 @@ class CameraProcessorCallbacks {
     required this.onShowDuplicateDialog,
     this.onCaptureError,
     this.onAutoCaptureTriggered,
+    this.onFeedbackTextChanged = _noopString,
+    this.onCountdownChanged = _noopInt,
   });
 }
 
@@ -60,6 +68,7 @@ class CameraProcessor {
   bool _autoCaptureEnabled = false;
   bool _autoCaptureInFlight = false;
   bool _isImageStreamActive = false;
+  bool _isStreamStopping = false;
   bool _isAnalyzingFrame = false;
   AutoScanDecision? _lastAutoScanDecision;
   int _frameCount = 0;
@@ -85,6 +94,7 @@ class CameraProcessor {
       return;
     }
 
+    _isStreamStopping = false;
     debugPrint('AUTO_CAPTURE: Starting image stream');
     controller.startImageStream((CameraImage image) {
       _observeCameraFrame(image, controller);
@@ -94,14 +104,15 @@ class CameraProcessor {
 
   void stopFrameObservation(CameraController? controller) {
     if (!_isImageStreamActive || controller == null) return;
+    _isStreamStopping = true;
+    _isImageStreamActive = false;
     try {
       controller.stopImageStream();
     } catch (_) {}
-    _isImageStreamActive = false;
   }
 
   void _observeCameraFrame(CameraImage image, CameraController controller) {
-    if (_isAnalyzingFrame || !_autoCaptureEnabled) return;
+    if (_isAnalyzingFrame || !_autoCaptureEnabled || _isStreamStopping) return;
     _isAnalyzingFrame = true;
 
     try {
@@ -145,15 +156,45 @@ class CameraProcessor {
       final newGuideState = _guideStateForDecision();
       callbacks.onGuideStateChanged(newGuideState);
 
+      // Pass real-time feedback text to UI
+      if (callbacks.onFeedbackTextChanged != null) {
+        callbacks.onFeedbackTextChanged!(decision.message);
+      }
+
       debugPrint('DECISION: ${decision.readiness}, shouldCapture=${decision.shouldCapture}');
 
-      // Auto-capture decision
-      if (decision.shouldCapture && !_autoCaptureInFlight) {
-        debugPrint('AUTO_CAPTURE: Triggering capture!');
+      // Auto-capture decision — start countdown instead of instant capture
+      if (decision.shouldCapture && !_autoCaptureInFlight && !_countdownActive) {
+        debugPrint('AUTO_CAPTURE: Starting countdown!');
         _autoCaptureInFlight = true;
+        _consecutiveFalseDuringCountdown = 0;
         _signalCaptureSuccess();
         callbacks.onCaptureFeedbackChanged('Capturing...', 'Hold steady');
-        callbacks.onAutoCaptureTriggered?.call();
+        _startCountdown();
+      }
+
+      // During countdown: only cancel after 3 CONSECUTIVE bad frames (friction tolerance)
+      if (_countdownActive && !decision.shouldCapture) {
+        if (decision.readiness == AutoScanReadiness.steady ||
+            decision.readiness == AutoScanReadiness.capture) {
+          // Good frame — reset counter
+          _consecutiveFalseDuringCountdown = 0;
+        } else {
+          _consecutiveFalseDuringCountdown++;
+          debugPrint('COUNTDOWN: step=$_countdownValue, '
+              'consecutiveFalse=$_consecutiveFalseDuringCountdown, '
+              'readiness=${decision.readiness}');
+          if (_consecutiveFalseDuringCountdown >= 3) {
+            debugPrint('AUTO_CAPTURE: Countdown cancelled — 3 consecutive bad frames');
+            cancelCountdown();
+            _autoCaptureInFlight = false;
+          }
+        }
+      }
+
+      // Reset counter when countdown isn't active
+      if (!_countdownActive) {
+        _consecutiveFalseDuringCountdown = 0;
       }
     } catch (e) {
       debugPrint('FRAME ERROR: $e');
@@ -170,6 +211,7 @@ class CameraProcessor {
 
     _autoCaptureInFlight = true;
     _signalCaptureSuccess();
+    _startCountdown();
     return true;
   }
 
@@ -179,7 +221,14 @@ class CameraProcessor {
       contentHash: _lastAutoScanDecision?.readiness.index ?? 0,
     );
     _autoCaptureInFlight = false;
+    cancelCountdown();
   }
+
+  // ── Countdown state ──
+  int? _countdownValue;
+  Timer? _countdownTimer;
+  bool _countdownActive = false;
+  int _consecutiveFalseDuringCountdown = 0;
 
   PaperGuideState _guideStateForDecision() {
     if (_lastAutoScanDecision == null) return PaperGuideState.idle;
@@ -199,6 +248,36 @@ class CameraProcessor {
       case AutoScanReadiness.disabled:
         return PaperGuideState.idle;
     }
+  }
+
+  /// Start a 3-2-1 countdown before capture.
+  void _startCountdown() {
+    if (_countdownActive) return;
+    _countdownActive = true;
+    _countdownValue = 3;
+    callbacks.onCountdownChanged(3);
+
+    _countdownTimer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
+      if (_countdownValue == null || _countdownValue! <= 1) {
+        timer.cancel();
+        _countdownValue = null;
+        _countdownActive = false;
+        callbacks.onCountdownChanged(null);
+        // Trigger the actual capture
+        callbacks.onAutoCaptureTriggered?.call();
+        return;
+      }
+      _countdownValue = _countdownValue! - 1;
+      callbacks.onCountdownChanged(_countdownValue);
+    });
+  }
+
+  /// Cancel any active countdown.
+  void cancelCountdown() {
+    _countdownTimer?.cancel();
+    _countdownValue = null;
+    _countdownActive = false;
+    callbacks.onCountdownChanged(null);
   }
 
   String get guidanceTitle {
@@ -294,7 +373,11 @@ class CameraProcessor {
 
     try {
       final image = await controller.takePicture();
-      final hash = ImageHashService().computeHash(image.path);
+
+      // Skip auto-crop — use original image for answer sheet scanning
+      final String capturedPath = image.path;
+
+      final hash = ImageHashService().computeHash(capturedPath);
 
       // Check for duplicates
       if (hash != null) {
@@ -304,16 +387,13 @@ class CameraProcessor {
         if (dupIndex >= 0) {
           final isDuplicate = await callbacks.onShowDuplicateDialog();
           if (!isDuplicate) {
-            try {
-              await File(image.path).delete();
-            } catch (_) {}
             callbacks.onCapturingChanged(false);
             return;
           }
         }
       }
 
-      capturedImages.add(image.path);
+      capturedImages.add(capturedPath);
       capturedHashes.add(hash);
       callbacks.onBatchChanged(capturedImages, capturedHashes);
 
@@ -326,12 +406,12 @@ class CameraProcessor {
       if (isOnline) {
         // Online: process immediately
         callbacks.onCaptureFeedbackChanged('Processing...', 'Reading answers');
-        await _processOnline(imagePath: image.path, assessment: assessment);
+        await _processOnline(imagePath: capturedPath, assessment: assessment);
       } else {
         // Offline: save to queue
         final queue = ScanQueueService();
         await queue.enqueue(
-          imagePath: image.path,
+          imagePath: capturedPath,
           assessmentId: assessment.id,
         );
         callbacks.onCaptureFeedbackChanged(
@@ -364,7 +444,10 @@ class CameraProcessor {
       if (cloudOcr.isConfigured) {
         debugPrint('PROCESS_ONLINE: Using Cloud OCR');
         // Use cloud OCR — convert to DetectedAnswer, score, persist
-        final cloudResult = await cloudOcr.processImage(imagePath);
+        final cloudResult = await cloudOcr.processImage(
+          imagePath,
+          questionCount: assessment.questions.length,
+        );
         if (cloudResult.hasAnswers) {
           debugPrint('CLOUD_OCR: Detected ${cloudResult.answers.length} answers:');
           for (final a in cloudResult.answers) {
@@ -573,13 +656,16 @@ class CameraProcessor {
       final image = await controller.takePicture();
       callbacks.onCapturingChanged(false);
 
+      // Skip auto-crop for re-scan — use original image
+      final String reScanPath = image.path;
+
       final grading = HybridGradingService();
       final weightedScale = assessment.weightedScaleId != null
           ? context.read<WeightedGradeProvider>().getForExam(assessment.id)
           : null;
 
       final newResult = await grading.gradePaper(
-        imagePath: image.path,
+        imagePath: reScanPath,
         assessment: assessment,
         studentId: existingResult.studentId,
         studentName: existingResult.studentName,

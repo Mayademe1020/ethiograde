@@ -103,7 +103,13 @@ class ScanQueueService {
       }
 
       // Process with cloud OCR
-      final result = await cloudOcr.processImage(item.imagePath);
+      int? questionCount;
+      try {
+        final assessmentProv = AssessmentProvider();
+        final assessment = assessmentProv.getAssessmentById(item.assessmentId);
+        if (assessment != null) questionCount = assessment.questions.length;
+      } catch (_) {}
+      final result = await cloudOcr.processImage(item.imagePath, questionCount: questionCount);
       item.status = ScanQueueItemStatus.completed;
       item.resultText = result.rawText;
       item.resultConfidence = result.confidence;
