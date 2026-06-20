@@ -13,6 +13,7 @@ import '../screens/review/review_screen.dart';
 import '../screens/review/grade_review_screen.dart';
 import '../screens/students/import_excel_screen.dart';
 import '../screens/students/add_student_screen.dart';
+import '../screens/students/student_detail_screen.dart';
 import '../screens/settings/grading_scale_editor_screen.dart';
 import '../models/student.dart';
 import '../models/grading_scale.dart';
@@ -43,6 +44,7 @@ class AppRoutes {
   // Students
   static const String importExcel = '/students/import';
   static const String addStudent = '/students/add';
+  static const String studentDetail = '/students/detail';
 
   // Classes
 
@@ -91,6 +93,7 @@ class AppRoutes {
           GradeReviewScreen(
             assessment: args['assessment'] as Assessment,
             results: (args['results'] as List<ScanResult>),
+            readOnly: args['readOnly'] as bool? ?? false,
           ),
           settings,
         );
@@ -106,6 +109,9 @@ class AppRoutes {
         }
         final classId = args as String?;
         return _fade(AddStudentScreen(preselectedClassId: classId), settings);
+      case studentDetail:
+        final student = settings.arguments as Student;
+        return _fade(StudentDetailScreen(student: student), settings);
 
       // Settings
       case gradingScaleEditor:

@@ -16,6 +16,7 @@ import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
 import '../../services/assessment_completion_gate.dart';
+import '../../services/results_pdf_service.dart';
 import '../analytics/item_analysis_screen.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
@@ -31,11 +32,13 @@ import '../analytics/item_analysis_screen.dart';
 class GradeReviewScreen extends StatefulWidget {
   final Assessment assessment;
   final List<ScanResult> results;
+  final bool readOnly;
 
   const GradeReviewScreen({
     super.key,
     required this.assessment,
     required this.results,
+    this.readOnly = false,
   });
 
   @override
@@ -85,6 +88,28 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     super.dispose();
   }
 
+  Future<void> _exportPdf(BuildContext context) async {
+    try {
+      final settings = context.read<SettingsProvider>();
+      final pdfService = ResultsPdfService();
+      await pdfService.shareResultsReport(
+        assessment: assessment,
+        results: results,
+        schoolName: settings.schoolName,
+        teacherName: settings.teacherName,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate report: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Compute stats
@@ -114,7 +139,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Review & Confirm'),
+        title: Text(widget.readOnly ? 'Results' : 'Review & Confirm'),
         actions: [
           IconButton(
             icon: const Icon(Icons.analytics_outlined),
@@ -139,6 +164,12 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
             onPressed: results.isNotEmpty ? () => _readAllScores() : null,
             tooltip: _isReading ? 'Stop' : 'Read All Scores',
           ),
+          if (results.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: () => _exportPdf(context),
+              tooltip: 'Export PDF',
+            ),
         ],
       ),
       body: results.isEmpty
@@ -181,13 +212,15 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                         isHighest: isHighest,
                         isLowest: isLowest,
                         isReading: index == _readingIndex,
+                        readOnly: widget.readOnly,
                         onEdit: () => Navigator.pop(context, result),
                       );
                     },
                   ),
                 ),
-                // Confirm button
-                SafeArea(
+                // Confirm button (hidden in read-only mode)
+                if (!widget.readOnly)
+                  SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: SizedBox(
@@ -408,6 +441,7 @@ class _StudentRow extends StatelessWidget {
   final bool isHighest;
   final bool isLowest;
   final bool isReading;
+  final bool readOnly;
   final VoidCallback onEdit;
 
   const _StudentRow({
@@ -416,6 +450,7 @@ class _StudentRow extends StatelessWidget {
     required this.isHighest,
     required this.isLowest,
     this.isReading = false,
+    this.readOnly = false,
     required this.onEdit,
   });
 
@@ -530,13 +565,14 @@ class _StudentRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
-              onPressed: onEdit,
-              tooltip: 'Edit',
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              padding: EdgeInsets.zero,
-            ),
+            if (!readOnly)
+              IconButton(
+                icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
+                onPressed: onEdit,
+                tooltip: 'Edit',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+              ),
           ],
         ),
       ),

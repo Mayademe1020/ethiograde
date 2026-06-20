@@ -127,6 +127,11 @@ class StudentsTab extends StatelessWidget {
               student.studentId.isNotEmpty ? 'ID: ${student.studentId}' : '',
             ),
             trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(
+              context,
+              AppRoutes.studentDetail,
+              arguments: student,
+            ),
           ),
         );
       },

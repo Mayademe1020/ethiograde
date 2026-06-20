@@ -4,20 +4,31 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/hybrid_grading_service.dart';
 import '../../models/assessment.dart';
 import '../../widgets/assessment_card.dart';
 import '../../widgets/ui_components.dart';
 
-class AssessmentsTab extends StatelessWidget {
+class AssessmentsTab extends StatefulWidget {
   const AssessmentsTab({super.key});
+
+  @override
+  State<AssessmentsTab> createState() => _AssessmentsTabState();
+}
+
+class _AssessmentsTabState extends State<AssessmentsTab> {
+  bool _showCompleted = false;
 
   @override
   Widget build(BuildContext context) {
     final assessments = context.watch<AssessmentProvider>();
-    final readyAssessments = assessments.activeAssessments
+    final activeAssessments = assessments.activeAssessments;
+    final completedAssessments = assessments.completedAssessments;
+
+    final readyAssessments = activeAssessments
         .where((assessment) => assessment.isAnswerKeyComplete)
         .toList(growable: false);
-    final setupAssessments = assessments.activeAssessments
+    final setupAssessments = activeAssessments
         .where((assessment) => !assessment.isAnswerKeyComplete)
         .toList(growable: false);
 
@@ -26,7 +37,7 @@ class AssessmentsTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -61,41 +72,56 @@ class AssessmentsTab extends StatelessWidget {
                     label: const Text('Quick Grade'),
                   ),
                 ),
+                const SizedBox(height: 16),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('Active'),
+                      icon: Icon(Icons.play_circle_outline, size: 18),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Completed'),
+                      icon: Icon(Icons.check_circle_outline, size: 18),
+                    ),
+                  ],
+                  selected: {_showCompleted},
+                  onSelectionChanged: (selected) =>
+                      setState(() => _showCompleted = selected.first),
+                ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
           Expanded(
-            child: assessments.activeAssessments.isEmpty
-                ? _buildEmptyState(context)
-                : _buildAssessmentList(
-                    context,
-                    readyAssessments,
-                    setupAssessments,
-                  ),
+            child: _showCompleted
+                ? _buildCompletedList(context, completedAssessments)
+                : _buildActiveList(context, readyAssessments, setupAssessments),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: AppEmptyState(
-        icon: Icons.assignment_outlined,
-        title: 'No assessments yet',
-        message: 'Create your first assessment to start grading',
-        buttonLabel: 'Grade Papers',
-        onPressed: () =>
-            Navigator.pushNamed(context, AppRoutes.createAssessment),
-      ),
-    );
-  }
-
-  Widget _buildAssessmentList(
+  Widget _buildActiveList(
     BuildContext context,
     List<Assessment> ready,
     List<Assessment> setup,
   ) {
+    if (ready.isEmpty && setup.isEmpty) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.assignment_outlined,
+          title: 'No active exams',
+          message: 'Create one or check your completed exams.',
+          buttonLabel: 'Grade Papers',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.createAssessment),
+        ),
+      );
+    }
+
     return CustomScrollView(
       slivers: [
         if (setup.isNotEmpty) ...[
@@ -142,9 +168,67 @@ class AssessmentsTab extends StatelessWidget {
             ),
           ),
         ],
-        if (ready.isEmpty && setup.isEmpty)
-          SliverFillRemaining(child: _buildEmptyState(context)),
       ],
+    );
+  }
+
+  Widget _buildCompletedList(
+    BuildContext context,
+    List<Assessment> completed,
+  ) {
+    if (completed.isEmpty) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.check_circle_outline,
+          title: 'No completed exams yet',
+          message: 'Grade your first exam to see results here.',
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Completed (${completed.length})',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: AppTheme.primaryGreen,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          sliver: SliverList.builder(
+            itemCount: completed.length,
+            itemBuilder: (_, index) => AssessmentCard(
+              assessment: completed[index],
+              onTap: () => _openCompletedExam(context, completed[index]),
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      ],
+    );
+  }
+
+  void _openCompletedExam(BuildContext context, Assessment assessment) async {
+    final results =
+        await HybridGradingService().loadScanResults(assessment.id);
+
+    if (!context.mounted) return;
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.gradeReview,
+      arguments: {
+        'assessment': assessment,
+        'results': results,
+        'readOnly': true,
+      },
     );
   }
 }

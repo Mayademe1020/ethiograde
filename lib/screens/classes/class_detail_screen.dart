@@ -181,6 +181,11 @@ class ClassDetailScreen extends StatelessWidget {
                           ),
                         ),
                         title: Text(s.fullName),
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.studentDetail,
+                          arguments: s,
+                        ),
                         subtitle: Row(
                           children: [
                             if (s.gender.isNotEmpty)

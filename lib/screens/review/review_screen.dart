@@ -26,6 +26,7 @@ import '../../services/assessment_completion_gate.dart';
 import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
+import '../../services/results_pdf_service.dart';
 import '../assessment/answer_key_screen.dart';
 import '../scanning/camera_screen.dart';
 import 'audit_trail_sheet.dart' as audit;
@@ -583,6 +584,36 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
+  Future<void> _exportPdf(BuildContext context) async {
+    final results = _results;
+    if (results == null || results.isEmpty) return;
+
+    try {
+      final assessment = context.read<AssessmentProvider>().getAssessmentById(
+            results.first.assessmentId,
+          );
+      if (assessment == null) return;
+
+      final settings = context.read<SettingsProvider>();
+      final pdfService = ResultsPdfService();
+      await pdfService.shareResultsReport(
+        assessment: assessment,
+        results: results,
+        schoolName: settings.schoolName,
+        teacherName: settings.teacherName,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate report: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   String _assessmentTitle(List<ScanResult> results) {
     final assessment = context.read<AssessmentProvider>().getAssessmentById(
       results.first.assessmentId,
@@ -863,7 +894,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         label: const Text('Save draft'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _isSaving || _isExporting || _isRegrading
+                          ? null
+                          : () => _exportPdf(context),
+                      icon: const Icon(Icons.picture_as_pdf),
+                      tooltip: 'Export PDF',
+                      style: IconButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       flex: 2,
                       child: FilledButton.icon(
