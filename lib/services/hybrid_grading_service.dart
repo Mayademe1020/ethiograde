@@ -588,7 +588,7 @@ class HybridGradingService {
       for (final key in box.keys) {
         final data = await box.get(key);
         if (data == null) continue;
-        final map = Map<String, dynamic>.from(data as Map);
+        final map = _deepCastMap(data);
         if (map['studentId'] == studentId) {
           results.add(ScanResult.fromMap(map));
         }

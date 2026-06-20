@@ -45,15 +45,31 @@ class ResultsPdfService {
       ),
     );
 
-    final dirPath = (await getApplicationDocumentsDirectory()).path;
     final dateStr = DateTime.now().toString().substring(0, 10);
     final safeTitle = _safeFileName(assessment.title);
     final safeClass = assessment.className.isNotEmpty
         ? '_${_safeFileName(assessment.className)}'
         : '';
-    final path = '$dirPath/EthioGrade_${safeTitle}${safeClass}_$dateStr.pdf';
-    final file = File(path);
+    final fileName = 'EthioGrade_${safeTitle}${safeClass}_$dateStr.pdf';
+
+    // Save to app documents directory
+    final docsDir = await getApplicationDocumentsDirectory();
+    final file = File('${docsDir.path}/$fileName');
     await file.writeAsBytes(await pdf.save());
+
+    // Also copy to Downloads folder if external storage is available
+    try {
+      final extDir = await getExternalStorageDirectory();
+      if (extDir != null) {
+        final downloadsDir = Directory('${extDir.path}/Download');
+        if (!await downloadsDir.exists()) {
+          await downloadsDir.create(recursive: true);
+        }
+        final downloadFile = File('${downloadsDir.path}/$fileName');
+        await file.copy(downloadFile.path);
+      }
+    } catch (_) {}
+
     return file;
   }
 
