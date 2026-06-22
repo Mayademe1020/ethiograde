@@ -4,21 +4,42 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../services/student_provider.dart';
-import '../../services/class_provider.dart';
 
-class StudentsTab extends StatelessWidget {
+class StudentsTab extends StatefulWidget {
   const StudentsTab({super.key});
+
+  @override
+  State<StudentsTab> createState() => _StudentsTabState();
+}
+
+class _StudentsTabState extends State<StudentsTab> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final students = context.watch<StudentProvider>();
+    final filtered = _query.isEmpty
+        ? students.students
+        : students.students.where((s) {
+            final q = _query.toLowerCase();
+            return s.fullName.toLowerCase().contains(q) ||
+                s.studentId.toLowerCase().contains(q);
+          }).toList()
+      ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -47,10 +68,42 @@ class StudentsTab extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: 'Search by name or ID...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Expanded(
             child: students.students.isEmpty
                 ? _buildEmptyState(context)
-                : _buildStudentList(context, students),
+                : _buildStudentList(context, filtered),
           ),
         ],
       ),
@@ -100,15 +153,31 @@ class StudentsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildStudentList(BuildContext context, StudentProvider students) {
-    final sorted = List.of(students.students)
-      ..sort((a, b) => a.fullName.compareTo(b.fullName));
+  Widget _buildStudentList(BuildContext context, List<dynamic> filtered) {
+    if (filtered.isEmpty && _query.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 12),
+              Text(
+                'No students matching "$_query"',
+                style: TextStyle(color: AppTheme.lightText),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: sorted.length,
+      itemCount: filtered.length,
       itemBuilder: (context, index) {
-        final student = sorted[index];
+        final student = filtered[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(

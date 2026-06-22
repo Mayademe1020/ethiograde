@@ -92,11 +92,31 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     try {
       final settings = context.read<SettingsProvider>();
       final pdfService = ResultsPdfService();
-      await pdfService.shareResultsReport(
+      final file = await pdfService.generateResultsReport(
         assessment: assessment,
         results: results,
         schoolName: settings.schoolName,
         teacherName: settings.teacherName,
+      );
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Report saved to: ${file.path.split('/').last}'),
+          backgroundColor: AppTheme.primaryGreen,
+          action: SnackBarAction(
+            label: 'Share',
+            textColor: Colors.white,
+            onPressed: () => pdfService.shareResultsReport(
+              assessment: assessment,
+              results: results,
+              schoolName: settings.schoolName,
+              teacherName: settings.teacherName,
+            ),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } catch (e) {
       if (context.mounted) {

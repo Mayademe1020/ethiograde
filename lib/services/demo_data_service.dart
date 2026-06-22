@@ -263,13 +263,90 @@ class DemoDataService {
     final grading = HybridGradingService();
     final existingResults = await grading.loadScanResults('demo-assessment-001');
     if (existingResults.isEmpty) {
-      final demoResults = _generateDemoResults(students, assessment);
+      final demoResults = _generateDemoResults(students, assessment, [0.60, 0.80, 0.45, 0.90, 0.70]);
       for (final result in demoResults) {
         await grading.saveScanResult(result);
       }
-      // Mark assessment as completed
       await assessmentProvider.updateAssessmentStatus(
         'demo-assessment-001',
+        AssessmentStatus.completed,
+      );
+    }
+
+    // ── 6. Create Unit 2 Math Quiz + results ──────────────────────
+    if (!assessmentProvider.assessments.any((a) => a.id == 'demo-assessment-002')) {
+      final questions2 = [
+        Question(number: 1, type: QuestionType.mcq, text: 'What is 15 × 6?', points: 2, correctAnswer: 'C'),
+        Question(number: 2, type: QuestionType.mcq, text: 'What is 200 ÷ 8?', points: 2, correctAnswer: 'B'),
+        Question(number: 3, type: QuestionType.mcq, text: 'What is 56 + 78?', points: 2, correctAnswer: 'A'),
+        Question(number: 4, type: QuestionType.mcq, text: 'What is 150 - 63?', points: 2, correctAnswer: 'D'),
+        Question(number: 5, type: QuestionType.trueFalse, text: 'A square has 4 equal sides.', points: 2, correctAnswer: 'True'),
+        Question(number: 6, type: QuestionType.mcq, text: 'What is 12 × 12?', points: 2, correctAnswer: 'B'),
+        Question(number: 7, type: QuestionType.mcq, text: 'Round 147 to nearest ten.', points: 2, correctAnswer: 'C'),
+        Question(number: 8, type: QuestionType.trueFalse, text: '¾ is less than ½.', points: 2, correctAnswer: 'False'),
+        Question(number: 9, type: QuestionType.mcq, text: 'How many seconds in 3 minutes?', points: 2, correctAnswer: 'A'),
+        Question(number: 10, type: QuestionType.mcq, text: 'What is 5³ (5 cubed)?', points: 2, correctAnswer: 'D'),
+      ];
+      final assessment2 = Assessment(
+        id: 'demo-assessment-002',
+        title: 'Unit 2 Math Quiz',
+        subject: 'Mathematics',
+        className: demoClass.name,
+        grade: 5,
+        rubricType: 'moe_national',
+        questions: questions2,
+        totalPoints: 20,
+        passingPoints: 10,
+        status: AssessmentStatus.active,
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      );
+      await assessmentProvider.addAssessment(assessment2);
+
+      final results2 = _generateDemoResults(students, assessment2, [0.75, 0.65, 0.55, 0.85, 0.80]);
+      for (final result in results2) {
+        await grading.saveScanResult(result);
+      }
+      await assessmentProvider.updateAssessmentStatus(
+        'demo-assessment-002',
+        AssessmentStatus.completed,
+      );
+    }
+
+    // ── 7. Create Unit 3 Math Quiz + results ──────────────────────
+    if (!assessmentProvider.assessments.any((a) => a.id == 'demo-assessment-003')) {
+      final questions3 = [
+        Question(number: 1, type: QuestionType.mcq, text: 'What is 8 × 7?', points: 2, correctAnswer: 'D'),
+        Question(number: 2, type: QuestionType.mcq, text: 'What is 192 ÷ 16?', points: 2, correctAnswer: 'A'),
+        Question(number: 3, type: QuestionType.mcq, text: 'What is 345 + 678?', points: 2, correctAnswer: 'B'),
+        Question(number: 4, type: QuestionType.mcq, text: 'What is 1000 - 456?', points: 2, correctAnswer: 'C'),
+        Question(number: 5, type: QuestionType.trueFalse, text: 'Zero is an even number.', points: 2, correctAnswer: 'True'),
+        Question(number: 6, type: QuestionType.mcq, text: 'What is 15 × 15?', points: 2, correctAnswer: 'D'),
+        Question(number: 7, type: QuestionType.mcq, text: 'Round 839 to nearest hundred.', points: 2, correctAnswer: 'A'),
+        Question(number: 8, type: QuestionType.trueFalse, text: '½ + ¼ = ¾.', points: 2, correctAnswer: 'True'),
+        Question(number: 9, type: QuestionType.mcq, text: 'How many days in 4 weeks?', points: 2, correctAnswer: 'B'),
+        Question(number: 10, type: QuestionType.mcq, text: 'What is 2⁴ (2 to power 4)?', points: 2, correctAnswer: 'C'),
+      ];
+      final assessment3 = Assessment(
+        id: 'demo-assessment-003',
+        title: 'Unit 3 Math Quiz',
+        subject: 'Mathematics',
+        className: demoClass.name,
+        grade: 5,
+        rubricType: 'moe_national',
+        questions: questions3,
+        totalPoints: 20,
+        passingPoints: 10,
+        status: AssessmentStatus.active,
+        createdAt: DateTime.now(),
+      );
+      await assessmentProvider.addAssessment(assessment3);
+
+      final results3 = _generateDemoResults(students, assessment3, [0.70, 0.90, 0.50, 0.95, 0.60]);
+      for (final result in results3) {
+        await grading.saveScanResult(result);
+      }
+      await assessmentProvider.updateAssessmentStatus(
+        'demo-assessment-003',
         AssessmentStatus.completed,
       );
     }
@@ -278,13 +355,12 @@ class DemoDataService {
   static List<ScanResult> _generateDemoResults(
     List<Student> students,
     Assessment assessment,
+    List<double> scoreRatios,
   ) {
     final maxScore = assessment.maxScore;
     final scoring = const ScoringService();
 
     final results = <ScanResult>[];
-    // Vary scores: 60%, 80%, 45%, 90%, 70%
-    final scoreRatios = [0.60, 0.80, 0.45, 0.90, 0.70];
 
     for (int i = 0; i < students.length && i < scoreRatios.length; i++) {
       final student = students[i];

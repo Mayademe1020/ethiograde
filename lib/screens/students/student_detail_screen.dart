@@ -82,6 +82,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 _buildProfileHeader(student, context),
                 const SizedBox(height: 16),
                 _buildStatsRow(stats),
+                const SizedBox(height: 16),
+                _buildClassStats(context, results),
                 const SizedBox(height: 24),
                 _buildGradeHistory(context, results),
               ],
@@ -192,6 +194,130 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildClassStats(BuildContext context, List<ScanResult> studentResults) {
+    if (studentResults.isEmpty) return const SizedBox.shrink();
+
+    // Get the assessment IDs this student has taken
+    final assessmentIds = studentResults.map((r) => r.assessmentId).toSet();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Class Comparison',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        FutureBuilder<List<_ClassExamStats>>(
+          future: _loadClassStats(assessmentIds),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(12),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+
+            final classStats = snapshot.data!;
+            if (classStats.isEmpty) return const SizedBox.shrink();
+
+            return Column(
+              children: classStats.map((cs) {
+                final studentScore = studentResults
+                    .where((r) => r.assessmentId == cs.assessmentId)
+                    .fold<double>(0, (sum, r) => sum + r.percentage);
+                final isAbove = studentScore >= cs.classAverage;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isAbove
+                        ? AppTheme.primaryGreen.withOpacity(0.05)
+                        : AppTheme.warning.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                      color: isAbove
+                          ? AppTheme.primaryGreen.withOpacity(0.2)
+                          : AppTheme.warning.withOpacity(0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              cs.assessmentTitle,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Class avg: ${cs.classAverage.toStringAsFixed(1)}%  •  ${cs.studentCount} students',
+                              style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          Text(
+                            '${studentScore.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: isAbove ? AppTheme.primaryGreen : AppTheme.warning,
+                            ),
+                          ),
+                          Text(
+                            isAbove ? 'Above avg' : 'Below avg',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isAbove ? AppTheme.primaryGreen : AppTheme.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<List<_ClassExamStats>> _loadClassStats(Set<String> assessmentIds) async {
+    final grading = HybridGradingService();
+    final assessmentProvider = AssessmentProvider();
+    final stats = <_ClassExamStats>[];
+
+    for (final id in assessmentIds) {
+      final allResults = await grading.loadScanResults(id);
+      if (allResults.isEmpty) continue;
+
+      final avg = allResults.map((r) => r.percentage).reduce((a, b) => a + b) /
+          allResults.length;
+      final assessment = assessmentProvider.getAssessmentById(id);
+
+      stats.add(_ClassExamStats(
+        assessmentId: id,
+        assessmentTitle: assessment?.title ?? 'Unknown',
+        classAverage: avg,
+        studentCount: allResults.length,
+      ));
+    }
+
+    return stats;
   }
 
   Widget _buildGradeHistory(BuildContext context, List<ScanResult> results) {
@@ -482,4 +608,18 @@ class _ResultRow extends StatelessWidget {
         .getAssessmentById(result.assessmentId);
     return assessment?.title ?? 'Unknown Exam';
   }
+}
+
+class _ClassExamStats {
+  final String assessmentId;
+  final String assessmentTitle;
+  final double classAverage;
+  final int studentCount;
+
+  const _ClassExamStats({
+    required this.assessmentId,
+    required this.assessmentTitle,
+    required this.classAverage,
+    required this.studentCount,
+  });
 }
