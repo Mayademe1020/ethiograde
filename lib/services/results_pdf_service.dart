@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
@@ -73,11 +74,18 @@ class ResultsPdfService {
     return file;
   }
 
-  /// Open the PDF file directly on the device.
+  static const _channel = MethodChannel('com.ethiograde/file_opener');
+
+  /// Open the PDF file directly on the device using Android intent.
   Future<void> openFile(File file) async {
     try {
-      await Share.shareXFiles([XFile(file.path)]);
-    } catch (_) {}
+      await _channel.invokeMethod('openFile', {'path': file.path});
+    } catch (_) {
+      // Fallback to share sheet if platform channel fails
+      try {
+        await Share.shareXFiles([XFile(file.path)]);
+      } catch (_) {}
+    }
   }
 
   Future<void> shareResultsReport({
