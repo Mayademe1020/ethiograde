@@ -70,6 +70,9 @@ class _CameraScreenState extends State<CameraScreen>
   String? _captureErrorMessage;
   VoidCallback? _captureErrorOnRetry;
   Assessment? _captureErrorAssessment;
+  int? _countdown;
+  String? _feedbackText;
+  bool _isDisposed = false;
 
   late final CameraProcessor _processor;
 
@@ -80,10 +83,10 @@ class _CameraScreenState extends State<CameraScreen>
     _processor = CameraProcessor(
       callbacks: CameraProcessorCallbacks(
         onCapturingChanged: (capturing) {
-          if (mounted) setState(() => _isCapturing = capturing);
+          if (mounted && !_isDisposed) setState(() => _isCapturing = capturing);
         },
         onCaptureFeedbackChanged: (title, detail) {
-          if (mounted) setState(() {
+          if (mounted && !_isDisposed) setState(() {
             _lastCaptureTitle = title;
             _lastCaptureDetail = detail;
             _captureErrorMessage = null;
@@ -92,20 +95,19 @@ class _CameraScreenState extends State<CameraScreen>
           });
         },
         onGuideStateChanged: (state) {
-          if (mounted) setState(() => _guideState = state);
+          if (mounted && !_isDisposed) setState(() => _guideState = state);
         },
         onBatchChanged: (images, hashes) {
-          if (mounted) setState(() {});
+          if (mounted && !_isDisposed) setState(() {});
         },
         onAutoGradedResultsChanged: (results) {
-          if (mounted) setState(() { _autoGradedResults..clear()..addAll(results); });
+          if (mounted && !_isDisposed) setState(() { _autoGradedResults..clear()..addAll(results); });
         },
         onBatchStartedChanged: (started) {
-          if (mounted) setState(() => _batchStarted = started);
+          if (mounted && !_isDisposed) setState(() => _batchStarted = started);
         },
-        onShowDuplicateDialog: () => showDuplicateDialog(context),
         onCaptureError: (message, onRetry, assessment) {
-          if (mounted) setState(() {
+          if (mounted && !_isDisposed) setState(() {
             _captureErrorMessage = message;
             _captureErrorOnRetry = onRetry;
             _captureErrorAssessment = assessment;
@@ -113,9 +115,16 @@ class _CameraScreenState extends State<CameraScreen>
             _lastCaptureDetail = '';
           });
         },
+        onShowDuplicateDialog: () => showDuplicateDialog(context),
         onAutoCaptureTriggered: () {
           // Auto-capture: trigger the actual capture
           _captureImage();
+        },
+        onFeedbackTextChanged: (text) {
+          if (mounted) setState(() => _feedbackText = text);
+        },
+        onCountdownChanged: (value) {
+          if (mounted) setState(() => _countdown = value);
         },
       ),
     );
@@ -202,10 +211,7 @@ class _CameraScreenState extends State<CameraScreen>
         _isInitialized = true;
         _isCameraStarting = false;
       });
-      // Auto-enable auto-capture in batch mode
-      if (_scanMode == _CameraScanMode.batch) {
-        _processor.toggleAutoCapture(_cameraController);
-      }
+      // Manual capture mode — auto-capture disabled by default
     }
   }
 
@@ -296,7 +302,11 @@ class _CameraScreenState extends State<CameraScreen>
           : Stack(
               children: [
                 Positioned.fill(child: CameraPreview(_cameraController!)),
-                Positioned.fill(child: PaperGuideOverlay(state: _guideState)),
+                Positioned.fill(child: PaperGuideOverlay(
+                  state: _guideState,
+                  countdown: _countdown,
+                  feedbackText: _feedbackText,
+                )),
                 _buildTopBar(),
                 // Active assessment banner
                 if (_selectedAssessment != null)
@@ -737,7 +747,9 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   void dispose() {
+    _isDisposed = true;
     WidgetsBinding.instance.removeObserver(this);
+    _processor.cancelCountdown();
     _processor.stopFrameObservation(_cameraController);
     for (final timer in _cameraStartupTimers) {
       timer.cancel();
@@ -756,6 +768,8 @@ class _CameraScreenState extends State<CameraScreen>
       return;
     }
     if (state == AppLifecycleState.inactive) {
+      // Cancel countdown before disposing camera
+      _processor.cancelCountdown();
       _cameraController?.dispose();
     } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();

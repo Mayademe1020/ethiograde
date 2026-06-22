@@ -128,7 +128,7 @@ class Assessment {
     grade: map['grade'] ?? 1,
     rubricType: map['rubricType'] ?? 'moe_national',
     questions: (map['questions'] as List? ?? [])
-        .map((q) => Question.fromMap(q))
+        .map((q) => Question.fromMap(Map<String, dynamic>.from(q)))
         .toList(),
     createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
     completedAt: map['completedAt'] != null
@@ -254,7 +254,7 @@ class Question {
           ? List<String>.from(map['keywords'])
           : null,
       essayRubric: map['essayRubric'] != null
-          ? EssayRubric.fromMap(map['essayRubric'])
+          ? EssayRubric.fromMap(Map<String, dynamic>.from(map['essayRubric']))
           : null);
   }
 
