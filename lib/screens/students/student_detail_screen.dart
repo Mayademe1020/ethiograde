@@ -32,9 +32,19 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   Future<void> _loadResults() async {
     final results =
         await HybridGradingService().getResultsForStudent(widget.student.id);
+    // Deduplicate by assessmentId (keep the most recent result per exam)
+    final seen = <String, ScanResult>{};
+    for (final r in results) {
+      final existing = seen[r.assessmentId];
+      if (existing == null || r.scannedAt.isAfter(existing.scannedAt)) {
+        seen[r.assessmentId] = r;
+      }
+    }
+    final deduped = seen.values.toList()
+      ..sort((a, b) => b.scannedAt.compareTo(a.scannedAt));
     if (mounted) {
       setState(() {
-        _results = results;
+        _results = deduped;
         _isLoading = false;
       });
     }

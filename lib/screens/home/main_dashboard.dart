@@ -5,6 +5,7 @@ import '../../config/routes.dart';
 import '../../services/assessment_provider.dart';
 import '../../models/assessment.dart';
 import '../../services/student_provider.dart';
+import '../../models/student.dart';
 import '../../services/settings_provider.dart';
 import '../../services/teacher_provider.dart';
 import '../../services/class_provider.dart';
@@ -13,6 +14,7 @@ import '../../widgets/assessment_card.dart';
 import '../../widgets/ui_components.dart';
 import '../../services/draft_service.dart';
 import '../../models/scan_result.dart';
+import '../../services/demo_data_service.dart';
 import '../classes/create_class_sheet.dart';
 import '../classes/class_detail_screen.dart';
 import 'dashboard_actions.dart';
@@ -29,6 +31,20 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure test exam exists
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      DemoDataService.seed(
+        classProvider: context.read<ClassProvider>(),
+        studentProvider: context.read<StudentProvider>(),
+        assessmentProvider: context.read<AssessmentProvider>(),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +167,14 @@ class _DashboardHome extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+
+          // ── Student search bar ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: _StudentSearchBar(),
             ),
           ),
 
@@ -709,6 +733,130 @@ class _EmptyAssessments extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StudentSearchBar extends StatefulWidget {
+  const _StudentSearchBar();
+
+  @override
+  State<_StudentSearchBar> createState() => _StudentSearchBarState();
+}
+
+class _StudentSearchBarState extends State<_StudentSearchBar> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  String _query = '';
+  bool _showResults = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final students = context.watch<StudentProvider>().students;
+    final filtered = _query.isEmpty
+        ? <Student>[]
+        : students.where((s) {
+            final q = _query.toLowerCase();
+            return s.fullName.toLowerCase().contains(q) ||
+                s.studentId.toLowerCase().contains(q);
+          }).take(5).toList();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          onChanged: (v) => setState(() {
+            _query = v;
+            _showResults = v.isNotEmpty;
+          }),
+          onTapOutside: (_) => Future.delayed(
+            const Duration(milliseconds: 200),
+            () => mounted ? setState(() => _showResults = false) : null,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Find a student...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            suffixIcon: _query.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      _controller.clear();
+                      setState(() {
+                        _query = '';
+                        _showResults = false;
+                      });
+                    },
+                  )
+                : null,
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+        ),
+        if (_showResults && filtered.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: Colors.grey.shade300),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final s in filtered)
+                  ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                      child: Text(
+                        s.fullName[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryGreen,
+                        ),
+                      ),
+                    ),
+                    title: Text(s.fullName, style: const TextStyle(fontSize: 14)),
+                    subtitle: Text(
+                      s.studentId.isNotEmpty ? 'ID: ${s.studentId}' : '',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, size: 16),
+                    onTap: () {
+                      _focusNode.unfocus();
+                      setState(() => _showResults = false);
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.studentDetail,
+                        arguments: s,
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

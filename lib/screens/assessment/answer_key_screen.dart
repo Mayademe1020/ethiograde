@@ -526,23 +526,33 @@ class _QuestionRow extends StatelessWidget {
               const SizedBox(width: 6),
 
               // Points dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: DropdownButton<double>(
-                  value: question.points,
-                  isDense: true,
-                  underline: const SizedBox(),
-                  style: TextStyle(fontSize: 11, color: AppTheme.darkText),
-                  items: [1.0, 2.0, 5.0, 10.0].map((p) => DropdownMenuItem(
-                    value: p,
-                    child: Text('${p.toInt()}pt'),
-                  )).toList(),
-                  onChanged: (p) => onPointsChanged(p!),
-                ),
+              Builder(
+                builder: (context) {
+                  const options = [1.0, 2.0, 5.0, 10.0];
+                  final currentPoints = question.points;
+                  final matchedValue = options.contains(currentPoints)
+                      ? currentPoints
+                      : options.reduce((a, b) =>
+                          (a - currentPoints).abs() < (b - currentPoints).abs() ? a : b);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: DropdownButton<double>(
+                      value: matchedValue,
+                      isDense: true,
+                      underline: const SizedBox(),
+                      style: TextStyle(fontSize: 11, color: AppTheme.darkText),
+                      items: options.map((p) => DropdownMenuItem(
+                        value: p,
+                        child: Text('${p.toInt()}pt'),
+                      )).toList(),
+                      onChanged: (p) => onPointsChanged(p!),
+                    ),
+                  );
+                },
               ),
 
               const Spacer(),
