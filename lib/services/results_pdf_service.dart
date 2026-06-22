@@ -73,6 +73,13 @@ class ResultsPdfService {
     return file;
   }
 
+  /// Open the PDF file directly on the device.
+  Future<void> openFile(File file) async {
+    try {
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (_) {}
+  }
+
   Future<void> shareResultsReport({
     required Assessment assessment,
     required List<ScanResult> results,

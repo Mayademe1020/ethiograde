@@ -60,12 +60,18 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   @override
   Widget build(BuildContext context) {
     final classProv = context.watch<ClassProvider>();
-    if (_selectedClassId.isEmpty && classProv.classes.length == 1) {
-      _selectedClassId = classProv.classes.single.id;
+    // Deduplicate classes by ID (prevents dropdown assertion on duplicates)
+    final uniqueClasses = <String, dynamic>{};
+    for (final c in classProv.classes) {
+      uniqueClasses.putIfAbsent(c.id, () => c);
+    }
+    final classes = uniqueClasses.values.toList();
+
+    if (_selectedClassId.isEmpty && classes.length == 1) {
+      _selectedClassId = (classes.first as dynamic).id as String;
     }
     // Validate _selectedClassId still exists in available classes
-    if (_selectedClassId.isNotEmpty &&
-        !classProv.classes.any((c) => c.id == _selectedClassId)) {
+    if (_selectedClassId.isNotEmpty && !classes.any((c) => (c as dynamic).id == _selectedClassId)) {
       _selectedClassId = '';
     }
 
@@ -165,21 +171,19 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
             const SizedBox(height: 16),
 
             // ── Class ───────────────────────────────────────────────
-            if (classProv.classes.isNotEmpty) ...[
+            if (classes.isNotEmpty) ...[
               DropdownButtonFormField<String>(
                 value: _selectedClassId.isEmpty ? null : _selectedClassId,
                 decoration: InputDecoration(
                   labelText: 'Class',
-                  helperText: classProv.classes.length == 1
-                      ? 'Selected automatically'
-                      : null,
+                  helperText: classes.length == 1 ? 'Selected automatically' : null,
                   prefixIcon: const Icon(Icons.class_outlined),
                 ),
-                items: classProv.classes
+                items: classes
                     .map(
                       (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.displayName),
+                        value: (c as dynamic).id as String,
+                        child: Text((c as dynamic).displayName as String),
                       ),
                     )
                     .toList(),

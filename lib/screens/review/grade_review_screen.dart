@@ -101,23 +101,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
 
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Report saved to: ${file.path.split('/').last}'),
-          backgroundColor: AppTheme.primaryGreen,
-          action: SnackBarAction(
-            label: 'Share',
-            textColor: Colors.white,
-            onPressed: () => pdfService.shareResultsReport(
-              assessment: assessment,
-              results: results,
-              schoolName: settings.schoolName,
-              teacherName: settings.teacherName,
-            ),
-          ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      await pdfService.openFile(file);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
