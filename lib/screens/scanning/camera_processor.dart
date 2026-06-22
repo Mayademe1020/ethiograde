@@ -1,29 +1,20 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
-import '../../models/student.dart';
 import '../../services/auto_scan_engine.dart';
 import '../../services/auto_scan_frame_analyzer.dart';
 import '../../services/paper_image_intake_service.dart';
 import '../../services/image_hash_service.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
-import '../../services/cloud_ocr_service.dart';
-import '../../services/scoring_service.dart';
-import '../../services/scan_queue_service.dart';
 import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
-import '../../services/student_provider.dart';
 import '../../services/weighted_grade_provider.dart';
-import '../../services/assessment_provider.dart';
-import '../../services/auto_crop_service.dart';
 import '../../widgets/paper_guide_overlay.dart';
 
 /// Callbacks for camera processor to communicate state changes back to the UI.
@@ -399,136 +390,17 @@ class CameraProcessor {
 
       _signalCaptureSuccess();
 
-      // Check connectivity and process accordingly
-      final connectivity = await Connectivity().checkConnectivity();
-      final isOnline = connectivity != ConnectivityResult.none;
-
-      if (isOnline) {
-        // Online: process immediately
-        callbacks.onCaptureFeedbackChanged('Processing...', 'Reading answers');
-        await _processOnline(imagePath: capturedPath, assessment: assessment);
-      } else {
-        // Offline: save to queue
-        final queue = ScanQueueService();
-        await queue.enqueue(
-          imagePath: capturedPath,
-          assessmentId: assessment.id,
-        );
-        callbacks.onCaptureFeedbackChanged(
-          'Saved for processing',
-          'Will process when online',
-        );
-      }
+      // Always grade locally — offline-first, no network required
+      callbacks.onCaptureFeedbackChanged('Processing...', 'Reading answers');
+      await gradeAutoCapturedPaper(
+        imagePath: capturedPath,
+        assessment: assessment,
+      );
     } catch (e) {
       debugPrint('Capture error: $e');
     } finally {
       _autoCaptureInFlight = false;
       callbacks.onCapturingChanged(false);
-    }
-  }
-
-  /// Process a captured image online (cloud OCR or local fallback).
-  Future<void> _processOnline({
-    required String imagePath,
-    required Assessment assessment,
-  }) async {
-    try {
-      final cloudOcr = CloudOcrService();
-      debugPrint('PROCESS_ONLINE: cloudOcr.isConfigured=${cloudOcr.isConfigured}');
-      // Auto-configure from settings if not yet configured
-      if (!cloudOcr.isConfigured) {
-        final configured = await cloudOcr.autoConfigure();
-        debugPrint('PROCESS_ONLINE: autoConfigure returned $configured');
-      }
-
-      if (cloudOcr.isConfigured) {
-        debugPrint('PROCESS_ONLINE: Using Cloud OCR');
-        // Use cloud OCR — convert to DetectedAnswer, score, persist
-        final cloudResult = await cloudOcr.processImage(
-          imagePath,
-          questionCount: assessment.questions.length,
-        );
-        if (cloudResult.hasAnswers) {
-          debugPrint('CLOUD_OCR: Detected ${cloudResult.answers.length} answers:');
-          for (final a in cloudResult.answers) {
-            debugPrint('  Q${a.questionNumber}: ${a.answer} (${a.confidence})');
-          }
-
-          debugPrint('ASSESSMENT: ${assessment.questions.length} questions');
-          for (final q in assessment.questions) {
-            debugPrint('  Q${q.number}: type=${q.type}, correctAnswer=${q.correctAnswer}, points=${q.points}');
-          }
-
-          // Convert CloudOcrAnswer → DetectedAnswer
-          final detectedAnswers = cloudResult.answers.map((a) => DetectedAnswer(
-            questionNumber: a.questionNumber,
-            answer: a.answer,
-            confidence: a.confidence,
-            rawText: a.answer,
-          )).toList();
-
-          // Score against answer key
-          final scoring = const ScoringService();
-          final scoredAnswers = scoring.scoreAnswers(
-            detected: detectedAnswers,
-            assessment: assessment,
-          );
-
-          debugPrint('SCORING: ${scoredAnswers.length} answers scored');
-          for (final m in scoredAnswers) {
-            debugPrint('  Q${m.questionNumber}: detected=${m.detectedAnswer}, correct=${m.correctAnswer}, isCorrect=${m.isCorrect}, score=${m.score}/${m.maxScore}');
-          }
-
-          // Calculate totals
-          final totalScore = scoring.calculateTotalScore(scoredAnswers);
-          final maxScore = assessment.maxScore;
-          final percentage = scoring.calculatePercentage(
-            totalScore: totalScore, maxScore: maxScore);
-
-          // Build and persist ScanResult
-          final scanResult = ScanResult(
-            assessmentId: assessment.id,
-            studentId: 'paper-${DateTime.now().millisecondsSinceEpoch}',
-            studentName: 'Paper ${cloudResult.answers.length} answers',
-            imagePath: imagePath,
-            answers: scoredAnswers,
-            totalScore: totalScore,
-            maxScore: maxScore,
-            percentage: percentage,
-            grade: scoring.calculateGrade(percentage, assessment.rubricType),
-            confidence: cloudResult.confidence,
-            status: ScanStatus.graded,
-            metadata: {'detectedMethod': 'cloud-ocr'},
-          );
-
-          await HybridGradingService().saveScanResult(scanResult);
-
-          // Feedback with score
-          callbacks.onCaptureFeedbackChanged(
-            '${cloudResult.answers.length} answers — ${percentage.toStringAsFixed(0)}%',
-            scanResult.grade,
-          );
-          await _speakAutoResult(scanResult);
-        } else {
-          callbacks.onCaptureFeedbackChanged(
-            'No answers detected',
-            'Try scanning again',
-          );
-        }
-      } else {
-        // Fall back to local OCR via auto-grade
-        debugPrint('PROCESS_ONLINE: Cloud OCR NOT configured — falling back to ML Kit');
-        await gradeAutoCapturedPaper(
-          imagePath: imagePath,
-          assessment: assessment,
-        );
-      }
-    } catch (e) {
-      debugPrint('Online processing error: $e');
-      callbacks.onCaptureFeedbackChanged(
-        'Processing failed',
-        'Tap capture to retry',
-      );
     }
   }
 
