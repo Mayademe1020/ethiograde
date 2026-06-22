@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../models/student.dart';
 import '../../services/student_provider.dart';
 
 class StudentsTab extends StatefulWidget {
@@ -26,7 +27,7 @@ class _StudentsTabState extends State<StudentsTab> {
   Widget build(BuildContext context) {
     final students = context.watch<StudentProvider>();
     final filtered = _query.isEmpty
-        ? students.students
+        ? List<Student>.of(students.students)
         : students.students.where((s) {
             final q = _query.toLowerCase();
             return s.fullName.toLowerCase().contains(q) ||
