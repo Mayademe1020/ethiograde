@@ -83,3 +83,23 @@ exam_refs/
 
 # Environment variables
 .env
+
+# Screenshots & test images (generated, not source)
+*.png
+*.jpg
+!assets/**/*.png
+!assets/**/*.jpg
+
+# Build/test artifacts
+.deferred/
+.metadata
+artifacts/
+tool/
+web/
+wireframes/
+ui_dump.xml
+*.log
+
+# AI director / agent workspaces
+ai-director-os-v2/
+.mimocode/
