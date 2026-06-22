@@ -32,7 +32,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   Future<void> _loadResults() async {
     final results =
         await HybridGradingService().getResultsForStudent(widget.student.id);
-    // Deduplicate by assessmentId (keep the most recent result per exam)
     final seen = <String, ScanResult>{};
     for (final r in results) {
       final existing = seen[r.assessmentId];
@@ -54,7 +53,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   Widget build(BuildContext context) {
     final student = widget.student;
     final results = _results ?? [];
-    final stats = _computeStats(results);
 
     return Scaffold(
       appBar: AppBar(
@@ -86,18 +84,36 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                _buildProfileHeader(student, context),
-                const SizedBox(height: 16),
-                _buildStatsRow(stats),
-                const SizedBox(height: 16),
-                _buildClassStats(context, results),
-                const SizedBox(height: 24),
-                _buildGradeHistory(context, results),
-              ],
-            ),
+          : results.isEmpty
+              ? _buildEmptyState(context)
+              : _buildContent(context, student, results),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: AppEmptyState(
+        icon: Icons.school_outlined,
+        title: 'No results yet',
+        message: "This student hasn't been graded in any exam.",
+      ),
+    );
+  }
+
+  Widget _buildContent(
+      BuildContext context, Student student, List<ScanResult> results) {
+    final stats = _computeStats(results);
+    final trend = _computeTrend(results);
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        _buildProfileHeader(student, context),
+        const SizedBox(height: 16),
+        _buildPerformanceCard(context, stats, trend, results),
+        const SizedBox(height: 20),
+        _buildGradeHistory(context, results),
+      ],
     );
   }
 
@@ -140,38 +156,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 if (student.studentId.isNotEmpty)
-                  Text(
-                    'ID: ${student.studentId}',
-                    style: TextStyle(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
+                  _InfoRow(label: 'ID', value: student.studentId),
                 if (student.gender.isNotEmpty)
-                  Text(
-                    student.gender == 'M' ? 'Male' : 'Female',
-                    style: TextStyle(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                if (student.classIds.isNotEmpty)
-                  Text(
-                    'Class: ${student.className.isNotEmpty ? student.className : student.classIds.first}',
-                    style: TextStyle(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
+                  _InfoRow(
+                      label: 'Gender',
+                      value: student.gender == 'M' ? 'Male' : 'Female'),
+                if (student.className.isNotEmpty)
+                  _InfoRow(label: 'Class', value: student.className),
                 if (student.parentPhone != null &&
                     student.parentPhone!.isNotEmpty)
-                  Text(
-                    'Parent: ${student.parentPhone}',
-                    style: TextStyle(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
+                  _InfoRow(label: 'Parent', value: student.parentPhone!),
               ],
             ),
           ),
@@ -180,170 +174,104 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     );
   }
 
-  Widget _buildStatsRow(_StudentStats stats) {
-    return Row(
-      children: [
-        _StatCard(
-          label: 'Exams',
-          value: '${stats.examCount}',
-          icon: Icons.assignment_outlined,
-        ),
-        const SizedBox(width: 12),
-        _StatCard(
-          label: 'Average',
-          value: stats.examCount > 0
-              ? '${stats.average.toStringAsFixed(1)}%'
-              : '--',
-          icon: Icons.analytics_outlined,
-        ),
-        const SizedBox(width: 12),
-        _StatCard(
-          label: 'Top Grade',
-          value: stats.topGrade.isNotEmpty ? stats.topGrade : '--',
-          icon: Icons.emoji_events_outlined,
-        ),
-      ],
-    );
-  }
+  Widget _buildPerformanceCard(
+    BuildContext context,
+    _StudentStats stats,
+    _TrendInfo trend,
+    List<ScanResult> results,
+  ) {
+    final cs = Theme.of(context).colorScheme;
 
-  Widget _buildClassStats(BuildContext context, List<ScanResult> studentResults) {
-    if (studentResults.isEmpty) return const SizedBox.shrink();
-
-    // Get the assessment IDs this student has taken
-    final assessmentIds = studentResults.map((r) => r.assessmentId).toSet();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Class Comparison',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics_outlined, size: 18, color: cs.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Performance',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: cs.onSurface,
+                ),
               ),
-        ),
-        const SizedBox(height: 8),
-        FutureBuilder<List<_ClassExamStats>>(
-          future: _loadClassStats(assessmentIds),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Padding(
-                padding: EdgeInsets.all(12),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              );
-            }
-
-            final classStats = snapshot.data!;
-            if (classStats.isEmpty) return const SizedBox.shrink();
-
-            return Column(
-              children: classStats.map((cs) {
-                final studentScore = studentResults
-                    .where((r) => r.assessmentId == cs.assessmentId)
-                    .fold<double>(0, (sum, r) => sum + r.percentage);
-                final isAbove = studentScore >= cs.classAverage;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
+              const Spacer(),
+              if (trend.label.isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: isAbove
-                        ? AppTheme.primaryGreen.withOpacity(0.05)
-                        : AppTheme.warning.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                      color: isAbove
-                          ? AppTheme.primaryGreen.withOpacity(0.2)
-                          : AppTheme.warning.withOpacity(0.2),
-                    ),
+                    color: trend.color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cs.assessmentTitle,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Class avg: ${cs.classAverage.toStringAsFixed(1)}%  •  ${cs.studentCount} students',
-                              style: TextStyle(fontSize: 12, color: AppTheme.lightText),
-                            ),
-                          ],
+                      Icon(trend.icon, size: 14, color: trend.color),
+                      const SizedBox(width: 4),
+                      Text(
+                        trend.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: trend.color,
                         ),
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '${studentScore.toStringAsFixed(0)}%',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: isAbove ? AppTheme.primaryGreen : AppTheme.warning,
-                            ),
-                          ),
-                          Text(
-                            isAbove ? 'Above avg' : 'Below avg',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: isAbove ? AppTheme.primaryGreen : AppTheme.warning,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
-                );
-              }).toList(),
-            );
-          },
-        ),
-      ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _MiniStat(
+                label: 'Exams',
+                value: '${stats.examCount}',
+                color: cs.primary,
+              ),
+              const SizedBox(width: 16),
+              _MiniStat(
+                label: 'Average',
+                value: stats.examCount > 0
+                    ? '${stats.average.toStringAsFixed(0)}%'
+                    : '--',
+                color: stats.average >= 50 ? AppTheme.primaryGreen : AppTheme.primaryRed,
+              ),
+              const SizedBox(width: 16),
+              _MiniStat(
+                label: 'Best',
+                value: stats.topGrade.isNotEmpty ? stats.topGrade : '--',
+                color: AppTheme.primaryGreen,
+              ),
+              const SizedBox(width: 16),
+              _MiniStat(
+                label: 'Rank',
+                value: stats.rank.isNotEmpty ? stats.rank : '--',
+                color: cs.primary,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Future<List<_ClassExamStats>> _loadClassStats(Set<String> assessmentIds) async {
-    final grading = HybridGradingService();
-    final assessmentProvider = AssessmentProvider();
-    final stats = <_ClassExamStats>[];
-
-    for (final id in assessmentIds) {
-      final allResults = await grading.loadScanResults(id);
-      if (allResults.isEmpty) continue;
-
-      final avg = allResults.map((r) => r.percentage).reduce((a, b) => a + b) /
-          allResults.length;
-      final assessment = assessmentProvider.getAssessmentById(id);
-
-      stats.add(_ClassExamStats(
-        assessmentId: id,
-        assessmentTitle: assessment?.title ?? 'Unknown',
-        classAverage: avg,
-        studentCount: allResults.length,
-      ));
-    }
-
-    return stats;
-  }
-
   Widget _buildGradeHistory(BuildContext context, List<ScanResult> results) {
-    if (results.isEmpty) {
-      return AppEmptyState(
-        icon: Icons.school_outlined,
-        title: 'No results yet',
-        message: "This student hasn't been graded in any exam.",
-      );
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Grade History',
+          'Recent Results',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -359,11 +287,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   _StudentStats _computeStats(List<ScanResult> results) {
     if (results.isEmpty) {
-      return const _StudentStats(
-        examCount: 0,
-        average: 0,
-        topGrade: '',
-      );
+      return const _StudentStats(examCount: 0, average: 0, topGrade: '', rank: '');
     }
 
     double totalWeighted = 0;
@@ -382,11 +306,51 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
     final avg = totalMax > 0 ? (totalWeighted / totalMax) * 100 : 0.0;
 
+    // Compute approximate class rank from the most recent exam
+    String rank = '';
+    if (results.isNotEmpty) {
+      final latest = results.first;
+      final pct = latest.percentage;
+      if (pct >= 90) {
+        rank = 'Top 10%';
+      } else if (pct >= 75) {
+        rank = 'Top 25%';
+      } else if (pct >= 50) {
+        rank = 'Middle';
+      } else {
+        rank = 'Needs support';
+      }
+    }
+
     return _StudentStats(
       examCount: results.length,
       average: avg,
       topGrade: topGrade,
+      rank: rank,
     );
+  }
+
+  _TrendInfo _computeTrend(List<ScanResult> results) {
+    if (results.length < 2) {
+      return const _TrendInfo(label: '', icon: Icons.remove, color: Colors.grey);
+    }
+
+    // Compare last exam to the average of previous exams
+    final latest = results.first;
+    final previous = results.sublist(1);
+    final prevAvg = previous.map((r) => r.percentage).reduce((a, b) => a + b) /
+        previous.length;
+    final diff = latest.percentage - prevAvg;
+
+    if (diff > 5) {
+      return const _TrendInfo(
+          label: 'Improving', icon: Icons.trending_up, color: AppTheme.primaryGreen);
+    } else if (diff < -5) {
+      return const _TrendInfo(
+          label: 'Declining', icon: Icons.trending_down, color: AppTheme.primaryRed);
+    }
+    return const _TrendInfo(
+        label: 'Stable', icon: Icons.trending_flat, color: AppTheme.info);
   }
 
   void _openExamResult(BuildContext context, ScanResult result) {
@@ -430,9 +394,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -450,57 +412,82 @@ class _StudentStats {
   final int examCount;
   final double average;
   final String topGrade;
+  final String rank;
 
   const _StudentStats({
     required this.examCount,
     required this.average,
     required this.topGrade,
+    required this.rank,
   });
 }
 
-class _StatCard extends StatelessWidget {
+class _TrendInfo {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _TrendInfo({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
 
-  const _StatCard({
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MiniStat({
     required this.label,
     required this.value,
-    required this.icon,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: cs.primary),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: cs.onSurface,
-              ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: cs.onSurfaceVariant,
-              ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -510,17 +497,17 @@ class _ResultRow extends StatelessWidget {
   final ScanResult result;
   final VoidCallback onTap;
 
-  const _ResultRow({
-    required this.result,
-    required this.onTap,
-  });
+  const _ResultRow({required this.result, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final passed = result.percentage >= 50;
     final date = result.scannedAt;
-    final months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    final dateStr = '${months[date.month - 1]} ${date.day}, ${date.year}';
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final dateStr = '${months[date.month - 1]} ${date.day}';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -540,6 +527,15 @@ class _ResultRow extends StatelessWidget {
             ),
             child: Row(
               children: [
+                Container(
+                  width: 4,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,13 +550,12 @@ class _ResultRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         '${result.totalScore.toInt()}/${result.maxScore.toInt()}  •  $dateStr',
                         style: TextStyle(
                           fontSize: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -598,12 +593,6 @@ class _ResultRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
               ],
             ),
           ),
@@ -618,18 +607,4 @@ class _ResultRow extends StatelessWidget {
         .getAssessmentById(result.assessmentId);
     return assessment?.title ?? 'Unknown Exam';
   }
-}
-
-class _ClassExamStats {
-  final String assessmentId;
-  final String assessmentTitle;
-  final double classAverage;
-  final int studentCount;
-
-  const _ClassExamStats({
-    required this.assessmentId,
-    required this.assessmentTitle,
-    required this.classAverage,
-    required this.studentCount,
-  });
 }

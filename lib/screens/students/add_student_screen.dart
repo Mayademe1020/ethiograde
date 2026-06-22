@@ -63,6 +63,11 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     if (_selectedClassId.isEmpty && classProv.classes.length == 1) {
       _selectedClassId = classProv.classes.single.id;
     }
+    // Validate _selectedClassId still exists in available classes
+    if (_selectedClassId.isNotEmpty &&
+        !classProv.classes.any((c) => c.id == _selectedClassId)) {
+      _selectedClassId = '';
+    }
 
     return Scaffold(
       appBar: AppBar(
