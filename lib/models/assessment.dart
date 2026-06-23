@@ -75,6 +75,8 @@ class Assessment {
       questions.where((q) => q.type == QuestionType.shortAnswer).length;
   int get essayCount =>
       questions.where((q) => q.type == QuestionType.essay).length;
+  int get multiAnswerCount =>
+      questions.where((q) => q.type == QuestionType.multiAnswer).length;
 
   double get maxScore => questions.fold(0.0, (sum, q) => sum + q.points);
 
@@ -221,7 +223,7 @@ class Question {
   }) : id = id ?? const Uuid().v4();
 
   bool get isObjective =>
-      type == QuestionType.mcq || type == QuestionType.trueFalse || type == QuestionType.matching;
+      type == QuestionType.mcq || type == QuestionType.trueFalse || type == QuestionType.matching || type == QuestionType.multiAnswer;
   bool get isSubjective =>
       type == QuestionType.shortAnswer || type == QuestionType.essay;
 
@@ -288,7 +290,7 @@ class Question {
 }
 
 @HiveType(typeId: 6)
-enum QuestionType { @HiveField(0) mcq, @HiveField(1) trueFalse, @HiveField(2) shortAnswer, @HiveField(3) essay, @HiveField(4) matching }
+enum QuestionType { @HiveField(0) mcq, @HiveField(1) trueFalse, @HiveField(2) shortAnswer, @HiveField(3) essay, @HiveField(4) matching, @HiveField(5) multiAnswer }
 
 @HiveType(typeId: 4)
 class EssayRubric {

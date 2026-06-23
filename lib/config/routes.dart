@@ -6,7 +6,6 @@ import '../screens/assessment/answer_key_screen.dart';
 import '../screens/assessment/answer_key_confirmation_screen.dart';
 import '../screens/scanning/camera_screen.dart';
 import '../screens/scanning/batch_scan_screen.dart';
-import '../screens/scanning/uploaded_papers_review_screen.dart';
 import '../screens/quick_grade/quick_grade_screen.dart';
 import '../screens/quick_enter/quick_enter_screen.dart';
 import '../screens/review/review_screen.dart';
@@ -32,7 +31,6 @@ class AppRoutes {
   // Scanning
   static const String camera = '/scanning/camera';
   static const String batchScan = '/scanning/batch';
-  static const String uploadedPapersReview = '/scanning/uploaded-papers-review';
   static const String quickGrade = '/quick_grade';
   static const String quickEnter = '/quick_enter';
 
@@ -74,9 +72,6 @@ class AppRoutes {
         return _fade(const CameraScreen(), settings);
       case batchScan:
         return _fade(const BatchScanScreen(), settings);
-      case uploadedPapersReview:
-        final args = settings.arguments as UploadedPapersReviewArgs;
-        return _fade(UploadedPapersReviewScreen(args: args), settings);
       case quickGrade:
         return _fade(const QuickGradeScreen(), settings);
       case quickEnter:

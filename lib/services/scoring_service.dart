@@ -140,6 +140,16 @@ class ScoringService {
       return _checkMatchingAnswer(detectedStr, correct.toString());
     }
 
+    if (type == QuestionType.multiAnswer) {
+      // Multi-answer: correct is "A,C" — student must select ALL correct letters
+      final detectedNorm = detectedStr.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+      final correctStr = correct.toString();
+      final correctLetters = correctStr.split(',').map((s) => s.trim().toUpperCase()).toSet();
+      // Student answer could be "A,C" or "AC" or individual detected letters
+      final studentLetters = detectedNorm.split(RegExp(r'[,+]+')).map((s) => s.trim().toUpperCase()).where((s) => s.isNotEmpty).toSet();
+      return correctLetters.isNotEmpty && studentLetters.containsAll(correctLetters);
+    }
+
     if (type == QuestionType.shortAnswer) {
       // Normalize whitespace: OCR often inserts extra spaces
       final detectedNorm = _normalizeWhitespace(detectedStr);

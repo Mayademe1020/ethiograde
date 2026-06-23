@@ -359,7 +359,8 @@ class HybridGradingService {
       final isObjective =
           question.type == QuestionType.mcq ||
           question.type == QuestionType.trueFalse ||
-          question.type == QuestionType.matching;
+          question.type == QuestionType.matching ||
+          question.type == QuestionType.multiAnswer;
 
       if (isObjective) {
         // Objective questions: OMR preferred

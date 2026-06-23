@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
@@ -33,6 +34,10 @@ class AnswerKeyScreen extends StatefulWidget {
 class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   Assessment? _assessment;
   String? _preEditFingerprint;
+  Map<int, String> _originalAnswers = {};
+  int _typeFilter = -1;
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _rowKeys = {};
 
   @override
   void didChangeDependencies() {
@@ -48,13 +53,78 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       _assessment = context.watch<AssessmentProvider>().currentAssessment;
     }
 
-    // Capture pre-edit fingerprint for change detection
-    if (_assessment != null && _preEditFingerprint == null) {
+    if (_assessment != null) {
       _preEditFingerprint = _assessment!.answerKeyFingerprint.isNotEmpty
           ? _assessment!.answerKeyFingerprint
           : const AnswerKeyFingerprintService().compute(_assessment!);
+      _originalAnswers = {
+        for (final q in _assessment!.questions)
+          q.number: q.correctAnswer?.toString() ?? '',
+      };
+      for (final q in _assessment!.questions) {
+        _rowKeys[q.number] = GlobalKey();
+      }
     }
   }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  List<Question> get _filteredQuestions {
+    if (_assessment == null) return [];
+    if (_typeFilter < 0) return _assessment!.questions;
+    final types = QuestionType.values;
+    if (_typeFilter >= types.length) return _assessment!.questions;
+    final type = types[_typeFilter];
+    return _assessment!.questions.where((q) => q.type == type).toList();
+  }
+
+  Map<String, int> get _typeCounts {
+    if (_assessment == null) return {};
+    final counts = <String, int>{};
+    counts['ALL'] = _assessment!.questions.length;
+    for (final q in _assessment!.questions) {
+      final label = _typeLabel(q.type);
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  Map<String, int> get _answerDistribution {
+    if (_assessment == null) return {};
+    final dist = <String, int>{};
+    for (final q in _assessment!.questions) {
+      final ans = q.correctAnswer?.toString().trim() ?? '';
+      if (ans.isEmpty) continue;
+      if (q.type == QuestionType.mcq || q.type == QuestionType.multiAnswer) {
+        final letters = ans.split(RegExp(r'[,+]+')).map((s) => s.trim().toUpperCase());
+        for (final l in letters) {
+          if (l.isNotEmpty) dist[l] = (dist[l] ?? 0) + 1;
+        }
+      } else if (q.type == QuestionType.trueFalse) {
+        dist['T/F'] = (dist['T/F'] ?? 0) + 1;
+      } else {
+        dist['Text'] = (dist['Text'] ?? 0) + 1;
+      }
+    }
+    return dist;
+  }
+
+  String _typeLabel(QuestionType type) {
+    return switch (type) {
+      QuestionType.mcq => 'MCQ',
+      QuestionType.trueFalse => 'T/F',
+      QuestionType.shortAnswer => 'SHORT',
+      QuestionType.essay => 'ESSAY',
+      QuestionType.matching => 'MATCH',
+      QuestionType.multiAnswer => 'MULTI',
+    };
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -65,176 +135,573 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     if (assessment == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: Center(child: Text('No assessment selected')),
+        body: const Center(child: Text('No assessment selected')),
       );
     }
 
+    final answered = assessment.answeredQuestionCount;
+    final total = assessment.questionCount;
+    final completeness = assessment.answerKeyCompleteness;
+    final dist = _answerDistribution;
+    final typeCounts = _typeCounts;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Answer Key'),
+        title: const Text('Answer Key'),
         actions: [
           TextButton.icon(
             onPressed: () => _handleDone(context, assessment, returnToReview),
             icon: const Icon(Icons.check),
-            label: Text('Done'),
+            label: const Text('Done'),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
+        children: [
+          Expanded(
+            child: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildExamInfo(assessment),
+                        const SizedBox(height: 12),
+                        _buildProgressSection(answered, total, completeness),
+                        if (dist.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _buildDistributionBar(dist),
+                        ],
+                        const SizedBox(height: 10),
+                        _buildTypeFilterTabs(typeCounts),
+                        const SizedBox(height: 8),
+                        _buildToolbar(assessment),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final q = _filteredQuestions[index];
+                        return _QuestionRow(
+                          key: _rowKeys[q.number],
+                          question: q,
+                          assessment: assessment,
+                          onAnswerChanged: (answer) => _updateAnswer(q, answer),
+                          onTypeChanged: (type) => _updateType(q, type),
+                          onPointsChanged: (pts) => _updatePoints(q, pts),
+                        );
+                      },
+                      childCount: _filteredQuestions.length,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExamInfo(Assessment assessment) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            assessment.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${assessment.subject} • ${assessment.questionCount} questions • ${assessment.maxScore.toInt()} pts',
+            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressSection(int answered, int total, double completeness) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A1929).withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$answered / $total answers set',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: AppTheme.primaryGreen,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (answered < total)
+                TextButton.icon(
+                  onPressed: _scrollToNextEmpty,
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 16),
+                  label: const Text('Next empty', style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: completeness,
+              minHeight: 4,
+              backgroundColor: const Color(0xFF2E2E2E),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                completeness >= 1.0 ? AppTheme.primaryGreen : AppTheme.primaryGreen.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDistributionBar(Map<String, int> dist) {
+    if (dist.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: dist.entries.map((e) {
+          return Text(
+            '${e.key}:${e.value}',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFFF0ECE4),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTypeFilterTabs(Map<String, int> typeCounts) {
+    final tabs = <Widget>[];
+    final entries = typeCounts.entries.toList();
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      final isActive = (i == 0 && _typeFilter < 0) ||
+          (i > 0 && _typeFilter == i - 1);
+      tabs.add(
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _typeFilter = i == 0 ? -1 : i - 1;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isActive ? AppTheme.primaryGreen : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '${e.key} (${e.value})',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                color: isActive ? Colors.white : AppTheme.lightText,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: tabs),
+    );
+  }
+
+  Widget _buildToolbar(Assessment assessment) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          _toolbarButton('Paste All', Icons.content_paste, isPrimary: true, onTap: () => _showBulkPasteDialog(assessment)),
+          const SizedBox(width: 6),
+          Container(width: 1, height: 16, color: Colors.grey.shade300),
+          const SizedBox(width: 6),
+          Text('All:', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+          const SizedBox(width: 4),
+          _toolbarDropdown<QuestionType>(
+            hint: 'Type',
+            items: QuestionType.values,
+            labelBuilder: (t) => _typeLabel(t),
+            onChanged: (type) => _setAllType(assessment, type),
+          ),
+          const SizedBox(width: 4),
+          _toolbarDropdown<double>(
+            hint: 'Pts',
+            items: const [1.0, 2.0, 5.0, 10.0],
+            labelBuilder: (p) => '${p.toInt()}pt',
+            onChanged: (pts) => _setAllPoints(assessment, pts),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toolbarButton(String label, IconData icon, {bool isPrimary = false, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF3D6B4F) : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isPrimary ? const Color(0xFF3D6B4F) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Assessment info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    assessment.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${assessment.subject} • ${assessment.questionCount} ${'questions'} • ${assessment.maxScore} ${'pts'}',
-                    style: TextStyle(color: AppTheme.lightText),
-                  ),
-                  if (assessment.answerKeyRevision > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Revision ${assessment.answerKeyRevision}',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 12),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Answer key table
-            Text(
-              'Answer Key',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap answers to edit',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-
-            // Bulk "Set All" option
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.tune, size: 16, color: AppTheme.lightText),
-                  const SizedBox(width: 8),
-                  Text('Set all ', style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
-                  // Set all type
-                  DropdownButton<QuestionType>(
-                    value: null,
-                    hint: Text('Type', style: TextStyle(fontSize: 12)),
-                    isDense: true,
-                    underline: const SizedBox(),
-                    items: QuestionType.values.map((t) => DropdownMenuItem(
-                      value: t,
-                      child: Text({
-                        QuestionType.mcq: 'MCQ',
-                        QuestionType.trueFalse: 'T/F',
-                        QuestionType.shortAnswer: 'Short',
-                        QuestionType.essay: 'Essay',
-                        QuestionType.matching: 'Match',
-                      }[t]!, style: const TextStyle(fontSize: 12)),
-                    )).toList(),
-                    onChanged: (type) {
-                      if (type == null) return;
-                      final updated = assessment.questions.map((q) => Question(
-                        id: q.id, number: q.number, type: type,
-                        text: q.text, points: q.points, options: q.options,
-                        correctAnswer: q.correctAnswer,
-                      )).toList();
-                      setState(() => _assessment = assessment.copyWith(questions: updated));
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  // Set all points
-                  DropdownButton<double>(
-                    value: null,
-                    hint: Text('Points', style: TextStyle(fontSize: 12)),
-                    isDense: true,
-                    underline: const SizedBox(),
-                    items: [1.0, 2.0, 5.0, 10.0].map((p) => DropdownMenuItem(
-                      value: p,
-                      child: Text('${p.toInt()} pts', style: const TextStyle(fontSize: 12)),
-                    )).toList(),
-                    onChanged: (pts) {
-                      if (pts == null) return;
-                      final updated = assessment.questions.map((q) => Question(
-                        id: q.id, number: q.number, type: q.type,
-                        text: q.text, points: pts, options: q.options,
-                        correctAnswer: q.correctAnswer,
-                      )).toList();
-                      setState(() => _assessment = assessment.copyWith(questions: updated));
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Question rows with inline type/weight editing
-            ...assessment.questions.map(
-              (q) => _QuestionRow(
-                question: q,
-                onAnswerChanged: (correctAnswer) {
-                  final index = assessment.questions.indexOf(q);
-                  final updated = List<Question>.from(assessment.questions);
-                  updated[index] = q.copyWith(correctAnswer: correctAnswer);
-                  setState(() => _assessment = assessment.copyWith(questions: updated));
-                },
-                onTypeChanged: (type) {
-                  final index = assessment.questions.indexOf(q);
-                  final updated = List<Question>.from(assessment.questions);
-                  updated[index] = q.copyWith(type: type);
-                  setState(() => _assessment = assessment.copyWith(questions: updated));
-                },
-                onPointsChanged: (points) {
-                  final index = assessment.questions.indexOf(q);
-                  final updated = List<Question>.from(assessment.questions);
-                  updated[index] = q.copyWith(points: points);
-                  setState(() => _assessment = assessment.copyWith(questions: updated));
-                },
-              ),
-            ),
-
-            const SizedBox(height: 24),
+            Icon(icon, size: 12, color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText,
+            )),
           ],
         ),
       ),
     );
   }
 
-  /// Handle the Done button press with answer-key change detection.
-  Future<void> _handleDone(
-    BuildContext context,
-    Assessment assessment,
-    bool returnToReview,
-  ) async {
+  Widget _toolbarDropdown<T>({required String hint, required List<T> items, required String Function(T) labelBuilder, required void Function(T) onChanged}) {
+    return DropdownButton<T>(
+      value: null,
+      hint: Text(hint, style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+      isDense: true,
+      underline: const SizedBox(),
+      items: items.map((item) => DropdownMenuItem(
+        value: item,
+        child: Text(labelBuilder(item), style: const TextStyle(fontSize: 10)),
+      )).toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
+
+  void _scrollToNextEmpty() {
+    if (_assessment == null) return;
+    for (final q in _assessment!.questions) {
+      if (q.correctAnswer == null || q.correctAnswer.toString().isEmpty) {
+        final key = _rowKeys[q.number];
+        if (key?.currentContext != null) {
+          Scrollable.ensureVisible(
+            key!.currentContext!,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
+        return;
+      }
+    }
+  }
+
+  void _updateAnswer(Question q, dynamic answer) {
+    final assessment = _assessment!;
+    final updated = assessment.questions.map((question) {
+      if (question.number == q.number) {
+        return question.copyWith(correctAnswer: answer);
+      }
+      return question;
+    }).toList();
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+  }
+
+  void _updateType(Question q, QuestionType type) {
+    final assessment = _assessment!;
+    final updated = assessment.questions.map((question) {
+      if (question.number == q.number) {
+        return question.copyWith(
+          type: type,
+          correctAnswer: '',
+          options: type == QuestionType.trueFalse || type == QuestionType.multiAnswer
+              ? (type == QuestionType.trueFalse ? ['True', 'False'] : const ['A', 'B', 'C', 'D', 'E'])
+              : question.options,
+        );
+      }
+      return question;
+    }).toList();
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+  }
+
+  void _updatePoints(Question q, double points) {
+    final assessment = _assessment!;
+    final updated = assessment.questions.map((question) {
+      if (question.number == q.number) {
+        return question.copyWith(points: points);
+      }
+      return question;
+    }).toList();
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+  }
+
+  void _setAllType(Assessment assessment, QuestionType type) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Change all to ${_typeLabel(type)}?'),
+        content: Text('This will change all ${assessment.questionCount} questions to ${_typeLabel(type)}. Existing answers will be cleared.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final updated = assessment.questions.map((q) => Question(
+                id: q.id, number: q.number, type: type,
+                text: q.text, points: q.points,
+                options: type == QuestionType.trueFalse
+                    ? ['True', 'False']
+                    : (type == QuestionType.multiAnswer ? const ['A', 'B', 'C', 'D', 'E'] : q.options),
+                correctAnswer: '',
+              )).toList();
+              setState(() => _assessment = assessment.copyWith(questions: updated));
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _setAllPoints(Assessment assessment, double pts) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Set all to ${pts.toInt()} pts?'),
+        content: Text('This will set all ${assessment.questionCount} questions to ${pts.toInt()} points.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final updated = assessment.questions.map((q) => Question(
+                id: q.id, number: q.number, type: q.type,
+                text: q.text, points: pts, options: q.options,
+                correctAnswer: q.correctAnswer,
+              )).toList();
+              setState(() => _assessment = assessment.copyWith(questions: updated));
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBulkPasteDialog(Assessment assessment) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final parsed = _parseBulkPaste(controller.text, assessment.questionCount);
+          return AlertDialog(
+            title: const Text('Paste Answer Key'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'A, B, C, D, A+C, "mitochondria", T, F...',
+                      helperText: 'MCQ=A-E, Multi=A+C, T/F=T or F, Short="text"',
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  if (parsed != null && parsed.isNotEmpty) ...[
+                    Text('Preview (${parsed.length} answers):',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: parsed.map((p) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Q${p['num']}: ${p['answer']} (${p['type']})',
+                              style: TextStyle(fontSize: 10, color: AppTheme.darkText),
+                            ),
+                          )).toList(),
+                        ),
+                      ),
+                    ),
+                  ] else if (controller.text.isNotEmpty) ...[
+                    Text(
+                      'Could not parse. Format: A, B+C, "text", T',
+                      style: TextStyle(color: AppTheme.primaryRed, fontSize: 11),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: (parsed != null && parsed.isNotEmpty)
+                    ? () {
+                        Navigator.pop(ctx);
+                        _applyBulkPaste(assessment, parsed);
+                      }
+                    : null,
+                child: const Text('Apply'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>>? _parseBulkPaste(String raw, int expectedCount) {
+    if (raw.trim().isEmpty) return null;
+    final parts = raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (parts.isEmpty) return null;
+
+    final results = <Map<String, dynamic>>[];
+    for (var i = 0; i < parts.length; i++) {
+      final part = parts[i];
+      final qNum = i + 1;
+
+      if (part == '—' || part == '-' || part.isEmpty) {
+        continue;
+      }
+
+      // Quoted text → short answer
+      if (part.startsWith('"') && part.endsWith('"')) {
+        results.add({'num': qNum, 'answer': part.substring(1, part.length - 1), 'type': 'SHORT'});
+        continue;
+      }
+      if (part.startsWith('"')) {
+        results.add({'num': qNum, 'answer': part.replaceAll('"', ''), 'type': 'SHORT'});
+        continue;
+      }
+
+      // Number+letter pairs → matching (e.g., "1C,2A,3D")
+      if (RegExp(r'^\d+[A-E]').hasMatch(part)) {
+        results.add({'num': qNum, 'answer': part, 'type': 'MATCH'});
+        continue;
+      }
+
+      // Letters with + → multi-answer (e.g., "A+C")
+      if (part.contains('+') && RegExp(r'^[A-Ea-e]+(\+[A-Ea-e]+)+$').hasMatch(part)) {
+        results.add({'num': qNum, 'answer': part.toUpperCase(), 'type': 'MULTI'});
+        continue;
+      }
+
+      // T or F → true/false
+      final upper = part.toUpperCase();
+      if (upper == 'T' || upper == 'TRUE' || upper == 'F' || upper == 'FALSE') {
+        final tfVal = upper.startsWith('T') ? 'True' : 'False';
+        results.add({'num': qNum, 'answer': tfVal, 'type': 'T/F'});
+        continue;
+      }
+
+      // Single letter A-E → MCQ
+      if (RegExp(r'^[A-Ea-e]$').hasMatch(part)) {
+        results.add({'num': qNum, 'answer': upper, 'type': 'MCQ'});
+        continue;
+      }
+
+      // Anything else → short answer
+      results.add({'num': qNum, 'answer': part, 'type': 'SHORT'});
+    }
+
+    return results.isEmpty ? null : results;
+  }
+
+  void _applyBulkPaste(Assessment assessment, List<Map<String, dynamic>> parsed) {
+    final updated = assessment.questions.map((q) {
+      final match = parsed.where((p) => p['num'] == q.number);
+      if (match.isEmpty) return q;
+      final p = match.first;
+      final typeStr = p['type'] as String;
+      final answer = p['answer'] as String;
+
+      QuestionType newType;
+      switch (typeStr) {
+        case 'MCQ': newType = QuestionType.mcq; break;
+        case 'T/F': newType = QuestionType.trueFalse; break;
+        case 'MULTI': newType = QuestionType.multiAnswer; break;
+        case 'SHORT': newType = QuestionType.shortAnswer; break;
+        case 'MATCH': newType = QuestionType.matching; break;
+        default: newType = q.type;
+      }
+
+      return q.copyWith(
+        type: newType,
+        correctAnswer: answer,
+        options: newType == QuestionType.trueFalse
+            ? ['True', 'False']
+            : (newType == QuestionType.multiAnswer ? const ['A', 'B', 'C', 'D', 'E'] : q.options),
+      );
+    }).toList();
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+  }
+
+  Future<void> _handleDone(BuildContext context, Assessment assessment, bool returnToReview) async {
     final provider = context.read<AssessmentProvider>();
     final currentFingerprint = const AnswerKeyFingerprintService().compute(assessment);
     final keyChanged = _preEditFingerprint != null &&
@@ -242,94 +709,79 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         currentFingerprint != _preEditFingerprint;
 
     if (!keyChanged) {
-      // No scoring change — save normally
       await provider.saveAssessment(assessment);
-
-      // Check if we should go directly to camera (manual answer key path)
-      final args = ModalRoute.of(context)?.settings.arguments;
-      final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
-
-      if (returnToConfirmation) {
-        // Manual path: go directly to camera for student paper scanning
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            AppRoutes.camera,
-            arguments: {
-              'assessment': assessment,
-              'scanMode': 'batch',
-            },
-          );
-        }
-        return;
-      }
-
-      if (returnToReview) {
-        if (context.mounted) Navigator.pop(context, assessment);
-        return;
-      }
-      if (context.mounted) {
-        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-      }
+      if (!context.mounted) return;
+      _navigateAfterSave(context, assessment, returnToReview);
       return;
     }
 
-    // Scoring key changed — check for existing results
     final List<ScanResult> results = await HybridGradingService().loadScanResults(assessment.id);
-
     if (!context.mounted) return;
 
     if (results.isEmpty) {
-      // No results — save normally with incremented revision
       final updated = await provider.saveAnswerKeyChange(assessment);
-
-      // Check if we should go directly to camera (manual answer key path)
-      final args = ModalRoute.of(context)?.settings.arguments;
-      final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
-
-      if (returnToConfirmation) {
-        // Manual path: go directly to camera for student paper scanning
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(
-            context,
-            AppRoutes.camera,
-            arguments: {
-              'assessment': updated,
-              'scanMode': 'batch',
-            },
-          );
-        }
-        return;
-      }
-
-      if (returnToReview) {
-        Navigator.pop(context, updated);
-        return;
-      }
-      if (context.mounted) {
-        Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
-      }
+      if (!context.mounted) return;
+      _navigateAfterSave(context, updated, returnToReview);
       return;
     }
 
-    // Results exist — show recalculation dialog
     await _showRecalculationDialog(context, assessment, results, returnToReview);
   }
 
-  /// Show the three-action recalculation dialog.
+  void _navigateAfterSave(BuildContext context, Assessment assessment, bool returnToReview) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
+
+    if (returnToConfirmation) {
+      Navigator.pushReplacementNamed(
+        context,
+        AppRoutes.camera,
+        arguments: {'assessment': assessment, 'scanMode': 'batch'},
+      );
+      return;
+    }
+    if (returnToReview) {
+      Navigator.pop(context, assessment);
+      return;
+    }
+    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+  }
+
   Future<void> _showRecalculationDialog(
     BuildContext context,
     Assessment assessment,
     List<ScanResult> results,
     bool returnToReview,
   ) async {
+    final diff = _computeDiff(assessment);
+
     final action = await showDialog<_KeyChangeAction>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Answer key changed'),
-        content: Text(
-          '${results.length} paper${results.length == 1 ? ' was' : 's were'} graded '
-          'using the previous answer key. Their scores must be recalculated.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${results.length} paper${results.length == 1 ? ' was' : 's were'} graded '
+              'using the previous answer key. Their scores must be recalculated.',
+            ),
+            if (diff.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Changes:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const SizedBox(height: 4),
+              ...diff.take(5).map((d) => Text(
+                '  $d',
+                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+              )),
+              if (diff.length > 5)
+                Text(
+                  '  and ${diff.length - 5} more...',
+                  style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -337,13 +789,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             child: const Text('Cancel'),
           ),
           OutlinedButton(
-            onPressed: () =>
-                Navigator.pop(context, _KeyChangeAction.saveAndRecalculateLater),
-            child: const Text('Save and recalculate later'),
+            onPressed: () => Navigator.pop(context, _KeyChangeAction.saveAndRecalculateLater),
+            child: const Text('Save & recalculate later'),
           ),
           FilledButton.icon(
-            onPressed: () =>
-                Navigator.pop(context, _KeyChangeAction.recalculateNow),
+            onPressed: () => Navigator.pop(context, _KeyChangeAction.recalculateNow),
             icon: const Icon(Icons.refresh),
             label: const Text('Recalculate now'),
           ),
@@ -362,57 +812,46 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         break;
       case _KeyChangeAction.cancel:
       case null:
-        // Do nothing — stay on screen
         break;
     }
   }
 
-  /// Save the new key and immediately recalculate all results.
-  Future<void> _recalculateNow(
-    BuildContext context,
-    Assessment assessment,
-    List<ScanResult> results,
-    bool returnToReview,
-  ) async {
+  List<String> _computeDiff(Assessment assessment) {
+    final changes = <String>[];
+    for (final q in assessment.questions) {
+      final oldAnswer = _originalAnswers[q.number] ?? '';
+      final newAnswer = q.correctAnswer?.toString() ?? '';
+      if (oldAnswer != newAnswer && (oldAnswer.isNotEmpty || newAnswer.isNotEmpty)) {
+        final oldDisplay = oldAnswer.isEmpty ? '(empty)' : oldAnswer;
+        final newDisplay = newAnswer.isEmpty ? '(empty)' : newAnswer;
+        changes.add('Q${q.number}: $oldDisplay → $newDisplay');
+      }
+    }
+    return changes;
+  }
+
+  Future<void> _recalculateNow(BuildContext context, Assessment assessment, List<ScanResult> results, bool returnToReview) async {
     final provider = context.read<AssessmentProvider>();
-
-    // Save the new key with incremented revision
     final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
-
     if (!context.mounted) return;
 
-    // Show progress
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Recalculating ${results.length} results...'),
-        duration: const Duration(seconds: 2),
-      ),
+      SnackBar(content: Text('Recalculating ${results.length} results...'), duration: const Duration(seconds: 2)),
     );
 
-    // Run recalculation
-    final recalcService = AnswerKeyRecalculationService();
-    final result = await recalcService.recalculateAll(
+    final result = await AnswerKeyRecalculationService().recalculateAll(
       assessment: updatedAssessment,
       results: results,
     );
 
     if (!context.mounted) return;
 
-    // Show summary
     final summary = StringBuffer();
     summary.write('${result.recalculated} recalculated');
-    if (result.scoresChanged > 0) {
-      summary.write(', ${result.scoresChanged} scores changed');
-    }
-    if (result.scoresUnchanged > 0) {
-      summary.write(', ${result.scoresUnchanged} unchanged');
-    }
-    if (result.preserved > 0) {
-      summary.write(', ${result.preserved} preserved (manual)');
-    }
-    if (result.failed > 0) {
-      summary.write(', ${result.failed} failed');
-    }
+    if (result.scoresChanged > 0) summary.write(', ${result.scoresChanged} scores changed');
+    if (result.scoresUnchanged > 0) summary.write(', ${result.scoresUnchanged} unchanged');
+    if (result.preserved > 0) summary.write(', ${result.preserved} preserved (manual)');
+    if (result.failed > 0) summary.write(', ${result.failed} failed');
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -428,23 +867,13 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     }
   }
 
-  /// Save the new key and mark results for later recalculation.
-  Future<void> _saveAndRecalculateLater(
-    BuildContext context,
-    Assessment assessment,
-    bool returnToReview,
-  ) async {
+  Future<void> _saveAndRecalculateLater(BuildContext context, Assessment assessment, bool returnToReview) async {
     final provider = context.read<AssessmentProvider>();
-
-    // Save the new key with incremented revision
     final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
-
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Key saved. Recalculate results when ready.'),
-      ),
+      const SnackBar(content: Text('Key saved. Recalculate results when ready.')),
     );
 
     if (returnToReview) {
@@ -455,266 +884,619 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   }
 }
 
+// ─────────────────────────────────────────────
+//  Question Row Widget
+// ─────────────────────────────────────────────
+
 class _QuestionRow extends StatelessWidget {
   final Question question;
+  final Assessment assessment;
   final Function(dynamic) onAnswerChanged;
   final Function(QuestionType) onTypeChanged;
   final Function(double) onPointsChanged;
 
   const _QuestionRow({
+    super.key,
     required this.question,
+    required this.assessment,
     required this.onAnswerChanged,
     required this.onTypeChanged,
     required this.onPointsChanged,
   });
 
+  bool get _isAnswered =>
+      question.correctAnswer != null && question.correctAnswer.toString().isNotEmpty;
+
+  Color get _rowBg => _isAnswered
+      ? const Color(0xFFA8D5BA).withValues(alpha: 0.06)
+      : const Color(0xFFF0C674).withValues(alpha: 0.04);
+
+  Color get _dotColor => _isAnswered
+      ? const Color(0xFFA8D5BA)
+      : const Color(0xFFF0C674).withValues(alpha: 0.6);
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _rowBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.5)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Q# + Type dropdown + Points dropdown
-          Row(
-            children: [
-              // Question number
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
-                child: Text(
-                  '${question.number}',
-                  style: TextStyle(
-                    color: AppTheme.primaryGreen,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Type dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: DropdownButton<QuestionType>(
-                  value: question.type,
-                  isDense: true,
-                  underline: const SizedBox(),
-                  style: TextStyle(fontSize: 11, color: AppTheme.darkText),
-                  items: QuestionType.values.map((t) => DropdownMenuItem(
-                    value: t,
-                    child: Text({
-                      QuestionType.mcq: 'MCQ',
-                      QuestionType.trueFalse: 'T/F',
-                      QuestionType.shortAnswer: 'Short',
-                      QuestionType.essay: 'Essay',
-                      QuestionType.matching: 'Match',
-                    }[t]!),
-                  )).toList(),
-                  onChanged: (t) => onTypeChanged(t!),
-                ),
-              ),
-              const SizedBox(width: 6),
-
-              // Points dropdown
-              Builder(
-                builder: (context) {
-                  const options = [1.0, 2.0, 5.0, 10.0];
-                  final currentPoints = question.points;
-                  final matchedValue = options.contains(currentPoints)
-                      ? currentPoints
-                      : options.reduce((a, b) =>
-                          (a - currentPoints).abs() < (b - currentPoints).abs() ? a : b);
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: DropdownButton<double>(
-                      value: matchedValue,
-                      isDense: true,
-                      underline: const SizedBox(),
-                      style: TextStyle(fontSize: 11, color: AppTheme.darkText),
-                      items: options.map((p) => DropdownMenuItem(
-                        value: p,
-                        child: Text('${p.toInt()}pt'),
-                      )).toList(),
-                      onChanged: (p) => onPointsChanged(p!),
-                    ),
-                  );
-                },
-              ),
-
-              const Spacer(),
-
-              // Answer indicator
-              if (question.correctAnswer != null &&
-                  question.correctAnswer.toString().isNotEmpty)
-                Icon(Icons.check_circle, color: AppTheme.primaryGreen, size: 16)
-              else
-                Icon(Icons.circle_outlined, color: Colors.grey.shade300, size: 16),
-            ],
-          ),
-
+          _buildTopRow(context),
           const SizedBox(height: 6),
-
-          // Row 2: Answer options
-          if (question.type == QuestionType.mcq)
-            Row(
-              children: question.options.map((opt) {
-                final isSelected = question.correctAnswer == opt;
-                return GestureDetector(
-                  onTap: () => onAnswerChanged(opt),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
-                      ),
-                    ),
-                    child: Text(
-                      opt,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : AppTheme.darkText,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-          if (question.type == QuestionType.trueFalse)
-            Row(
-              children: ['True', 'False'].map((opt) {
-                final isSelected = question.correctAnswer == opt;
-                return GestureDetector(
-                  onTap: () => onAnswerChanged(opt),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? (opt == 'True' ? AppTheme.primaryGreen : AppTheme.primaryRed)
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: isSelected
-                            ? (opt == 'True' ? AppTheme.primaryGreen : AppTheme.primaryRed)
-                            : Colors.grey.shade200,
-                      ),
-                    ),
-                    child: Text(
-                      opt,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : AppTheme.darkText,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-          if (question.type == QuestionType.shortAnswer ||
-              question.type == QuestionType.essay)
-            GestureDetector(
-              onTap: () => _editAnswer(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Text(
-                  question.correctAnswer?.toString().isNotEmpty == true
-                      ? question.correctAnswer.toString()
-                      : 'Tap to set answer',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: question.correctAnswer?.toString().isNotEmpty == true
-                        ? AppTheme.darkText
-                        : AppTheme.lightText,
-                  ),
-                ),
-              ),
-            ),
-
-          if (question.type == QuestionType.matching)
-            GestureDetector(
-              onTap: () => _editAnswer(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Text(
-                  question.correctAnswer?.toString().isNotEmpty == true
-                      ? question.correctAnswer.toString()
-                      : 'Tap to set matches',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: question.correctAnswer?.toString().isNotEmpty == true
-                        ? AppTheme.darkText
-                        : AppTheme.lightText,
-                  ),
-                ),
-              ),
-            ),
+          _buildAnswerArea(context),
         ],
       ),
     );
   }
 
-  void _editAnswer(BuildContext context) {
-    final ctrl = TextEditingController(
-      text: question.correctAnswer?.toString() ?? '',
+  Widget _buildTopRow(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: _dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 22,
+          child: Text(
+            '${question.number}'.padLeft(2, '0'),
+            style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.lightText),
+          ),
+        ),
+        const SizedBox(width: 6),
+        _buildTypeBadge(),
+        const Spacer(),
+        _buildPointsChip(context),
+      ],
     );
+  }
+
+  Widget _buildTypeBadge() {
+    final label = _typeLabel(question.type);
+    final bgColor = _typeBgColor(question.type);
+    final textColor = _typeTextColor(question.type);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontFamily: 'monospace', fontSize: 8, color: textColor, letterSpacing: 0.04),
+      ),
+    );
+  }
+
+  Widget _buildPointsChip(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showPointsDialog(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Text(
+          '${question.points.toInt()}pt',
+          style: TextStyle(fontFamily: 'monospace', fontSize: 9, color: AppTheme.lightText),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerArea(BuildContext context) {
+    return switch (question.type) {
+      QuestionType.mcq => _buildMcqChips(),
+      QuestionType.trueFalse => _buildTfChips(),
+      QuestionType.multiAnswer => _buildMultiChip(context),
+      QuestionType.shortAnswer || QuestionType.essay => _buildShortAnswerInline(context),
+      QuestionType.matching => _buildMatchingInline(context),
+    };
+  }
+
+  Widget _buildMcqChips() {
+    return Row(
+      children: question.options.take(5).map((opt) {
+        final isSelected = question.correctAnswer?.toString().toUpperCase() == opt.toUpperCase();
+        return GestureDetector(
+          onTap: () => onAnswerChanged(opt),
+          child: Container(
+            width: 30,
+            height: 30,
+            margin: const EdgeInsets.only(right: 4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFF3D6B4F) : const Color(0xFF242424),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isSelected ? const Color(0xFFA8D5BA) : Colors.grey.shade300,
+                width: isSelected ? 2 : 1.5,
+              ),
+            ),
+            child: Text(
+              opt,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: isSelected ? const Color(0xFFA8D5BA) : const Color(0xFF555555),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTfChips() {
+    return Row(
+      children: ['True', 'False'].map((opt) {
+        final isSelected = question.correctAnswer?.toString() == opt;
+        final isTrue = opt == 'True';
+        final selectedColor = isTrue ? AppTheme.primaryGreen : AppTheme.primaryRed;
+        return GestureDetector(
+          onTap: () => onAnswerChanged(opt),
+          child: Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: isSelected ? selectedColor : const Color(0xFF242424),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isSelected ? selectedColor : Colors.grey.shade300,
+                width: isSelected ? 2 : 1.5,
+              ),
+            ),
+            child: Text(
+              opt,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: isSelected ? Colors.white : const Color(0xFF555555),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildMultiChip(BuildContext context) {
+    final answer = question.correctAnswer?.toString() ?? '';
+    final display = answer.isEmpty ? '+' : answer.replaceAll(',', '+');
+    final isSet = answer.isNotEmpty;
+
+    return GestureDetector(
+      onTap: () => _showMultiSelector(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSet ? const Color(0xFF3A2650) : const Color(0xFF242424),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSet ? const Color(0xFFC5A3E8) : Colors.grey.shade300,
+            width: isSet ? 2 : 1.5,
+          ),
+        ),
+        child: Text(
+          display,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: isSet ? const Color(0xFFC5A3E8) : const Color(0xFF555555),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortAnswerInline(BuildContext context) {
+    final answer = question.correctAnswer?.toString() ?? '';
+    final alts = answer.contains('|') ? answer.split('|').skip(1).toList() : <String>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => _showTextAnswerDialog(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: answer.isNotEmpty ? const Color(0xFF5C3A1A).withValues(alpha: 0.3) : const Color(0xFF242424),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: answer.isNotEmpty ? const Color(0xFFE8B07A) : Colors.grey.shade300,
+                width: answer.isNotEmpty ? 2 : 1.5,
+                style: answer.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
+              ),
+            ),
+            child: Text(
+              answer.isEmpty ? 'Tap to set answer' : answer.split('|').first,
+              style: TextStyle(
+                fontSize: 12,
+                color: answer.isNotEmpty ? const Color(0xFFE8B07A) : const Color(0xFF555555),
+              ),
+            ),
+          ),
+        ),
+        if (alts.isNotEmpty || answer.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              ...alts.map((alt) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF5C3A1A).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFFE8B07A).withValues(alpha: 0.3)),
+                ),
+                child: Text(alt, style: const TextStyle(fontSize: 9, color: Color(0xFFE8B07A))),
+              )),
+              GestureDetector(
+                onTap: () => _showAddAltDialog(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFE8B07A).withValues(alpha: 0.3), style: BorderStyle.solid),
+                  ),
+                  child: Text('+ Add alt', style: TextStyle(fontSize: 9, color: const Color(0xFFE8B07A).withValues(alpha: 0.7))),
+                ),
+              ),
+              if (answer.isNotEmpty)
+                Text('${1 + alts.length} accepted', style: TextStyle(fontSize: 8, color: AppTheme.lightText)),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMatchingInline(BuildContext context) {
+    final answer = question.correctAnswer?.toString() ?? '';
+    final pairs = answer.isNotEmpty
+        ? answer.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList()
+        : <String>[];
+
+    return GestureDetector(
+      onTap: () => _showMatchingDialog(context),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: pairs.isNotEmpty ? const Color(0xFF5C2040).withValues(alpha: 0.2) : const Color(0xFF242424),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: pairs.isNotEmpty ? const Color(0xFFE8A0B8) : Colors.grey.shade300,
+            width: pairs.isNotEmpty ? 2 : 1.5,
+            style: pairs.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
+          ),
+        ),
+        child: pairs.isEmpty
+            ? Text(
+                'Tap to set matching pairs...',
+                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+              )
+            : Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: pairs.map((pair) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5C2040).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      pair,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: Color(0xFFE8A0B8)),
+                    ),
+                  );
+                }).toList(),
+              ),
+      ),
+    );
+  }
+
+  void _showMultiSelector(BuildContext context) {
+    final current = question.correctAnswer?.toString().split(',').map((s) => s.trim().toUpperCase()).toSet() ?? {};
+    final selected = Set<String>.from(current);
 
     showDialog(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            title: Text('Q${question.number} — Select all correct'),
+            content: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['A', 'B', 'C', 'D', 'E'].map((letter) {
+                final isSelected = selected.contains(letter);
+                return GestureDetector(
+                  onTap: () {
+                    setDialogState(() {
+                      if (isSelected) {
+                        selected.remove(letter);
+                      } else {
+                        selected.add(letter);
+                      }
+                    });
+                  },
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF3A2650) : const Color(0xFF242424),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFFC5A3E8) : Colors.grey.shade300,
+                        width: isSelected ? 2.5 : 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      letter,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: isSelected ? const Color(0xFFC5A3E8) : const Color(0xFF555555),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final answer = selected.toList()..sort();
+                  onAnswerChanged(answer.join(','));
+                },
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showTextAnswerDialog(BuildContext context) {
+    final ctrl = TextEditingController(text: question.correctAnswer?.toString().split('|').first ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
         title: Text('Q${question.number} Answer'),
         content: TextField(
           controller: ctrl,
           maxLines: question.type == QuestionType.essay ? 4 : 1,
-          decoration: const InputDecoration(labelText: 'Correct Answer'),
+          decoration: const InputDecoration(labelText: 'Correct answer'),
         ),
         actions: [
           TextButton(
-            onPressed: () { ctrl.dispose(); Navigator.pop(c); },
+            onPressed: () { ctrl.dispose(); Navigator.pop(ctx); },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              onAnswerChanged(ctrl.text);
+              final newAnswer = ctrl.text.trim();
+              final existing = question.correctAnswer?.toString() ?? '';
+              final alts = existing.contains('|') ? existing.split('|').skip(1).join('|') : '';
+              final full = alts.isNotEmpty ? '$newAnswer|$alts' : newAnswer;
+              onAnswerChanged(full);
               ctrl.dispose();
-              Navigator.pop(c);
+              Navigator.pop(ctx);
             },
             child: const Text('Save'),
           ),
         ],
       ),
     );
+  }
+
+  void _showAddAltDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Q${question.number} — Add alternative'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: 'Alternative answer',
+            hintText: 'e.g. another valid spelling',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () { ctrl.dispose(); Navigator.pop(ctx); },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final alt = ctrl.text.trim();
+              if (alt.isEmpty) { ctrl.dispose(); Navigator.pop(ctx); return; }
+              final existing = question.correctAnswer?.toString() ?? '';
+              final full = '$existing|$alt';
+              onAnswerChanged(full);
+              ctrl.dispose();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMatchingDialog(BuildContext context) {
+    final answer = question.correctAnswer?.toString() ?? '';
+    final pairs = answer.isNotEmpty
+        ? answer.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList()
+        : <String>[];
+    final usedRight = pairs.map((p) => p.length > 1 ? p.substring(1).toUpperCase() : '').toSet();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            title: Text('Q${question.number} — Matching pairs'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (i) {
+                  final pairStr = i < pairs.length ? pairs[i] : '';
+                  final left = '${i + 1}';
+                  final right = pairStr.length > 1 ? pairStr.substring(1).toUpperCase() : '';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          alignment: Alignment.center,
+                          child: Text(left, style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppTheme.lightText)),
+                        ),
+                        const SizedBox(width: 4),
+                        Text('→', style: TextStyle(color: AppTheme.lightText)),
+                        const SizedBox(width: 4),
+                        right.isEmpty
+                            ? DropdownButton<String>(
+                                value: null,
+                                hint: Text('select', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                                isDense: true,
+                                items: ['A', 'B', 'C', 'D', 'E']
+                                    .where((l) => !usedRight.contains(l) || l == right)
+                                    .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val == null) return;
+                                  setDialogState(() {
+                                    if (i < pairs.length) {
+                                      pairs[i] = '$left$val';
+                                    } else {
+                                      while (pairs.length <= i) pairs.add('');
+                                      pairs[i] = '$left$val';
+                                    }
+                                    usedRight.add(val);
+                                  });
+                                },
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF5C2040).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(right, style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFFE8A0B8))),
+                              ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final validPairs = pairs.where((p) => p.length > 1).toList();
+                  onAnswerChanged(validPairs.join(','));
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPointsDialog(BuildContext context) {
+    final ctrl = TextEditingController(text: question.points.toInt().toString());
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Q${question.number} — Points'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(labelText: 'Points'),
+        ),
+        actions: [
+          TextButton(onPressed: () { ctrl.dispose(); Navigator.pop(ctx); }, child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final pts = double.tryParse(ctrl.text);
+              if (pts != null && pts > 0 && pts <= 100) {
+                onPointsChanged(pts);
+              }
+              ctrl.dispose();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _typeLabel(QuestionType type) {
+    return switch (type) {
+      QuestionType.mcq => 'MCQ',
+      QuestionType.trueFalse => 'T/F',
+      QuestionType.shortAnswer => 'SHORT',
+      QuestionType.essay => 'ESSAY',
+      QuestionType.matching => 'MATCH',
+      QuestionType.multiAnswer => 'MULTI',
+    };
+  }
+
+  Color _typeBgColor(QuestionType type) {
+    return switch (type) {
+      QuestionType.mcq => const Color(0xFF1E3A4F),
+      QuestionType.trueFalse => const Color(0xFF5C4A1A),
+      QuestionType.shortAnswer => const Color(0xFF5C3A1A),
+      QuestionType.essay => const Color(0xFF3A2650),
+      QuestionType.matching => const Color(0xFF5C2040),
+      QuestionType.multiAnswer => const Color(0xFF3A2650),
+    };
+  }
+
+  Color _typeTextColor(QuestionType type) {
+    return switch (type) {
+      QuestionType.mcq => const Color(0xFF7EB8DA),
+      QuestionType.trueFalse => const Color(0xFFF0C674),
+      QuestionType.shortAnswer => const Color(0xFFE8B07A),
+      QuestionType.essay => const Color(0xFFC5A3E8),
+      QuestionType.matching => const Color(0xFFE8A0B8),
+      QuestionType.multiAnswer => const Color(0xFFC5A3E8),
+    };
   }
 }
