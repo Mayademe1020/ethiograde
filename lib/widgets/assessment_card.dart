@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
+import '../../services/class_provider.dart';
 import '../../screens/home/dashboard_actions.dart';
 
 class AssessmentCard extends StatelessWidget {
@@ -151,6 +153,26 @@ class AssessmentCard extends StatelessWidget {
                               label: assessment.className,
                               color: cs.onSurfaceVariant,
                             ),
+                          ],
+                          // Academic year from class
+                          if (assessment.className.isNotEmpty) ...[
+                            Builder(
+                              builder: (context) {
+                                final classProv = context.read<ClassProvider>();
+                                final cls = classProv.classes.firstWhere(
+                                  (c) => c.name == assessment.className,
+                                  orElse: () => classProv.classes.isEmpty
+                                      ? classProv.classes.first
+                                      : classProv.classes.last);
+                                if (cls.academicYear.isEmpty) return const SizedBox.shrink();
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: AppSpacing.sm),
+                                  child: _MetaBadge(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: cls.academicYear,
+                                    color: cs.onSurfaceVariant),
+                                );
+                              }),
                           ],
                         ],
                       ),
