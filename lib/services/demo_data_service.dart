@@ -66,16 +66,20 @@ class DemoDataService {
     }
 
     // ── 1. Create demo class ────────────────────────────────────────
+    final now = DateTime.now();
+    final sep = now.month >= 9 ? now.year : now.year - 1;
+    final academicYear = '$sep-${sep + 1}';
     final demoClass = ClassInfo(
       id: 'demo-class-001',
-      name: 'Grade 5A',
+      name: 'Grade 5A — Mathematics',
       school: 'Demo School',
       grade: 5,
       section: 'A',
       subject: 'Mathematics',
       studentIds: [],
       ownerId: 'demo-teacher',
-      createdAt: DateTime.now().subtract(const Duration(days: 7)));
+      academicYear: academicYear,
+      createdAt: now.subtract(const Duration(days: 7)));
     await classProvider.addClass(demoClass);
 
     // ── 2. Create 5 students ────────────────────────────────────────

@@ -95,6 +95,36 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Academic Year section
+          SettingsSection(
+            title: 'Academic Year',
+            children: [
+              SettingsTile(
+                icon: Icons.calendar_today_outlined,
+                title: 'Current Year',
+                subtitle: settings.currentAcademicYear.isEmpty
+                    ? 'Not set'
+                    : settings.currentAcademicYear,
+                onTap: () => _editAcademicYear(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Subjects section
+          SettingsSection(
+            title: 'Subjects',
+            children: [
+              SettingsTile(
+                icon: Icons.book_outlined,
+                title: 'Manage Subjects',
+                subtitle: '${settings.subjects.length} subjects configured',
+                onTap: () => _manageSubjects(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
           // Cloud OCR section
           SettingsSection(
             title: 'Cloud OCR',
@@ -613,6 +643,71 @@ class SettingsTab extends StatelessWidget {
     }
   }
 
+  Future<void> _editAcademicYear(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final controller = TextEditingController(text: settings.currentAcademicYear);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Academic Year'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'e.g. 2026-2027',
+                border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            if (settings.academicYears.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Previous years:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: settings.academicYears
+                  .where((y) => y != settings.currentAcademicYear)
+                  .map((y) => ActionChip(
+                    label: Text(y, style: const TextStyle(fontSize: 12)),
+                    onPressed: () => Navigator.pop(ctx, y)))
+                  .toList()),
+          ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save')),
+        ]),
+    );
+    if (result != null && result.isNotEmpty) {
+      settings.setAcademicYear(result);
+    }
+  }
+
+  Future<void> _manageSubjects(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (ctx, scrollController) => _SubjectsManager(
+          settings: settings,
+          scrollController: scrollController)),
+    );
+  }
+
   Future<void> _exportBackup(BuildContext context) async {
     try {
       final path = await BackupService.instance.exportAllData();
@@ -846,6 +941,130 @@ class SettingsTile extends StatelessWidget {
               : null),
       onTap: onTap,
     );
+  }
+}
+
+/// Manager widget for adding/editing/deleting subjects.
+class _SubjectsManager extends StatefulWidget {
+  final SettingsProvider settings;
+  final ScrollController scrollController;
+  const _SubjectsManager({required this.settings, required this.scrollController});
+
+  @override
+  State<_SubjectsManager> createState() => _SubjectsManagerState();
+}
+
+class _SubjectsManagerState extends State<_SubjectsManager> {
+  late List<String> _subjects;
+
+  @override
+  void initState() {
+    super.initState();
+    _subjects = List<String>.from(widget.settings.subjects);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Manage Subjects',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: _addSubject,
+                tooltip: 'Add Subject'),
+            ])),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.builder(
+            controller: widget.scrollController,
+            itemCount: _subjects.length,
+            itemBuilder: (ctx, i) {
+              final subject = _subjects[i];
+              return ListTile(
+                title: Text(subject),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _editSubject(subject)),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 20, color: AppTheme.error),
+                      onPressed: () => _deleteSubject(subject)),
+                  ]),
+                onTap: () => _editSubject(subject));
+            })),
+      ]);
+  }
+
+  void _addSubject() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Subject'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Subject name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Add')),
+        ]),
+    );
+    if (result != null && result.isNotEmpty) {
+      await widget.settings.addSubject(result);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
+  }
+
+  void _editSubject(String oldSubject) async {
+    final controller = TextEditingController(text: oldSubject);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Subject'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Subject name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save')),
+        ]),
+    );
+    if (result != null && result.isNotEmpty && result != oldSubject) {
+      await widget.settings.updateSubject(oldSubject, result);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
+  }
+
+  void _deleteSubject(String subject) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Subject'),
+        content: Text('Remove "$subject" from the list?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('Delete')),
+        ]),
+    );
+    if (confirmed == true) {
+      await widget.settings.removeSubject(subject);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
   }
 }
 

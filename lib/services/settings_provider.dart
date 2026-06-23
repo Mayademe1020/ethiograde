@@ -37,6 +37,16 @@ class SettingsProvider extends ChangeNotifier {
   List<GradingScale> _customScales = [];
   List<GradingScale> get customScales => _customScales;
 
+  // Configurable subjects
+  List<String> _subjects = [];
+  List<String> get subjects => List.unmodifiable(_subjects);
+
+  // Academic year
+  String _currentAcademicYear = '';
+  String get currentAcademicYear => _currentAcademicYear;
+  List<String> _academicYears = [];
+  List<String> get academicYears => List.unmodifiable(_academicYears);
+
   String get schoolName => _schoolName;
   String get teacherName => _teacherName;
   String get schoolLogoPath => _schoolLogoPath;
@@ -104,6 +114,37 @@ class SettingsProvider extends ChangeNotifier {
           debugPrint('[Settings] Failed to parse custom scales: $e');
           _customScales = [];
         }
+      }
+
+      // Subjects (configurable list)
+      final subjectsJson = piiBox.get('subjects');
+      if (subjectsJson != null && subjectsJson is List) {
+        _subjects = List<String>.from(subjectsJson);
+      }
+      if (_subjects.isEmpty) {
+        _subjects = [
+          'Mathematics', 'English', 'Science', 'Physics', 'Chemistry',
+          'Biology', 'History', 'Geography', 'Civics', 'Economics',
+          'Amharic', 'ICT', 'Physical Education',
+        ];
+        await piiBox.put('subjects', _subjects);
+      }
+
+      // Academic year
+      _currentAcademicYear = (piiBox.get('current_academic_year') as String?) ?? '';
+      final yearsJson = piiBox.get('academic_years');
+      if (yearsJson != null && yearsJson is List) {
+        _academicYears = List<String>.from(yearsJson);
+      }
+      if (_currentAcademicYear.isEmpty) {
+        final now = DateTime.now();
+        final sep = now.month >= 9 ? now.year : now.year - 1;
+        _currentAcademicYear = '$sep-${sep + 1}';
+        if (!_academicYears.contains(_currentAcademicYear)) {
+          _academicYears.insert(0, _currentAcademicYear);
+        }
+        await piiBox.put('current_academic_year', _currentAcademicYear);
+        await piiBox.put('academic_years', _academicYears);
       }
 
       _loaded = true;
@@ -216,6 +257,54 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Configurable Subjects ──
+
+  Future<void> addSubject(String subject) async {
+    final trimmed = subject.trim();
+    if (trimmed.isEmpty) return;
+    if (_subjects.any((s) => s.toLowerCase() == trimmed.toLowerCase())) return;
+    _subjects.add(trimmed);
+    _subjects.sort();
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  Future<void> removeSubject(String subject) async {
+    _subjects.removeWhere((s) => s.toLowerCase() == subject.toLowerCase());
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  Future<void> updateSubject(String oldSubject, String newSubject) async {
+    final trimmed = newSubject.trim();
+    if (trimmed.isEmpty) return;
+    final idx = _subjects.indexWhere((s) => s.toLowerCase() == oldSubject.toLowerCase());
+    if (idx < 0) return;
+    if (_subjects.any((s) => s.toLowerCase() == trimmed.toLowerCase() && s.toLowerCase() != oldSubject.toLowerCase())) return;
+    _subjects[idx] = trimmed;
+    _subjects.sort();
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  // ── Academic Year ──
+
+  Future<void> setAcademicYear(String year) async {
+    final trimmed = year.trim();
+    if (trimmed.isEmpty) return;
+    _currentAcademicYear = trimmed;
+    if (!_academicYears.contains(trimmed)) {
+      _academicYears.insert(0, trimmed);
+    }
+    final piiBox = await _getPiiBox();
+    await piiBox.put('current_academic_year', _currentAcademicYear);
+    await piiBox.put('academic_years', _academicYears);
+    notifyListeners();
+  }
+
   // ── Custom Grading Scales ──
 
   Future<void> saveCustomScale(GradingScale scale) async {
@@ -274,6 +363,9 @@ class SettingsProvider extends ChangeNotifier {
     _darkMode = false;
     _schoolLogoPath = '';
     _customScales = [];
+    _subjects = [];
+    _currentAcademicYear = '';
+    _academicYears = [];
     notifyListeners();
   }
 

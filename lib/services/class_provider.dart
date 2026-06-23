@@ -88,6 +88,27 @@ class ClassProvider extends ChangeNotifier {
 
   // ── Add ───────────────────────────────────────────────────────────
 
+  /// Check if a class with the same grade+section+subject+year already exists.
+  /// [excludeId] is for edit mode — don't flag the class being edited.
+  bool hasDuplicate({
+    required int grade,
+    required String section,
+    required String subject,
+    required String ownerId,
+    required String academicYear,
+    String? excludeId,
+  }) {
+    final normSubject = subject.trim().toLowerCase();
+    final normSection = section.trim().toUpperCase();
+    return _classes.any((c) =>
+      c.id != excludeId &&
+      c.ownerId == ownerId &&
+      c.grade == grade &&
+      c.section.toUpperCase() == normSection &&
+      c.subject.trim().toLowerCase() == normSubject &&
+      c.academicYear == academicYear);
+  }
+
   /// Create a new class. Returns the ClassInfo on success, null on failure.
   Future<ClassInfo?> addClass(ClassInfo classInfo) async {
     if (classInfo.name.trim().isEmpty) return null;
