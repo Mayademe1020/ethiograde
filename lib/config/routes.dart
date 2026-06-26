@@ -4,6 +4,8 @@ import '../screens/home/main_dashboard.dart';
 import '../screens/assessment/exam_day_create_screen.dart';
 import '../screens/assessment/answer_key_screen.dart';
 import '../screens/assessment/answer_key_confirmation_screen.dart';
+import '../screens/assessment/answer_key_photo_scan.dart';
+import '../screens/assessment/answer_key_section_setup.dart';
 import '../screens/scanning/camera_screen.dart';
 import '../screens/scanning/batch_scan_screen.dart';
 import '../screens/quick_grade/quick_grade_screen.dart';
@@ -27,6 +29,8 @@ class AppRoutes {
   static const String createAssessment = '/assessment/create';
   static const String answerKey = '/assessment/answer-key';
   static const String answerKeyConfirmation = '/assessment/answer-key-confirmation';
+  static const String answerKeyPhotoScan = '/assessment/answer-key-photo-scan';
+  static const String answerKeySectionSetup = '/assessment/answer-key-section-setup';
 
   // Scanning
   static const String camera = '/scanning/camera';
@@ -66,6 +70,12 @@ class AppRoutes {
       case answerKeyConfirmation:
         final args = settings.arguments as Assessment;
         return _fade(AnswerKeyConfirmationScreen(assessment: args), settings);
+      case answerKeyPhotoScan:
+        final args = settings.arguments as int;
+        return _fade(AnswerKeyPhotoScanScreen(questionCount: args), settings);
+      case answerKeySectionSetup:
+        final args = settings.arguments as Assessment;
+        return _fade(AnswerKeySectionSetup(assessment: args), settings);
 
       // Scanning
       case camera:

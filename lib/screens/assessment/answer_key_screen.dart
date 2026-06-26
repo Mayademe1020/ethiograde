@@ -9,6 +9,9 @@ import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/answer_key_recalculation_service.dart';
 import '../../services/answer_key_fingerprint_service.dart';
+import 'answer_key_photo_scan.dart';
+import 'answer_key_section_setup.dart';
+import '../../widgets/assessment/section_header.dart';
 
 enum _KeyChangeAction { recalculateNow, saveAndRecalculateLater, cancel }
 
@@ -39,6 +42,23 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _rowKeys = {};
 
+  // Auto-advance state
+  int _activeQuestionIndex = 0;
+  bool _autoAdvanceEnabled = true;
+
+  // Auto-save state
+  bool _isLocked = false;
+  DateTime? _lastSavedAt;
+  bool _showRecoveryBanner = false;
+  int _recoveredCount = 0;
+
+  // Flags and filtering
+  final Set<int> _flaggedQuestions = {};
+  int _filterMode = 0; // 0=All, 1=Flagged, 2=Empty
+
+  // Sections
+  List<ExamSection> _sections = [];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -50,7 +70,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     } else if (args is Assessment) {
       _assessment = args;
     } else {
-      _assessment = context.watch<AssessmentProvider>().currentAssessment;
+      _assessment = context.read<AssessmentProvider>().currentAssessment;
     }
 
     if (_assessment != null) {
@@ -64,6 +84,15 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       for (final q in _assessment!.questions) {
         _rowKeys[q.number] = GlobalKey();
       }
+
+      // Load lock state from settings
+      _isLocked = _assessment!.settings['answerKeyLocked'] == true;
+
+      // Load sections
+      _loadSections();
+
+      // Check for recovery draft
+      _checkForRecoveryDraft();
     }
   }
 
@@ -75,11 +104,30 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   List<Question> get _filteredQuestions {
     if (_assessment == null) return [];
-    if (_typeFilter < 0) return _assessment!.questions;
-    final types = QuestionType.values;
-    if (_typeFilter >= types.length) return _assessment!.questions;
-    final type = types[_typeFilter];
-    return _assessment!.questions.where((q) => q.type == type).toList();
+    var questions = _assessment!.questions;
+
+    // Filter by type
+    if (_typeFilter >= 0) {
+      final types = QuestionType.values;
+      if (_typeFilter < types.length) {
+        final type = types[_typeFilter];
+        questions = questions.where((q) => q.type == type).toList();
+      }
+    }
+
+    // Filter by flag/empty mode
+    if (_filterMode == 1) {
+      // Flagged only
+      questions = questions.where((q) => _flaggedQuestions.contains(q.number)).toList();
+    } else if (_filterMode == 2) {
+      // Empty only
+      questions = questions.where((q) {
+        final answer = q.correctAnswer?.toString() ?? '';
+        return answer.isEmpty;
+      }).toList();
+    }
+
+    return questions;
   }
 
   Map<String, int> get _typeCounts {
@@ -147,8 +195,35 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Answer Key'),
+        title: Row(
+          children: [
+            const Text('Answer Key'),
+            if (_lastSavedAt != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF18A558),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
+          IconButton(
+            onPressed: _toggleLock,
+            icon: Icon(_isLocked ? Icons.lock : Icons.lock_open),
+            tooltip: _isLocked ? 'Unlock answer key' : 'Lock answer key',
+            color: _isLocked ? const Color(0xFFF4A623) : Colors.white54,
+          ),
+          IconButton(
+            onPressed: () => _openPhotoScan(context, assessment),
+            icon: const Icon(Icons.camera_alt),
+            tooltip: 'Scan answer key from photo',
+            color: const Color(0xFFF4A623),
+          ),
           TextButton.icon(
             onPressed: () => _handleDone(context, assessment, returnToReview),
             icon: const Icon(Icons.check),
@@ -158,6 +233,29 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       ),
       body: Column(
         children: [
+          // Recovery banner
+          if (_showRecoveryBanner)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: const Color(0xFF1A6FD4).withValues(alpha: 0.15),
+              child: Row(
+                children: [
+                  const Icon(Icons.restore, color: Color(0xFF1A6FD4), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Recovered: $_recoveredCount answers restored from draft',
+                      style: const TextStyle(color: Color(0xFF1A6FD4), fontSize: 13),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _showRecoveryBanner = false),
+                    child: const Icon(Icons.close, color: Color(0xFF1A6FD4), size: 16),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: CustomScrollView(
               controller: _scrollController,
@@ -180,33 +278,61 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                         const SizedBox(height: 8),
                         _buildToolbar(assessment),
                         const SizedBox(height: 8),
+                        _buildFlagFilterBar(),
+                        const SizedBox(height: 4),
                       ],
                     ),
                   ),
                 ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final q = _filteredQuestions[index];
-                        return _QuestionRow(
-                          key: _rowKeys[q.number],
-                          question: q,
-                          assessment: assessment,
-                          onAnswerChanged: (answer) => _updateAnswer(q, answer),
-                          onTypeChanged: (type) => _updateType(q, type),
-                          onPointsChanged: (pts) => _updatePoints(q, pts),
-                        );
-                      },
-                      childCount: _filteredQuestions.length,
-                    ),
-                  ),
+                  sliver: _sections.isNotEmpty
+                      ? _buildSectionedList()
+                      : _buildPlainList(),
                 ),
               ],
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: _buildAutoAdvanceBar(),
+    );
+  }
+
+  Widget _buildAutoAdvanceBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF242424),
+        border: Border(top: BorderSide(color: Colors.grey.shade800)),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Icon(
+              _autoAdvanceEnabled ? Icons.skip_next : Icons.touch_app,
+              color: _autoAdvanceEnabled ? const Color(0xFF7EB8DA) : Colors.white54,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _autoAdvanceEnabled ? 'Auto-advance' : 'Manual',
+                style: TextStyle(
+                  color: _autoAdvanceEnabled ? const Color(0xFF7EB8DA) : Colors.white54,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Switch(
+              value: _autoAdvanceEnabled,
+              onChanged: (v) => setState(() => _autoAdvanceEnabled = v),
+              activeColor: const Color(0xFF7EB8DA),
+              inactiveTrackColor: Colors.grey.shade700,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -362,6 +488,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           const SizedBox(width: 6),
           Container(width: 1, height: 16, color: Colors.grey.shade300),
           const SizedBox(width: 6),
+          _toolbarButton('Sections', Icons.view_agenda_outlined, onTap: _openSectionSetup),
+          const SizedBox(width: 6),
+          Container(width: 1, height: 16, color: Colors.grey.shade300),
+          const SizedBox(width: 6),
           Text('All:', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
           const SizedBox(width: 4),
           _toolbarDropdown<QuestionType>(
@@ -380,6 +510,174 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildFlagFilterBar() {
+    if (_assessment == null) return const SizedBox.shrink();
+    final total = _assessment!.questionCount;
+    final flagged = _flaggedQuestions.length;
+    final empty = _assessment!.questions.where((q) {
+      final answer = q.correctAnswer?.toString() ?? '';
+      return answer.isEmpty;
+    }).length;
+
+    return Row(
+      children: [
+        _filterChip('All ($total)', 0),
+        const SizedBox(width: 6),
+        _filterChip('Flagged ($flagged) ★', 1),
+        const SizedBox(width: 6),
+        _filterChip('Empty ($empty)', 2),
+      ],
+    );
+  }
+
+  Widget _filterChip(String label, int mode) {
+    final isActive = _filterMode == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _filterMode = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF0B6E4F) : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: isActive ? Colors.white : AppTheme.lightText,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionedList() {
+    final questions = _filteredQuestions;
+    final items = <_ListItem>[];
+
+    for (final section in _sections) {
+      final sectionQuestions = questions
+          .where((q) => q.number >= section.startQ && q.number <= section.endQ)
+          .toList();
+      if (sectionQuestions.isEmpty) continue;
+
+      final answeredCount = sectionQuestions.where((q) {
+        final answer = q.correctAnswer?.toString() ?? '';
+        return answer.isNotEmpty;
+      }).length;
+
+      items.add(_ListItem.section(section, answeredCount));
+      for (final q in sectionQuestions) {
+        items.add(_ListItem.question(q));
+      }
+    }
+
+    // Questions not in any section
+    for (final q in questions) {
+      final inSection = _sections.any((s) => q.number >= s.startQ && q.number <= s.endQ);
+      if (!inSection) {
+        items.add(_ListItem.question(q));
+      }
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _buildListItem(items[index], index),
+        childCount: items.length,
+      ),
+    );
+  }
+
+  Widget _buildPlainList() {
+    final questions = _filteredQuestions;
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => _buildListItem(_ListItem.question(questions[index]), index),
+        childCount: questions.length,
+      ),
+    );
+  }
+
+  Widget _buildListItem(_ListItem item, int flatIndex) {
+    if (item.isSection) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: SectionHeader(
+          section: item.section!,
+          answeredCount: item.answeredCount,
+          onTap: () => _editSection(item.section!),
+        ),
+      );
+    }
+
+    final q = item.question!;
+    final isAnswered = q.correctAnswer?.toString().isNotEmpty ?? false;
+    // Find the question's index in _filteredQuestions for active highlighting
+    final filteredIndex = _filteredQuestions.indexWhere((fq) => fq.number == q.number);
+
+    return Dismissible(
+      key: ValueKey('q_${q.number}'),
+      direction: isAnswered && !_isLocked
+          ? DismissDirection.startToEnd
+          : DismissDirection.none,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFDA2A2A).withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.clear, color: Color(0xFFDA2A2A), size: 18),
+            SizedBox(width: 6),
+            Text('Clear', style: TextStyle(color: Color(0xFFDA2A2A), fontSize: 12)),
+          ],
+        ),
+      ),
+      onDismissed: (_) {
+        _updateAnswer(q, '');
+        _flaggedQuestions.remove(q.number);
+      },
+      child: _QuestionRow(
+        key: _rowKeys[q.number],
+        question: q,
+        assessment: _assessment!,
+        isActive: filteredIndex == _activeQuestionIndex,
+        isFlagged: _flaggedQuestions.contains(q.number),
+        onFlagToggled: () => _toggleFlag(q.number),
+        onAnswerChanged: (answer) => _updateAnswer(q, answer),
+        onTypeChanged: (type) => _updateType(q, type),
+        onPointsChanged: (pts) => _updatePoints(q, pts),
+      ),
+    );
+  }
+
+  void _editSection(ExamSection section) {
+    final assessment = _assessment!;
+    final updated = assessment.questions.map((q) {
+      if (q.number >= section.startQ && q.number <= section.endQ) {
+        final sectionType = _parseQuestionType(section.type);
+        if (q.type != sectionType || q.points != section.points) {
+          return q.copyWith(
+            type: sectionType,
+            points: section.points,
+            options: sectionType == QuestionType.trueFalse
+                ? ['True', 'False']
+                : (sectionType == QuestionType.multiAnswer
+                    ? const ['A', 'B', 'C', 'D', 'E']
+                    : q.options),
+          );
+        }
+      }
+      return q;
+    }).toList();
+
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+    _autoSave();
   }
 
   Widget _toolbarButton(String label, IconData icon, {bool isPrimary = false, required VoidCallback onTap}) {
@@ -444,6 +742,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   }
 
   void _updateAnswer(Question q, dynamic answer) {
+    if (_isLocked) return;
     final assessment = _assessment!;
     final updated = assessment.questions.map((question) {
       if (question.number == q.number) {
@@ -452,9 +751,197 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       return question;
     }).toList();
     setState(() => _assessment = assessment.copyWith(questions: updated));
+    _autoSave();
+
+    // Auto-advance: scroll to next unanswered question after a short delay
+    if (_autoAdvanceEnabled && answer.toString().isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        _scrollToNextUnanswered();
+      });
+    }
+  }
+
+  void _scrollToNextUnanswered() {
+    final questions = _filteredQuestions;
+    if (questions.isEmpty) return;
+
+    // Find next unanswered question starting from current position
+    int nextIndex = -1;
+    for (int i = _activeQuestionIndex + 1; i < questions.length; i++) {
+      final q = questions[i];
+      final answer = q.correctAnswer?.toString() ?? '';
+      if (answer.isEmpty) {
+        nextIndex = i;
+        break;
+      }
+    }
+
+    // If no unanswered below, wrap around from the top
+    if (nextIndex == -1) {
+      for (int i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        final answer = q.correctAnswer?.toString() ?? '';
+        if (answer.isEmpty) {
+          nextIndex = i;
+          break;
+        }
+      }
+    }
+
+    // If all answered, stay where we are
+    if (nextIndex == -1) return;
+
+    setState(() => _activeQuestionIndex = nextIndex);
+
+    // Smooth scroll to the next question
+    final key = _rowKeys[questions[nextIndex].number];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.1,
+      );
+    }
+  }
+
+  // ── Auto-Save ────────────────────────────────────────────────────────
+
+  Future<void> _autoSave() async {
+    if (_assessment == null) return;
+    try {
+      // Update draft timestamp in settings
+      final settings = Map<String, dynamic>.from(_assessment!.settings);
+      settings['lastDraftTimestamp'] = DateTime.now().toIso8601String();
+      _assessment = _assessment!.copyWith(settings: settings);
+
+      final provider = context.read<AssessmentProvider>();
+      await provider.updateAssessment(_assessment!);
+      if (mounted) {
+        setState(() => _lastSavedAt = DateTime.now());
+      }
+    } catch (e) {
+      debugPrint('[AnswerKey] auto-save failed: $e');
+    }
+  }
+
+  void _toggleLock() {
+    setState(() {
+      _isLocked = !_isLocked;
+      // Persist lock state in assessment settings
+      final settings = Map<String, dynamic>.from(_assessment!.settings);
+      settings['answerKeyLocked'] = _isLocked;
+      _assessment = _assessment!.copyWith(settings: settings);
+    });
+    _autoSave();
+  }
+
+  void _toggleFlag(int questionNumber) {
+    setState(() {
+      if (_flaggedQuestions.contains(questionNumber)) {
+        _flaggedQuestions.remove(questionNumber);
+      } else {
+        _flaggedQuestions.add(questionNumber);
+      }
+    });
+  }
+
+  void _checkForRecoveryDraft() {
+    if (_assessment == null) return;
+    final lastDraftTimestamp = _assessment!.settings['lastDraftTimestamp'];
+    if (lastDraftTimestamp == null) return;
+
+    try {
+      final timestamp = DateTime.parse(lastDraftTimestamp.toString());
+      final age = DateTime.now().difference(timestamp);
+      if (age.inMinutes > 5) {
+        // Count answered questions as a rough recovery indicator
+        final answered = _assessment!.answeredQuestionCount;
+        if (answered > 0) {
+          setState(() {
+            _showRecoveryBanner = true;
+            _recoveredCount = answered;
+          });
+        }
+      }
+    } catch (_) {
+      // Ignore parse errors
+    }
+  }
+
+  void _loadSections() {
+    if (_assessment == null) return;
+    final stored = _assessment!.settings['sections'];
+    if (stored is List && stored.isNotEmpty) {
+      _sections = stored.map((s) => ExamSection.fromMap(s as Map<String, dynamic>)).toList();
+    } else {
+      _sections = [];
+    }
+  }
+
+  Future<void> _openSectionSetup() async {
+    if (_assessment == null) return;
+    final result = await Navigator.pushNamed(
+      context,
+      AppRoutes.answerKeySectionSetup,
+      arguments: _assessment,
+    );
+
+    if (result is SectionSetupResult && mounted) {
+      _applySections(result.sections);
+    }
+  }
+
+  void _applySections(List<ExamSection> sections) {
+    // Apply section type and points to questions in each section
+    final assessment = _assessment!;
+    final updated = assessment.questions.map((q) {
+      for (final section in sections) {
+        if (q.number >= section.startQ && q.number <= section.endQ) {
+          final sectionType = _parseQuestionType(section.type);
+          if (q.type != sectionType || q.points != section.points) {
+            return q.copyWith(
+              type: sectionType,
+              points: section.points,
+              options: sectionType == QuestionType.trueFalse
+                  ? ['True', 'False']
+                  : (sectionType == QuestionType.multiAnswer
+                      ? const ['A', 'B', 'C', 'D', 'E']
+                      : q.options),
+            );
+          }
+        }
+      }
+      return q;
+    }).toList();
+
+    setState(() {
+      _assessment = assessment.copyWith(questions: updated);
+      _sections = sections;
+    });
+
+    // Persist sections to settings
+    final settings = Map<String, dynamic>.from(_assessment!.settings);
+    settings['sections'] = sections.map((s) => s.toMap()).toList();
+    _assessment = _assessment!.copyWith(settings: settings);
+    _autoSave();
+  }
+
+  QuestionType _parseQuestionType(String type) {
+    return switch (type) {
+      'mcq' => QuestionType.mcq,
+      'trueFalse' => QuestionType.trueFalse,
+      'shortAnswer' => QuestionType.shortAnswer,
+      'essay' => QuestionType.essay,
+      'matching' => QuestionType.matching,
+      'multiAnswer' => QuestionType.multiAnswer,
+      _ => QuestionType.mcq,
+    };
   }
 
   void _updateType(Question q, QuestionType type) {
+    if (_isLocked) return;
     final assessment = _assessment!;
     final updated = assessment.questions.map((question) {
       if (question.number == q.number) {
@@ -469,9 +956,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       return question;
     }).toList();
     setState(() => _assessment = assessment.copyWith(questions: updated));
+    _autoSave();
   }
 
   void _updatePoints(Question q, double points) {
+    if (_isLocked) return;
     final assessment = _assessment!;
     final updated = assessment.questions.map((question) {
       if (question.number == q.number) {
@@ -480,6 +969,66 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       return question;
     }).toList();
     setState(() => _assessment = assessment.copyWith(questions: updated));
+    _autoSave();
+  }
+
+  // ── Photo Scan ───────────────────────────────────────────────────────
+
+  Future<void> _openPhotoScan(BuildContext context, Assessment assessment) async {
+    final result = await Navigator.pushNamed(
+      context,
+      AppRoutes.answerKeyPhotoScan,
+      arguments: assessment.questionCount,
+    );
+
+    if (result is PhotoScanResult && mounted) {
+      _applyPhotoScanAnswers(assessment, result);
+    }
+  }
+
+  void _applyPhotoScanAnswers(Assessment assessment, PhotoScanResult scanResult) {
+    final updated = assessment.questions.map((question) {
+      // Find matching OCR answer by question number
+      final ocrAnswer = scanResult.answers
+          .where((a) => a.questionNumber == question.number)
+          .toList();
+      if (ocrAnswer.isEmpty) return question;
+
+      final answer = ocrAnswer.first.answer;
+      // Only apply to unanswered questions (don't overwrite existing answers)
+      final currentAnswer = question.correctAnswer?.toString() ?? '';
+      if (currentAnswer.isNotEmpty) return question;
+
+      // Auto-detect type from answer format
+      var type = question.type;
+      if (type == QuestionType.mcq) {
+        if (answer == 'True' || answer == 'False') {
+          type = QuestionType.trueFalse;
+        } else if (answer.contains(',')) {
+          type = QuestionType.multiAnswer;
+        }
+      }
+
+      return question.copyWith(
+        correctAnswer: answer,
+        type: type,
+      );
+    }).toList();
+
+    setState(() => _assessment = assessment.copyWith(questions: updated));
+
+    // Show feedback
+    final applied = scanResult.answers.length;
+    final total = assessment.questionCount;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Applied $applied answers from photo scan ($total questions total)'),
+          backgroundColor: const Color(0xFF18A558),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _setAllType(Assessment assessment, QuestionType type) {
@@ -894,6 +1443,9 @@ class _QuestionRow extends StatelessWidget {
   final Function(dynamic) onAnswerChanged;
   final Function(QuestionType) onTypeChanged;
   final Function(double) onPointsChanged;
+  final bool isActive;
+  final bool isFlagged;
+  final VoidCallback onFlagToggled;
 
   const _QuestionRow({
     super.key,
@@ -902,6 +1454,9 @@ class _QuestionRow extends StatelessWidget {
     required this.onAnswerChanged,
     required this.onTypeChanged,
     required this.onPointsChanged,
+    this.isActive = false,
+    this.isFlagged = false,
+    required this.onFlagToggled,
   });
 
   bool get _isAnswered =>
@@ -923,7 +1478,19 @@ class _QuestionRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: _rowBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200.withValues(alpha: 0.5)),
+        border: Border(
+          left: BorderSide(
+            color: isFlagged
+                ? const Color(0xFFF0C674)
+                : isActive
+                    ? const Color(0xFF7EB8DA)
+                    : Colors.grey.shade200.withValues(alpha: 0.5),
+            width: (isFlagged || isActive) ? 3 : 1,
+          ),
+          top: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
+          right: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
+          bottom: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -955,6 +1522,17 @@ class _QuestionRow extends StatelessWidget {
         const SizedBox(width: 6),
         _buildTypeBadge(),
         const Spacer(),
+        GestureDetector(
+          onTap: onFlagToggled,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Icon(
+              isFlagged ? Icons.star : Icons.star_border,
+              size: 16,
+              color: isFlagged ? const Color(0xFFF0C674) : Colors.grey.shade400,
+            ),
+          ),
+        ),
         _buildPointsChip(context),
       ],
     );
@@ -1499,4 +2077,17 @@ class _QuestionRow extends StatelessWidget {
       QuestionType.multiAnswer => const Color(0xFFC5A3E8),
     };
   }
+}
+
+class _ListItem {
+  final ExamSection? section;
+  final Question? question;
+  final int answeredCount;
+
+  const _ListItem.section(this.section, this.answeredCount)
+      : question = null;
+  const _ListItem.question(this.question)
+      : section = null, answeredCount = 0;
+
+  bool get isSection => section != null;
 }
