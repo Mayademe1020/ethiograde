@@ -1478,18 +1478,13 @@ class _QuestionRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: _rowBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border(
-          left: BorderSide(
-            color: isFlagged
-                ? const Color(0xFFF0C674)
-                : isActive
-                    ? const Color(0xFF7EB8DA)
-                    : Colors.grey.shade200.withValues(alpha: 0.5),
-            width: (isFlagged || isActive) ? 3 : 1,
-          ),
-          top: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
-          right: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
-          bottom: BorderSide(color: Colors.grey.shade200.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: isFlagged
+              ? const Color(0xFFF0C674)
+              : isActive
+                  ? const Color(0xFF7EB8DA)
+                  : Colors.grey.shade200.withValues(alpha: 0.5),
+          width: (isFlagged || isActive) ? 3 : 1,
         ),
       ),
       child: Column(

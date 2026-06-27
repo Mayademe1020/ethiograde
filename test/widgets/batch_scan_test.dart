@@ -201,6 +201,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(BatchScanScreen), findsOneWidget);
-    }, skip: true);
+    });
   });
 }

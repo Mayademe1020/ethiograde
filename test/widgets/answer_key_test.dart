@@ -111,7 +111,7 @@ void main() {
       expect(find.text('Science Quiz'), findsOneWidget);
     });
 
-    testWidgets('shows subject and question count', skip: true, (tester) async {
+    testWidgets('shows subject and question count', (tester) async {
       final assessment = makeAssessment(
         subject: 'English',
         questions: [

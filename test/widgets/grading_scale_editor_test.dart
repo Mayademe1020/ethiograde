@@ -90,7 +90,7 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('grading sessions'), findsOneWidget);
-    }, skip: true);
+    });
 
     testWidgets('cancel in confirmation dialog does not save', (tester) async {
       await tester.pumpWidget(wrapEditor());
@@ -106,7 +106,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Grade Bands'), findsOneWidget);
-    }, skip: true);
+    });
 
     testWidgets('add range button adds a new entry', (tester) async {
       await tester.pumpWidget(wrapEditor());
