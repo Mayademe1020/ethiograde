@@ -82,64 +82,50 @@ void main() {
   }
 
   group('ExamDayCreateScreen', () {
-    testWidgets('starts from the teacher grading job', (tester) async {
-      await tester.pumpWidget(buildScreen());
-      await tester.pumpAndSettle();
-
-      expect(find.text('Grade papers'), findsOneWidget);
-      expect(find.text('I have papers. I need grades.'), findsOneWidget);
-      expect(find.text('Answer key'), findsOneWidget);
-      expect(
-        find.text('Choose how the correct answers will be created.'),
-        findsOneWidget,
-      );
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      await scrollToText(tester, 'Student list');
-      expect(find.text('Student list'), findsOneWidget);
-    });
-
-    testWidgets('keeps student mode and answer-key mode separate', (
+    testWidgets('renders Create Exam title and answer key section', (
       tester,
     ) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      await scrollToText(tester, 'Grade without student list');
-      expect(find.text('Grade without student list'), findsOneWidget);
-      await scrollToText(tester, 'Grade with class list');
-      expect(find.text('Grade with class list'), findsOneWidget);
+      expect(find.text('Create Exam'), findsOneWidget);
+      expect(find.text('Answer key'), findsOneWidget);
+      expect(find.text('Scan Answer Sheet'), findsOneWidget);
+      expect(find.text('Type Answers'), findsOneWidget);
+    });
+
+    testWidgets('shows questions count field', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Questions'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '20'), findsOneWidget);
     });
 
     testWidgets('supports custom question count', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Custom');
-      final customField = find.widgetWithText(TextField, 'Custom');
-      expect(customField, findsOneWidget);
-
-      await tester.enterText(customField, '37');
+      final countField = find.widgetWithText(TextField, '20');
+      await tester.enterText(countField, '37');
       await tester.pumpAndSettle();
 
       expect(find.text('37'), findsOneWidget);
     });
 
-    testWidgets('initial no-roster mode still allows master scan choice', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        buildScreen(initialMode: ExamDayStartMode.noRoster),
-      );
+    testWidgets('shows Quick Grading option', (tester) async {
+      await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Grade without student list');
-      expect(find.text('Grade without student list'), findsOneWidget);
-      await scrollToText(tester, 'Answer key');
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Continue to master scan'), findsOneWidget);
+      await scrollToText(tester, 'Quick Grading');
+      expect(find.text('Quick Grading'), findsOneWidget);
+    });
+
+    testWidgets('shows continue button for scan mode', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue to Scan'), findsOneWidget);
     });
 
     testWidgets('initial manual-key mode changes the primary action', (
@@ -150,9 +136,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Enter answer key manually');
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      expect(find.text('Continue to answer key'), findsOneWidget);
+      expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
     });
   });
 }
