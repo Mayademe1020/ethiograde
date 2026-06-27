@@ -8,26 +8,6 @@ on:
 
 env:
   FLUTTER_VERSION: '3.41.7'
-  ANALYZE_TARGETS: >-
-    lib/services/settings_provider.dart
-    test/services/settings_provider_test.dart
-    lib/services/voice_service.dart
-    test/services/voice_playback_test.dart
-    lib/services/auto_scan_engine.dart
-    test/services/auto_scan_engine_test.dart
-    lib/services/backup_service.dart
-    test/services/backup_service_test.dart
-    lib/services/auto_scan_frame_analyzer.dart
-    test/services/auto_scan_frame_analyzer_test.dart
-    lib/services/paper_image_intake_service.dart
-    test/services/paper_image_intake_service_test.dart
-  TEST_TARGETS: >-
-    test/services/settings_provider_test.dart
-    test/services/voice_playback_test.dart
-    test/services/auto_scan_engine_test.dart
-    test/services/backup_service_test.dart
-    test/services/auto_scan_frame_analyzer_test.dart
-    test/services/paper_image_intake_service_test.dart
 
 jobs:
   analyze:
@@ -40,8 +20,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos $ANALYZE_TARGETS
-      - run: dart format --set-exit-if-changed $ANALYZE_TARGETS
+      - run: flutter analyze --no-fatal-infos lib/ test/
+      - run: dart format --set-exit-if-changed lib/ test/
 
   test:
     name: Unit & Widget Tests
@@ -54,7 +34,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
       - run: flutter pub get
-      - run: flutter test --coverage $TEST_TARGETS
+      - run: flutter test --coverage
       - name: Check coverage threshold
         run: |
           COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep 'lines' | grep -oP '[\d.]+%' | tr -d '%')
@@ -83,7 +63,7 @@ jobs:
           APK_PATH=build/app/outputs/flutter-apk/app-debug.apk
           APK_SIZE=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
           APK_SIZE_MB=$(echo "scale=1; $APK_SIZE / 1048576" | bc)
-          echo "📦 Debug APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
+          echo "Debug APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
           if (( APK_SIZE > 52428800 )); then
             echo "::warning::Debug APK is ${APK_SIZE_MB}MB — target is <50MB"
           fi
@@ -95,15 +75,15 @@ jobs:
           APK_PATH=build/app/outputs/flutter-apk/app-release.apk
           APK_SIZE=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
           APK_SIZE_MB=$(echo "scale=1; $APK_SIZE / 1048576" | bc)
-          echo "📦 Release APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
+          echo "Release APK: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
           if (( APK_SIZE > 52428800 )); then
             echo "::warning::Release APK is ${APK_SIZE_MB}MB — target is <50MB"
           fi
           # Write metrics summary
-          echo "## 📊 Build Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Metrics" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value | Target | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Release APK Size | ${APK_SIZE_MB}MB | <50MB | $([ $(echo "$APK_SIZE_MB < 50" | bc) -eq 1 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release APK Size | ${APK_SIZE_MB}MB | <50MB | $([ $(echo "$APK_SIZE_MB < 50" | bc) -eq 1 ] && echo 'pass' || echo 'warn') |" >> $GITHUB_STEP_SUMMARY
 
       - uses: actions/upload-artifact@v4
         with:
@@ -117,7 +97,7 @@ jobs:
           AAB_PATH=build/app/outputs/bundle/release/app-release.aab
           AAB_SIZE=$(stat -c%s "$AAB_PATH" 2>/dev/null || stat -f%z "$AAB_PATH")
           AAB_SIZE_MB=$(echo "scale=1; $AAB_SIZE / 1048576" | bc)
-          echo "📦 AAB: ${AAB_SIZE_MB}MB"
+          echo "AAB: ${AAB_SIZE_MB}MB"
 
       - uses: actions/upload-artifact@v4
         with:
