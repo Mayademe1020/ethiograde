@@ -129,7 +129,7 @@ void main() {
 
     test('enhanced image is smaller than original for large images', () async {
       final ocr = OcrService();
-      // Create a 2000x1500 image (larger than _maxImageDimension=1600)
+      // Create a 2000x1500 image (larger than _maxImageDimension=2000)
       final inputPath = await createTestImage(width: 2000, height: 1500);
 
       try {
@@ -154,7 +154,7 @@ void main() {
         final enhanced = img.decodeJpg(enhancedBytes);
 
         expect(enhanced, isNotNull);
-        // Should remain at original dimensions (under 1600)
+        // Should remain at original dimensions (under 2000)
         expect(enhanced!.width, 200);
         expect(enhanced.height, 300);
       } finally {
@@ -164,7 +164,7 @@ void main() {
 
     test('downscales images exceeding max dimension', () async {
       final ocr = OcrService();
-      // 3000x2000 → should scale to 1600x1067
+      // 3000x2000 → should scale to 2000x1333
       final inputPath = await createTestImage(width: 3000, height: 2000);
 
       try {
@@ -173,8 +173,8 @@ void main() {
         final enhanced = img.decodeJpg(enhancedBytes);
 
         expect(enhanced, isNotNull);
-        expect(enhanced!.width, lessThanOrEqualTo(1600));
-        expect(enhanced.height, lessThanOrEqualTo(1600));
+        expect(enhanced!.width, lessThanOrEqualTo(2000));
+        expect(enhanced.height, lessThanOrEqualTo(2000));
       } finally {
         await cleanupFile(inputPath);
       }
@@ -322,7 +322,7 @@ void main() {
         final enhancedBytes = await File(enhancedPath).readAsBytes();
         final enhanced = img.decodeJpg(enhancedBytes);
         expect(enhanced, isNotNull);
-        expect(enhanced!.width, lessThanOrEqualTo(1600));
+        expect(enhanced!.width, lessThanOrEqualTo(2000));
       } finally {
         await cleanupFile(inputPath);
       }

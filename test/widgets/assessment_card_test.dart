@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:ethiograde/widgets/assessment_card.dart';
 import 'package:ethiograde/models/assessment.dart';
+import 'package:ethiograde/services/class_provider.dart';
+import 'package:ethiograde/models/class_info.dart';
 
 void main() {
-  Widget wrap(Widget child) {
-    return MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)));
+  Widget wrap(Widget child, {List<ClassInfo> classes = const []}) {
+    final prov = ClassProvider();
+    for (final c in classes) {
+      prov.addClass(c);
+    }
+    return ChangeNotifierProvider<ClassProvider>.value(
+      value: prov,
+      child: MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(child: child))));
   }
 
   Assessment makeAssessment({
@@ -34,13 +43,17 @@ void main() {
     });
 
     testWidgets('shows English status label', (tester) async {
+      final questions = [
+        Question(number: 1, text: 'Q1', type: QuestionType.mcq, points: 1),
+        Question(number: 2, text: 'Q2', type: QuestionType.mcq, points: 1),
+      ];
       for (final entry in {
         AssessmentStatus.draft: 'Draft',
-        AssessmentStatus.active: 'Active',
-        AssessmentStatus.grading: 'Grading',
-        AssessmentStatus.completed: 'Completed',
+        AssessmentStatus.active: 'Needs answer key',
+        AssessmentStatus.grading: 'Needs answer key',
+        AssessmentStatus.completed: 'Graded',
       }.entries) {
-        final assessment = makeAssessment(status: entry.key);
+        final assessment = makeAssessment(status: entry.key, questions: questions);
         await tester.pumpWidget(wrap(AssessmentCard(
           assessment: assessment)));
         await tester.pumpAndSettle();

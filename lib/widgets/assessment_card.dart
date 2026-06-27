@@ -159,12 +159,12 @@ class AssessmentCard extends StatelessWidget {
                             Builder(
                               builder: (context) {
                                 final classProv = context.read<ClassProvider>();
-                                final cls = classProv.classes.firstWhere(
-                                  (c) => c.name == assessment.className,
-                                  orElse: () => classProv.classes.isEmpty
-                                      ? classProv.classes.first
-                                      : classProv.classes.last);
-                                if (cls.academicYear.isEmpty) return const SizedBox.shrink();
+                                final cls = classProv.classes.isNotEmpty
+                                    ? classProv.classes.firstWhere(
+                                        (c) => c.name == assessment.className,
+                                        orElse: () => classProv.classes.last)
+                                    : null;
+                                if (cls == null || cls.academicYear.isEmpty) return const SizedBox.shrink();
                                 return Padding(
                                   padding: const EdgeInsets.only(left: AppSpacing.sm),
                                   child: _MetaBadge(

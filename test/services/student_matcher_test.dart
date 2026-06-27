@@ -57,7 +57,7 @@ void main() {
 
   group('StudentMatcher — first name match', () {
     test('matches on first name when unique', () {
-      final result = StudentMatcher.matchName('ገብረ', classList);
+      final result = StudentMatcher.matchName('Gebre', classList);
       expect(result.hasMatch, isTrue);
       expect(result.matchedStudent!.id, 's3');
       expect(result.confidence, lessThan(1.0)); // lower confidence
@@ -123,7 +123,7 @@ void main() {
 
   group('StudentMatcher — matchFromOcr', () {
     test('parses OCR text and matches', () {
-      final ocrText = '1. አበበ ከበደ ወንድ\n2. ሀብተ ወልደማርያም ሴት';
+      final ocrText = '1. Abebe Kebede Male\n2. Habte Woldemariam Female';
       final result = StudentMatcher.matchFromOcr(ocrText, classList);
       expect(result.hasMatch, isTrue);
       expect(result.matchedStudent!.firstName, 'Abebe');

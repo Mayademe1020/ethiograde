@@ -14,7 +14,7 @@ void main() {
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('ethiograde_safety_test_');
-    await Hive.initFlutter(tempDir.path);
+    Hive.init(tempDir.path);
   });
 
   tearDown(() async {
