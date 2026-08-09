@@ -131,9 +131,16 @@ class AnswerParser {
       return lastWord;
     }
 
-    // Fallback: check if entire text is a known answer (MCQ, T/F, etc.)
+// Fallback: check if entire text is a known answer (MCQ, T/F, etc.)
     final normalized = normalizeAnswer(trimmed);
-    if (normalized.isNotEmpty && normalized.length <= 20) return trimmed;
+    if (normalized.isNotEmpty && normalized.length <= 20) {
+      // Strip any leading question-number prefix (e.g., "1. Addis Ababa")
+      final match = RegExp(r'^\d+[\.\-:)]?').firstMatch(trimmed);
+      final stripped = match != null
+          ? trimmed.substring(match.end).trim()
+          : trimmed;
+      return stripped.isEmpty ? trimmed : stripped;
+    }
 
     return trimmed;
   }
@@ -228,7 +235,6 @@ class AnswerParser {
     // At least one letter beyond E (F-Z) → likely matching, not MCQ
     final hasNonMcq = tokens.any(
       (t) => RegExp(r'^[f-zF-Z]$').hasMatch(t));
-    final uniqueTokens = tokens.toSet();
     final isMatchingPattern = hasNonMcq;
 
     if (!isMatchingPattern) return null;
