@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/responsive.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../models/student.dart';
@@ -23,7 +24,7 @@ Future<bool?> showBatchCompletionReview({
   required void Function(List<ScanResult> updated) onResultsChanged,
   required void Function(int resultIndex) onAssignStudent,
 }) {
-  final review = const BatchReviewService();
+  const review = BatchReviewService();
 
   return showModalBottomSheet<bool>(
     context: context,
@@ -45,7 +46,10 @@ Future<bool?> showBatchCompletionReview({
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            padding: EdgeInsets.fromLTRB(
+              ResponsiveLayout.horizontalPadding(context), 12,
+              ResponsiveLayout.horizontalPadding(context), 20,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.of(ctx).size.height * 0.86,
@@ -76,7 +80,7 @@ Future<bool?> showBatchCompletionReview({
                     noRoster
                         ? 'These papers can stay as Paper 1, Paper 2, and so on. Assign names later if needed.'
                         : 'Choose what happened before results are saved. Nothing is silently marked zero.',
-                    style: TextStyle(color: AppTheme.lightText, height: 1.35),
+                    style: const TextStyle(color: AppTheme.lightText, height: 1.35),
                   ),
                   const SizedBox(height: 16),
                   BatchReviewMetric(
@@ -356,7 +360,7 @@ class DuplicateActions extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${duplicate.matchPercent.toStringAsFixed(0)}% answer match',
-                    style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   Wrap(

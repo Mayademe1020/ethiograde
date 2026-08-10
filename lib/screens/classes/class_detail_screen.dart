@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/responsive.dart';
 import '../../config/routes.dart';
 import '../../models/class_info.dart';
 import '../../models/student.dart';
@@ -26,7 +27,7 @@ class ClassDetailScreen extends StatelessWidget {
     final currentClass = classProv.getClassById(classInfo.id) ?? classInfo;
     final students =
         currentClass.studentIds
-            .map((id) => studentProv.getStudentById(id))
+            .map(studentProv.getStudentById)
             .whereType<Student>()
             .toList()
           ..sort((a, b) => a.fullName.compareTo(b.fullName));
@@ -46,7 +47,7 @@ class ClassDetailScreen extends StatelessWidget {
               if (v == 'delete') _confirmDelete(context, currentClass);
             },
             itemBuilder: (_) => [
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
@@ -55,7 +56,7 @@ class ClassDetailScreen extends StatelessWidget {
                       color: AppTheme.primaryRed,
                       size: 20,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text('Delete Class'),
                   ],
                 ),
@@ -64,219 +65,221 @@ class ClassDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Class info header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: AppTheme.primaryGreen.withOpacity(0.05),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _InfoChip(
-                      icon: Icons.people,
-                      label: '${students.length}',
-                      sublabel: 'Students',
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Class info header
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
+              color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _InfoChip(
+                        icon: Icons.people,
+                        label: '${students.length}',
+                        sublabel: 'Students',
+                      ),
+                      const SizedBox(width: 12),
+                      if (currentClass.grade > 0)
+                        _InfoChip(
+                          icon: Icons.numbers,
+                          label: '${currentClass.grade}',
+                          sublabel: 'Grade',
+                        ),
+                      const SizedBox(width: 12),
+                      if (currentClass.section.isNotEmpty)
+                        _InfoChip(
+                          icon: Icons.group,
+                          label: currentClass.section,
+                          sublabel: 'Section',
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            _ClassSituationPanel(
+              classInfo: currentClass,
+              students: students,
+              rosterHealth: rosterHealth,
+              onAddStudent: () => _addStudentManually(context, currentClass),
+              onImport: () => _importExcel(context, currentClass),
+              onScanRoster: () => _scanRoster(context, currentClass),
+            ),
+
+            // Action buttons
+            Padding(
+              padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.person_add_outlined,
+                      label: 'Add',
+                      color: AppTheme.primaryGreen,
+                      onTap: () => _addStudentManually(context, currentClass),
                     ),
-                    const SizedBox(width: 12),
-                    if (currentClass.grade > 0)
-                      _InfoChip(
-                        icon: Icons.numbers,
-                        label: '${currentClass.grade}',
-                        sublabel: 'Grade',
-                      ),
-                    const SizedBox(width: 12),
-                    if (currentClass.section.isNotEmpty)
-                      _InfoChip(
-                        icon: Icons.group,
-                        label: currentClass.section,
-                        sublabel: 'Section',
-                      ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.upload_file,
+                      label: 'Import',
+                      color: AppTheme.info,
+                      onTap: () => _importExcel(context, currentClass),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.document_scanner_outlined,
+                      label: 'Scan',
+                      color: AppTheme.primaryYellow,
+                      onTap: () => _scanRoster(context, currentClass),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          _ClassSituationPanel(
-            classInfo: currentClass,
-            students: students,
-            rosterHealth: rosterHealth,
-            onAddStudent: () => _addStudentManually(context, currentClass),
-            onImport: () => _importExcel(context, currentClass),
-            onScanRoster: () => _scanRoster(context, currentClass),
-          ),
-
-          // Action buttons
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    icon: Icons.person_add_outlined,
-                    label: 'Add',
-                    color: AppTheme.primaryGreen,
-                    onTap: () => _addStudentManually(context, currentClass),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ActionButton(
-                    icon: Icons.upload_file,
-                    label: 'Import',
-                    color: AppTheme.info,
-                    onTap: () => _importExcel(context, currentClass),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ActionButton(
-                    icon: Icons.document_scanner_outlined,
-                    label: 'Scan',
-                    color: AppTheme.primaryYellow,
-                    onTap: () => _scanRoster(context, currentClass),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Student list
-          Expanded(
-            child: students.isEmpty
-                ? _EmptyClassState()
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount:
-                        students.length + (rosterHealth.hasIssues ? 1 : 0),
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      if (rosterHealth.hasIssues && index == 0) {
-                        return _RosterFixPanel(
-                          health: rosterHealth,
-                          onImport: () => _importExcel(context, currentClass),
-                          onAddStudent: () =>
-                              _addStudentManually(context, currentClass),
+            // Student list
+            Expanded(
+              child: students.isEmpty
+                  ? const _EmptyClassState()
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount:
+                          students.length + (rosterHealth.hasIssues ? 1 : 0),
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        if (rosterHealth.hasIssues && index == 0) {
+                          return _RosterFixPanel(
+                            health: rosterHealth,
+                            onImport: () => _importExcel(context, currentClass),
+                            onAddStudent: () =>
+                                _addStudentManually(context, currentClass),
+                          );
+                        }
+                        final studentIndex =
+                            index - (rosterHealth.hasIssues ? 1 : 0);
+                        final s = students[studentIndex];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppTheme.primaryGreen.withValues(alpha: 
+                              0.1,
+                            ),
+                            child: Text(
+                              '${studentIndex + 1}',
+                              style: const TextStyle(
+                                color: AppTheme.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          title: Text(s.fullName),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.studentDetail,
+                            arguments: s,
+                          ),
+                          subtitle: Row(
+                            children: [
+                              if (s.gender.isNotEmpty)
+                                Text(
+                                  s.gender == 'M' ? ('Male') : ('Female'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.lightText,
+                                  ),
+                                ),
+                              if (s.gender.isNotEmpty && s.studentId.isNotEmpty)
+                                const Text(
+                                  ' • ',
+                                  style: TextStyle(color: AppTheme.lightText),
+                                ),
+                              if (s.studentId.isNotEmpty)
+                                Text(
+                                  '${'ID'}: ${s.studentId}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.lightText,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            icon: const Icon(
+                              Icons.more_vert,
+                              size: 20,
+                              color: AppTheme.lightText,
+                            ),
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'edit':
+                                  _editStudent(context, s);
+                                case 'transfer':
+                                  _transferStudent(context, s, currentClass);
+                                case 'remove':
+                                  _removeStudent(context, currentClass, s);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                      color: AppTheme.info,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Edit'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'transfer',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.swap_horiz,
+                                      size: 18,
+                                      color: AppTheme.info,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Transfer'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'remove',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 18,
+                                      color: AppTheme.primaryRed,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Remove'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         );
-                      }
-                      final studentIndex =
-                          index - (rosterHealth.hasIssues ? 1 : 0);
-                      final s = students[studentIndex];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppTheme.primaryGreen.withOpacity(
-                            0.1,
-                          ),
-                          child: Text(
-                            '${studentIndex + 1}',
-                            style: const TextStyle(
-                              color: AppTheme.primaryGreen,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        title: Text(s.fullName),
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.studentDetail,
-                          arguments: s,
-                        ),
-                        subtitle: Row(
-                          children: [
-                            if (s.gender.isNotEmpty)
-                              Text(
-                                s.gender == 'M' ? ('Male') : ('Female'),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.lightText,
-                                ),
-                              ),
-                            if (s.gender.isNotEmpty && s.studentId.isNotEmpty)
-                              Text(
-                                ' • ',
-                                style: TextStyle(color: AppTheme.lightText),
-                              ),
-                            if (s.studentId.isNotEmpty)
-                              Text(
-                                '${'ID'}: ${s.studentId}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.lightText,
-                                ),
-                              ),
-                          ],
-                        ),
-                        trailing: PopupMenuButton<String>(
-                          icon: Icon(
-                            Icons.more_vert,
-                            size: 20,
-                            color: AppTheme.lightText,
-                          ),
-                          onSelected: (value) {
-                            switch (value) {
-                              case 'edit':
-                                _editStudent(context, s);
-                              case 'transfer':
-                                _transferStudent(context, s, currentClass);
-                              case 'remove':
-                                _removeStudent(context, currentClass, s);
-                            }
-                          },
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                    color: AppTheme.info,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('Edit'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'transfer',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.swap_horiz,
-                                    size: 18,
-                                    color: AppTheme.info,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('Transfer'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'remove',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.remove_circle_outline,
-                                    size: 18,
-                                    color: AppTheme.primaryRed,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text('Remove'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -312,19 +315,19 @@ class ClassDetailScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('Remove Student'),
+        title: const Text('Remove Student'),
         content: Text('Remove ${s.fullName} from ${cls.displayName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryRed,
             ),
-            child: Text('Remove'),
+            child: const Text('Remove'),
           ),
         ],
       ),
@@ -353,21 +356,21 @@ class ClassDetailScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('Delete Class'),
+        title: const Text('Delete Class'),
         content: Text(
           'Delete ${cls.displayName}? Students will not be deleted.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryRed,
             ),
-            child: Text('Delete'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -466,9 +469,9 @@ class _ClassSituationPanel extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.07),
+        color: color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +491,7 @@ class _ClassSituationPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -577,18 +580,18 @@ class _RosterFixPanel extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.06),
+        color: AppTheme.warning.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.24)),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.rule_folder_outlined, color: AppTheme.warning),
-              const SizedBox(width: 8),
-              const Expanded(
+              SizedBox(width: 8),
+              Expanded(
                 child: Text(
                   'Roster fixes',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -600,20 +603,20 @@ class _RosterFixPanel extends StatelessWidget {
           if (health.missingIds.isNotEmpty)
             Text(
               '${health.missingIds.length} student(s) need an ID for reliable matching.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
             ),
           if (health.duplicateIds.isNotEmpty)
             Text(
               '${health.duplicateIds.length} duplicate ID value(s) found.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
             ),
           if (health.duplicateNames.isNotEmpty)
             Text(
               '${health.duplicateNames.length} duplicate name value(s) found.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
             ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Use each student menu to edit, transfer, or remove.',
             style: TextStyle(color: AppTheme.lightText, fontSize: 12),
           ),
@@ -659,9 +662,9 @@ class _RosterChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -698,9 +701,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppTheme.outlineLight.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -719,7 +722,7 @@ class _InfoChip extends StatelessWidget {
               ),
               Text(
                 sublabel,
-                style: TextStyle(fontSize: 10, color: AppTheme.lightText),
+                style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
               ),
             ],
           ),
@@ -750,9 +753,9 @@ class _ActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           children: [
@@ -780,13 +783,13 @@ class _EmptyClassState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
+              Icon(Icons.people_outline, size: 64, color: AppTheme.onSurfaceVariantLight),
+              SizedBox(height: 16),
               Text(
                 'No students yet',
                 style: TextStyle(
@@ -795,15 +798,15 @@ class _EmptyClassState extends StatelessWidget {
                   color: AppTheme.darkText,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Import Excel, add manually, or scan a roster',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.lightText),
               ),
             ],
+          ),
         ),
-      ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/responsive.dart';
 import 'camera_assistant_panel.dart';
 
 /// Bottom controls for the camera screen: capture button, thumbnail, done button.
@@ -39,7 +40,7 @@ class CameraControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isMasterKeyMode) {
-      return _buildMasterKeyControls();
+      return _buildMasterKeyControls(context);
     }
     if (isAutoCapture) {
       return _buildAutoCaptureControls(context);
@@ -51,7 +52,10 @@ class CameraControls extends StatelessWidget {
     final hasError = captureErrorMessage != null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveLayout.horizontalPadding(context),
+        vertical: 16,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -133,7 +137,7 @@ class CameraControls extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -205,13 +209,16 @@ class CameraControls extends StatelessWidget {
     );
   }
 
-  Widget _buildMasterKeyControls() {
+  Widget _buildMasterKeyControls(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveLayout.horizontalPadding(context),
+        vertical: 32,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CameraAssistantPanel(
+          const CameraAssistantPanel(
             title: 'Scan Answer Sheet',
             detail: 'Place the answer key in frame',
             capturedCount: 0,
@@ -254,7 +261,10 @@ class CameraControls extends StatelessWidget {
     final hasError = captureErrorMessage != null;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveLayout.horizontalPadding(context),
+        vertical: 16,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -502,15 +512,15 @@ Future<bool> showDuplicateDialog(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Row(
+      title: const Row(
         children: [
           Icon(
             Icons.warning_amber_rounded,
             color: AppTheme.primaryYellow,
             size: 22,
           ),
-          const SizedBox(width: 8),
-          const Text('Possible Duplicate'),
+          SizedBox(width: 8),
+          Text('Possible Duplicate'),
         ],
       ),
       content: const Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/responsive.dart';
 import '../../models/assessment.dart';
 import '../../services/coordinate_map_omr_service.dart';
 
@@ -56,7 +57,10 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                 return Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      padding: EdgeInsets.fromLTRB(
+                        ResponsiveLayout.horizontalPadding(context), 12,
+                        ResponsiveLayout.horizontalPadding(context), 8,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -108,7 +112,7 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                       missing == 0 && weak == 0
                                           ? 'Looks clean. Check once, then use it as the answer key.'
                                           : 'Only fix the highlighted answers. The rest can stay as detected.',
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         color: AppTheme.lightText,
                                         height: 1.35,
                                       ),
@@ -157,7 +161,10 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                     Expanded(
                       child: ListView.builder(
                         controller: controller,
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                        padding: EdgeInsets.fromLTRB(
+                          ResponsiveLayout.horizontalPadding(context), 4,
+                          ResponsiveLayout.horizontalPadding(context), 12,
+                        ),
                         itemCount: objectiveQuestions.length,
                         itemBuilder: (context, index) {
                           final question = objectiveQuestions[index];
@@ -190,7 +197,10 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                      padding: EdgeInsets.fromLTRB(
+                        ResponsiveLayout.horizontalPadding(context), 12,
+                        ResponsiveLayout.horizontalPadding(context), 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Theme.of(context).scaffoldBackgroundColor,
                         border: Border(
@@ -273,7 +283,7 @@ class _MasterKeyStat extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppTheme.lightText,
               fontSize: 11,
               fontWeight: FontWeight.w600,

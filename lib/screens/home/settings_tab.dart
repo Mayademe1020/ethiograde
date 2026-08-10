@@ -9,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/theme.dart';
+import '../../config/routes.dart';
+import '../../config/responsive.dart';
 import '../../config/constants.dart';
 import '../../services/settings_provider.dart';
 import '../../services/teacher_provider.dart';
@@ -23,9 +25,11 @@ class SettingsTab extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final teachers = context.watch<TeacherProvider>();
 
+    final hp = ResponsiveLayout.horizontalPadding(context);
+
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(hp),
         children: [
           Text(
             'Settings',
@@ -111,6 +115,20 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // SMS section
+          SettingsSection(
+            title: 'SMS & Notifications',
+            children: [
+              SettingsTile(
+                icon: Icons.sms_outlined,
+                title: 'SMS History',
+                subtitle: 'View sent messages to parents',
+                onTap: () => Navigator.pushNamed(context, AppRoutes.smsHistory),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
           // Subjects section
           SettingsSection(
             title: 'Subjects',
@@ -191,7 +209,7 @@ class SettingsTab extends StatelessWidget {
           const SizedBox(height: 20),
 
           // About section
-          SettingsSection(
+          const SettingsSection(
             title: 'About',
             children: [
               SettingsTile(
@@ -267,7 +285,7 @@ class SettingsTab extends StatelessWidget {
                                   tooltip: 'Set as active',
                                 ),
                               if (isActive)
-                                const Icon(Icons.star, color: Colors.amber),
+                                const Icon(Icons.star, color: AppTheme.warning),
                               IconButton(
                                 onPressed: () =>
                                     _confirmDelete(context, teachers, teacher),
@@ -289,8 +307,7 @@ class SettingsTab extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () =>
-                      _showTeacherForm(context, teachers),
+                  onPressed: () => _showTeacherForm(context, teachers),
                   icon: const Icon(Icons.add),
                   label: const Text('Add Teacher'),
                 ),
@@ -317,8 +334,8 @@ class SettingsTab extends StatelessWidget {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 24,
-          right: 24,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
           top: 24,
         ),
         child: Form(
@@ -381,9 +398,9 @@ class SettingsTab extends StatelessWidget {
         await teachers.addTeacher(teacher);
       }
       if (context.mounted && teachers.lastAddErrors.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(teachers.lastAddErrors.first)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(teachers.lastAddErrors.first)));
       }
     }
   }
@@ -426,18 +443,15 @@ class SettingsTab extends StatelessWidget {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 24,
-          right: 24,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
           top: 24,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'School Name',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('School Name', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             TextFormField(
               controller: ctrl,
@@ -476,8 +490,8 @@ class SettingsTab extends StatelessWidget {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 24,
-          right: 24,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
           top: 24,
         ),
         child: Column(
@@ -489,7 +503,7 @@ class SettingsTab extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Your key is stored encrypted on this device only.',
               style: TextStyle(color: AppTheme.lightText, fontSize: 13),
             ),
@@ -532,8 +546,8 @@ class SettingsTab extends StatelessWidget {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 24,
-          right: 24,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
           top: 24,
         ),
         child: Column(
@@ -591,13 +605,19 @@ class SettingsTab extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          for (final (id, label) in rubrics)
-            RadioListTile<String>(
-              title: Text(label),
-              value: id,
-              groupValue: settings.defaultRubric,
-              onChanged: (v) => Navigator.pop(ctx, v),
+          RadioGroup<String>(
+            groupValue: settings.defaultRubric,
+            onChanged: (v) => Navigator.pop(ctx, v),
+            child: Column(
+              children: [
+                for (final (id, label) in rubrics)
+                  RadioListTile<String>(
+                    title: Text(label),
+                    value: id,
+                  ),
+              ],
             ),
+          ),
           const SizedBox(height: 12),
         ],
       ),
@@ -627,13 +647,19 @@ class SettingsTab extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          for (final (mode, label) in modes)
-            RadioListTile<VoiceFeedbackMode>(
-              title: Text(label),
-              value: mode,
-              groupValue: settings.voiceFeedbackMode,
-              onChanged: (v) => Navigator.pop(ctx, v),
+          RadioGroup<VoiceFeedbackMode>(
+            groupValue: settings.voiceFeedbackMode,
+            onChanged: (v) => Navigator.pop(ctx, v),
+            child: Column(
+              children: [
+                for (final (mode, label) in modes)
+                  RadioListTile<VoiceFeedbackMode>(
+                    title: Text(label),
+                    value: mode,
+                  ),
+              ],
             ),
+          ),
           const SizedBox(height: 12),
         ],
       ),
@@ -647,7 +673,9 @@ class SettingsTab extends StatelessWidget {
     BuildContext context,
     SettingsProvider settings,
   ) async {
-    final controller = TextEditingController(text: settings.currentAcademicYear);
+    final controller = TextEditingController(
+      text: settings.currentAcademicYear,
+    );
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -659,29 +687,45 @@ class SettingsTab extends StatelessWidget {
               controller: controller,
               decoration: const InputDecoration(
                 hintText: 'e.g. 2026-2027',
-                border: OutlineInputBorder()),
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             if (settings.academicYears.isNotEmpty)
-              Align(
+              const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Previous years:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                child: Text(
+                  'Previous years:',
+                                style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariantLight),
+                ),
+              ),
             const SizedBox(height: 4),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: settings.academicYears
                   .where((y) => y != settings.currentAcademicYear)
-                  .map((y) => ActionChip(
-                    label: Text(y, style: const TextStyle(fontSize: 12)),
-                    onPressed: () => Navigator.pop(ctx, y)))
-                  .toList()),
-          ]),
+                  .map(
+                    (y) => ActionChip(
+                      label: Text(y, style: const TextStyle(fontSize: 12)),
+                      onPressed: () => Navigator.pop(ctx, y),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save')),
-        ]),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
     if (result != null && result.isNotEmpty) {
       settings.setAcademicYear(result);
@@ -696,7 +740,8 @@ class SettingsTab extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         maxChildSize: 0.9,
@@ -704,7 +749,9 @@ class SettingsTab extends StatelessWidget {
         expand: false,
         builder: (ctx, scrollController) => _SubjectsManager(
           settings: settings,
-          scrollController: scrollController)),
+          scrollController: scrollController,
+        ),
+      ),
     );
   }
 
@@ -712,9 +759,9 @@ class SettingsTab extends StatelessWidget {
     try {
       final path = await BackupService.instance.exportAllData();
       if (path != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup saved to: $path')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup saved to: $path')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -741,7 +788,11 @@ class SettingsTab extends StatelessWidget {
       final importResult = await BackupService.instance.importData(filePath);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported ${importResult.imported}, skipped ${importResult.skipped}')),
+          SnackBar(
+            content: Text(
+              'Imported ${importResult.imported}, skipped ${importResult.skipped}',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -828,9 +879,9 @@ class SettingsTab extends StatelessWidget {
       await prefs.clear();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All data cleared')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('All data cleared')));
         SystemNavigator.pop();
       }
     } catch (e) {
@@ -848,7 +899,11 @@ class SettingsTab extends StatelessWidget {
 class SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
-  const SettingsSection({super.key, required this.title, required this.children});
+  const SettingsSection({
+    super.key,
+    required this.title,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -914,7 +969,8 @@ class SettingsTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return ListTile(
       leading: Container(
-        width: 36, height: 36,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(AppRadius.sm + 2),
@@ -923,19 +979,22 @@ class SettingsTile extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
       subtitle: subtitle != null
           ? Text(
               subtitle!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             )
           : null,
-      trailing: trailing ??
+      trailing:
+          trailing ??
           (onTap != null
               ? Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 18)
               : null),
@@ -948,7 +1007,10 @@ class SettingsTile extends StatelessWidget {
 class _SubjectsManager extends StatefulWidget {
   final SettingsProvider settings;
   final ScrollController scrollController;
-  const _SubjectsManager({required this.settings, required this.scrollController});
+  const _SubjectsManager({
+    required this.settings,
+    required this.scrollController,
+  });
 
   @override
   State<_SubjectsManager> createState() => _SubjectsManagerState();
@@ -972,13 +1034,21 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
           child: Row(
             children: [
               Expanded(
-                child: Text('Manage Subjects',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
+                child: Text(
+                  'Manage Subjects',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 onPressed: _addSubject,
-                tooltip: 'Add Subject'),
-            ])),
+                tooltip: 'Add Subject',
+              ),
+            ],
+          ),
+        ),
         const Divider(height: 1),
         Expanded(
           child: ListView.builder(
@@ -993,14 +1063,25 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.edit_outlined, size: 20),
-                      onPressed: () => _editSubject(subject)),
+                      onPressed: () => _editSubject(subject),
+                    ),
                     IconButton(
-                      icon: Icon(Icons.delete_outline, size: 20, color: AppTheme.error),
-                      onPressed: () => _deleteSubject(subject)),
-                  ]),
-                onTap: () => _editSubject(subject));
-            })),
-      ]);
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: AppTheme.error,
+                      ),
+                      onPressed: () => _deleteSubject(subject),
+                    ),
+                  ],
+                ),
+                onTap: () => _editSubject(subject),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   void _addSubject() async {
@@ -1012,12 +1093,19 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Subject name')),
+          decoration: const InputDecoration(hintText: 'Subject name'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Add')),
-        ]),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
     );
     if (result != null && result.isNotEmpty) {
       await widget.settings.addSubject(result);
@@ -1034,12 +1122,19 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Subject name')),
+          decoration: const InputDecoration(hintText: 'Subject name'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save')),
-        ]),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
     if (result != null && result.isNotEmpty && result != oldSubject) {
       await widget.settings.updateSubject(oldSubject, result);
@@ -1054,12 +1149,17 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
         title: const Text('Delete Subject'),
         content: Text('Remove "$subject" from the list?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
-            child: const Text('Delete')),
-        ]),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
     if (confirmed == true) {
       await widget.settings.removeSubject(subject);
@@ -1084,7 +1184,7 @@ class StorageInfoTile extends StatelessWidget {
                   '${info.imageCount > 0 ? ' · ${info.imageCount} scanned images' : ''}';
 
         return ListTile(
-          leading: Icon(Icons.storage_outlined, color: Colors.grey.shade600),
+           leading: const Icon(Icons.storage_outlined, color: AppTheme.onSurfaceVariantLight),
           title: const Text('Storage Usage'),
           subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
           trailing: info != null && info.totalBytes > 0
@@ -1098,7 +1198,7 @@ class StorageInfoTile extends StatelessWidget {
                         0.0,
                         1.0,
                       ),
-                      backgroundColor: Colors.grey.shade200,
+                      backgroundColor: AppTheme.outlineLight.withValues(alpha: 0.5),
                       valueColor: AlwaysStoppedAnimation(
                         info.totalBytes > 200 * 1024 * 1024
                             ? AppTheme.primaryRed

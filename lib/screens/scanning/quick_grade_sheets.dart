@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/responsive.dart';
 import '../../models/assessment.dart';
 import '../../services/assessment_provider.dart';
 
@@ -45,10 +46,10 @@ Future<bool?> showRenameSheet({
     ),
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
+        left: ResponsiveLayout.horizontalPadding(ctx),
+        right: ResponsiveLayout.horizontalPadding(ctx),
         top: 24,
-        bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -70,7 +71,7 @@ Future<bool?> showRenameSheet({
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Give it a name so you can find it later.',
             style: TextStyle(color: AppTheme.lightText, fontSize: 13),
           ),

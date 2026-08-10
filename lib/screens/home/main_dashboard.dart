@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/responsive.dart';
 import '../../services/assessment_provider.dart';
 import '../../models/assessment.dart';
 import '../../services/student_provider.dart';
@@ -14,9 +15,7 @@ import '../../widgets/assessment_card.dart';
 import '../../widgets/ui_components.dart';
 import '../../services/draft_service.dart';
 import '../../models/scan_result.dart';
-import '../../services/demo_data_service.dart';
 import '../classes/create_class_sheet.dart';
-import '../classes/class_detail_screen.dart';
 import 'dashboard_actions.dart';
 import 'settings_tab.dart';
 import 'students_tab.dart';
@@ -33,56 +32,75 @@ class _MainDashboardState extends State<MainDashboard> {
   int _currentIndex = 0;
 
   @override
-  void initState() {
-    super.initState();
-    // Ensure test exam exists
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      DemoDataService.seed(
-        classProvider: context.read<ClassProvider>(),
-        studentProvider: context.read<StudentProvider>(),
-        assessmentProvider: context.read<AssessmentProvider>(),
-      );
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _DashboardHome(onSeeAll: () => setState(() => _currentIndex = 1)),
-          const AssessmentsTab(),
-          const StudentsTab(),
-          const SettingsTab(),
-        ],
+    final useSideNav = ResponsiveLayout.useSideNav(context);
+
+    final destinations = [
+      const NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard),
+        label: 'Home',
       ),
+      const NavigationDestination(
+        icon: Icon(Icons.assignment_outlined),
+        selectedIcon: Icon(Icons.assignment),
+        label: 'Assess',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.people_outline),
+        selectedIcon: Icon(Icons.people),
+        label: 'Students',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
+    ];
+
+    final railDestinations = destinations
+        .map(
+          (d) => NavigationRailDestination(
+            icon: d.icon,
+            selectedIcon: d.selectedIcon,
+            label: Text(d.label),
+          ),
+        )
+        .toList();
+
+    final body = IndexedStack(
+      index: _currentIndex,
+      children: [
+        _DashboardHome(onSeeAll: () => setState(() => _currentIndex = 1)),
+        const AssessmentsTab(),
+        const StudentsTab(),
+        const SettingsTab(),
+      ],
+    );
+
+    if (useSideNav) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (i) => setState(() => _currentIndex = i),
+              labelType: NavigationRailLabelType.all,
+              destinations: railDestinations,
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: body,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.dashboard_outlined),
-            selectedIcon: const Icon(Icons.dashboard),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.assignment_outlined),
-            selectedIcon: const Icon(Icons.assignment),
-            label: 'Assess',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.people_outline),
-            selectedIcon: const Icon(Icons.people),
-            label: 'Students',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        destinations: destinations,
       ),
     );
   }
@@ -90,9 +108,35 @@ class _MainDashboardState extends State<MainDashboard> {
 
 // ──── Dashboard Home ────
 
-class _DashboardHome extends StatelessWidget {
+class _DashboardHome extends StatefulWidget {
   final VoidCallback onSeeAll;
   const _DashboardHome({required this.onSeeAll});
+
+  @override
+  State<_DashboardHome> createState() => _DashboardHomeState();
+}
+
+class _DashboardHomeState extends State<_DashboardHome> {
+  DashboardAction? _action;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAction();
+  }
+
+  Future<void> _loadAction() async {
+    final assessments = context.read<AssessmentProvider>();
+    final action = await resolveDashboardAction(
+      allAssessments: assessments.assessments,
+      activeAssessments: assessments.activeAssessments,
+    );
+    if (mounted) {
+      setState(() {
+        _action = action;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,10 +144,15 @@ class _DashboardHome extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final classes = context.watch<ClassProvider>().classes;
     context.watch<TeacherProvider>();
+    final hp = ResponsiveLayout.horizontalPadding(context);
 
-    final action = resolveDashboardAction(
-      allAssessments: assessments.assessments,
-      activeAssessments: assessments.activeAssessments,
+    final action = _action ?? const DashboardAction(
+      type: DashboardActionType.gradePapers,
+      priority: 4,
+      title: 'Grade papers',
+      description: 'Scan answer sheets or enter scores. Quick and accurate.',
+      ctaLabel: 'Grade Papers',
+      reason: 'Loading...',
     );
 
     return SafeArea(
@@ -112,12 +161,12 @@ class _DashboardHome extends StatelessWidget {
           // ── Header ──────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Welcome, ${settings.teacherName}",
+                    'Welcome, ${settings.teacherName}',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -139,7 +188,7 @@ class _DashboardHome extends StatelessWidget {
           // ── Primary action card (unified — includes draft resume) ──
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: EdgeInsets.fromLTRB(hp, 16, hp, 0),
               child: _buildPrimaryAction(context, action),
             ),
           ),
@@ -147,14 +196,17 @@ class _DashboardHome extends StatelessWidget {
           // ── Quick actions row ──
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: EdgeInsets.fromLTRB(hp, 16, hp, 0),
               child: Row(
                 children: [
                   Expanded(
                     child: _QuickActionCard(
                       icon: Icons.add_circle_outline,
                       label: 'Create Exam',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.createAssessment),
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.createAssessment,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -173,15 +225,15 @@ class _DashboardHome extends StatelessWidget {
           // ── Student search bar ──
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: _StudentSearchBar(),
+              padding: EdgeInsets.fromLTRB(hp, 16, hp, 0),
+              child: const _StudentSearchBar(),
             ),
           ),
 
           // ── Recent Assessments ──────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+              padding: EdgeInsets.fromLTRB(hp, 24, hp, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -197,7 +249,7 @@ class _DashboardHome extends StatelessWidget {
                   ),
                   if (assessments.assessments.isNotEmpty)
                     TextButton(
-                      onPressed: onSeeAll,
+                      onPressed: widget.onSeeAll,
                       child: const Text('See All'),
                     ),
                 ],
@@ -206,10 +258,10 @@ class _DashboardHome extends StatelessWidget {
           ),
 
           if (assessments.assessments.isEmpty)
-            SliverToBoxAdapter(child: _EmptyAssessments())
+            const SliverToBoxAdapter(child: _EmptyAssessments())
           else
             SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: hp),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => Padding(
@@ -227,7 +279,7 @@ class _DashboardHome extends StatelessWidget {
           if (classes.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                padding: EdgeInsets.fromLTRB(hp, 20, hp, 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -248,10 +300,10 @@ class _DashboardHome extends StatelessWidget {
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 130,
+                height: ResponsiveLayout.classCarouselHeight(context),
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: hp),
                   itemCount: classes.length,
                   itemBuilder: (context, index) {
                     final cls = classes[index];
@@ -263,11 +315,10 @@ class _DashboardHome extends StatelessWidget {
                     return _ClassCard(
                       classInfo: cls,
                       studentCount: studentCount,
-                      onTap: () => Navigator.push(
+                      onTap: () => Navigator.pushNamed(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => ClassDetailScreen(classInfo: cls),
-                        ),
+                        AppRoutes.classDetail,
+                        arguments: cls,
                       ),
                     );
                   },
@@ -277,7 +328,7 @@ class _DashboardHome extends StatelessWidget {
           ] else
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
                 child: _EmptyClassesCard(onCreate: () => _createClass(context)),
               ),
             ),
@@ -316,7 +367,7 @@ class _DashboardHome extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
-            color: cs.primary.withOpacity(0.28),
+            color: cs.primary.withValues(alpha: 0.28),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -327,7 +378,7 @@ class _DashboardHome extends StatelessWidget {
         child: InkWell(
           onTap: () => _handleActionTap(context, action),
           borderRadius: BorderRadius.circular(AppRadius.xxl),
-          splashColor: Colors.white.withOpacity(0.1),
+          splashColor: Colors.white.withValues(alpha: 0.1),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
@@ -339,7 +390,7 @@ class _DashboardHome extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
                       child: Icon(icon, color: Colors.white, size: 28),
@@ -362,7 +413,7 @@ class _DashboardHome extends StatelessWidget {
                             action.description,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
-                                  color: Colors.white.withOpacity(0.85),
+                                  color: Colors.white.withValues(alpha: 0.85),
                                   height: 1.4,
                                 ),
                           ),
@@ -414,10 +465,10 @@ class _DashboardHome extends StatelessWidget {
     );
   }
 
-  void _handleActionTap(BuildContext context, DashboardAction action) {
+  Future<void> _handleActionTap(BuildContext context, DashboardAction action) async {
     switch (action.type) {
       case DashboardActionType.resumeDraft:
-        _resumeDraft(context, action.assessment!);
+        await _resumeDraft(context, action.assessment!);
       case DashboardActionType.finishSetup:
         Navigator.pushNamed(
           context,
@@ -431,8 +482,8 @@ class _DashboardHome extends StatelessWidget {
     }
   }
 
-  void _resumeDraft(BuildContext context, Assessment assessment) {
-    final drafts = DraftService().getAllDrafts();
+  Future<void> _resumeDraft(BuildContext context, Assessment assessment) async {
+    final drafts = await DraftService().getAllDrafts();
     final matches = drafts.where((d) => d.assessmentId == assessment.id);
     if (matches.isEmpty || !context.mounted) return;
     final draft = matches.first;
@@ -468,12 +519,12 @@ void _handleScanTap(BuildContext context) {
       context: context,
       builder: (_) => AlertDialog(
         icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 36),
-        title: Text('No Active Assessment'),
-        content: Text('Create an assessment before scanning.'),
+        title: const Text('No Active Assessment'),
+        content: const Text('Create an assessment before scanning.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -487,7 +538,7 @@ void _handleScanTap(BuildContext context) {
       context: context,
       builder: (_) => AlertDialog(
         icon: const Icon(Icons.info_outline, color: AppTheme.info, size: 36),
-        title: Text('Answer Key Needed'),
+        title: const Text('Answer Key Needed'),
         content: Text(
           '"${incomplete.first.title}" does not have an answer key yet. You can scan the answer sheet or enter answers manually.',
         ),
@@ -501,14 +552,14 @@ void _handleScanTap(BuildContext context) {
                 arguments: incomplete.first,
               );
             },
-            child: Text('Set Answer Key'),
+            child: const Text('Set Answer Key'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, AppRoutes.camera);
             },
-            child: Text('Scan Anyway'),
+            child: const Text('Scan Anyway'),
           ),
         ],
       ),
@@ -526,11 +577,14 @@ class _EmptyClassesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return AppCard(
-      onTap: onCreate,
-      color: cs.primaryContainer.withOpacity(0.3),
-      borderColor: cs.primary.withOpacity(0.15),
-      child: Column(
+    return Semantics(
+      label: 'Create your first class',
+      button: true,
+      child: AppCard(
+        onTap: onCreate,
+        color: cs.primaryContainer.withValues(alpha: 0.3),
+        borderColor: cs.primary.withValues(alpha: 0.15),
+        child: Column(
         children: [
           Row(
             children: [
@@ -538,7 +592,7 @@ class _EmptyClassesCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.1),
+                  color: cs.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(Icons.group_add, color: cs.primary, size: 22),
@@ -558,7 +612,10 @@ class _EmptyClassesCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Group students by grade, subject, or section',
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -576,6 +633,7 @@ class _EmptyClassesCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -595,47 +653,51 @@ class _ClassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 150,
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
+    return Semantics(
+      label: '${classInfo.displayName}, $studentCount student${studentCount == 1 ? '' : 's'}',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: ResponsiveLayout.classCardWidth(context),
+          margin: const EdgeInsets.only(right: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.class_, color: cs.primary, size: 18),
               ),
-              child: Icon(Icons.class_, color: cs.primary, size: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              classInfo.displayName,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: cs.onSurface,
+              const SizedBox(height: 8),
+              Text(
+                classInfo.displayName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: cs.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$studentCount student${studentCount == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                '$studentCount student${studentCount == 1 ? '' : 's'}',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -656,29 +718,37 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: cs.primary, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: cs.onSurface,
+    return Semantics(
+      label: label,
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: cs.primary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -691,10 +761,11 @@ class _EmptyAssessments extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final hp = ResponsiveLayout.horizontalPadding(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: hp),
       child: AppCard(
-        color: cs.surfaceContainerHighest.withOpacity(0.5),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
         borderColor: cs.outlineVariant,
         child: Center(
           child: Padding(
@@ -704,7 +775,7 @@ class _EmptyAssessments extends StatelessWidget {
                 Icon(
                   Icons.assignment_outlined,
                   size: 40,
-                  color: cs.onSurfaceVariant.withOpacity(0.5),
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -721,10 +792,8 @@ class _EmptyAssessments extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.createAssessment,
-                  ),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.createAssessment),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Create First Assessment'),
                 ),
@@ -762,11 +831,14 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
     final students = context.watch<StudentProvider>().students;
     final filtered = _query.isEmpty
         ? <Student>[]
-        : students.where((s) {
-            final q = _query.toLowerCase();
-            return s.fullName.toLowerCase().contains(q) ||
-                s.studentId.toLowerCase().contains(q);
-          }).take(5).toList();
+        : students
+              .where((s) {
+                final q = _query.toLowerCase();
+                return s.fullName.toLowerCase().contains(q) ||
+                    s.studentId.toLowerCase().contains(q);
+              })
+              .take(5)
+              .toList();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -798,8 +870,10 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
                   )
                 : null,
             isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
               borderSide: BorderSide(color: Colors.grey.shade300),
@@ -817,7 +891,9 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(color: Colors.grey.shade300),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -827,17 +903,20 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
                     dense: true,
                     leading: CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
                       child: Text(
                         s.fullName[0].toUpperCase(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           color: AppTheme.primaryGreen,
                         ),
                       ),
                     ),
-                    title: Text(s.fullName, style: const TextStyle(fontSize: 14)),
+                    title: Text(
+                      s.fullName,
+                      style: const TextStyle(fontSize: 14),
+                    ),
                     subtitle: Text(
                       s.studentId.isNotEmpty ? 'ID: ${s.studentId}' : '',
                       style: const TextStyle(fontSize: 11),

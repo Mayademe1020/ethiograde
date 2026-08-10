@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/responsive.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../services/assessment_provider.dart';
@@ -237,7 +238,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           if (_showRecoveryBanner)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveLayout.horizontalPadding(context),
+                vertical: 10,
+              ),
               color: const Color(0xFF1A6FD4).withValues(alpha: 0.15),
               child: Row(
                 children: [
@@ -262,7 +266,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    padding: EdgeInsets.fromLTRB(
+                      ResponsiveLayout.horizontalPadding(context), 12,
+                      ResponsiveLayout.horizontalPadding(context), 0,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -301,7 +308,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   Widget _buildAutoAdvanceBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveLayout.horizontalPadding(context),
+        vertical: 8,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFF242424),
         border: Border(top: BorderSide(color: Colors.grey.shade800)),
