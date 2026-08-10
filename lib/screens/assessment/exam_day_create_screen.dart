@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/responsive.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/assessment.dart';
@@ -97,12 +98,10 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             const SizedBox(height: 18),
             // 3. Questions + Class
             _QuestionCountAndClassCard(classes: classes),
-            // 4. Sticky CTA
-            const SizedBox(height: 10),
-            _StickyCTA(),
           ],
         ),
       ),
+      bottomNavigationBar: _buildStickyCTA(),
     );
   }
 
@@ -170,7 +169,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               subtitle: 'Grade without student list',
               onTap: () => setState(() => _studentMode = _StudentMode.noRoster),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             SizedBox(
               width: 120,
               child: TextField(
@@ -200,7 +199,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   Widget _ClassSelector({required List<ClassInfo> classes}) {
     return Row(
       children: [
-        Text('Class:', style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
+        const Text('Class:', style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
         const SizedBox(width: 8),
         ...classes.take(3).map((cls) {
           final isSelected = _selectedClassId == cls.id;
@@ -225,26 +224,29 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     );
   }
 
-  Widget _StickyCTA() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: SizedBox(
-        height: 54,
-        child: FilledButton.icon(
-          onPressed: _createAssessment,
-          icon: Icon(_answerKeyMode == _AnswerKeyMode.scanMaster
-              ? Icons.document_scanner
-              : Icons.edit_note),
-          label: Text(
-            _answerKeyMode == _AnswerKeyMode.scanMaster
-                ? 'Continue to Scan'
-                : 'Continue to Answer Key',
-          ),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(54),
-            textStyle: const TextStyle(fontWeight: FontWeight.w800),
+  Widget _buildStickyCTA() {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: ResponsiveLayout.horizontalPadding(context),
+          vertical: 12,
+        ),
+        child: SizedBox(
+          height: 54,
+          child: FilledButton.icon(
+            onPressed: _createAssessment,
+            icon: Icon(_answerKeyMode == _AnswerKeyMode.scanMaster
+                ? Icons.document_scanner
+                : Icons.edit_note),
+            label: Text(
+              _answerKeyMode == _AnswerKeyMode.scanMaster
+                  ? 'Continue to Scan'
+                  : 'Continue to Answer Key',
+            ),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
         ),
       ),
@@ -369,7 +371,7 @@ class _ModeCard extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: 76),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: selected ? AppTheme.primaryGreen.withOpacity(0.07) : Colors.white,
+              color: selected ? AppTheme.primaryGreen.withValues(alpha: 0.07) : Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: selected ? AppTheme.primaryGreen : Colors.grey.shade300,

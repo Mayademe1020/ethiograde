@@ -106,7 +106,7 @@ class AssessmentCard extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
+                              color: statusColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(
                                 AppRadius.full,
                               ),
@@ -277,7 +277,7 @@ class _TypePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(AppRadius.full),
       ),
       child: Text(
@@ -359,19 +359,19 @@ class _NextActionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppTheme.primaryGreen.withOpacity(0.08),
+        color: AppTheme.primaryGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
+        border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
-          Icon(Icons.lightbulb_outlined, size: 16, color: AppTheme.primaryGreen),
+          const Icon(Icons.lightbulb_outlined, size: 16, color: AppTheme.primaryGreen),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Ready to grade',
                   style: TextStyle(
                     fontSize: 11,

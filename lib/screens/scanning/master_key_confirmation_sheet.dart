@@ -82,7 +82,7 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primaryGreen.withOpacity(
+                                  color: AppTheme.primaryGreen.withValues(alpha: 
                                     0.1,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
@@ -264,9 +264,9 @@ class _MasterKeyStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         children: [
@@ -331,10 +331,10 @@ class _MasterKeyAnswerRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(isMissing || isWeak ? 0.08 : 0.035),
+        color: statusColor.withValues(alpha: isMissing || isWeak ? 0.08 : 0.035),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: statusColor.withOpacity(isMissing || isWeak ? 0.45 : 0.16),
+          color: statusColor.withValues(alpha: isMissing || isWeak ? 0.45 : 0.16),
         ),
       ),
       child: Column(
@@ -347,7 +347,7 @@ class _MasterKeyAnswerRow extends StatelessWidget {
                 height: 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.12),
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -368,7 +368,7 @@ class _MasterKeyAnswerRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.12),
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -394,7 +394,7 @@ class _MasterKeyAnswerRow extends StatelessWidget {
                 label: Text(choice),
                 selected: isSelected,
                 onSelected: (_) => onSelected(choice),
-                selectedColor: AppTheme.primaryGreen.withOpacity(0.18),
+                selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
                 labelStyle: TextStyle(
                   color: isSelected ? AppTheme.primaryGreen : AppTheme.darkText,
                   fontWeight: FontWeight.w800,
