@@ -1,33 +1,23 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'dart:io';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../models/student.dart';
-import '../../models/coordinate_map.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/ocr_service.dart';
-import '../../services/coordinate_map_omr_service.dart';
-import '../../services/answer_sheet_generator.dart';
 import '../../services/scoring_service.dart';
 import '../../services/assessment_provider.dart';
-import '../../services/class_provider.dart';
-import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
 import '../../services/draft_service.dart';
-import '../../services/weighted_grade_provider.dart';
 import '../../services/batch_review_service.dart';
 import '../../services/settings_provider.dart';
 import '../../services/paper_image_intake_service.dart';
 import '../../widgets/student_not_found_dialog.dart';
 import '../../widgets/mini_stat.dart';
-import 'master_key_confirmation_sheet.dart';
 import 'quick_grade_sheets.dart';
 import 'student_assignment_sheet.dart';
-import '../../widgets/batch_review_widgets.dart';
 import 'batch_completion_review_sheet.dart';
 import 'batch_processor.dart';
 
@@ -224,6 +214,30 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
       appBar: AppBar(
         title: Text(_masterOnly ? 'Answer Key Setup' : 'Scan Student Papers'),
         actions: [
+          if (_assessment != null && !_isProcessing)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'calibrate') {
+                  Navigator.pushNamed(
+                    context,
+                    AppRoutes.omrCalibration,
+                    arguments: _assessment,
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'calibrate',
+                  child: ListTile(
+                    leading: Icon(Icons.tune),
+                    title: Text('Calibrate OMR'),
+                    subtitle: Text('Verify bubble sheet alignment'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
           if (_results.isNotEmpty && !_isProcessing)
             TextButton.icon(
               onPressed: () {
@@ -238,7 +252,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 );
               },
               icon: const Icon(Icons.rate_review),
-              label: Text('Review'),
+              label: const Text('Review'),
             ),
         ],
       ),
@@ -265,7 +279,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Resuming: $_processedCount/$_totalCount already graded",
+                            'Resuming: $_processedCount/$_totalCount already graded',
                             style: const TextStyle(
                               color: AppTheme.info,
                               fontWeight: FontWeight.w600,
@@ -285,9 +299,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          const Text(
                             'Progress',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           Text(
                             '$_processedCount / $_totalCount',
@@ -313,19 +327,19 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                         ),
                       ),
                       if (_isProcessing)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const SizedBox(
+                              SizedBox(
                                 width: 14,
                                 height: 14,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
                                 'Processing...',
                                 style: TextStyle(
@@ -399,17 +413,17 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
                             Icon(
                               Icons.warning_amber_rounded,
                               color: AppTheme.primaryYellow,
                               size: 20,
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               'Possible Duplicates',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -426,7 +440,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Text(
-                              "  #$nameA & #$nameB — answers ${d.matchPercent.toStringAsFixed(0)}% match",
+                              '  #$nameA & #$nameB — answers ${d.matchPercent.toStringAsFixed(0)}% match',
                               style: const TextStyle(fontSize: 13),
                             ),
                           );
@@ -438,7 +452,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 // Results list
                 Expanded(
                   child: _results.isEmpty && !_isProcessing
-                      ? Center(
+                      ? const Center(
                           child: Text(
                             'No results yet',
                             style: TextStyle(color: AppTheme.lightText),
@@ -509,11 +523,11 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                         ),
                 ),
 
-                // Bottom actions
+// Bottom actions
                 if (!_isProcessing && _results.isNotEmpty)
                   SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -523,9 +537,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                             child: OutlinedButton.icon(
                               onPressed: _isSpeaking
                                   ? () => VoiceService().stopSpeaking().then(
-                                      (_) =>
-                                          setState(() => _isSpeaking = false),
-                                    )
+                                        (_) =>
+                                            setState(() => _isSpeaking = false),
+                                      )
                                   : _readScoresAloud,
                               icon: Icon(
                                 _isSpeaking
@@ -548,9 +562,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _undoLastResult(),
+                                  onPressed: _undoLastResult,
                                   icon: const Icon(Icons.undo),
-                                  label: Text('Undo Last'),
+                                  label: const Text('Undo Last'),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppTheme.warning,
                                   ),
@@ -562,9 +576,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _handleReviewAll(),
+                              onPressed: _handleReviewAll,
                               icon: const Icon(Icons.rate_review),
-                              label: Text('Review All'),
+                              label: const Text('Review All'),
                             ),
                           ),
                         ],
@@ -634,7 +648,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               ? '$completeCount/$totalCount answers confirmed. Student papers will use this key.'
                               : (_masterKeyError ??
                                     'Rescan the answer sheet or enter answers manually.'),
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppTheme.lightText,
                             height: 1.35,
                           ),
@@ -656,7 +670,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
               const SizedBox(height: 4),
               Text(
                 '${assessment.subject} • ${assessment.questionCount} questions',
-                style: TextStyle(color: AppTheme.lightText),
+                style: const TextStyle(color: AppTheme.lightText),
               ),
               const SizedBox(height: 18),
               OutlinedButton.icon(
@@ -695,7 +709,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 ),
             ],
             const Spacer(),
-            Text(
+            const Text(
               'Next: scan student papers one by one or in a batch. Scores stay reviewable before final save.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.lightText, height: 1.35),
@@ -813,7 +827,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Assigned to ${selected.fullName}"),
+        content: Text('Assigned to ${selected.fullName}'),
         backgroundColor: AppTheme.primaryGreen,
         duration: const Duration(seconds: 2),
       ),
@@ -830,10 +844,10 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     });
     _saveDraftSnapshot();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text('Last scan removed'),
         backgroundColor: AppTheme.warning,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -937,7 +951,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Assessment discarded')));
+    ).showSnackBar(const SnackBar(content: Text('Assessment discarded')));
 
     if (!context.mounted) return;
     Navigator.pop(context); // Back to dashboard

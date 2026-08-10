@@ -108,7 +108,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
     // Filter by type
     if (_typeFilter >= 0) {
-      final types = QuestionType.values;
+      const types = QuestionType.values;
       if (_typeFilter < types.length) {
         final type = types[_typeFilter];
         questions = questions.where((q) => q.type == type).toList();
@@ -328,7 +328,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             Switch(
               value: _autoAdvanceEnabled,
               onChanged: (v) => setState(() => _autoAdvanceEnabled = v),
-              activeColor: const Color(0xFF7EB8DA),
+              activeThumbColor: const Color(0xFF7EB8DA),
               inactiveTrackColor: Colors.grey.shade700,
             ),
           ],
@@ -339,7 +339,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   Widget _buildExamInfo(Assessment assessment) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppTheme.primaryGreen.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
@@ -354,16 +354,16 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           const SizedBox(height: 4),
           Text(
             '${assessment.subject} • ${assessment.questionCount} questions • ${assessment.maxScore.toInt()} pts',
-            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressSection(int answered, int total, double completeness) {
+Widget _buildProgressSection(int answered, int total, double completeness) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF0A1929).withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(8),
@@ -375,7 +375,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             children: [
               Text(
                 '$answered / $total answers set',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,
                   color: AppTheme.primaryGreen,
@@ -395,17 +395,33 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: double.infinity,
+            height: 6,
             child: LinearProgressIndicator(
               value: completeness,
-              minHeight: 4,
-              backgroundColor: const Color(0xFF2E2E2E),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                completeness >= 1.0 ? AppTheme.primaryGreen : AppTheme.primaryGreen.withValues(alpha: 0.6),
-              ),
+              color: AppTheme.primaryGreen,
+              backgroundColor: Colors.grey.shade200,
             ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Overall completeness',
+                style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+              ),
+              Text(
+                '${(completeness * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.primaryGreen,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -451,7 +467,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             });
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: isActive ? AppTheme.primaryGreen : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
@@ -475,29 +491,29 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     );
   }
 
-  Widget _buildToolbar(Assessment assessment) {
+Widget _buildToolbar(Assessment assessment) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
           _toolbarButton('Paste All', Icons.content_paste, isPrimary: true, onTap: () => _showBulkPasteDialog(assessment)),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: Colors.grey.shade300),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
+          Container(width: 1, height: 12, color: Colors.grey.shade300),
+          const SizedBox(width: 5),
           _toolbarButton('Sections', Icons.view_agenda_outlined, onTap: _openSectionSetup),
-          const SizedBox(width: 6),
-          Container(width: 1, height: 16, color: Colors.grey.shade300),
-          const SizedBox(width: 6),
-          Text('All:', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+          const SizedBox(width: 5),
+          Container(width: 1, height: 12, color: Colors.grey.shade300),
+          const SizedBox(width: 5),
+          const Text('All:', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
           const SizedBox(width: 4),
           _toolbarDropdown<QuestionType>(
             hint: 'Type',
             items: QuestionType.values,
-            labelBuilder: (t) => _typeLabel(t),
+            labelBuilder: _typeLabel,
             onChanged: (type) => _setAllType(assessment, type),
           ),
           const SizedBox(width: 4),
@@ -711,7 +727,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   Widget _toolbarDropdown<T>({required String hint, required List<T> items, required String Function(T) labelBuilder, required void Function(T) onChanged}) {
     return DropdownButton<T>(
       value: null,
-      hint: Text(hint, style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+      hint: Text(hint, style: const TextStyle(fontSize: 10, color: AppTheme.lightText)),
       isDense: true,
       underline: const SizedBox(),
       items: items.map((item) => DropdownMenuItem(
@@ -1131,14 +1147,14 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                             ),
                             child: Text(
                               'Q${p['num']}: ${p['answer']} (${p['type']})',
-                              style: TextStyle(fontSize: 10, color: AppTheme.darkText),
+                              style: const TextStyle(fontSize: 10, color: AppTheme.darkText),
                             ),
                           )).toList(),
                         ),
                       ),
                     ),
                   ] else if (controller.text.isNotEmpty) ...[
-                    Text(
+                    const Text(
                       'Could not parse. Format: A, B+C, "text", T',
                       style: TextStyle(color: AppTheme.primaryRed, fontSize: 11),
                     ),
@@ -1318,16 +1334,16 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             ),
             if (diff.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text('Changes:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const Text('Changes:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
               const SizedBox(height: 4),
               ...diff.take(5).map((d) => Text(
                 '  $d',
-                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
               )),
               if (diff.length > 5)
                 Text(
                   '  and ${diff.length - 5} more...',
-                  style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                  style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
                 ),
             ],
           ],
@@ -1511,7 +1527,7 @@ class _QuestionRow extends StatelessWidget {
           width: 22,
           child: Text(
             '${question.number}'.padLeft(2, '0'),
-            style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.lightText),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.lightText),
           ),
         ),
         const SizedBox(width: 6),
@@ -1561,7 +1577,7 @@ class _QuestionRow extends StatelessWidget {
         ),
         child: Text(
           '${question.points.toInt()}pt',
-          style: TextStyle(fontFamily: 'monospace', fontSize: 9, color: AppTheme.lightText),
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 9, color: AppTheme.lightText),
         ),
       ),
     );
@@ -1731,7 +1747,7 @@ class _QuestionRow extends StatelessWidget {
                 ),
               ),
               if (answer.isNotEmpty)
-                Text('${1 + alts.length} accepted', style: TextStyle(fontSize: 8, color: AppTheme.lightText)),
+                Text('${1 + alts.length} accepted', style: const TextStyle(fontSize: 8, color: AppTheme.lightText)),
             ],
           ),
         ],
@@ -1760,7 +1776,7 @@ class _QuestionRow extends StatelessWidget {
           ),
         ),
         child: pairs.isEmpty
-            ? Text(
+            ? const Text(
                 'Tap to set matching pairs...',
                 style: TextStyle(fontSize: 11, color: AppTheme.lightText),
               )
@@ -1952,15 +1968,14 @@ class _QuestionRow extends StatelessWidget {
                         Container(
                           width: 24,
                           alignment: Alignment.center,
-                          child: Text(left, style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppTheme.lightText)),
+                          child: Text(left, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppTheme.lightText)),
                         ),
                         const SizedBox(width: 4),
-                        Text('→', style: TextStyle(color: AppTheme.lightText)),
+                        const Text('→', style: TextStyle(color: AppTheme.lightText)),
                         const SizedBox(width: 4),
-                        right.isEmpty
-                            ? DropdownButton<String>(
+                        if (right.isEmpty) DropdownButton<String>(
                                 value: null,
-                                hint: Text('select', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                                hint: const Text('select', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
                                 isDense: true,
                                 items: ['A', 'B', 'C', 'D', 'E']
                                     .where((l) => !usedRight.contains(l) || l == right)
@@ -1972,14 +1987,15 @@ class _QuestionRow extends StatelessWidget {
                                     if (i < pairs.length) {
                                       pairs[i] = '$left$val';
                                     } else {
-                                      while (pairs.length <= i) pairs.add('');
+                                      while (pairs.length <= i) {
+                                        pairs.add('');
+                                      }
                                       pairs[i] = '$left$val';
                                     }
                                     usedRight.add(val);
                                   });
                                 },
-                              )
-                            : Container(
+                              ) else Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF5C2040).withValues(alpha: 0.2),

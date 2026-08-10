@@ -66,7 +66,7 @@ class AssessmentCard extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -216,6 +216,11 @@ class AssessmentCard extends StatelessWidget {
                         const SizedBox(height: AppSpacing.sm),
                         _AnswerKeyBar(assessment: assessment),
                       ],
+                      const SizedBox(height: AppSpacing.sm),
+
+                      // ── Next action ──────────────────────────
+                      if (resolved.status == OperationalStatus.readyToGrade)
+                        _NextActionCard(assessment: assessment),
                     ],
                   ),
                 ),
@@ -337,6 +342,70 @@ class _AnswerKeyBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NextActionCard extends StatelessWidget {
+  final Assessment assessment;
+
+  const _NextActionCard({required this.assessment});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryGreen.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lightbulb_outlined, size: 16, color: AppTheme.primaryGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ready to grade',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+                Text(
+                  'Tap to view and complete your results',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'Review',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

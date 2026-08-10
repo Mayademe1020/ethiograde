@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
-import '../../config/integrity_metadata_keys.dart';
+import '../../config/responsive.dart';
 import '../../models/scan_result.dart';
 import '../../models/assessment.dart';
 import '../../models/student.dart';
@@ -27,9 +27,11 @@ import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
 import '../../services/results_pdf_service.dart';
+import '../../services/sms_service.dart';
 import '../assessment/answer_key_screen.dart';
 import '../scanning/camera_screen.dart';
 import 'audit_trail_sheet.dart' as audit;
+import 'rescan_sheet.dart';
 
 // Alias for use in _ResultCard
 typedef _AuditTrailSheet = audit.AuditTrailSheet;
@@ -204,7 +206,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Reassigned to ${selected.fullName}"),
+          content: Text('Reassigned to ${selected.fullName}'),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );
@@ -250,7 +252,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (mounted) {
       Navigator.pop(context); // Close the audit sheet
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Grade reverted'),
           backgroundColor: AppTheme.warning,
         ),
@@ -307,7 +309,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             content: Text(
               failed == 0
                   ? ('$saved result(s) saved')
-                  : ("$saved saved, $failed failed"),
+                  : ('$saved saved, $failed failed'),
             ),
           ),
         );
@@ -315,6 +317,85 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
 
     return saved;
+  }
+
+  void _sendResultsToParents() {
+    if (_results == null || _results!.isEmpty) return;
+
+    final students = context.read<StudentProvider>().students;
+    final settings = context.read<SettingsProvider>();
+
+    final messages = <Map<String, String>>[];
+    final missingPhones = <String>[];
+
+    for (final result in _results!) {
+      final student = students.where((s) => s.id == result.studentId).firstOrNull;
+      if (student == null) continue;
+
+      if (student.parentPhone == null || student.parentPhone!.isEmpty) {
+        missingPhones.add(student.fullName);
+        continue;
+      }
+
+      final message = DefaultTemplates.resultNotification.render(
+        studentName: student.fullName,
+        subject: result.assessmentId,
+        percentage: result.percentage,
+        schoolName: settings.schoolName.isEmpty ? 'School' : settings.schoolName,
+        amharic: false,
+      );
+
+      messages.add({
+        'phone': student.parentPhone!,
+        'message': message,
+        'student': student.fullName,
+      });
+    }
+
+    if (missingPhones.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${missingPhones.length} student(s) missing parent phone number',
+          ),
+        ),
+      );
+    }
+
+    if (messages.isNotEmpty && mounted) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.smsCompose,
+        arguments: {
+          'messages': messages,
+          'assessmentName': _results!.first.assessmentId,
+        },
+      );
+    }
+  }
+
+  void _markAllReviewed() {
+    if (_results == null || _results!.isEmpty) return;
+
+    for (int i = 0; i < _results!.length; i++) {
+      final result = _results![i];
+      if (result.status == ScanStatus.reviewed) continue;
+
+      final metadata = Map<String, dynamic>.from(result.metadata)
+        ..['teacherReviewed'] = true
+        ..['teacherReviewedAt'] = DateTime.now().toIso8601String();
+
+      _updateResult(
+        i,
+        result.copyWith(status: ScanStatus.reviewed, metadata: metadata),
+      );
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${_results!.length} result(s) marked as reviewed'),
+      ),
+    );
   }
 
   Future<void> _deleteTemporaryPaperImages(
@@ -370,15 +451,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
       return;
     }
 
-    final newResult = await Navigator.pushNamed(
+    final newResult = await showReScanSheet(
       context,
-      AppRoutes.camera,
-      arguments: ReScanArguments(
-        existingResult: result,
-        assessment: assessment,
-      ),
+      assessment: assessment,
+      existingResult: result,
     );
-    if (!mounted || newResult is! ScanResult) return;
+    if (!mounted || newResult == null) return;
 
     final metadata = {
       ...newResult.metadata,
@@ -437,7 +515,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'Choose what should happen before final save.',
                   style: TextStyle(color: AppTheme.lightText, fontSize: 13),
                 ),
@@ -576,7 +654,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       if (!mounted) return;
       setState(() => _isExporting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Could not export CSV'),
           backgroundColor: AppTheme.primaryRed,
         ),
@@ -635,7 +713,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         : null;
     if (assessment == null) return true;
 
-    final gate = const AssessmentCompletionGate();
+    const gate = AssessmentCompletionGate();
     final check = gate.check(assessment: assessment, results: results);
 
     if (check.isReady) return true;
@@ -772,14 +850,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 _isReading ? Icons.stop_circle : Icons.volume_up,
                 color: _isReading ? AppTheme.primaryRed : null,
               ),
-              onPressed: () => _readAllScores(),
+              onPressed: _readAllScores,
               tooltip: _isReading ? 'Stop' : 'Read All Scores',
             ),
           if (_hasUnsavedChanges && !_isSaving)
             TextButton.icon(
-              onPressed: () => _saveAll(),
+              onPressed: _saveAll,
               icon: const Icon(Icons.save, size: 18),
-              label: Text('Save All'),
+              label: const Text('Save All'),
               style: TextButton.styleFrom(
                 foregroundColor: AppTheme.primaryGreen,
               ),
@@ -792,6 +870,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
+            ),
+          if (!_isSaving && _results != null && _results!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.send),
+              onPressed: _sendResultsToParents,
+              tooltip: 'Send Results to Parents',
+            ),
+          if (!_isSaving && _results != null && _results!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.done_all),
+              onPressed: _markAllReviewed,
+              tooltip: 'Mark All Reviewed',
             ),
           if (_isRegrading)
             const Padding(
@@ -808,24 +898,28 @@ class _ReviewScreenState extends State<ReviewScreen> {
           ),
         ],
       ),
-      body: results.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+body: results.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No results to review',
+                      style: TextStyle(color: AppTheme.lightText, fontSize: 16),
+                    ),
+                  ],
+                ),
+              )
+: ListView(
+                padding: EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal:
+                    ResponsiveLayout.horizontalPadding(context) * 0.8,
+                ),
                 children: [
-                  Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No results to review',
-                    style: TextStyle(color: AppTheme.lightText, fontSize: 16),
-                  ),
-                ],
-              ),
-            )
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _ReviewSituationPanel(
+                  _ReviewSituationPanel(
                   results: results,
                   queue: queue,
                   assessment: assessment,
@@ -1112,11 +1206,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
       },
     );
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isReading = false;
         _readingIndex = -1;
       });
+    }
   }
 
   @override
@@ -1134,7 +1229,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.arrow_downward),
-              title: Text('Lowest to Highest'),
+              title: const Text('Lowest to Highest'),
               trailing: _sortMode == _SortMode.lowestFirst
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,
@@ -1146,7 +1241,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.arrow_upward),
-              title: Text('Highest to Lowest'),
+              title: const Text('Highest to Lowest'),
               trailing: _sortMode == _SortMode.highestFirst
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,
@@ -1158,7 +1253,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.warning),
-              title: Text('Needs Review First'),
+              title: const Text('Needs Review First'),
               trailing: _sortMode == _SortMode.needsReviewFirst
                   ? const Icon(Icons.check, color: AppTheme.primaryGreen)
                   : null,
@@ -1223,7 +1318,7 @@ class _ReviewQueue {
 
   factory _ReviewQueue.fromResults(List<ScanResult> results, {Assessment? assessment}) {
     final duplicateIndexes = _duplicateIndexes(results);
-    final resolver = const IntegrityStateResolver();
+    const resolver = IntegrityStateResolver();
     final grouped = <_ReviewIssue, List<_ReviewQueueItem>>{
       for (final issue in _ReviewIssue.values) issue: [],
     };
@@ -1381,7 +1476,7 @@ class _ReviewQueueHeader extends StatelessWidget {
                 ),
                 Text(
                   section.subtitle,
-                  style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                  style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
                 ),
               ],
             ),
@@ -1432,7 +1527,7 @@ class _DuplicatePairTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.content_copy_outlined, color: AppTheme.warning),
+              const Icon(Icons.content_copy_outlined, color: AppTheme.warning),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1445,7 +1540,7 @@ class _DuplicatePairTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${pair.matchPercent.toStringAsFixed(0)}% answer match',
-            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -1571,7 +1666,7 @@ class _ReviewSituationPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.fact_check_outlined, color: AppTheme.info),
+              const Icon(Icons.fact_check_outlined, color: AppTheme.info),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1586,7 +1681,7 @@ class _ReviewSituationPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             assessment?.title ?? 'Review before final save',
-            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
           ),
           const SizedBox(height: 12),
           _QueueActionTile(action: nextAction, isPrimary: true),
@@ -1691,13 +1786,13 @@ class _ReviewSituationPanel extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               '$missingIdentityCount papers still need a student name or roster match.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
             ),
           ],
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'If the answer key is wrong, fix it before final save.',
                   style: TextStyle(color: AppTheme.lightText, fontSize: 12),
@@ -1783,7 +1878,7 @@ class _QueueActionTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         action.subtitle,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppTheme.lightText,
                           fontSize: 12,
                         ),
@@ -1960,7 +2055,7 @@ class _ResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final passMark = 50;
+    const passMark = 50;
     final passed = result.percentage >= passMark;
     final needsReview = result.needsReview;
 
@@ -1969,7 +2064,7 @@ class _ResultCard extends StatelessWidget {
       shape: isReading
           ? RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: AppTheme.info, width: 2),
+              side: const BorderSide(color: AppTheme.info, width: 2),
             )
           : null,
       child: InkWell(
@@ -2006,20 +2101,20 @@ class _ResultCard extends StatelessWidget {
                       children: [
                         Text(
                           result.studentName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 16,
                           ),
                         ),
                         if (isReading)
-                          Row(
+                          const Row(
                             children: [
                               Icon(
                                 Icons.volume_up,
                                 size: 14,
                                 color: AppTheme.info,
                               ),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4),
                               Text(
                                 'Reading...',
                                 style: TextStyle(
@@ -2035,7 +2130,7 @@ class _ResultCard extends StatelessWidget {
                           avatar: Icon(_issueActionIcon, size: 16),
                           label: Text(
                             _issueActionLabel,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -2051,13 +2146,13 @@ class _ResultCard extends StatelessWidget {
                           runSpacing: 4,
                           children: [
                             if (issue == _ReviewIssue.answerKey)
-                              _ReviewChip(
+                              const _ReviewChip(
                                 icon: Icons.key_off_outlined,
                                 label: 'Regrade needed',
                                 color: AppTheme.primaryRed,
                               ),
                             if (result.metadata['autoCaptured'] == true)
-                              _ReviewChip(
+                              const _ReviewChip(
                                 icon: Icons.auto_awesome_motion_outlined,
                                 label: 'Auto',
                                 color: AppTheme.info,
@@ -2089,13 +2184,13 @@ class _ResultCard extends StatelessWidget {
                                           a.confidence < 0.6,
                                     )
                                     .length;
-                                final base = 'Needs Review';
+                                const base = 'Needs Review';
                                 if (uncertainCount > 0) {
                                   return '$base · $uncertainCount ${'uncertain'}';
                                 }
                                 return base;
                               }(),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 11,
                                 color: AppTheme.warning,
                                 fontWeight: FontWeight.w600,
@@ -2203,12 +2298,12 @@ class _ResultCard extends StatelessWidget {
                 children: [
                   Text(
                     '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-                    style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
                   ),
                   const Spacer(),
                   Text(
                     '${'Confidence'}: ${(result.confidence * 100).toStringAsFixed(0)}%',
-                    style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
                   ),
                   const SizedBox(width: 8),
                   // View audit history button
@@ -2219,8 +2314,8 @@ class _ResultCard extends StatelessWidget {
                       onRevert: onRevert,
                     ),
                     borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
                         horizontal: 4,
                         vertical: 2,
                       ),
@@ -2228,7 +2323,7 @@ class _ResultCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.history, size: 14, color: AppTheme.info),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'History',
                             style: TextStyle(
@@ -2297,7 +2392,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
 
   /// Recalculate totals after an answer override, then rebuild.
   void _recalculateAndRefresh() {
-    final scoring = const ScoringService();
+    const scoring = ScoringService();
 
     // Look up the actual assessment for correct rubric type
     final assessments = context.read<AssessmentProvider>().assessments;
@@ -2477,7 +2572,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
             TextField(
               controller: _commentController,
               maxLines: 3,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Write feedback for this student...',
               ),
             ),
@@ -2503,7 +2598,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                           );
                       if (assessment == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Assessment not found')),
+                          const SnackBar(content: Text('Assessment not found')),
                         );
                         return;
                       }
@@ -2527,7 +2622,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       }
                     },
                     icon: const Icon(Icons.camera_alt),
-                    label: Text('Re-Scan'),
+                    label: const Text('Re-Scan'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2556,7 +2651,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       Navigator.pop(context, finalResult);
                     },
                     icon: const Icon(Icons.check),
-                    label: Text('Confirm'),
+                    label: const Text('Confirm'),
                   ),
                 ),
               ],
@@ -2609,11 +2704,11 @@ class _SideBySideReviewState extends State<SideBySideReview> {
           ),
           child: Row(
             children: [
-              Icon(Icons.warning_amber, size: 16, color: AppTheme.warning),
+              const Icon(Icons.warning_amber, size: 16, color: AppTheme.warning),
               const SizedBox(width: 8),
               Text(
                 '${'Wrong'} ${safeIndex + 1} / ${wrong.length}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.warning,
@@ -2696,7 +2791,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       ),
                       Text(
                         '${'Correct'}: ${answer.correctAnswer}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppTheme.primaryGreen,
                           fontWeight: FontWeight.w500,
                         ),
@@ -2719,13 +2814,13 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 ),
                 child: Column(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.visibility_off_outlined,
                       color: AppTheme.warning,
                       size: 32,
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'OCR could not read this answer',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -2733,7 +2828,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'What did the student write?',
                       style: TextStyle(color: AppTheme.lightText, fontSize: 13),
                     ),
@@ -2757,13 +2852,13 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.search,
                           size: 16,
                           color: AppTheme.primaryRed,
                         ),
                         const SizedBox(width: 8),
-                        Text(
+                        const Text(
                           '${'Detected'}: ',
                           style: TextStyle(
                             color: AppTheme.lightText,
@@ -2772,7 +2867,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                         ),
                         Text(
                           answer.detectedAnswer,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppTheme.primaryRed,
                             fontSize: 16,
@@ -2813,7 +2908,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         '${'OCR read'}: "${answer.ocrRawText}"',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11,
                           color: AppTheme.lightText,
                           fontStyle: FontStyle.italic,
@@ -2918,10 +3013,10 @@ class _SideBySideReviewState extends State<SideBySideReview> {
 
     if (!_fixMode) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('✓ All answers corrected!'),
           backgroundColor: AppTheme.primaryGreen,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -2959,7 +3054,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               const SizedBox(height: 8),
               Text(
                 '${'Detected'}: ${answer.detectedAnswer}',
-                style: TextStyle(color: AppTheme.lightText),
+                style: const TextStyle(color: AppTheme.lightText),
               ),
 
               // Correction suggestion from learned patterns
@@ -2994,7 +3089,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              "Previously corrected ${answer.detectedAnswer}→$suggestion",
+                              'Previously corrected ${answer.detectedAnswer}→$suggestion',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
@@ -3007,9 +3102,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                               );
                               Navigator.pop(c);
                             },
-                            child: Text(
+                            child: const Text(
                               'Apply',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.primaryGreen,
@@ -3025,9 +3120,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               const SizedBox(height: 16),
 
               // Change answer section
-              Text(
+              const Text(
                 'Change Answer',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -3077,9 +3172,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               const SizedBox(height: 8),
 
               // Quick correct/wrong toggle
-              Text(
+              const Text(
                 'Or Quick Toggle',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                 ),
@@ -3097,7 +3192,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                         Navigator.pop(c);
                       },
                       icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: Text('Correct'),
+                      label: const Text('Correct'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -3114,7 +3209,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryRed,
                       ),
-                      label: Text('Wrong'),
+                      label: const Text('Wrong'),
                     ),
                   ),
                 ],
@@ -3523,7 +3618,7 @@ class _ScoreItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
+        Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.lightText)),
         Text(
           value,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -3567,7 +3662,7 @@ class _AnswerTile extends StatelessWidget {
                   backgroundColor: AppTheme.warning.withOpacity(0.1),
                   child: Text(
                     '${answer.questionNumber}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppTheme.warning,
                       fontWeight: FontWeight.bold,
                     ),
@@ -3579,14 +3674,14 @@ class _AnswerTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "Q${answer.questionNumber} — No answer detected",
-                        style: TextStyle(
+                        'Q${answer.questionNumber} — No answer detected',
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           color: AppTheme.warning,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      const Text(
                         'Tap to enter what the student wrote',
                         style: TextStyle(
                           fontSize: 12,
@@ -3605,11 +3700,11 @@ class _AnswerTile extends StatelessWidget {
                     color: AppTheme.warning.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.edit, size: 14, color: AppTheme.warning),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Enter',
                         style: TextStyle(
@@ -3664,7 +3759,7 @@ class _AnswerTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '${'OCR read'}: "${answer.ocrRawText}"',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.lightText,
                     fontStyle: FontStyle.italic,
@@ -3679,7 +3774,7 @@ class _AnswerTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.warning_amber,
                       size: 12,
                       color: AppTheme.warning,
@@ -3687,7 +3782,7 @@ class _AnswerTile extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       '${'Low confidence'} (${(answer.confidence * 100).toStringAsFixed(0)}%)',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
                         color: AppTheme.warning,
                         fontWeight: FontWeight.w500,
@@ -3764,16 +3859,16 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Select Student',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             TextField(
               autofocus: true,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Search...',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
                 isDense: true,
               ),
               onChanged: (v) => setState(() => _search = v),
@@ -3781,7 +3876,7 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
             const SizedBox(height: 8),
             Expanded(
               child: filtered.isEmpty
-                  ? Center(
+                  ? const Center(
                       child: Text(
                         'No students found',
                         style: TextStyle(color: AppTheme.lightText),
