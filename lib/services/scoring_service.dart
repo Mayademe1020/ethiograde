@@ -568,13 +568,35 @@ class DetectedAnswer {
   final String answer;
   final double confidence;
   final String rawText;
+  final bool needsReview;
+  final String source;
 
   const DetectedAnswer({
     required this.questionNumber,
     required this.answer,
     required this.confidence,
     required this.rawText,
+    this.needsReview = false,
+    this.source = 'unknown',
   });
+
+  DetectedAnswer copyWith({
+    int? questionNumber,
+    String? answer,
+    double? confidence,
+    String? rawText,
+    bool? needsReview,
+    String? source,
+  }) {
+    return DetectedAnswer(
+      questionNumber: questionNumber ?? this.questionNumber,
+      answer: answer ?? this.answer,
+      confidence: confidence ?? this.confidence,
+      rawText: rawText ?? this.rawText,
+      needsReview: needsReview ?? this.needsReview,
+      source: source ?? this.source,
+    );
+  }
 }
 
 /// Represents a pair of scans whose answer patterns match above threshold.

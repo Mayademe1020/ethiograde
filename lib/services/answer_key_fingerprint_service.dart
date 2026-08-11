@@ -71,7 +71,9 @@ class AnswerKeyFingerprintService {
   static dynamic _normalizeCorrectAnswer(dynamic answer) {
     if (answer == null) return null;
     if (answer is List) {
-      return List<String>.from(answer.map((e) => e.toString().toLowerCase().trim()));
+      final normalized = List<String>.from(answer.map((e) => e.toString().toLowerCase().trim()));
+      normalized.sort();
+      return normalized;
     }
     // Normalize case and whitespace for string answers
     return answer.toString().toLowerCase().trim();

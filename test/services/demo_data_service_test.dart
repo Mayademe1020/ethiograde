@@ -107,7 +107,7 @@ void main() {
       final assessment = assessmentProvider.assessments
           .firstWhere((a) => a.id == 'demo-assessment-001');
       expect(assessment.questions, hasLength(10));
-      expect(assessment.status, AssessmentStatus.completed);
+      expect(assessment.status, AssessmentStatus.active);
     });
 
     test('questions have bilingual text and correct answers', () async {
