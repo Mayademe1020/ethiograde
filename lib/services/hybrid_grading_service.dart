@@ -6,6 +6,7 @@ import '../models/weighted_grade.dart';
 import 'app_log.dart';
 import 'error_handler.dart';
 import 'hive_box_mixin.dart';
+import '../config/integrity_metadata_keys.dart';
 import 'ocr_service.dart';
 import 'omr_service.dart';
 import 'omr_calibration_service.dart';
@@ -242,6 +243,8 @@ class HybridGradingService with HiveBoxMixin {
         'skewWarning': (extractionResult?.skewAngle.abs() ?? 0.0) > 8.0,
         'detectedMethod': gradingMode,
         if (omrRan) 'omrTemplate': omrTemplateName,
+        IntegrityMetadataKeys.scoredWithKeyFingerprint: assessment.answerKeyFingerprint,
+        IntegrityMetadataKeys.scoredWithKeyRevision: assessment.answerKeyRevision,
       };
 
       // ── Step 7: Apply weighted scoring if scale is provided ──

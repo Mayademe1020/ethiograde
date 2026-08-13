@@ -119,7 +119,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     // Filter by flag/empty mode
     if (_filterMode == 1) {
       // Flagged only
-      questions = questions.where((q) => _flaggedQuestions.contains(q.number)).toList();
+      questions = questions
+          .where((q) => _flaggedQuestions.contains(q.number))
+          .toList();
     } else if (_filterMode == 2) {
       // Empty only
       questions = questions.where((q) {
@@ -149,7 +151,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       final ans = q.correctAnswer?.toString().trim() ?? '';
       if (ans.isEmpty) continue;
       if (q.type == QuestionType.mcq || q.type == QuestionType.multiAnswer) {
-        final letters = ans.split(RegExp(r'[,+]+')).map((s) => s.trim().toUpperCase());
+        final letters = ans
+            .split(RegExp(r'[,+]+'))
+            .map((s) => s.trim().toUpperCase());
         for (final l in letters) {
           if (l.isNotEmpty) dist[l] = (dist[l] ?? 0) + 1;
         }
@@ -172,8 +176,6 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       QuestionType.multiAnswer => 'MULTI',
     };
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -250,12 +252,19 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                   Expanded(
                     child: Text(
                       'Recovered: $_recoveredCount answers restored from draft',
-                      style: const TextStyle(color: Color(0xFF1A6FD4), fontSize: 13),
+                      style: const TextStyle(
+                        color: Color(0xFF1A6FD4),
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   GestureDetector(
                     onTap: () => setState(() => _showRecoveryBanner = false),
-                    child: const Icon(Icons.close, color: Color(0xFF1A6FD4), size: 16),
+                    child: const Icon(
+                      Icons.close,
+                      color: Color(0xFF1A6FD4),
+                      size: 16,
+                    ),
                   ),
                 ],
               ),
@@ -267,8 +276,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
-                      ResponsiveLayout.horizontalPadding(context), 12,
-                      ResponsiveLayout.horizontalPadding(context), 0,
+                      ResponsiveLayout.horizontalPadding(context),
+                      12,
+                      ResponsiveLayout.horizontalPadding(context),
+                      0,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,7 +332,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           children: [
             Icon(
               _autoAdvanceEnabled ? Icons.skip_next : Icons.touch_app,
-              color: _autoAdvanceEnabled ? const Color(0xFF7EB8DA) : Colors.white54,
+              color: _autoAdvanceEnabled
+                  ? const Color(0xFF7EB8DA)
+                  : Colors.white54,
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -329,7 +342,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               child: Text(
                 _autoAdvanceEnabled ? 'Auto-advance' : 'Manual',
                 style: TextStyle(
-                  color: _autoAdvanceEnabled ? const Color(0xFF7EB8DA) : Colors.white54,
+                  color: _autoAdvanceEnabled
+                      ? const Color(0xFF7EB8DA)
+                      : Colors.white54,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -371,7 +386,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     );
   }
 
-Widget _buildProgressSection(int answered, int total, double completeness) {
+  Widget _buildProgressSection(int answered, int total, double completeness) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -396,9 +411,15 @@ Widget _buildProgressSection(int answered, int total, double completeness) {
                 TextButton.icon(
                   onPressed: _scrollToNextEmpty,
                   icon: const Icon(Icons.keyboard_arrow_down, size: 16),
-                  label: const Text('Next empty', style: TextStyle(fontSize: 11)),
+                  label: const Text(
+                    'Next empty',
+                    style: TextStyle(fontSize: 11),
+                  ),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -419,9 +440,9 @@ Widget _buildProgressSection(int answered, int total, double completeness) {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Overall completeness',
-                style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
               ),
               Text(
                 '${(completeness * 100).toStringAsFixed(0)}%',
@@ -467,8 +488,8 @@ Widget _buildProgressSection(int answered, int total, double completeness) {
     final entries = typeCounts.entries.toList();
     for (var i = 0; i < entries.length; i++) {
       final e = entries[i];
-      final isActive = (i == 0 && _typeFilter < 0) ||
-          (i > 0 && _typeFilter == i - 1);
+      final isActive =
+          (i == 0 && _typeFilter < 0) || (i > 0 && _typeFilter == i - 1);
       tabs.add(
         GestureDetector(
           onTap: () {
@@ -501,39 +522,54 @@ Widget _buildProgressSection(int answered, int total, double completeness) {
     );
   }
 
-Widget _buildToolbar(Assessment assessment) {
+  Widget _buildToolbar(Assessment assessment) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(
-        children: [
-          _toolbarButton('Paste All', Icons.content_paste, isPrimary: true, onTap: () => _showBulkPasteDialog(assessment)),
-          const SizedBox(width: 5),
-          Container(width: 1, height: 12, color: Colors.grey.shade300),
-          const SizedBox(width: 5),
-          _toolbarButton('Sections', Icons.view_agenda_outlined, onTap: _openSectionSetup),
-          const SizedBox(width: 5),
-          Container(width: 1, height: 12, color: Colors.grey.shade300),
-          const SizedBox(width: 5),
-          const Text('All:', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
-          const SizedBox(width: 4),
-          _toolbarDropdown<QuestionType>(
-            hint: 'Type',
-            items: QuestionType.values,
-            labelBuilder: _typeLabel,
-            onChanged: (type) => _setAllType(assessment, type),
-          ),
-          const SizedBox(width: 4),
-          _toolbarDropdown<double>(
-            hint: 'Pts',
-            items: const [1.0, 2.0, 5.0, 10.0],
-            labelBuilder: (p) => '${p.toInt()}pt',
-            onChanged: (pts) => _setAllPoints(assessment, pts),
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _toolbarButton(
+              'Paste All',
+              Icons.content_paste,
+              isPrimary: true,
+              onTap: () => _showBulkPasteDialog(assessment),
+            ),
+            const SizedBox(width: 5),
+            Container(width: 1, height: 12, color: Colors.grey.shade300),
+            const SizedBox(width: 5),
+            _toolbarButton(
+              'Sections',
+              Icons.view_agenda_outlined,
+              onTap: _openSectionSetup,
+            ),
+            const SizedBox(width: 5),
+            Container(width: 1, height: 12, color: Colors.grey.shade300),
+            const SizedBox(width: 5),
+            const Text(
+              'All:',
+              style: TextStyle(fontSize: 10, color: AppTheme.lightText),
+            ),
+            const SizedBox(width: 4),
+            _toolbarDropdown<QuestionType>(
+              hint: 'Type',
+              items: QuestionType.values,
+              labelBuilder: _typeLabel,
+              onChanged: (type) => _setAllType(assessment, type),
+            ),
+            const SizedBox(width: 4),
+            _toolbarDropdown<double>(
+              hint: 'Pts',
+              items: const [1.0, 2.0, 5.0, 10.0],
+              labelBuilder: (p) => '${p.toInt()}pt',
+              onChanged: (pts) => _setAllPoints(assessment, pts),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -603,7 +639,9 @@ Widget _buildToolbar(Assessment assessment) {
 
     // Questions not in any section
     for (final q in questions) {
-      final inSection = _sections.any((s) => q.number >= s.startQ && q.number <= s.endQ);
+      final inSection = _sections.any(
+        (s) => q.number >= s.startQ && q.number <= s.endQ,
+      );
       if (!inSection) {
         items.add(_ListItem.question(q));
       }
@@ -621,7 +659,8 @@ Widget _buildToolbar(Assessment assessment) {
     final questions = _filteredQuestions;
     return SliverList(
       delegate: SliverChildBuilderDelegate(
-        (context, index) => _buildListItem(_ListItem.question(questions[index]), index),
+        (context, index) =>
+            _buildListItem(_ListItem.question(questions[index]), index),
         childCount: questions.length,
       ),
     );
@@ -642,7 +681,9 @@ Widget _buildToolbar(Assessment assessment) {
     final q = item.question!;
     final isAnswered = q.correctAnswer?.toString().isNotEmpty ?? false;
     // Find the question's index in _filteredQuestions for active highlighting
-    final filteredIndex = _filteredQuestions.indexWhere((fq) => fq.number == q.number);
+    final filteredIndex = _filteredQuestions.indexWhere(
+      (fq) => fq.number == q.number,
+    );
 
     return Dismissible(
       key: ValueKey('q_${q.number}'),
@@ -660,7 +701,10 @@ Widget _buildToolbar(Assessment assessment) {
           children: [
             Icon(Icons.clear, color: Color(0xFFDA2A2A), size: 18),
             SizedBox(width: 6),
-            Text('Clear', style: TextStyle(color: Color(0xFFDA2A2A), fontSize: 12)),
+            Text(
+              'Clear',
+              style: TextStyle(color: Color(0xFFDA2A2A), fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -694,8 +738,8 @@ Widget _buildToolbar(Assessment assessment) {
             options: sectionType == QuestionType.trueFalse
                 ? ['True', 'False']
                 : (sectionType == QuestionType.multiAnswer
-                    ? const ['A', 'B', 'C', 'D', 'E']
-                    : q.options),
+                      ? const ['A', 'B', 'C', 'D', 'E']
+                      : q.options),
           );
         }
       }
@@ -706,7 +750,12 @@ Widget _buildToolbar(Assessment assessment) {
     _autoSave();
   }
 
-  Widget _toolbarButton(String label, IconData icon, {bool isPrimary = false, required VoidCallback onTap}) {
+  Widget _toolbarButton(
+    String label,
+    IconData icon, {
+    bool isPrimary = false,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -721,29 +770,51 @@ Widget _buildToolbar(Assessment assessment) {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText),
-            const SizedBox(width: 4),
-            Text(label, style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
+            Icon(
+              icon,
+              size: 12,
               color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText,
-            )),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _toolbarDropdown<T>({required String hint, required List<T> items, required String Function(T) labelBuilder, required void Function(T) onChanged}) {
+  Widget _toolbarDropdown<T>({
+    required String hint,
+    required List<T> items,
+    required String Function(T) labelBuilder,
+    required void Function(T) onChanged,
+  }) {
     return DropdownButton<T>(
       value: null,
-      hint: Text(hint, style: const TextStyle(fontSize: 10, color: AppTheme.lightText)),
+      hint: Text(
+        hint,
+        style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
+      ),
       isDense: true,
       underline: const SizedBox(),
-      items: items.map((item) => DropdownMenuItem(
-        value: item,
-        child: Text(labelBuilder(item), style: const TextStyle(fontSize: 10)),
-      )).toList(),
+      items: items
+          .map(
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(
+                labelBuilder(item),
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+          )
+          .toList(),
       onChanged: (value) {
         if (value != null) onChanged(value);
       },
@@ -900,7 +971,9 @@ Widget _buildToolbar(Assessment assessment) {
     if (_assessment == null) return;
     final stored = _assessment!.settings['sections'];
     if (stored is List && stored.isNotEmpty) {
-      _sections = stored.map((s) => ExamSection.fromMap(s as Map<String, dynamic>)).toList();
+      _sections = stored
+          .map((s) => ExamSection.fromMap(s as Map<String, dynamic>))
+          .toList();
     } else {
       _sections = [];
     }
@@ -933,8 +1006,8 @@ Widget _buildToolbar(Assessment assessment) {
               options: sectionType == QuestionType.trueFalse
                   ? ['True', 'False']
                   : (sectionType == QuestionType.multiAnswer
-                      ? const ['A', 'B', 'C', 'D', 'E']
-                      : q.options),
+                        ? const ['A', 'B', 'C', 'D', 'E']
+                        : q.options),
             );
           }
         }
@@ -974,8 +1047,11 @@ Widget _buildToolbar(Assessment assessment) {
         return question.copyWith(
           type: type,
           correctAnswer: '',
-          options: type == QuestionType.trueFalse || type == QuestionType.multiAnswer
-              ? (type == QuestionType.trueFalse ? ['True', 'False'] : const ['A', 'B', 'C', 'D', 'E'])
+          options:
+              type == QuestionType.trueFalse || type == QuestionType.multiAnswer
+              ? (type == QuestionType.trueFalse
+                    ? ['True', 'False']
+                    : const ['A', 'B', 'C', 'D', 'E'])
               : question.options,
         );
       }
@@ -1000,7 +1076,10 @@ Widget _buildToolbar(Assessment assessment) {
 
   // ── Photo Scan ───────────────────────────────────────────────────────
 
-  Future<void> _openPhotoScan(BuildContext context, Assessment assessment) async {
+  Future<void> _openPhotoScan(
+    BuildContext context,
+    Assessment assessment,
+  ) async {
     final result = await Navigator.pushNamed(
       context,
       AppRoutes.answerKeyPhotoScan,
@@ -1012,7 +1091,10 @@ Widget _buildToolbar(Assessment assessment) {
     }
   }
 
-  void _applyPhotoScanAnswers(Assessment assessment, PhotoScanResult scanResult) {
+  void _applyPhotoScanAnswers(
+    Assessment assessment,
+    PhotoScanResult scanResult,
+  ) {
     final updated = assessment.questions.map((question) {
       // Find matching OCR answer by question number
       final ocrAnswer = scanResult.answers
@@ -1035,10 +1117,7 @@ Widget _buildToolbar(Assessment assessment) {
         }
       }
 
-      return question.copyWith(
-        correctAnswer: answer,
-        type: type,
-      );
+      return question.copyWith(correctAnswer: answer, type: type);
     }).toList();
 
     setState(() => _assessment = assessment.copyWith(questions: updated));
@@ -1049,7 +1128,9 @@ Widget _buildToolbar(Assessment assessment) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Applied $applied answers from photo scan ($total questions total)'),
+          content: Text(
+            'Applied $applied answers from photo scan ($total questions total)',
+          ),
           backgroundColor: const Color(0xFF18A558),
           duration: const Duration(seconds: 2),
         ),
@@ -1062,21 +1143,38 @@ Widget _buildToolbar(Assessment assessment) {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Change all to ${_typeLabel(type)}?'),
-        content: Text('This will change all ${assessment.questionCount} questions to ${_typeLabel(type)}. Existing answers will be cleared.'),
+        content: Text(
+          'This will change all ${assessment.questionCount} questions to ${_typeLabel(type)}. Existing answers will be cleared.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              final updated = assessment.questions.map((q) => Question(
-                id: q.id, number: q.number, type: type,
-                text: q.text, points: q.points,
-                options: type == QuestionType.trueFalse
-                    ? ['True', 'False']
-                    : (type == QuestionType.multiAnswer ? const ['A', 'B', 'C', 'D', 'E'] : q.options),
-                correctAnswer: '',
-              )).toList();
-              setState(() => _assessment = assessment.copyWith(questions: updated));
+              final updated = assessment.questions
+                  .map(
+                    (q) => Question(
+                      id: q.id,
+                      number: q.number,
+                      type: type,
+                      text: q.text,
+                      points: q.points,
+                      options: type == QuestionType.trueFalse
+                          ? ['True', 'False']
+                          : (type == QuestionType.multiAnswer
+                                ? const ['A', 'B', 'C', 'D', 'E']
+                                : q.options),
+                      correctAnswer: '',
+                      essayRubric: q.essayRubric,
+                    ),
+                  )
+                  .toList();
+              setState(
+                () => _assessment = assessment.copyWith(questions: updated),
+              );
             },
             child: const Text('Apply'),
           ),
@@ -1090,18 +1188,34 @@ Widget _buildToolbar(Assessment assessment) {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Set all to ${pts.toInt()} pts?'),
-        content: Text('This will set all ${assessment.questionCount} questions to ${pts.toInt()} points.'),
+        content: Text(
+          'This will set all ${assessment.questionCount} questions to ${pts.toInt()} points.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              final updated = assessment.questions.map((q) => Question(
-                id: q.id, number: q.number, type: q.type,
-                text: q.text, points: pts, options: q.options,
-                correctAnswer: q.correctAnswer,
-              )).toList();
-              setState(() => _assessment = assessment.copyWith(questions: updated));
+              final updated = assessment.questions
+                  .map(
+                    (q) => Question(
+                      id: q.id,
+                      number: q.number,
+                      type: q.type,
+                      text: q.text,
+                      points: pts,
+                      options: q.options,
+                      correctAnswer: q.correctAnswer,
+                      essayRubric: q.essayRubric,
+                    ),
+                  )
+                  .toList();
+              setState(
+                () => _assessment = assessment.copyWith(questions: updated),
+              );
             },
             child: const Text('Apply'),
           ),
@@ -1116,7 +1230,10 @@ Widget _buildToolbar(Assessment assessment) {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          final parsed = _parseBulkPaste(controller.text, assessment.questionCount);
+          final parsed = _parseBulkPaste(
+            controller.text,
+            assessment.questionCount,
+          );
           return AlertDialog(
             title: const Text('Paste Answer Key'),
             content: SizedBox(
@@ -1130,14 +1247,20 @@ Widget _buildToolbar(Assessment assessment) {
                     maxLines: 3,
                     decoration: const InputDecoration(
                       hintText: 'A, B, C, D, A+C, "mitochondria", T, F...',
-                      helperText: 'MCQ=A-E, Multi=A+C, T/F=T or F, Short="text"',
+                      helperText:
+                          'MCQ=A-E, Multi=A+C, T/F=T or F, Short="text"',
                     ),
                     onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
                   if (parsed != null && parsed.isNotEmpty) ...[
-                    Text('Preview (${parsed.length} answers):',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                    Text(
+                      'Preview (${parsed.length} answers):',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Flexible(
                       child: Container(
@@ -1149,31 +1272,49 @@ Widget _buildToolbar(Assessment assessment) {
                         child: Wrap(
                           spacing: 4,
                           runSpacing: 4,
-                          children: parsed.map((p) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Q${p['num']}: ${p['answer']} (${p['type']})',
-                              style: const TextStyle(fontSize: 10, color: AppTheme.darkText),
-                            ),
-                          )).toList(),
+                          children: parsed
+                              .map(
+                                (p) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryGreen.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Q${p['num']}: ${p['answer']} (${p['type']})',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.darkText,
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                     ),
                   ] else if (controller.text.isNotEmpty) ...[
                     const Text(
                       'Could not parse. Format: A, B+C, "text", T',
-                      style: TextStyle(color: AppTheme.primaryRed, fontSize: 11),
+                      style: TextStyle(
+                        color: AppTheme.primaryRed,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ],
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: (parsed != null && parsed.isNotEmpty)
                     ? () {
@@ -1192,7 +1333,11 @@ Widget _buildToolbar(Assessment assessment) {
 
   List<Map<String, dynamic>>? _parseBulkPaste(String raw, int expectedCount) {
     if (raw.trim().isEmpty) return null;
-    final parts = raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final parts = raw
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return null;
 
     final results = <Map<String, dynamic>>[];
@@ -1206,11 +1351,19 @@ Widget _buildToolbar(Assessment assessment) {
 
       // Quoted text → short answer
       if (part.startsWith('"') && part.endsWith('"')) {
-        results.add({'num': qNum, 'answer': part.substring(1, part.length - 1), 'type': 'SHORT'});
+        results.add({
+          'num': qNum,
+          'answer': part.substring(1, part.length - 1),
+          'type': 'SHORT',
+        });
         continue;
       }
       if (part.startsWith('"')) {
-        results.add({'num': qNum, 'answer': part.replaceAll('"', ''), 'type': 'SHORT'});
+        results.add({
+          'num': qNum,
+          'answer': part.replaceAll('"', ''),
+          'type': 'SHORT',
+        });
         continue;
       }
 
@@ -1221,8 +1374,13 @@ Widget _buildToolbar(Assessment assessment) {
       }
 
       // Letters with + → multi-answer (e.g., "A+C")
-      if (part.contains('+') && RegExp(r'^[A-Ea-e]+(\+[A-Ea-e]+)+$').hasMatch(part)) {
-        results.add({'num': qNum, 'answer': part.toUpperCase(), 'type': 'MULTI'});
+      if (part.contains('+') &&
+          RegExp(r'^[A-Ea-e]+(\+[A-Ea-e]+)+$').hasMatch(part)) {
+        results.add({
+          'num': qNum,
+          'answer': part.toUpperCase(),
+          'type': 'MULTI',
+        });
         continue;
       }
 
@@ -1247,7 +1405,10 @@ Widget _buildToolbar(Assessment assessment) {
     return results.isEmpty ? null : results;
   }
 
-  void _applyBulkPaste(Assessment assessment, List<Map<String, dynamic>> parsed) {
+  void _applyBulkPaste(
+    Assessment assessment,
+    List<Map<String, dynamic>> parsed,
+  ) {
     final updated = assessment.questions.map((q) {
       final match = parsed.where((p) => p['num'] == q.number);
       if (match.isEmpty) return q;
@@ -1257,12 +1418,23 @@ Widget _buildToolbar(Assessment assessment) {
 
       QuestionType newType;
       switch (typeStr) {
-        case 'MCQ': newType = QuestionType.mcq; break;
-        case 'T/F': newType = QuestionType.trueFalse; break;
-        case 'MULTI': newType = QuestionType.multiAnswer; break;
-        case 'SHORT': newType = QuestionType.shortAnswer; break;
-        case 'MATCH': newType = QuestionType.matching; break;
-        default: newType = q.type;
+        case 'MCQ':
+          newType = QuestionType.mcq;
+          break;
+        case 'T/F':
+          newType = QuestionType.trueFalse;
+          break;
+        case 'MULTI':
+          newType = QuestionType.multiAnswer;
+          break;
+        case 'SHORT':
+          newType = QuestionType.shortAnswer;
+          break;
+        case 'MATCH':
+          newType = QuestionType.matching;
+          break;
+        default:
+          newType = q.type;
       }
 
       return q.copyWith(
@@ -1270,16 +1442,25 @@ Widget _buildToolbar(Assessment assessment) {
         correctAnswer: answer,
         options: newType == QuestionType.trueFalse
             ? ['True', 'False']
-            : (newType == QuestionType.multiAnswer ? const ['A', 'B', 'C', 'D', 'E'] : q.options),
+            : (newType == QuestionType.multiAnswer
+                  ? const ['A', 'B', 'C', 'D', 'E']
+                  : q.options),
       );
     }).toList();
     setState(() => _assessment = assessment.copyWith(questions: updated));
   }
 
-  Future<void> _handleDone(BuildContext context, Assessment assessment, bool returnToReview) async {
+  Future<void> _handleDone(
+    BuildContext context,
+    Assessment assessment,
+    bool returnToReview,
+  ) async {
     final provider = context.read<AssessmentProvider>();
-    final currentFingerprint = const AnswerKeyFingerprintService().compute(assessment);
-    final keyChanged = _preEditFingerprint != null &&
+    final currentFingerprint = const AnswerKeyFingerprintService().compute(
+      assessment,
+    );
+    final keyChanged =
+        _preEditFingerprint != null &&
         _preEditFingerprint!.isNotEmpty &&
         currentFingerprint != _preEditFingerprint;
 
@@ -1290,7 +1471,8 @@ Widget _buildToolbar(Assessment assessment) {
       return;
     }
 
-    final List<ScanResult> results = await HybridGradingService().loadScanResults(assessment.id);
+    final List<ScanResult> results = await HybridGradingService()
+        .loadScanResults(assessment.id);
     if (!context.mounted) return;
 
     if (results.isEmpty) {
@@ -1300,12 +1482,22 @@ Widget _buildToolbar(Assessment assessment) {
       return;
     }
 
-    await _showRecalculationDialog(context, assessment, results, returnToReview);
+    await _showRecalculationDialog(
+      context,
+      assessment,
+      results,
+      returnToReview,
+    );
   }
 
-  void _navigateAfterSave(BuildContext context, Assessment assessment, bool returnToReview) {
+  void _navigateAfterSave(
+    BuildContext context,
+    Assessment assessment,
+    bool returnToReview,
+  ) {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final returnToConfirmation = args is AnswerKeyRouteArgs && args.returnToConfirmation;
+    final returnToConfirmation =
+        args is AnswerKeyRouteArgs && args.returnToConfirmation;
 
     if (returnToConfirmation) {
       Navigator.pushReplacementNamed(
@@ -1344,16 +1536,29 @@ Widget _buildToolbar(Assessment assessment) {
             ),
             if (diff.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text('Changes:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+              const Text(
+                'Changes:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              ),
               const SizedBox(height: 4),
-              ...diff.take(5).map((d) => Text(
-                '  $d',
-                style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
-              )),
+              ...diff
+                  .take(5)
+                  .map(
+                    (d) => Text(
+                      '  $d',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.lightText,
+                      ),
+                    ),
+                  ),
               if (diff.length > 5)
                 Text(
                   '  and ${diff.length - 5} more...',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.lightText,
+                  ),
                 ),
             ],
           ],
@@ -1364,11 +1569,15 @@ Widget _buildToolbar(Assessment assessment) {
             child: const Text('Cancel'),
           ),
           OutlinedButton(
-            onPressed: () => Navigator.pop(context, _KeyChangeAction.saveAndRecalculateLater),
+            onPressed: () => Navigator.pop(
+              context,
+              _KeyChangeAction.saveAndRecalculateLater,
+            ),
             child: const Text('Save & recalculate later'),
           ),
           FilledButton.icon(
-            onPressed: () => Navigator.pop(context, _KeyChangeAction.recalculateNow),
+            onPressed: () =>
+                Navigator.pop(context, _KeyChangeAction.recalculateNow),
             icon: const Icon(Icons.refresh),
             label: const Text('Recalculate now'),
           ),
@@ -1396,7 +1605,8 @@ Widget _buildToolbar(Assessment assessment) {
     for (final q in assessment.questions) {
       final oldAnswer = _originalAnswers[q.number] ?? '';
       final newAnswer = q.correctAnswer?.toString() ?? '';
-      if (oldAnswer != newAnswer && (oldAnswer.isNotEmpty || newAnswer.isNotEmpty)) {
+      if (oldAnswer != newAnswer &&
+          (oldAnswer.isNotEmpty || newAnswer.isNotEmpty)) {
         final oldDisplay = oldAnswer.isEmpty ? '(empty)' : oldAnswer;
         final newDisplay = newAnswer.isEmpty ? '(empty)' : newAnswer;
         changes.add('Q${q.number}: $oldDisplay → $newDisplay');
@@ -1405,13 +1615,21 @@ Widget _buildToolbar(Assessment assessment) {
     return changes;
   }
 
-  Future<void> _recalculateNow(BuildContext context, Assessment assessment, List<ScanResult> results, bool returnToReview) async {
+  Future<void> _recalculateNow(
+    BuildContext context,
+    Assessment assessment,
+    List<ScanResult> results,
+    bool returnToReview,
+  ) async {
     final provider = context.read<AssessmentProvider>();
     final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Recalculating ${results.length} results...'), duration: const Duration(seconds: 2)),
+      SnackBar(
+        content: Text('Recalculating ${results.length} results...'),
+        duration: const Duration(seconds: 2),
+      ),
     );
 
     final result = await AnswerKeyRecalculationService().recalculateAll(
@@ -1423,15 +1641,20 @@ Widget _buildToolbar(Assessment assessment) {
 
     final summary = StringBuffer();
     summary.write('${result.recalculated} recalculated');
-    if (result.scoresChanged > 0) summary.write(', ${result.scoresChanged} scores changed');
-    if (result.scoresUnchanged > 0) summary.write(', ${result.scoresUnchanged} unchanged');
-    if (result.preserved > 0) summary.write(', ${result.preserved} preserved (manual)');
+    if (result.scoresChanged > 0)
+      summary.write(', ${result.scoresChanged} scores changed');
+    if (result.scoresUnchanged > 0)
+      summary.write(', ${result.scoresUnchanged} unchanged');
+    if (result.preserved > 0)
+      summary.write(', ${result.preserved} preserved (manual)');
     if (result.failed > 0) summary.write(', ${result.failed} failed');
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(summary.toString()),
-        backgroundColor: result.allSucceeded ? AppTheme.primaryGreen : Colors.orange,
+        backgroundColor: result.allSucceeded
+            ? AppTheme.primaryGreen
+            : Colors.orange,
       ),
     );
 
@@ -1442,13 +1665,19 @@ Widget _buildToolbar(Assessment assessment) {
     }
   }
 
-  Future<void> _saveAndRecalculateLater(BuildContext context, Assessment assessment, bool returnToReview) async {
+  Future<void> _saveAndRecalculateLater(
+    BuildContext context,
+    Assessment assessment,
+    bool returnToReview,
+  ) async {
     final provider = context.read<AssessmentProvider>();
     final updatedAssessment = await provider.saveAnswerKeyChange(assessment);
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Key saved. Recalculate results when ready.')),
+      const SnackBar(
+        content: Text('Key saved. Recalculate results when ready.'),
+      ),
     );
 
     if (returnToReview) {
@@ -1486,7 +1715,8 @@ class _QuestionRow extends StatelessWidget {
   });
 
   bool get _isAnswered =>
-      question.correctAnswer != null && question.correctAnswer.toString().isNotEmpty;
+      question.correctAnswer != null &&
+      question.correctAnswer.toString().isNotEmpty;
 
   Color get _rowBg => _isAnswered
       ? const Color(0xFFA8D5BA).withValues(alpha: 0.06)
@@ -1508,8 +1738,8 @@ class _QuestionRow extends StatelessWidget {
           color: isFlagged
               ? const Color(0xFFF0C674)
               : isActive
-                  ? const Color(0xFF7EB8DA)
-                  : Colors.grey.shade200.withValues(alpha: 0.5),
+              ? const Color(0xFF7EB8DA)
+              : Colors.grey.shade200.withValues(alpha: 0.5),
           width: (isFlagged || isActive) ? 3 : 1,
         ),
       ),
@@ -1537,7 +1767,11 @@ class _QuestionRow extends StatelessWidget {
           width: 22,
           child: Text(
             '${question.number}'.padLeft(2, '0'),
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppTheme.lightText),
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: AppTheme.lightText,
+            ),
           ),
         ),
         const SizedBox(width: 6),
@@ -1571,7 +1805,12 @@ class _QuestionRow extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontFamily: 'monospace', fontSize: 8, color: textColor, letterSpacing: 0.04),
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 8,
+          color: textColor,
+          letterSpacing: 0.04,
+        ),
       ),
     );
   }
@@ -1587,7 +1826,11 @@ class _QuestionRow extends StatelessWidget {
         ),
         child: Text(
           '${question.points.toInt()}pt',
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 9, color: AppTheme.lightText),
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 9,
+            color: AppTheme.lightText,
+          ),
         ),
       ),
     );
@@ -1598,7 +1841,8 @@ class _QuestionRow extends StatelessWidget {
       QuestionType.mcq => _buildMcqChips(),
       QuestionType.trueFalse => _buildTfChips(),
       QuestionType.multiAnswer => _buildMultiChip(context),
-      QuestionType.shortAnswer || QuestionType.essay => _buildShortAnswerInline(context),
+      QuestionType.shortAnswer ||
+      QuestionType.essay => _buildShortAnswerInline(context),
       QuestionType.matching => _buildMatchingInline(context),
     };
   }
@@ -1606,7 +1850,9 @@ class _QuestionRow extends StatelessWidget {
   Widget _buildMcqChips() {
     return Row(
       children: question.options.take(5).map((opt) {
-        final isSelected = question.correctAnswer?.toString().toUpperCase() == opt.toUpperCase();
+        final isSelected =
+            question.correctAnswer?.toString().toUpperCase() ==
+            opt.toUpperCase();
         return GestureDetector(
           onTap: () => onAnswerChanged(opt),
           child: Container(
@@ -1615,10 +1861,14 @@ class _QuestionRow extends StatelessWidget {
             margin: const EdgeInsets.only(right: 4),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF3D6B4F) : const Color(0xFF242424),
+              color: isSelected
+                  ? const Color(0xFF3D6B4F)
+                  : const Color(0xFF242424),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: isSelected ? const Color(0xFFA8D5BA) : Colors.grey.shade300,
+                color: isSelected
+                    ? const Color(0xFFA8D5BA)
+                    : Colors.grey.shade300,
                 width: isSelected ? 2 : 1.5,
               ),
             ),
@@ -1628,7 +1878,9 @@ class _QuestionRow extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
-                color: isSelected ? const Color(0xFFA8D5BA) : const Color(0xFF555555),
+                color: isSelected
+                    ? const Color(0xFFA8D5BA)
+                    : const Color(0xFF555555),
               ),
             ),
           ),
@@ -1642,7 +1894,9 @@ class _QuestionRow extends StatelessWidget {
       children: ['True', 'False'].map((opt) {
         final isSelected = question.correctAnswer?.toString() == opt;
         final isTrue = opt == 'True';
-        final selectedColor = isTrue ? AppTheme.primaryGreen : AppTheme.primaryRed;
+        final selectedColor = isTrue
+            ? AppTheme.primaryGreen
+            : AppTheme.primaryRed;
         return GestureDetector(
           onTap: () => onAnswerChanged(opt),
           child: Container(
@@ -1702,7 +1956,9 @@ class _QuestionRow extends StatelessWidget {
 
   Widget _buildShortAnswerInline(BuildContext context) {
     final answer = question.correctAnswer?.toString() ?? '';
-    final alts = answer.contains('|') ? answer.split('|').skip(1).toList() : <String>[];
+    final alts = answer.contains('|')
+        ? answer.split('|').skip(1).toList()
+        : <String>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1713,10 +1969,14 @@ class _QuestionRow extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: answer.isNotEmpty ? const Color(0xFF5C3A1A).withValues(alpha: 0.3) : const Color(0xFF242424),
+              color: answer.isNotEmpty
+                  ? const Color(0xFF5C3A1A).withValues(alpha: 0.3)
+                  : const Color(0xFF242424),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: answer.isNotEmpty ? const Color(0xFFE8B07A) : Colors.grey.shade300,
+                color: answer.isNotEmpty
+                    ? const Color(0xFFE8B07A)
+                    : Colors.grey.shade300,
                 width: answer.isNotEmpty ? 2 : 1.5,
                 style: answer.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
               ),
@@ -1725,7 +1985,9 @@ class _QuestionRow extends StatelessWidget {
               answer.isEmpty ? 'Tap to set answer' : answer.split('|').first,
               style: TextStyle(
                 fontSize: 12,
-                color: answer.isNotEmpty ? const Color(0xFFE8B07A) : const Color(0xFF555555),
+                color: answer.isNotEmpty
+                    ? const Color(0xFFE8B07A)
+                    : const Color(0xFF555555),
               ),
             ),
           ),
@@ -1736,28 +1998,59 @@ class _QuestionRow extends StatelessWidget {
             spacing: 4,
             runSpacing: 4,
             children: [
-              ...alts.map((alt) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5C3A1A).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: const Color(0xFFE8B07A).withValues(alpha: 0.3)),
+              ...alts.map(
+                (alt) => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5C3A1A).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: const Color(0xFFE8B07A).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    alt,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFFE8B07A),
+                    ),
+                  ),
                 ),
-                child: Text(alt, style: const TextStyle(fontSize: 9, color: Color(0xFFE8B07A))),
-              )),
+              ),
               GestureDetector(
                 onTap: () => _showAddAltDialog(context),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: const Color(0xFFE8B07A).withValues(alpha: 0.3), style: BorderStyle.solid),
+                    border: Border.all(
+                      color: const Color(0xFFE8B07A).withValues(alpha: 0.3),
+                      style: BorderStyle.solid,
+                    ),
                   ),
-                  child: Text('+ Add alt', style: TextStyle(fontSize: 9, color: const Color(0xFFE8B07A).withValues(alpha: 0.7))),
+                  child: Text(
+                    '+ Add alt',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: const Color(0xFFE8B07A).withValues(alpha: 0.7),
+                    ),
+                  ),
                 ),
               ),
               if (answer.isNotEmpty)
-                Text('${1 + alts.length} accepted', style: const TextStyle(fontSize: 8, color: AppTheme.lightText)),
+                Text(
+                  '${1 + alts.length} accepted',
+                  style: const TextStyle(
+                    fontSize: 8,
+                    color: AppTheme.lightText,
+                  ),
+                ),
             ],
           ),
         ],
@@ -1768,7 +2061,11 @@ class _QuestionRow extends StatelessWidget {
   Widget _buildMatchingInline(BuildContext context) {
     final answer = question.correctAnswer?.toString() ?? '';
     final pairs = answer.isNotEmpty
-        ? answer.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList()
+        ? answer
+              .split(',')
+              .map((p) => p.trim())
+              .where((p) => p.isNotEmpty)
+              .toList()
         : <String>[];
 
     return GestureDetector(
@@ -1777,10 +2074,14 @@ class _QuestionRow extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: pairs.isNotEmpty ? const Color(0xFF5C2040).withValues(alpha: 0.2) : const Color(0xFF242424),
+          color: pairs.isNotEmpty
+              ? const Color(0xFF5C2040).withValues(alpha: 0.2)
+              : const Color(0xFF242424),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: pairs.isNotEmpty ? const Color(0xFFE8A0B8) : Colors.grey.shade300,
+            color: pairs.isNotEmpty
+                ? const Color(0xFFE8A0B8)
+                : Colors.grey.shade300,
             width: pairs.isNotEmpty ? 2 : 1.5,
             style: pairs.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
           ),
@@ -1795,14 +2096,21 @@ class _QuestionRow extends StatelessWidget {
                 runSpacing: 4,
                 children: pairs.map((pair) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF5C2040).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       pair,
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: Color(0xFFE8A0B8)),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 10,
+                        color: Color(0xFFE8A0B8),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -1812,7 +2120,13 @@ class _QuestionRow extends StatelessWidget {
   }
 
   void _showMultiSelector(BuildContext context) {
-    final current = question.correctAnswer?.toString().split(',').map((s) => s.trim().toUpperCase()).toSet() ?? {};
+    final current =
+        question.correctAnswer
+            ?.toString()
+            .split(',')
+            .map((s) => s.trim().toUpperCase())
+            .toSet() ??
+        {};
     final selected = Set<String>.from(current);
 
     showDialog(
@@ -1841,10 +2155,14 @@ class _QuestionRow extends StatelessWidget {
                     height: 42,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF3A2650) : const Color(0xFF242424),
+                      color: isSelected
+                          ? const Color(0xFF3A2650)
+                          : const Color(0xFF242424),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFFC5A3E8) : Colors.grey.shade300,
+                        color: isSelected
+                            ? const Color(0xFFC5A3E8)
+                            : Colors.grey.shade300,
                         width: isSelected ? 2.5 : 1.5,
                       ),
                     ),
@@ -1854,7 +2172,9 @@ class _QuestionRow extends StatelessWidget {
                         fontFamily: 'monospace',
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
-                        color: isSelected ? const Color(0xFFC5A3E8) : const Color(0xFF555555),
+                        color: isSelected
+                            ? const Color(0xFFC5A3E8)
+                            : const Color(0xFF555555),
                       ),
                     ),
                   ),
@@ -1882,7 +2202,9 @@ class _QuestionRow extends StatelessWidget {
   }
 
   void _showTextAnswerDialog(BuildContext context) {
-    final ctrl = TextEditingController(text: question.correctAnswer?.toString().split('|').first ?? '');
+    final ctrl = TextEditingController(
+      text: question.correctAnswer?.toString().split('|').first ?? '',
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1894,14 +2216,19 @@ class _QuestionRow extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () { ctrl.dispose(); Navigator.pop(ctx); },
+            onPressed: () {
+              ctrl.dispose();
+              Navigator.pop(ctx);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               final newAnswer = ctrl.text.trim();
               final existing = question.correctAnswer?.toString() ?? '';
-              final alts = existing.contains('|') ? existing.split('|').skip(1).join('|') : '';
+              final alts = existing.contains('|')
+                  ? existing.split('|').skip(1).join('|')
+                  : '';
               final full = alts.isNotEmpty ? '$newAnswer|$alts' : newAnswer;
               onAnswerChanged(full);
               ctrl.dispose();
@@ -1929,13 +2256,20 @@ class _QuestionRow extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () { ctrl.dispose(); Navigator.pop(ctx); },
+            onPressed: () {
+              ctrl.dispose();
+              Navigator.pop(ctx);
+            },
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
               final alt = ctrl.text.trim();
-              if (alt.isEmpty) { ctrl.dispose(); Navigator.pop(ctx); return; }
+              if (alt.isEmpty) {
+                ctrl.dispose();
+                Navigator.pop(ctx);
+                return;
+              }
               final existing = question.correctAnswer?.toString() ?? '';
               final full = '$existing|$alt';
               onAnswerChanged(full);
@@ -1952,9 +2286,15 @@ class _QuestionRow extends StatelessWidget {
   void _showMatchingDialog(BuildContext context) {
     final answer = question.correctAnswer?.toString() ?? '';
     final pairs = answer.isNotEmpty
-        ? answer.split(',').map((p) => p.trim()).where((p) => p.isNotEmpty).toList()
+        ? answer
+              .split(',')
+              .map((p) => p.trim())
+              .where((p) => p.isNotEmpty)
+              .toList()
         : <String>[];
-    final usedRight = pairs.map((p) => p.length > 1 ? p.substring(1).toUpperCase() : '').toSet();
+    final usedRight = pairs
+        .map((p) => p.length > 1 ? p.substring(1).toUpperCase() : '')
+        .toSet();
 
     showDialog(
       context: context,
@@ -1969,7 +2309,9 @@ class _QuestionRow extends StatelessWidget {
                 children: List.generate(5, (i) {
                   final pairStr = i < pairs.length ? pairs[i] : '';
                   final left = '${i + 1}';
-                  final right = pairStr.length > 1 ? pairStr.substring(1).toUpperCase() : '';
+                  final right = pairStr.length > 1
+                      ? pairStr.substring(1).toUpperCase()
+                      : '';
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -1978,41 +2320,79 @@ class _QuestionRow extends StatelessWidget {
                         Container(
                           width: 24,
                           alignment: Alignment.center,
-                          child: Text(left, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppTheme.lightText)),
+                          child: Text(
+                            left,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              color: AppTheme.lightText,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 4),
-                        const Text('→', style: TextStyle(color: AppTheme.lightText)),
+                        const Text(
+                          '→',
+                          style: TextStyle(color: AppTheme.lightText),
+                        ),
                         const SizedBox(width: 4),
-                        if (right.isEmpty) DropdownButton<String>(
-                                value: null,
-                                hint: const Text('select', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
-                                isDense: true,
-                                items: ['A', 'B', 'C', 'D', 'E']
-                                    .where((l) => !usedRight.contains(l) || l == right)
-                                    .map((l) => DropdownMenuItem(value: l, child: Text(l)))
-                                    .toList(),
-                                onChanged: (val) {
-                                  if (val == null) return;
-                                  setDialogState(() {
-                                    if (i < pairs.length) {
-                                      pairs[i] = '$left$val';
-                                    } else {
-                                      while (pairs.length <= i) {
-                                        pairs.add('');
-                                      }
-                                      pairs[i] = '$left$val';
-                                    }
-                                    usedRight.add(val);
-                                  });
-                                },
-                              ) else Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF5C2040).withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(right, style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFFE8A0B8))),
+                        if (right.isEmpty)
+                          DropdownButton<String>(
+                            value: null,
+                            hint: const Text(
+                              'select',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.lightText,
                               ),
+                            ),
+                            isDense: true,
+                            items: ['A', 'B', 'C', 'D', 'E']
+                                .where(
+                                  (l) => !usedRight.contains(l) || l == right,
+                                )
+                                .map(
+                                  (l) => DropdownMenuItem(
+                                    value: l,
+                                    child: Text(l),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setDialogState(() {
+                                if (i < pairs.length) {
+                                  pairs[i] = '$left$val';
+                                } else {
+                                  while (pairs.length <= i) {
+                                    pairs.add('');
+                                  }
+                                  pairs[i] = '$left$val';
+                                }
+                                usedRight.add(val);
+                              });
+                            },
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF5C2040,
+                              ).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              right,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                color: Color(0xFFE8A0B8),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   );
@@ -2020,7 +2400,10 @@ class _QuestionRow extends StatelessWidget {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -2037,7 +2420,9 @@ class _QuestionRow extends StatelessWidget {
   }
 
   void _showPointsDialog(BuildContext context) {
-    final ctrl = TextEditingController(text: question.points.toInt().toString());
+    final ctrl = TextEditingController(
+      text: question.points.toInt().toString(),
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2049,7 +2434,13 @@ class _QuestionRow extends StatelessWidget {
           decoration: const InputDecoration(labelText: 'Points'),
         ),
         actions: [
-          TextButton(onPressed: () { ctrl.dispose(); Navigator.pop(ctx); }, child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              ctrl.dispose();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () {
               final pts = double.tryParse(ctrl.text);
@@ -2105,10 +2496,8 @@ class _ListItem {
   final Question? question;
   final int answeredCount;
 
-  const _ListItem.section(this.section, this.answeredCount)
-      : question = null;
-  const _ListItem.question(this.question)
-      : section = null, answeredCount = 0;
+  const _ListItem.section(this.section, this.answeredCount) : question = null;
+  const _ListItem.question(this.question) : section = null, answeredCount = 0;
 
   bool get isSection => section != null;
 }
