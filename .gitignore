@@ -99,6 +99,14 @@ web/
 wireframes/
 ui_dump.xml
 *.log
+aab_build*.txt
+apk_build*.txt
+build_log*.txt
+full_test_out*.txt
+logcat_fresh.txt
+run*.pid
+walk*.pid
+/test_hive/
 
 # AI director / agent workspaces
 ai-director-os-v2/
