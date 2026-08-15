@@ -246,23 +246,6 @@ Future<Box> _openBoxSafe(String name, {required HiveCipher cipher}) async {
   }
 }
 
-/// Open a [LazyBox] with error recovery.
-/// Corrupt boxes are RENAMED (not deleted) so data can be manually recovered.
-Future<LazyBox> _openLazyBoxSafe(
-  String name, {
-  required HiveCipher cipher,
-}) async {
-  try {
-    return await Hive.openLazyBox(name, encryptionCipher: cipher);
-  } catch (e) {
-    debugPrint(
-      '[Hive] Lazy box "$name" corrupt — preserving and recreating: $e',
-    );
-    await _preserveCorruptBox(name);
-    return await Hive.openLazyBox(name, encryptionCipher: cipher);
-  }
-}
-
 /// Rename a corrupt Hive box file to .corrupt instead of deleting it.
 /// This preserves the raw bytes for manual recovery or debugging.
 Future<void> _preserveCorruptBox(String name) async {

@@ -11,7 +11,6 @@ void main() {
   late Assessment a2;
   late Student s1;
   late Student s2;
-  late Student s3;
 
   setUp(() {
     a1 = Assessment(
@@ -28,7 +27,6 @@ void main() {
     );
     s1 = Student(id: 's1', studentId: '001', firstName: 'Abebe', lastName: 'Kebede');
     s2 = Student(id: 's2', studentId: '002', firstName: 'Sara', lastName: 'Tesfaye');
-    s3 = Student(id: 's3', studentId: '003', firstName: 'Dawit', lastName: 'Haile');
   });
 
   ScanResult result({

@@ -164,7 +164,6 @@ void main() {
     ];
 
     for (final (route, type, args) in routes) {
-      final before = recordedErrors.length;
       final routeErrs = <String>[];
       debugPrint('>> PUSH $route');
       try {
