@@ -100,7 +100,7 @@ class SectionHeader extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'Q${section.startQ}-${section.endQ}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 11,
                 color: AppTheme.lightText,
@@ -109,7 +109,7 @@ class SectionHeader extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${section.points.toInt()}pt',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 10,
                 color: AppTheme.lightText,

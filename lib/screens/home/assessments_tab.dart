@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/responsive.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../models/assessment.dart';
@@ -24,6 +25,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
     final assessments = context.watch<AssessmentProvider>();
     final activeAssessments = assessments.activeAssessments;
     final completedAssessments = assessments.completedAssessments;
+    final hp = ResponsiveLayout.horizontalPadding(context);
 
     final readyAssessments = activeAssessments
         .where((assessment) => assessment.isAnswerKeyComplete)
@@ -37,7 +39,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -109,6 +111,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
     List<Assessment> ready,
     List<Assessment> setup,
   ) {
+    final hp = ResponsiveLayout.horizontalPadding(context);
     if (ready.isEmpty && setup.isEmpty) {
       return Center(
         child: AppEmptyState(
@@ -126,7 +129,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
       slivers: [
         if (setup.isNotEmpty) ...[
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+            padding: EdgeInsets.fromLTRB(hp, 8, hp, 4),
             sliver: SliverToBoxAdapter(
               child: Text(
                 'Needs Setup (${setup.length})',
@@ -138,7 +141,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
             sliver: SliverList.builder(
               itemCount: setup.length,
               itemBuilder: (_, index) =>
@@ -148,7 +151,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
         ],
         if (ready.isNotEmpty) ...[
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            padding: EdgeInsets.fromLTRB(hp, 16, hp, 4),
             sliver: SliverToBoxAdapter(
               child: Text(
                 'Ready to Scan (${ready.length})',
@@ -160,7 +163,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
             sliver: SliverList.builder(
               itemCount: ready.length,
               itemBuilder: (_, index) =>
@@ -172,12 +175,10 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
     );
   }
 
-  Widget _buildCompletedList(
-    BuildContext context,
-    List<Assessment> completed,
-  ) {
+  Widget _buildCompletedList(BuildContext context, List<Assessment> completed) {
+    final hp = ResponsiveLayout.horizontalPadding(context);
     if (completed.isEmpty) {
-      return Center(
+      return const Center(
         child: AppEmptyState(
           icon: Icons.check_circle_outline,
           title: 'No completed exams yet',
@@ -189,7 +190,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          padding: EdgeInsets.fromLTRB(hp, 8, hp, 4),
           sliver: SliverToBoxAdapter(
             child: Text(
               'Completed (${completed.length})',
@@ -201,7 +202,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
           sliver: SliverList.builder(
             itemCount: completed.length,
             itemBuilder: (_, index) => AssessmentCard(
@@ -216,8 +217,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
   }
 
   void _openCompletedExam(BuildContext context, Assessment assessment) async {
-    final results =
-        await HybridGradingService().loadScanResults(assessment.id);
+    final results = await HybridGradingService().loadScanResults(assessment.id);
 
     if (!context.mounted) return;
 

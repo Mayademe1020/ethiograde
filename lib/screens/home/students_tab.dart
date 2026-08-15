@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/responsive.dart';
 import '../../models/student.dart';
 import '../../services/student_provider.dart';
 
@@ -26,31 +27,35 @@ class _StudentsTabState extends State<StudentsTab> {
   @override
   Widget build(BuildContext context) {
     final students = context.watch<StudentProvider>();
-    final filtered = _query.isEmpty
-        ? List<Student>.of(students.students)
-        : students.students.where((s) {
-            final q = _query.toLowerCase();
-            return s.fullName.toLowerCase().contains(q) ||
-                s.studentId.toLowerCase().contains(q);
-          }).toList()
-      ..sort((a, b) => a.fullName.compareTo(b.fullName));
+    final hp = ResponsiveLayout.horizontalPadding(context);
+    final filtered =
+        _query.isEmpty
+              ? List<Student>.of(students.students)
+              : students.students.where((s) {
+                  final q = _query.toLowerCase();
+                  return s.fullName.toLowerCase().contains(q) ||
+                      s.studentId.toLowerCase().contains(q);
+                }).toList()
+          ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Students',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Students',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       onPressed: () =>
@@ -70,7 +75,7 @@ class _StudentsTabState extends State<StudentsTab> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            padding: EdgeInsets.fromLTRB(hp, 12, hp, 0),
             child: TextField(
               controller: _searchController,
               onChanged: (v) => setState(() => _query = v),
@@ -87,15 +92,17 @@ class _StudentsTabState extends State<StudentsTab> {
                       )
                     : null,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: const BorderSide(color: AppTheme.outlineLight),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: const BorderSide(color: AppTheme.outlineLight),
                 ),
               ),
             ),
@@ -137,8 +144,7 @@ class _StudentsTabState extends State<StudentsTab> {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.addStudent),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.addStudent),
             icon: const Icon(Icons.person_add),
             label: const Text('Add Students'),
           ),
@@ -154,7 +160,7 @@ class _StudentsTabState extends State<StudentsTab> {
     );
   }
 
-  Widget _buildStudentList(BuildContext context, List<dynamic> filtered) {
+  Widget _buildStudentList(BuildContext context, List<Student> filtered) {
     if (filtered.isEmpty && _query.isNotEmpty) {
       return Center(
         child: Padding(
@@ -162,11 +168,11 @@ class _StudentsTabState extends State<StudentsTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search_off, size: 48, color: Colors.grey.shade400),
+              const Icon(Icons.search_off, size: 48, color: AppTheme.onSurfaceVariantLight),
               const SizedBox(height: 12),
               Text(
                 'No students matching "$_query"',
-                style: TextStyle(color: AppTheme.lightText),
+                style: const TextStyle(color: AppTheme.lightText),
               ),
             ],
           ),
@@ -183,10 +189,10 @@ class _StudentsTabState extends State<StudentsTab> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+              backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
               child: Text(
                 student.fullName[0].toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppTheme.primaryGreen,
                   fontWeight: FontWeight.bold,
                 ),

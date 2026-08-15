@@ -63,6 +63,13 @@ class ImportService {
       RegExp(r'grade\s*level', caseSensitive: false),
       RegExp(r'year', caseSensitive: false),
     ],
+    'parentPhone': [
+      RegExp(r'ስልክ', unicode: true),
+      RegExp(r'phone', caseSensitive: false),
+      RegExp(r'parent.*phone', caseSensitive: false),
+      RegExp(r'联系电话', unicode: true),
+      RegExp(r'tel', caseSensitive: false),
+    ],
   };
 
   // ── Import ──────────────────────────────────────────────────────
@@ -127,6 +134,7 @@ class ImportService {
         final className = _getCell(row, columnMap['className']);
         final section = _getCell(row, columnMap['section']);
         final gradeStr = _getCell(row, columnMap['grade']);
+        final parentPhone = _getCell(row, columnMap['parentPhone']);
 
         if (firstName.isEmpty && lastName.isEmpty && studentId.isEmpty) {
           continue;
@@ -144,7 +152,9 @@ class ImportService {
           classIds: classIds,
           className: className,
           section: section,
-          grade: int.tryParse(gradeStr) ?? 1));
+          grade: int.tryParse(gradeStr) ?? 1,
+          parentPhone: parentPhone.isEmpty ? null : parentPhone,
+        ));
       } catch (e) {
         errors.add('Row ${i + 1}: $e');
       }
@@ -223,7 +233,7 @@ class ImportService {
           (r['maxScore'] ?? 0).toDouble(),
           '${pct.toStringAsFixed(1)}%',
           r['grade'] ?? '',
-          pct >= 50 ? 'PASS' : 'FAIL',
+          if (pct >= 50) 'PASS' else 'FAIL',
         ];
       }),
     ];

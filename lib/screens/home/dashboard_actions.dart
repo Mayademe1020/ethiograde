@@ -57,14 +57,14 @@ class DashboardAction {
 /// lookup so that assessments with status `grading` are not rejected.
 /// [activeAssessments] is the filtered active-only list — used for
 /// setup/ready prioritization.
-DashboardAction resolveDashboardAction({
+Future<DashboardAction> resolveDashboardAction({
   required List<Assessment> allAssessments,
   required List<Assessment> activeAssessments,
-}) {
+}) async {
   // ── Priority 1: Valid interrupted draft ──
   // Look up assessment from full collection (not just active) so that
-  // assessments with status `grading` are found.
-  final drafts = DraftService().getAllDrafts();
+  // assessments with status `grading` are not rejected.
+  final drafts = await DraftService().getAllDrafts();
   for (final draft in drafts) {
     if (draft.age.inDays >= 7) continue;
     if (draft.completedResults.isEmpty) continue;
@@ -128,7 +128,7 @@ DashboardAction resolveDashboardAction({
   }
 
   // ── Priority 4: Generic start-grading action ──
-  return DashboardAction(
+  return const DashboardAction(
     type: DashboardActionType.gradePapers,
     priority: 4,
     title: 'Grade papers',

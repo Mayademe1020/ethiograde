@@ -66,7 +66,9 @@ class AssessmentCard extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -133,21 +135,21 @@ class AssessmentCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.sm + 2),
 
                       // ── Metadata row ───────────────────────────────
-                      Row(
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: 4,
                         children: [
                           _MetaBadge(
                             icon: Icons.help_outline,
                             label: '${assessment.questionCount} Q',
                             color: cs.onSurfaceVariant,
                           ),
-                          const SizedBox(width: AppSpacing.sm),
                           _MetaBadge(
                             icon: Icons.star_border_rounded,
                             label: '${assessment.maxScore.toInt()} pts',
                             color: cs.onSurfaceVariant,
                           ),
                           if (assessment.className.isNotEmpty) ...[
-                            const SizedBox(width: AppSpacing.sm),
                             _MetaBadge(
                               icon: Icons.class_outlined,
                               label: assessment.className,
@@ -162,17 +164,18 @@ class AssessmentCard extends StatelessWidget {
                                 final cls = classProv.classes.isNotEmpty
                                     ? classProv.classes.firstWhere(
                                         (c) => c.name == assessment.className,
-                                        orElse: () => classProv.classes.last)
+                                        orElse: () => classProv.classes.last,
+                                      )
                                     : null;
-                                if (cls == null || cls.academicYear.isEmpty) return const SizedBox.shrink();
-                                return Padding(
-                                  padding: const EdgeInsets.only(left: AppSpacing.sm),
-                                  child: _MetaBadge(
-                                    icon: Icons.calendar_today_outlined,
-                                    label: cls.academicYear,
-                                    color: cs.onSurfaceVariant),
+                                if (cls == null || cls.academicYear.isEmpty)
+                                  return const SizedBox.shrink();
+                                return _MetaBadge(
+                                  icon: Icons.calendar_today_outlined,
+                                  label: cls.academicYear,
+                                  color: cs.onSurfaceVariant,
                                 );
-                              }),
+                              },
+                            ),
                           ],
                         ],
                       ),
@@ -253,12 +256,16 @@ class _MetaBadge extends StatelessWidget {
       children: [
         Icon(icon, size: 13, color: color),
         const SizedBox(width: 3),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: color,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ],
@@ -365,7 +372,11 @@ class _NextActionCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.lightbulb_outlined, size: 16, color: AppTheme.primaryGreen),
+          const Icon(
+            Icons.lightbulb_outlined,
+            size: 16,
+            color: AppTheme.primaryGreen,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -381,10 +392,7 @@ class _NextActionCard extends StatelessWidget {
                 ),
                 Text(
                   'Tap to view and complete your results',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: cs.onSurfaceVariant,
-                  ),
+                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
                 ),
               ],
             ),
