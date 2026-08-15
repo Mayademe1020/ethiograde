@@ -7,7 +7,6 @@ import '../models/assessment.dart';
 import '../models/scan_result.dart';
 import '../models/audit_entry.dart';
 import '../models/grading_scale.dart';
-import '../models/teacher.dart';
 import '../models/weighted_grade.dart';
 
 /// Migrates Hive data from raw Map serialization to typed TypeAdapter format.
@@ -65,25 +64,25 @@ class HiveMigrationService {
     // Migrate each box
     await _migrateBox<Student>(
       'students',
-      (map) => Student.fromMap(map));
+      Student.fromMap);
     await _migrateBox<ClassInfo>(
       'classes',
-      (map) => ClassInfo.fromMap(map));
+      ClassInfo.fromMap);
     await _migrateBox<Assessment>(
       'assessments',
-      (map) => Assessment.fromMap(map));
-    await _migrateLazyBox<ScanResult>(
+      Assessment.fromMap);
+    await _migrateBox<ScanResult>(
       'scan_results',
-      (map) => ScanResult.fromMap(map));
+      ScanResult.fromMap);
     await _migrateBox<AuditEntry>(
       'audit_trail',
-      (map) => AuditEntry.fromMap(map));
+      AuditEntry.fromMap);
     await _migrateBox<GradingScale>(
       'grading_scales',
-      (map) => GradingScale.fromMap(map));
+      GradingScale.fromMap);
     await _migrateBox<WeightedGradeScale>(
       'weighted_scales',
-      (map) => WeightedGradeScale.fromMap(map));
+      WeightedGradeScale.fromMap);
 
     await markComplete();
     debugPrint('[HiveMigration] Complete in ${sw.elapsedMilliseconds}ms');

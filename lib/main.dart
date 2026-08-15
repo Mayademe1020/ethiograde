@@ -13,7 +13,6 @@ import 'config/routes.dart';
 import 'config/theme.dart';
 import 'config/constants.dart';
 import 'config/hive_adapters.dart';
-import 'models/grading_scale.dart';
 import 'services/assessment_provider.dart';
 import 'services/student_provider.dart';
 import 'services/settings_provider.dart';
@@ -52,35 +51,85 @@ bool _hiveCorruptionDetected = false;
 /// [Hive] boxes are closed on [AppLifecycleState.detached] to flush pending
 /// writes and prevent corruption on force-close.
 class _AppLifecycleObserver with WidgetsBindingObserver {
-  _AppLifecycleObserver() {
-    WidgetsBinding.instance.addObserver(this);
-  }
+   _AppLifecycleObserver() {
+     WidgetsBinding.instance.addObserver(this);
+   }
 
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-  }
+   void dispose() {
+     WidgetsBinding.instance.removeObserver(this);
+   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
-      _cleanup();
-    }
-  }
+   @override
+   void didChangeAppLifecycleState(AppLifecycleState state) {
+     if (state == AppLifecycleState.detached) {
+       _cleanup();
+     }
+   }
 
-  /// Best-effort cleanup — never throw from lifecycle callbacks.
-  static void _cleanup() {
-    try {
-      OcrService().dispose();
-    } catch (_) {}
-    try {
-      // Flush and close all Hive boxes to prevent corruption on force-kill.
-      Hive.close();
-    } catch (_) {}
-  }
+   /// Best-effort cleanup — never throw from lifecycle callbacks.
+   static void _cleanup() {
+     try {
+       OcrService.instance.dispose();
+     } catch (_) {}
+     try {
+       // Flush and close all Hive boxes to prevent corruption on force-kill.
+       Hive.close();
+     } catch (_) {}
+   }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Global error handlers ──────────────────────────────────────────
+  // Catch Flutter framework errors (build/layout/paint failures).
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exception}\n${details.stack}');
+  };
+
+  // Catch async errors that escape try/catch (unhandled Future errors).
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    debugPrint('[PlatformDispatcher] $error\n$stack');
+    return true; // prevent default handler
+  };
+
+  // Replace red ErrorWidget with a user-friendly screen.
+  ErrorWidget.builder = (details) {
+    final cs = ThemeData().colorScheme;
+    return Material(
+      color: cs.errorContainer,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: cs.error, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                'Something went wrong',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onErrorContainer,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                details.exception.toString(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onErrorContainer.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
 
   _InitStatus status;
 
@@ -94,7 +143,7 @@ void main() async {
   final isFirstLaunch = await AppConstants.isFirstLaunch;
 
   // Register lifecycle observer for native resource cleanup.
-  final lifecycleObserver = _AppLifecycleObserver();
+  _AppLifecycleObserver();
 
   runApp(EthioGradeApp(initStatus: status, isFirstLaunch: isFirstLaunch));
 }
@@ -105,7 +154,8 @@ void main() async {
 /// 2. Open three boxes with [HiveAesCipher]:
 ///    - `students` (regular)
 ///    - `assessments` (regular)
-///    - `scan_results` (LAZY — expected to grow large)
+///    - `scan_results` (regular — opened lazy historically; services use it
+///      via [HiveBoxMixin.openBox] which requires a non-lazy box)
 /// 3. Compact each box to reclaim fragmented space.
 ///
 /// On *any* failure the caller falls back to in-memory-only state;
@@ -123,8 +173,9 @@ Future<_InitStatus> _initEncryptedHive() async {
   registerHiveAdapters();
 
   // ── 2. Encryption key ─────────────────────────────────────────────
-  final secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true));
+  const secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   Uint8List encryptionKey;
 
@@ -134,10 +185,12 @@ Future<_InitStatus> _initEncryptedHive() async {
     debugPrint('[Hive] Loaded existing encryption key');
   } else {
     encryptionKey = Uint8List.fromList(
-      List<int>.generate(32, (_) => Random.secure().nextInt(256)));
+      List<int>.generate(32, (_) => Random.secure().nextInt(256)),
+    );
     await secureStorage.write(
       key: _hiveKeyStorageKey,
-      value: base64Encode(encryptionKey));
+      value: base64Encode(encryptionKey),
+    );
     debugPrint('[Hive] Generated new AES-256 encryption key');
   }
 
@@ -147,9 +200,10 @@ Future<_InitStatus> _initEncryptedHive() async {
   // Only open core boxes at startup — others open on-demand via providers.
   final students = await _openBoxSafe(_BoxNames.students, cipher: cipher);
   final assessments = await _openBoxSafe(_BoxNames.assessments, cipher: cipher);
-  final scanResults = await _openLazyBoxSafe(
+  final scanResults = await _openBoxSafe(
     _BoxNames.scanResults,
-    cipher: cipher);
+    cipher: cipher,
+  );
 
   // PII settings box (encrypted) — teacher name, phone, handles
   await _openBoxSafe('settings_pii', cipher: cipher);
@@ -158,10 +212,13 @@ Future<_InitStatus> _initEncryptedHive() async {
   await _openBoxSafe(_BoxNames.metadata, cipher: cipher);
 
   // ── 4b. Edge-case boxes ───────────────────────────────────────────
-  await _openBoxSafe('audit_trail', cipher: cipher);     // Grade audit trail
-  await _openBoxSafe('grading_drafts', cipher: cipher);  // Auto-save mid-grading
+  await _openBoxSafe('audit_trail', cipher: cipher); // Grade audit trail
+  await _openBoxSafe('grading_drafts', cipher: cipher); // Auto-save mid-grading
   await _openBoxSafe('student_transfers', cipher: cipher); // Transfer history
-  await _openBoxSafe('weighted_scales', cipher: cipher);  // Weighted grade configs
+  await _openBoxSafe(
+    'weighted_scales',
+    cipher: cipher,
+  ); // Weighted grade configs
 
   // ── 5. Run migrations ─────────────────────────────────────────────
   await MigrationService.runMigrations();
@@ -169,11 +226,10 @@ Future<_InitStatus> _initEncryptedHive() async {
   debugPrint(
     '[Hive] Core boxes open — students: ${students.length}, '
     'assessments: ${assessments.length}, '
-    'scan_results: ${scanResults.length}');
+    'scan_results: ${scanResults.length}',
+  );
 
-  return _hiveCorruptionDetected
-      ? _InitStatus.corruption
-      : _InitStatus.ok;
+  return _hiveCorruptionDetected ? _InitStatus.corruption : _InitStatus.ok;
 }
 
 /// Open a regular [Box] with error recovery.
@@ -199,7 +255,9 @@ Future<LazyBox> _openLazyBoxSafe(
   try {
     return await Hive.openLazyBox(name, encryptionCipher: cipher);
   } catch (e) {
-    debugPrint('[Hive] Lazy box "$name" corrupt — preserving and recreating: $e');
+    debugPrint(
+      '[Hive] Lazy box "$name" corrupt — preserving and recreating: $e',
+    );
     await _preserveCorruptBox(name);
     return await Hive.openLazyBox(name, encryptionCipher: cipher);
   }
@@ -243,12 +301,15 @@ class EthioGradeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+      providers: [
+        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(
-          create: (_) => SettingsProvider()..loadSettings()),
+          create: (_) => SettingsProvider()..loadSettings(),
+        ),
         ChangeNotifierProvider(
-          create: (_) => TeacherProvider()..loadTeachers()),
+          create: (_) => TeacherProvider()..loadTeachers(),
+        ),
         ChangeNotifierProvider(create: (_) => ClassProvider()..loadClasses()),
         ChangeNotifierProvider(create: (_) => WeightedGradeProvider()),
       ],
@@ -269,10 +330,13 @@ class EthioGradeApp extends StatelessWidget {
             onGenerateRoute: AppRoutes.onGenerateRoute,
             // Non-intrusive banner if Hive had issues.
             builder: initStatus != _InitStatus.ok
-                ? (context, child) => _InitBanner(
-                    status: initStatus, child: child)
-                : null);
-        }));
+                ? (context, child) =>
+                      _InitBanner(status: initStatus, child: child)
+                : null,
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -292,7 +356,7 @@ class _InitBanner extends StatelessWidget {
           content: Text(
             isCorruption
                 ? 'Some data was recovered from a corrupted file. '
-                    'Your grades are safe. See Settings → Storage.'
+                      'Your grades are safe. See Settings → Storage.'
                 : 'Storage unavailable — grades will not be saved this session.',
             style: TextStyle(
               fontSize: 13,

@@ -69,7 +69,7 @@ class AnswerKeyRecalculationService {
     // Mark assessment as recalculating
     await _setRecalculationState(assessment, inProgress: true, processed: 0, total: results.length);
 
-    final box = Hive.lazyBox('scan_results');
+    final box = Hive.box('scan_results');
 
     for (int i = 0; i < results.length; i++) {
       final result = results[i];

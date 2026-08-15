@@ -5,6 +5,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/grading_scale.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 
 enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
 
@@ -12,7 +14,7 @@ enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
 ///
 /// Non-sensitive settings (rubric, language, auto-enhance) → SharedPreferences.
 /// PII (names, phone numbers, handles) → encrypted Hive box.
-class SettingsProvider extends ChangeNotifier {
+class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
   static const String _piiBoxName = 'settings_pii';
 
   String _schoolName = '';
@@ -110,8 +112,8 @@ class SettingsProvider extends ChangeNotifier {
         try {
           final List<dynamic> decoded = jsonDecode(scalesJson);
           _customScales = decoded.map((m) => GradingScale.fromMap(m)).toList();
-        } catch (e) {
-          debugPrint('[Settings] Failed to parse custom scales: $e');
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'loadSettings/scales', e, st);
           _customScales = [];
         }
       }
@@ -123,15 +125,26 @@ class SettingsProvider extends ChangeNotifier {
       }
       if (_subjects.isEmpty) {
         _subjects = [
-          'Mathematics', 'English', 'Science', 'Physics', 'Chemistry',
-          'Biology', 'History', 'Geography', 'Civics', 'Economics',
-          'Amharic', 'ICT', 'Physical Education',
+          'Mathematics',
+          'English',
+          'Science',
+          'Physics',
+          'Chemistry',
+          'Biology',
+          'History',
+          'Geography',
+          'Civics',
+          'Economics',
+          'Amharic',
+          'ICT',
+          'Physical Education',
         ];
         await piiBox.put('subjects', _subjects);
       }
 
       // Academic year
-      _currentAcademicYear = (piiBox.get('current_academic_year') as String?) ?? '';
+      _currentAcademicYear =
+          (piiBox.get('current_academic_year') as String?) ?? '';
       final yearsJson = piiBox.get('academic_years');
       if (yearsJson != null && yearsJson is List) {
         _academicYears = List<String>.from(yearsJson);
@@ -148,8 +161,8 @@ class SettingsProvider extends ChangeNotifier {
       }
 
       _loaded = true;
-    } catch (e) {
-      debugPrint('[Settings] loadSettings failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'loadSettings', e, st);
       _loaded = true; // Don't retry-loop on failure
     }
     notifyListeners();
@@ -280,9 +293,17 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> updateSubject(String oldSubject, String newSubject) async {
     final trimmed = newSubject.trim();
     if (trimmed.isEmpty) return;
-    final idx = _subjects.indexWhere((s) => s.toLowerCase() == oldSubject.toLowerCase());
+    final idx = _subjects.indexWhere(
+      (s) => s.toLowerCase() == oldSubject.toLowerCase(),
+    );
     if (idx < 0) return;
-    if (_subjects.any((s) => s.toLowerCase() == trimmed.toLowerCase() && s.toLowerCase() != oldSubject.toLowerCase())) return;
+    if (_subjects.any(
+      (s) =>
+          s.toLowerCase() == trimmed.toLowerCase() &&
+          s.toLowerCase() != oldSubject.toLowerCase(),
+    )) {
+      return;
+    }
     _subjects[idx] = trimmed;
     _subjects.sort();
     final piiBox = await _getPiiBox();
@@ -369,10 +390,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Box> _getPiiBox() async {
-    if (Hive.isBoxOpen(_piiBoxName)) return Hive.box(_piiBoxName);
-    return await Hive.openBox(_piiBoxName);
-  }
+  Future<Box> _getPiiBox() async => await openBox(_piiBoxName);
 
   static VoiceFeedbackMode _parseVoiceFeedbackMode(
     String? value, {

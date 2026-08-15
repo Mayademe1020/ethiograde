@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../models/teacher.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 import 'validation_service.dart';
 
 /// Manages teacher profiles with Hive persistence.
 ///
 /// Single-teacher (individual) and multi-teacher (school) modes supported.
 /// In individual mode, the first teacher is the "active" one.
-class TeacherProvider extends ChangeNotifier {
+class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
   static const String _boxName = 'teachers';
   static const ValidationService _validator = ValidationService();
   List<Teacher> _teachers = [];
@@ -31,26 +33,21 @@ class TeacherProvider extends ChangeNotifier {
   /// Convenience: active teacher name, or empty string.
   String get activeTeacherName => activeTeacher?.name ?? '';
 
-  /// Ensures the Hive box is open (lazy init).
-  Future<Box> _getBox() async {
-    if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
-    return await Hive.openBox(_boxName);
-  }
-
   /// Load teachers from Hive. Safe to call multiple times.
   Future<void> loadTeachers() async {
     if (_loaded) return;
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       _teachers = box.values
           .map(
-            (data) => Teacher.fromMap(Map<String, dynamic>.from(data as Map)))
+            (data) => Teacher.fromMap(Map<String, dynamic>.from(data as Map)),
+          )
           .toList();
       _teachers.sort((a, b) => a.name.compareTo(b.name));
       _loaded = true;
-      debugPrint('TeacherProvider: loaded ${_teachers.length} teacher(s)');
+      AppLog.info(this, 'loadTeachers', 'loaded ${_teachers.length} teacher(s)');
     } catch (e, st) {
-      debugPrint('TeacherProvider: load failed ($e)\n$st');
+      AppErrorHandler.catchError(this, 'loadTeachers', e, st);
       _teachers = [];
       _loaded = true;
     }
@@ -58,58 +55,49 @@ class TeacherProvider extends ChangeNotifier {
   }
 
   /// Add a new teacher. Returns the created Teacher on success, null on failure.
-  ///
-  /// Validates name (non-empty, ≤100 chars), role, and duplicate name
-  /// before persisting. Check [lastAddError] for validation errors.
   Future<Teacher?> addTeacher(Teacher teacher) async {
-    // Validate against existing teachers
     final validation = _validator.validateTeacher(
       teacher,
-      existingTeachers: _teachers);
+      existingTeachers: _teachers,
+    );
     if (!validation.isValid) {
-      debugPrint(
-        'TeacherProvider: addTeacher validation failed: '
-        '${validation.errors}');
+      AppLog.warn(this, 'addTeacher', 'validation failed: ${validation.errors}');
       _lastAddErrors = validation.errors;
       notifyListeners();
       return null;
     }
 
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       await box.put(teacher.id, teacher.toMap());
       _teachers.add(teacher);
       _teachers.sort((a, b) => a.name.compareTo(b.name));
       _lastAddErrors = [];
       notifyListeners();
-      debugPrint('TeacherProvider: added ${teacher.name}');
+      AppLog.info(this, 'addTeacher', 'added ${teacher.name}');
       return teacher;
     } catch (e, st) {
-      debugPrint('TeacherProvider: addTeacher failed ($e)\n$st');
+      AppErrorHandler.catchError(this, 'addTeacher', e, st);
       return null;
     }
   }
 
   /// Update an existing teacher. Returns true on success.
-  ///
-  /// Validates name, role, and duplicate name (excluding self) before persisting.
   Future<bool> updateTeacher(Teacher updated) async {
-    // Validate — exclude self from duplicate check
     final others = _teachers.where((t) => t.id != updated.id).toList();
     final validation = _validator.validateTeacher(
       updated,
-      existingTeachers: others);
+      existingTeachers: others,
+    );
     if (!validation.isValid) {
-      debugPrint(
-        'TeacherProvider: updateTeacher validation failed: '
-        '${validation.errors}');
+      AppLog.warn(this, 'updateTeacher', 'validation failed: ${validation.errors}');
       _lastAddErrors = validation.errors;
       notifyListeners();
       return false;
     }
 
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       await box.put(updated.id, updated.toMap());
       final index = _teachers.indexWhere((t) => t.id == updated.id);
       if (index >= 0) {
@@ -117,12 +105,12 @@ class TeacherProvider extends ChangeNotifier {
         _teachers.sort((a, b) => a.name.compareTo(b.name));
         _lastAddErrors = [];
         notifyListeners();
-        debugPrint('TeacherProvider: updated ${updated.name}');
+        AppLog.info(this, 'updateTeacher', 'updated ${updated.name}');
         return true;
       }
       return false;
     } catch (e, st) {
-      debugPrint('TeacherProvider: updateTeacher failed ($e)\n$st');
+      AppErrorHandler.catchError(this, 'updateTeacher', e, st);
       return false;
     }
   }
@@ -130,14 +118,14 @@ class TeacherProvider extends ChangeNotifier {
   /// Delete a teacher by ID. Returns true on success.
   Future<bool> deleteTeacher(String id) async {
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       await box.delete(id);
       _teachers.removeWhere((t) => t.id == id);
       notifyListeners();
-      debugPrint('TeacherProvider: deleted $id');
+      AppLog.info(this, 'deleteTeacher', 'deleted $id');
       return true;
     } catch (e, st) {
-      debugPrint('TeacherProvider: deleteTeacher failed ($e)\n$st');
+      AppErrorHandler.catchError(this, 'deleteTeacher', e, st);
       return false;
     }
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/student.dart';
 import '../config/constants.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 import 'validation_service.dart';
 import 'result.dart';
 
@@ -13,7 +15,7 @@ export 'result.dart';
 ///
 /// All operations are wrapped in try/catch — persistence errors never
 /// crash the app.  Callers check [Result.success].
-class StudentProvider extends ChangeNotifier {
+class StudentProvider extends ChangeNotifier with HiveBoxMixin {
   static const _uuid = Uuid();
   static const _validator = ValidationService();
 
@@ -49,7 +51,9 @@ class StudentProvider extends ChangeNotifier {
         (s) =>
             s.firstName.toLowerCase().contains(q) ||
             s.lastName.toLowerCase().contains(q) ||
-            s.studentId.toLowerCase().contains(q)));
+            s.studentId.toLowerCase().contains(q),
+      ),
+    );
   }
 
   /// Unique class IDs that students belong to (for filter chips).
@@ -70,16 +74,17 @@ class StudentProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final box = Hive.box(AppConstants.studentsBox);
+      final box = await openBox(AppConstants.studentsBox);
       _students =
           box.values
               .map((data) => Student.fromMap(Map<String, dynamic>.from(data)))
               .toList()
             ..sort(
               (a, b) =>
-                  a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
-    } catch (e) {
-      debugPrint('[StudentProvider] loadStudents failed: $e');
+                  a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+            );
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'loadStudents', e, st);
       _students = [];
     }
 
@@ -91,32 +96,31 @@ class StudentProvider extends ChangeNotifier {
 
   /// Validate, persist, and register a new student.
   Future<Result<Student>> addStudent(Student student) async {
-    // Validate
     final validation = _validator.validateStudent(student);
     if (!validation.isValid) {
       return Result.failure(validation.errors.join('; '));
     }
 
-    // Ensure ID
-    final withId = student.id.isEmpty ? student.copyWith(id: _uuid.v4()) : student;
+    final withId = student.id.isEmpty
+        ? student.copyWith(id: _uuid.v4())
+        : student;
 
-    // Check duplicate
-    final box = Hive.box(AppConstants.studentsBox);
+    final box = await openBox(AppConstants.studentsBox);
     if (box.containsKey(withId.id)) {
       return Result.failure('Student with ID ${withId.id} already exists');
     }
 
-    // Persist
     try {
       await box.put(withId.id, withId.toMap());
-    } catch (e) {
-      debugPrint('[StudentProvider] addStudent Hive write failed: $e');
-      return Result.failure('Failed to save student');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'addStudent', e, st);
+      return const Result.failure('Failed to save student');
     }
 
     _students.add(withId);
     _students.sort(
-      (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
+      (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+    );
     notifyListeners();
     return Result.success(withId);
   }
@@ -130,16 +134,16 @@ class StudentProvider extends ChangeNotifier {
       return Result.failure(validation.errors.join('; '));
     }
 
-    final box = Hive.box(AppConstants.studentsBox);
+    final box = await openBox(AppConstants.studentsBox);
     if (!box.containsKey(student.id)) {
       return Result.failure('Student ${student.id} not found');
     }
 
     try {
       await box.put(student.id, student.toMap());
-    } catch (e) {
-      debugPrint('[StudentProvider] updateStudent Hive write failed: $e');
-      return Result.failure('Failed to update student');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'updateStudent', e, st);
+      return const Result.failure('Failed to update student');
     }
 
     final index = _students.indexWhere((s) => s.id == student.id);
@@ -154,21 +158,21 @@ class StudentProvider extends ChangeNotifier {
 
   /// Remove a student. Associated scan results are kept for history.
   Future<Result<void>> deleteStudent(String studentId) async {
-    final box = Hive.box(AppConstants.studentsBox);
+    final box = await openBox(AppConstants.studentsBox);
     if (!box.containsKey(studentId)) {
       return Result.failure('Student $studentId not found');
     }
 
     try {
       await box.delete(studentId);
-    } catch (e) {
-      debugPrint('[StudentProvider] deleteStudent Hive delete failed: $e');
-      return Result.failure('Failed to delete student');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'deleteStudent', e, st);
+      return const Result.failure('Failed to delete student');
     }
 
     _students.removeWhere((s) => s.id == studentId);
     notifyListeners();
-    return Result.success(null);
+    return const Result.success(null);
   }
 
   // ── Queries ───────────────────────────────────────────────────────
@@ -186,7 +190,7 @@ class StudentProvider extends ChangeNotifier {
     return _students.where((s) => s.className == className).toList();
   }
 
-  /// Case-insensitive search across English names names.
+  /// Case-insensitive search across English names.
   List<Student> searchStudents(String query) {
     if (query.trim().isEmpty) return List.unmodifiable(_students);
     final q = query.toLowerCase();
@@ -195,7 +199,8 @@ class StudentProvider extends ChangeNotifier {
           (s) =>
               s.firstName.toLowerCase().contains(q) ||
               s.lastName.toLowerCase().contains(q) ||
-              s.studentId.toLowerCase().contains(q))
+              s.studentId.toLowerCase().contains(q),
+        )
         .toList();
   }
 
@@ -203,41 +208,38 @@ class StudentProvider extends ChangeNotifier {
 
   /// Add multiple students in one call. Batches Hive writes + single notify.
   Future<Result<int>> addStudents(List<Student> students) async {
-    if (students.isEmpty) return Result.failure('No students provided');
+    if (students.isEmpty) return const Result.failure('No students provided');
 
-    final box = Hive.box(AppConstants.studentsBox);
+    final box = await openBox(AppConstants.studentsBox);
     int added = 0;
     final List<String> errors = [];
 
     for (final s in students) {
-      // Validate
       final validation = _validator.validateStudent(s);
       if (!validation.isValid) {
         errors.add('${s.fullName}: ${validation.errors.join("; ")}');
         continue;
       }
 
-      // Ensure ID
       final withId = s.id.isEmpty ? s.copyWith(id: _uuid.v4()) : s;
-
-      // Skip duplicates
       if (box.containsKey(withId.id)) continue;
 
       try {
         await box.put(withId.id, withId.toMap());
         _students.add(withId);
         added++;
-      } catch (e) {
+      } catch (e, st) {
+        AppErrorHandler.catchError(this, 'addStudents', e, st);
         errors.add('${s.fullName}: save failed');
       }
     }
 
     if (added > 0) {
       _students.sort(
-        (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
-      notifyListeners(); // Single rebuild for the whole batch
-      debugPrint(
-        '[StudentProvider] Batch added $added/${students.length} students');
+        (a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+      );
+      notifyListeners();
+      AppLog.info(this, 'addStudents', 'batch added $added/${students.length} students');
       return Result.success(added);
     }
 
@@ -259,10 +261,9 @@ class StudentProvider extends ChangeNotifier {
   /// Wipe the box and in-memory cache.
   Future<void> clearAll() async {
     try {
-      final box = Hive.box(AppConstants.studentsBox);
-      await box.clear();
-    } catch (e) {
-      debugPrint('[StudentProvider] clearAll failed: $e');
+      await clearBox(AppConstants.studentsBox);
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'clearAll', e, st);
     }
     _students.clear();
     notifyListeners();
