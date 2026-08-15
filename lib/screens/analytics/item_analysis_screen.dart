@@ -35,7 +35,10 @@ class _ItemAnalysisScreenState extends State<ItemAnalysisScreen> {
     super.initState();
     // Filter to only graded/reviewed results for consistency
     _gradedResults = widget.results
-        .where((r) => r.status == ScanStatus.graded || r.status == ScanStatus.reviewed)
+        .where(
+          (r) =>
+              r.status == ScanStatus.graded || r.status == ScanStatus.reviewed,
+        )
         .toList();
     _summary = const ItemAnalysisService().computeSummary(
       results: _gradedResults,
@@ -61,35 +64,45 @@ class _ItemAnalysisScreenState extends State<ItemAnalysisScreen> {
         actions: [
           IconButton(
             icon: Icon(_sortByDifficulty ? Icons.sort : Icons.sort_by_alpha),
-            onPressed: () => setState(() => _sortByDifficulty = !_sortByDifficulty),
-            tooltip: _sortByDifficulty ? 'Sort by number' : 'Sort by difficulty',
+            onPressed: () =>
+                setState(() => _sortByDifficulty = !_sortByDifficulty),
+            tooltip: _sortByDifficulty
+                ? 'Sort by number'
+                : 'Sort by difficulty',
           ),
         ],
       ),
-      body: _summary.totalStudents == 0
-          ? const Center(child: Text('No graded results to analyze'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _SummaryCards(summary: _summary),
-                const SizedBox(height: 16),
-                if (_summary.lowDiscriminationCount > 0)
-                  _WarningBanner(
-                    count: _summary.lowDiscriminationCount,
-                    message: '${_summary.lowDiscriminationCount} question(s) have low discrimination — review these',
+      body: SafeArea(
+        child: _summary.totalStudents == 0
+            ? const Center(child: Text('No graded results to analyze'))
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _SummaryCards(summary: _summary),
+                  const SizedBox(height: 16),
+                  if (_summary.lowDiscriminationCount > 0)
+                    _WarningBanner(
+                      count: _summary.lowDiscriminationCount,
+                      message:
+                          '${_summary.lowDiscriminationCount} question(s) have low discrimination — review these',
+                    ),
+                  const SizedBox(height: 8),
+                  _SectionHeader(
+                    title: 'Questions',
+                    subtitle: _sortByDifficulty
+                        ? 'Sorted by difficulty (hardest first)'
+                        : 'Sorted by number',
                   ),
-                const SizedBox(height: 8),
-                _SectionHeader(
-                  title: 'Questions',
-                  subtitle: _sortByDifficulty ? 'Sorted by difficulty (hardest first)' : 'Sorted by number',
-                ),
-                const SizedBox(height: 8),
-                ..._sortedQuestions.map((q) => _QuestionRow(
-                  stats: q,
-                  onTap: () => _showQuestionDetail(q),
-                )),
-              ],
-            ),
+                  const SizedBox(height: 8),
+                  ..._sortedQuestions.map(
+                    (q) => _QuestionRow(
+                      stats: q,
+                      onTap: () => _showQuestionDetail(q),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
@@ -97,13 +110,15 @@ class _ItemAnalysisScreenState extends State<ItemAnalysisScreen> {
     final breakdown = const ItemAnalysisService().getAnswerBreakdown(
       questionNumber: stats.questionNumber,
       results: _gradedResults,
-      correctAnswer: widget.assessment.questions
-          .firstWhere(
-            (q) => q.number == stats.questionNumber,
-            orElse: () => Question(number: 0, type: QuestionType.mcq),
-          )
-          .correctAnswer
-          ?.toString() ?? '',
+      correctAnswer:
+          widget.assessment.questions
+              .firstWhere(
+                (q) => q.number == stats.questionNumber,
+                orElse: () => Question(number: 0, type: QuestionType.mcq),
+              )
+              .correctAnswer
+              ?.toString() ??
+          '',
     );
 
     showModalBottomSheet(
@@ -112,10 +127,8 @@ class _ItemAnalysisScreenState extends State<ItemAnalysisScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => _QuestionDetailSheet(
-        stats: stats,
-        breakdown: breakdown,
-      ),
+      builder: (context) =>
+          _QuestionDetailSheet(stats: stats, breakdown: breakdown),
     );
   }
 }
@@ -147,7 +160,9 @@ class _SummaryCards extends StatelessWidget {
             _SummaryCard(
               label: 'Pass Rate',
               value: '${summary.passRate.toStringAsFixed(0)}%',
-              color: summary.passRate >= 50 ? AppTheme.primaryGreen : AppTheme.primaryRed,
+              color: summary.passRate >= 50
+                  ? AppTheme.primaryGreen
+                  : AppTheme.primaryRed,
             ),
           ],
         ),
@@ -195,7 +210,7 @@ class _SummaryCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -229,13 +244,13 @@ class _WarningBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.orange.withOpacity(0.1),
+        color: Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -271,7 +286,7 @@ class _SectionHeader extends StatelessWidget {
         if (subtitle != null)
           Text(
             subtitle!,
-            style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+            style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
           ),
       ],
     );
@@ -314,7 +329,7 @@ class _QuestionRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _difficultyColor.withOpacity(0.1),
+                  color: _difficultyColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
@@ -338,18 +353,28 @@ class _QuestionRow extends StatelessWidget {
                       children: [
                         Text(
                           '${stats.correctCount}/${stats.totalStudents} correct',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: _difficultyColor.withOpacity(0.1),
+                            color: _difficultyColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             stats.difficultyLabel,
-                            style: TextStyle(fontSize: 11, color: _difficultyColor, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _difficultyColor,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -361,7 +386,9 @@ class _QuestionRow extends StatelessWidget {
                       child: LinearProgressIndicator(
                         value: stats.difficulty,
                         backgroundColor: Colors.grey.shade200,
-                        valueColor: AlwaysStoppedAnimation<Color>(_difficultyColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _difficultyColor,
+                        ),
                         minHeight: 6,
                       ),
                     ),
@@ -370,25 +397,35 @@ class _QuestionRow extends StatelessWidget {
                       children: [
                         Text(
                           '${(stats.difficulty * 100).toStringAsFixed(0)}%',
-                          style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.lightText,
+                          ),
                         ),
                         if (stats.mostCommonWrong != null) ...[
                           const SizedBox(width: 8),
                           Text(
                             'Common wrong: ${stats.mostCommonWrong}',
-                            style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.lightText,
+                            ),
                           ),
                         ],
                         const Spacer(),
                         if (stats.isLowDiscrimination)
-                          Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                          const Icon(
+                            Icons.info_outline,
+                            size: 14,
+                            color: Colors.orange,
+                          ),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: AppTheme.lightText),
+              const Icon(Icons.chevron_right, color: AppTheme.lightText),
             ],
           ),
         ),
@@ -402,10 +439,7 @@ class _QuestionDetailSheet extends StatelessWidget {
   final QuestionStats stats;
   final List<AnswerBreakdown> breakdown;
 
-  const _QuestionDetailSheet({
-    required this.stats,
-    required this.breakdown,
-  });
+  const _QuestionDetailSheet({required this.stats, required this.breakdown});
 
   @override
   Widget build(BuildContext context) {
@@ -433,18 +467,24 @@ class _QuestionDetailSheet extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 'Question ${stats.questionNumber}',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 '${stats.correctCount}/${stats.totalStudents} students correct (${(stats.difficulty * 100).toStringAsFixed(0)}%)',
-                style: TextStyle(color: AppTheme.lightText),
+                style: const TextStyle(color: AppTheme.lightText),
               ),
               const SizedBox(height: 20),
               // Stats row
               Row(
                 children: [
-                  _DetailStat(label: 'Difficulty', value: stats.difficultyLabel),
+                  _DetailStat(
+                    label: 'Difficulty',
+                    value: stats.difficultyLabel,
+                  ),
                   const SizedBox(width: 12),
                   _DetailStat(
                     label: 'Discrimination',
@@ -465,12 +505,14 @@ class _QuestionDetailSheet extends StatelessWidget {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              ...breakdown.map((b) => _AnswerBar(
-                option: b.option,
-                count: b.count,
-                percentage: b.percentage,
-                isCorrect: b.isCorrectOption,
-              )),
+              ...breakdown.map(
+                (b) => _AnswerBar(
+                  option: b.option,
+                  count: b.count,
+                  percentage: b.percentage,
+                  isCorrect: b.isCorrectOption,
+                ),
+              ),
             ],
           ),
         );
@@ -496,12 +538,17 @@ class _DetailStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isWarning ? Colors.orange.withOpacity(0.1) : Colors.grey.shade100,
+          color: isWarning
+              ? Colors.orange.withValues(alpha: 0.1)
+              : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           children: [
-            Text(label, style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
+            ),
             const SizedBox(height: 2),
             Text(
               value,
@@ -566,7 +613,7 @@ class _AnswerBar extends StatelessWidget {
             width: 60,
             child: Text(
               '$count (${percentage.toStringAsFixed(0)}%)',
-              style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+              style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
             ),
           ),
         ],

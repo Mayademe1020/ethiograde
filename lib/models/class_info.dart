@@ -74,7 +74,8 @@ class ClassInfo {
     createdAt: createdAt ?? DateTime.now(),
     lastModifiedAt: lastModifiedAt,
     examScheduleNote: examScheduleNote,
-    academicYear: academicYear);
+    academicYear: academicYear,
+  );
 
   int get studentCount => studentIds.length;
 
@@ -110,7 +111,8 @@ class ClassInfo {
     createdAt: createdAt,
     lastModifiedAt: lastModifiedAt ?? DateTime.now(),
     examScheduleNote: examScheduleNote ?? this.examScheduleNote,
-    academicYear: academicYear ?? this.academicYear);
+    academicYear: academicYear ?? this.academicYear,
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -143,5 +145,6 @@ class ClassInfo {
         ? DateTime.tryParse(map['lastModifiedAt'])
         : null,
     examScheduleNote: map['examScheduleNote'],
-    academicYear: map['academicYear'] ?? '');
+    academicYear: map['academicYear'] ?? '',
+  );
 }
