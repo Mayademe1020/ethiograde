@@ -56,7 +56,8 @@ class CameraProcessor {
   final AutoScanFrameAnalyzer _autoScanFrameAnalyzer = AutoScanFrameAnalyzer();
   final PaperImageIntakeService _paperImageIntake = PaperImageIntakeService();
 
-  bool _autoCaptureEnabled = false;
+  bool _autoCaptureEnabled = true;
+  int _countdownTicks = 1;
   bool _autoCaptureInFlight = false;
   bool _isImageStreamActive = false;
   bool _isStreamStopping = false;
@@ -148,10 +149,8 @@ class CameraProcessor {
       callbacks.onGuideStateChanged(newGuideState);
 
       // Pass real-time feedback text to UI
-      if (callbacks.onFeedbackTextChanged != null) {
-        callbacks.onFeedbackTextChanged!(decision.message);
-      }
-
+      callbacks.onFeedbackTextChanged(decision.message);
+    
       debugPrint('DECISION: ${decision.readiness}, shouldCapture=${decision.shouldCapture}');
 
       // Auto-capture decision — start countdown instead of instant capture
@@ -241,12 +240,16 @@ class CameraProcessor {
     }
   }
 
-  /// Start a 3-2-1 countdown before capture.
+  /// Start a countdown before capture. Ticks are configurable (0 = instant).
   void _startCountdown() {
     if (_countdownActive) return;
+    if (_countdownTicks <= 0) {
+      callbacks.onAutoCaptureTriggered?.call();
+      return;
+    }
     _countdownActive = true;
-    _countdownValue = 3;
-    callbacks.onCountdownChanged(3);
+    _countdownValue = _countdownTicks;
+    callbacks.onCountdownChanged(_countdownTicks);
 
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 700), (timer) {
       if (_countdownValue == null || _countdownValue! <= 1) {
@@ -254,13 +257,17 @@ class CameraProcessor {
         _countdownValue = null;
         _countdownActive = false;
         callbacks.onCountdownChanged(null);
-        // Trigger the actual capture
         callbacks.onAutoCaptureTriggered?.call();
         return;
       }
       _countdownValue = _countdownValue! - 1;
       callbacks.onCountdownChanged(_countdownValue);
     });
+  }
+
+  /// Set countdown ticks (0 = instant capture, 1 = 0.7s, 2 = 1.4s, 3 = 2.1s).
+  void setCountdownTicks(int ticks) {
+    _countdownTicks = ticks.clamp(0, 5);
   }
 
   /// Cancel any active countdown.
@@ -415,7 +422,7 @@ class CameraProcessor {
     callbacks.onCapturingChanged(true);
 
     try {
-      final image = await controller.takePicture();
+      await controller.takePicture();
       callbacks.onCapturingChanged(false);
       // Return the image path — caller handles navigation
       return;
@@ -446,9 +453,9 @@ class CameraProcessor {
         await _speakAutoResult(result);
       } else {
         final errorMessage = _translateError(result);
-        final onRetry = () {
+        void onRetry() {
           callbacks.onCaptureFeedbackChanged('Retrying...', 'Place paper in frame');
-        };
+        }
 
         if (callbacks.onCaptureError != null) {
           callbacks.onCaptureError!(errorMessage, onRetry, assessment);

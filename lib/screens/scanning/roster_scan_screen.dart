@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:camera/camera.dart';
 import '../../config/theme.dart';
 import '../../services/ocr_service.dart';
@@ -43,11 +42,13 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
       // Use rear camera
       final camera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first);
+        orElse: () => cameras.first,
+      );
       _controller = CameraController(
         camera,
         ResolutionPreset.high,
-        enableAudio: false);
+        enableAudio: false,
+      );
       await _controller!.initialize();
       setState(() => _initialized = true);
     } catch (e) {
@@ -63,72 +64,87 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-          'Scan Roster',
-          style: const TextStyle(color: Colors.white))),
-      body: _error != null
-          ? _ErrorView(message: _error!)
-          : !_initialized
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : Stack(
-              children: [
-                // Camera preview
-                Positioned.fill(child: CameraPreview(_controller!)),
+        title: const Text('Scan Roster', style: TextStyle(color: Colors.white)),
+      ),
+      body: SafeArea(
+        child: _error != null
+            ? _ErrorView(message: _error!)
+            : !_initialized
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
+            : Stack(
+                children: [
+                  // Camera preview
+                  Positioned.fill(child: CameraPreview(_controller!)),
 
-                // Guide overlay
-                Positioned.fill(
-                  child: CustomPaint(painter: _RosterGuidePainter())),
+                  // Guide overlay
+                  Positioned.fill(
+                    child: CustomPaint(painter: _RosterGuidePainter()),
+                  ),
 
-                // Instructions
-                Positioned(
-                  top: 16,
-                  left: 20,
-                  right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12)),
-                    child: Text(
-                      'Align the student roster in the frame',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      textAlign: TextAlign.center))),
+                  // Instructions
+                  Positioned(
+                    top: 16,
+                    left: 20,
+                    right: 20,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Align the student roster in the frame',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
 
-                // Capture button
-                Positioned(
-                  bottom: 40,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _processing ? null : _capture,
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _processing
-                              ? Colors.grey
-                              : AppTheme.primaryGreen,
-                          border: Border.all(color: Colors.white, width: 3)),
-                        child: _processing
-                            ? const Padding(
-                                padding: EdgeInsets.all(20),
-                                child: CircularProgressIndicator(
+                  // Capture button
+                  Positioned(
+                    bottom: 40,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _processing ? null : _capture,
+                        child: Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _processing
+                                ? Colors.grey
+                                : AppTheme.primaryGreen,
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: _processing
+                              ? const Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.document_scanner,
                                   color: Colors.white,
-                                  strokeWidth: 2))
-                            : const Icon(
-                                Icons.document_scanner,
-                                color: Colors.white,
-                                size: 32))))),
-              ]));
+                                  size: 32,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 
   Future<void> _capture() async {
@@ -159,10 +175,11 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
 
       if (parsed.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'No names found — try again with better lighting'),
-            backgroundColor: AppTheme.primaryYellow));
+          const SnackBar(
+            content: Text('No names found — try again with better lighting'),
+            backgroundColor: AppTheme.primaryYellow,
+          ),
+        );
         setState(() => _processing = false);
         return;
       }
@@ -173,7 +190,10 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
         MaterialPageRoute(
           builder: (_) => RosterPreviewScreen(
             parsedStudents: parsed,
-            classId: widget.classId)));
+            classId: widget.classId,
+          ),
+        ),
+      );
     } catch (e) {
       debugPrint('Roster scan error: $e');
       if (mounted) {
@@ -181,7 +201,9 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppTheme.primaryRed));
+            backgroundColor: AppTheme.primaryRed,
+          ),
+        );
       }
     }
   }
@@ -191,21 +213,23 @@ class _RosterGuidePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppTheme.primaryGreen.withOpacity(0.5)
+      ..color = AppTheme.primaryGreen.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     // Draw a rectangle guide with padding
-    final padding = 24.0;
+    const padding = 24.0;
     final rect = Rect.fromLTWH(
       padding,
       size.height * 0.15,
       size.width - padding * 2,
-      size.height * 0.6);
+      size.height * 0.6,
+    );
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(12)),
-      paint);
+      paint,
+    );
 
     // Corner accents
     final cornerPaint = Paint()
@@ -230,11 +254,13 @@ class _RosterGuidePainter extends CustomPainter {
       canvas.drawLine(
         corner,
         Offset(corner.dx + cornerLen * dx, corner.dy),
-        cornerPaint);
+        cornerPaint,
+      );
       canvas.drawLine(
         corner,
         Offset(corner.dx, corner.dy + cornerLen * dy),
-        cornerPaint);
+        cornerPaint,
+      );
     }
   }
 
@@ -254,16 +280,21 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white38),
+            const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white38),
             const SizedBox(height: 16),
             Text(
               message,
               style: const TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Go Back')),
-          ])));
+              child: const Text('Go Back'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

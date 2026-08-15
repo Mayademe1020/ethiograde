@@ -200,14 +200,20 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text('Answer Key'),
+            Expanded(
+              child: const Text(
+                'Answer Key',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
             if (_lastSavedAt != null) ...[
               const SizedBox(width: 8),
               Container(
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF18A558),
+                  color: Color(0xFFF4A623),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -583,14 +589,17 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       return answer.isEmpty;
     }).length;
 
-    return Row(
-      children: [
-        _filterChip('All ($total)', 0),
-        const SizedBox(width: 6),
-        _filterChip('Flagged ($flagged) ★', 1),
-        const SizedBox(width: 6),
-        _filterChip('Empty ($empty)', 2),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _filterChip('All ($total)', 0),
+          const SizedBox(width: 6),
+          _filterChip('Flagged ($flagged) ★', 1),
+          const SizedBox(width: 6),
+          _filterChip('Empty ($empty)', 2),
+        ],
+      ),
     );
   }
 

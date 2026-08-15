@@ -29,7 +29,8 @@ class AnswerKeyPhotoScanScreen extends StatefulWidget {
   const AnswerKeyPhotoScanScreen({super.key, required this.questionCount});
 
   @override
-  State<AnswerKeyPhotoScanScreen> createState() => _AnswerKeyPhotoScanScreenState();
+  State<AnswerKeyPhotoScanScreen> createState() =>
+      _AnswerKeyPhotoScanScreenState();
 }
 
 class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
@@ -117,7 +118,8 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
       if (answers.isEmpty) {
         setState(() {
           _isProcessing = false;
-          _errorMessage = 'Could not detect any answers. Make sure the answer key is clearly visible.';
+          _errorMessage =
+              'Could not detect any answers. Make sure the answer key is clearly visible.';
         });
         return;
       }
@@ -151,7 +153,8 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
         for (int x = 0; x < image.width; x += step) {
           final pixel = image.getPixel(x, y);
           // Perceived brightness formula
-          final brightness = (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b);
+          final brightness =
+              (0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b);
           totalBrightness += brightness;
           count++;
         }
@@ -167,7 +170,8 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
   Future<String> _enhanceImage(File file) async {
     try {
       final appDir = await getTemporaryDirectory();
-      final outputPath = '${appDir.path}/ocr_enhanced_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final outputPath =
+          '${appDir.path}/ocr_enhanced_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       final bytes = await file.readAsBytes();
       img.Image? image = img.decodeImage(bytes);
@@ -231,7 +235,9 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
         foregroundColor: Colors.white,
       ),
       backgroundColor: const Color(0xFF1A1A1A),
-      body: _showPreview ? _buildPreview() : _buildCaptureView(),
+      body: SafeArea(
+        child: _showPreview ? _buildPreview() : _buildCaptureView(),
+      ),
     );
   }
 
@@ -278,16 +284,25 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFDA2A2A).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFDA2A2A).withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: const Color(0xFFDA2A2A).withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error_outline, color: Color(0xFFDA2A2A), size: 20),
+                    const Icon(
+                      Icons.error_outline,
+                      color: Color(0xFFDA2A2A),
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Color(0xFFDA2A2A), fontSize: 13),
+                        style: const TextStyle(
+                          color: Color(0xFFDA2A2A),
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -354,19 +369,34 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
           color: const Color(0xFF242424),
           child: Row(
             children: [
-              _PreviewStat(label: 'Found', value: '$detected/$total', color: const Color(0xFF18A558)),
+              _PreviewStat(
+                label: 'Found',
+                value: '$detected/$total',
+                color: const Color(0xFF18A558),
+              ),
               const SizedBox(width: 16),
               if (lowConf > 0)
-                _PreviewStat(label: 'Uncertain', value: '$lowConf', color: const Color(0xFFF4A623)),
+                _PreviewStat(
+                  label: 'Uncertain',
+                  value: '$lowConf',
+                  color: const Color(0xFFF4A623),
+                ),
               if (highConf > 0) ...[
                 const SizedBox(width: 16),
-                _PreviewStat(label: 'Clear', value: '$highConf', color: const Color(0xFF18A558)),
+                _PreviewStat(
+                  label: 'Clear',
+                  value: '$highConf',
+                  color: const Color(0xFF18A558),
+                ),
               ],
               const Spacer(),
               if (missing > 0)
                 Text(
                   '$missing missing',
-                  style: const TextStyle(color: Color(0xFFDA2A2A), fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xFFDA2A2A),
+                    fontSize: 12,
+                  ),
                 ),
             ],
           ),
@@ -558,10 +588,7 @@ class _AnswerPreviewTile extends StatelessWidget {
   final OcrParsedAnswer answer;
   final VoidCallback onTap;
 
-  const _AnswerPreviewTile({
-    required this.answer,
-    required this.onTap,
-  });
+  const _AnswerPreviewTile({required this.answer, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

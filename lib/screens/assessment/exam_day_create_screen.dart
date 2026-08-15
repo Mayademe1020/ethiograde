@@ -138,7 +138,10 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ),
         ),
         const SizedBox(height: 10),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             ...[10, 20, 30, 50, 100].map((count) {
               final isActive = count == _questionCount;
@@ -188,8 +191,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 },
               ),
             ),
-            if (classes.isNotEmpty)
-              _ClassSelector(classes: classes),
+            if (classes.isNotEmpty) _ClassSelector(classes: classes),
           ],
         ),
       ],
@@ -203,22 +205,28 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         const SizedBox(width: 8),
         ...classes.take(3).map((cls) {
           final isSelected = _selectedClassId == cls.id;
-          return _ModeCard(
-            selected: isSelected,
-            icon: Icons.class_outlined,
-            title: cls.displayName,
-            subtitle: '${cls.studentIds.length} students',
-            onTap: () => setState(() => _selectedClassId = cls.id),
+          return Flexible(
+            fit: FlexFit.loose,
+            child: _ModeCard(
+              selected: isSelected,
+              icon: Icons.class_outlined,
+              title: cls.displayName,
+              subtitle: '${cls.studentIds.length} students',
+              onTap: () => setState(() => _selectedClassId = cls.id),
+            ),
           );
         }),
         if (classes.length > 3)
-          _ModeCard(
-            selected: _studentMode == _StudentMode.classList &&
-                _effectiveSelectedClassId(classes) == classes.last.id,
-            icon: Icons.more,
-            title: 'Plus ${classes.length - 3}',
-            subtitle: 'View all ${classes.length} classes',
-            onTap: () => setState(() => _studentMode = _StudentMode.classList),
+          Flexible(
+            fit: FlexFit.loose,
+            child: _ModeCard(
+              selected: _studentMode == _StudentMode.classList &&
+                  _effectiveSelectedClassId(classes) == classes.last.id,
+              icon: Icons.more,
+              title: 'Plus ${classes.length - 3}',
+              subtitle: 'View all ${classes.length} classes',
+              onTap: () => setState(() => _studentMode = _StudentMode.classList),
+            ),
           ),
       ],
     );

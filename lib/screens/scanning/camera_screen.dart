@@ -129,10 +129,10 @@ class _CameraScreenState extends State<CameraScreen>
         onShowDuplicateDialog: () => showDuplicateDialog(context),
         onAutoCaptureTriggered: _captureImage,
         onFeedbackTextChanged: (text) {
-          if (mounted) setState(() => _feedbackText = text);
+          if (!_isDisposed && mounted) setState(() => _feedbackText = text);
         },
         onCountdownChanged: (value) {
-          if (mounted) setState(() => _countdown = value);
+          if (!_isDisposed && mounted) setState(() => _countdown = value);
         },
       ),
     );

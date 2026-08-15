@@ -162,7 +162,7 @@ class AnswerKeyConfirmationScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         alignment: Alignment.center,
-        child: Text(
+        child: const Text(
           '?',
           style: TextStyle(
             fontWeight: FontWeight.bold,
@@ -224,7 +224,7 @@ class AnswerKeyConfirmationScreen extends StatelessWidget {
             if (altCount > 0)
               Text(
                 '+$altCount alt',
-                style: TextStyle(fontSize: 8, color: AppTheme.lightText),
+                style: const TextStyle(fontSize: 8, color: AppTheme.lightText),
               ),
           ],
         );
@@ -260,7 +260,7 @@ class AnswerKeyConfirmationScreen extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             answer.length > 3 ? '${answer.substring(0, 3)}..' : answer,
-            style: TextStyle(
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               color: AppTheme.primaryGreen,
               fontSize: 13,
