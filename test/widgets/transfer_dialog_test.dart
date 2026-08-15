@@ -59,13 +59,13 @@ void main() {
   group('StudentTransferDialog', () {
     testWidgets('renders title', (tester) async {
       final classProv = ClassProvider();
-      // Add classes via async addClass, with pump to let async complete
-      final future1 = classProv.addClass(classA);
-      final future2 = classProv.addClass(classB);
-      await tester.pump(); // let futures start
-      await future1;
-      await future2;
-      await tester.pump(); // let state settle
+      // Add classes via async addClass — real Hive file I/O must run in
+      // runAsync, otherwise it deadlocks inside the FakeAsync test zone.
+      await tester.runAsync(() async {
+        await classProv.addClass(classA);
+        await classProv.addClass(classB);
+      });
+      await tester.pump();
 
       final studentProv = StudentProvider();
 
@@ -103,8 +103,10 @@ void main() {
 
     testWidgets('shows ChoiceChip', (tester) async {
       final classProv = ClassProvider();
-      await classProv.addClass(classA);
-      await classProv.addClass(classB);
+      await tester.runAsync(() async {
+        await classProv.addClass(classA);
+        await classProv.addClass(classB);
+      });
       await tester.pump();
 
       final studentProv = StudentProvider();
@@ -142,8 +144,10 @@ void main() {
 
     testWidgets('cancel closes dialog', (tester) async {
       final classProv = ClassProvider();
-      await classProv.addClass(classA);
-      await classProv.addClass(classB);
+      await tester.runAsync(() async {
+        await classProv.addClass(classA);
+        await classProv.addClass(classB);
+      });
       await tester.pump();
 
       final studentProv = StudentProvider();
