@@ -132,7 +132,7 @@ void main() {
 
       await tester.tap(find.text('Assess'));
       await tester.pumpAndSettle();
-      expect(find.text('No assessments yet'), findsOneWidget);
+      expect(find.text('No active exams'), findsOneWidget);
 
       await tester.tap(find.text('Students'));
       await tester.pumpAndSettle();
@@ -228,8 +228,8 @@ void main() {
   // ─── Next-Action Resolver Tests ────────────────────────────────
 
   group('resolveDashboardAction', () {
-    test('no assessments returns grade papers', () {
-      final action = resolveDashboardAction(
+    test('no assessments returns grade papers', () async {
+      final action = await resolveDashboardAction(
         allAssessments: [],
         activeAssessments: [],
       );
@@ -238,7 +238,7 @@ void main() {
       expect(action.ctaLabel, 'Grade Papers');
     });
 
-    test('incomplete answer key returns finish setup', () {
+    test('incomplete answer key returns finish setup', () async {
       final incomplete = Assessment(
         title: 'Midterm',
         subject: 'Math',
@@ -253,7 +253,7 @@ void main() {
         ),
         status: AssessmentStatus.active,
       );
-      final action = resolveDashboardAction(
+      final action = await resolveDashboardAction(
         allAssessments: [incomplete],
         activeAssessments: [incomplete],
       );
@@ -262,7 +262,7 @@ void main() {
       expect(action.assessment!.title, 'Midterm');
     });
 
-    test('complete key with active status returns start scanning', () {
+    test('complete key with active status returns start scanning', () async {
       final ready = Assessment(
         title: 'Quiz',
         subject: 'Science',
@@ -277,7 +277,7 @@ void main() {
         ),
         status: AssessmentStatus.active,
       );
-      final action = resolveDashboardAction(
+      final action = await resolveDashboardAction(
         allAssessments: [ready],
         activeAssessments: [ready],
       );
@@ -285,15 +285,15 @@ void main() {
       expect(action.priority, 3);
     });
 
-    test('completed assessment not in active list returns grade papers', () {
-      final action = resolveDashboardAction(
+    test('completed assessment not in active list returns grade papers', () async {
+      final action = await resolveDashboardAction(
         allAssessments: [],
         activeAssessments: [],
       );
       expect(action.type, DashboardActionType.gradePapers);
     });
 
-    test('incomplete setup wins over ready assessment', () {
+    test('incomplete setup wins over ready assessment', () async {
       final ready = Assessment(
         title: 'Ready',
         subject: 'Math',
@@ -322,7 +322,7 @@ void main() {
         ),
         status: AssessmentStatus.active,
       );
-      final action = resolveDashboardAction(
+      final action = await resolveDashboardAction(
         allAssessments: [ready, incomplete],
         activeAssessments: [ready, incomplete],
       );
@@ -332,7 +332,7 @@ void main() {
 
     test(
       'grading-status assessment found in full collection for draft lookup',
-      () {
+      () async {
         // Assessment with status=grading is NOT in activeAssessments
         // but IS in allAssessments. Draft lookup should find it.
         final grading = Assessment(
@@ -351,7 +351,7 @@ void main() {
         );
         // No active assessments — so priority 2/3 won't fire
         // But allAssessments contains the grading assessment for draft lookup
-        final action = resolveDashboardAction(
+        final action = await resolveDashboardAction(
           allAssessments: [grading],
           activeAssessments: [],
         );

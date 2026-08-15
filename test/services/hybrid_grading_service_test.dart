@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:image/image.dart' as img;
 import 'package:ethiograde/services/hybrid_grading_service.dart';
 import 'package:ethiograde/models/assessment.dart';
@@ -8,6 +9,19 @@ import 'package:ethiograde/models/scan_result.dart';
 void main() {
   // ML Kit TextRecognizer needs Flutter services binding
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory tempDir;
+
+  setUpAll(() async {
+    // gradePaper persists results via Hive boxes (_saveWithRetry)
+    tempDir = Directory.systemTemp.createTempSync('hybrid_grading_test');
+    Hive.init(tempDir.path);
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    tempDir.deleteSync(recursive: true);
+  });
 
   // ── Helpers ──
 

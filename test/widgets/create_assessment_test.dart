@@ -89,9 +89,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Create Exam'), findsOneWidget);
-      expect(find.text('Answer key'), findsOneWidget);
       expect(find.text('Scan Answer Sheet'), findsOneWidget);
-      expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Continue to Scan'), findsOneWidget);
     });
 
     testWidgets('shows questions count field', (tester) async {
@@ -113,12 +112,12 @@ void main() {
       expect(find.text('37'), findsOneWidget);
     });
 
-    testWidgets('shows Quick Grading option', (tester) async {
+    testWidgets('shows No Roster option', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Quick Grading');
-      expect(find.text('Quick Grading'), findsOneWidget);
+      await scrollToText(tester, 'No Roster');
+      expect(find.text('No Roster'), findsOneWidget);
     });
 
     testWidgets('shows continue button for scan mode', (tester) async {
@@ -136,8 +135,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Type Answers'), findsOneWidget);
       expect(find.text('Continue to Answer Key'), findsOneWidget);
+      expect(find.text('Continue to Scan'), findsNothing);
     });
   });
 }

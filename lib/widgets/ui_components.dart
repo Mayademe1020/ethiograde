@@ -62,7 +62,7 @@ class _AppCardState extends State<AppCard>
     final cardColor = widget.color ?? cs.surface;
     final border = widget.borderColor ?? cs.outlineVariant;
 
-    Widget card = Container(
+    final Widget card = Container(
       margin: widget.margin,
       padding: widget.padding,
       decoration: BoxDecoration(
@@ -164,10 +164,11 @@ class AppEmptyState extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 80,
@@ -207,6 +208,7 @@ class AppEmptyState extends StatelessWidget {
               ),
             ],
           ],
+          ),
         ),
       ),
     );
