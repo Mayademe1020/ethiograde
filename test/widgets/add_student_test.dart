@@ -54,22 +54,6 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  ClassInfo makeClass({
-    String id = 'class1',
-    String name = 'Grade 5A',
-    int grade = 5,
-    String section = 'A',
-    String subject = 'Mathematics',
-    String ownerId = 'teacher1',
-  }) =>
-      ClassInfo(
-          id: id,
-          name: name,
-          grade: grade,
-          section: section,
-          subject: subject,
-          ownerId: ownerId);
-
   Widget buildScreen({
     String? preselectedClassId,
     Student? existingStudent,

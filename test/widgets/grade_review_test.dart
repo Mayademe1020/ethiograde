@@ -71,27 +71,6 @@ void main() {
         status: AssessmentStatus.active,
         weightedScaleId: weightedScaleId);
 
-  ScanResult makeResult({
-    String id = 'r1',
-    String name = 'Abebe Kebede',
-    double totalScore = 7,
-    double maxScore = 10,
-    double percentage = 70,
-    String grade = 'B',
-  }) =>
-      ScanResult(
-        id: id,
-        assessmentId: 'a1',
-        studentId: 's1',
-        studentName: name,
-        imagePath: '/fake/path.png',
-        totalScore: totalScore,
-        maxScore: maxScore,
-        percentage: percentage,
-        grade: grade,
-        confidence: 0.95,
-        status: ScanStatus.graded);
-
   Widget wrapReview({
     required Assessment assessment,
     required List<ScanResult> results,

@@ -220,11 +220,6 @@ void main() {
 
   group('Recalculate now behavior', () {
     test('eligible result gets new fingerprint', () {
-      final assessment = makeAssessment(questions: [
-        Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
-        Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'B', points: 1),
-      ]);
-
       final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
