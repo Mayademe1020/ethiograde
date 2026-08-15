@@ -113,7 +113,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                   color: Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 24),
-            Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.primaryGreen),
+            const Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.primaryGreen),
             const SizedBox(height: 16),
             Text('Set Academic Year First',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
@@ -169,7 +169,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
 
               // Grade picker
               DropdownButtonFormField<int>(
-                value: _selectedGrade,
+                initialValue: _selectedGrade,
                 decoration: const InputDecoration(
                   labelText: 'Grade *',
                   prefixIcon: Icon(Icons.numbers)),
@@ -185,7 +185,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
 
               // Section picker
               DropdownButtonFormField<String>(
-                value: _selectedSection,
+                initialValue: _selectedSection,
                 decoration: const InputDecoration(
                   labelText: 'Section *',
                   prefixIcon: Icon(Icons.group_outlined)),
@@ -252,7 +252,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                             return ListTile(
                               dense: true,
                               leading: isExactMatch
-                                  ? Icon(Icons.check, size: 18, color: AppTheme.primaryGreen)
+                                  ? const Icon(Icons.check, size: 18, color: AppTheme.primaryGreen)
                                   : Icon(Icons.search, size: 18, color: Colors.grey.shade400),
                               title: Text(s, style: TextStyle(
                                 fontWeight: isExactMatch ? FontWeight.w600 : FontWeight.normal)),
@@ -266,9 +266,9 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                             // "Use new subject" option
                             return ListTile(
                               dense: true,
-                              leading: Icon(Icons.add_circle_outline, size: 18, color: AppTheme.primaryGreen),
+                              leading: const Icon(Icons.add_circle_outline, size: 18, color: AppTheme.primaryGreen),
                               title: Text('Use "${_subjectCtrl.text.trim()}"',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: AppTheme.primaryGreen,
                                   fontWeight: FontWeight.w600)),
                               subtitle: const Text('New subject will be added to your list',
@@ -285,7 +285,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
 
               // Academic Year picker
               DropdownButtonFormField<String>(
-                value: _selectedYear,
+                initialValue: _selectedYear,
                 decoration: const InputDecoration(
                   labelText: 'Academic Year *',
                   prefixIcon: Icon(Icons.calendar_today_outlined)),
@@ -309,11 +309,11 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                     border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2))),
                   child: Row(
                     children: [
-                      Icon(Icons.label_outlined, size: 18, color: AppTheme.primaryGreen),
+                      const Icon(Icons.label_outlined, size: 18, color: AppTheme.primaryGreen),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(previewName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppTheme.primaryGreen))),
                     ])),

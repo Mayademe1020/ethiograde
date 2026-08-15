@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../models/audit_entry.dart';
@@ -57,7 +56,7 @@ class AuditTrailSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
                 children: [
-                  Icon(Icons.history, color: AppTheme.primaryGreen),
+                  const Icon(Icons.history, color: AppTheme.primaryGreen),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -69,7 +68,7 @@ class AuditTrailSheet extends StatelessWidget {
                               ?.copyWith(fontWeight: FontWeight.bold)),
                         Text(
                           result.studentName,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppTheme.lightText,
                             fontSize: 14)),
                       ])),
@@ -100,10 +99,10 @@ class AuditTrailSheet extends StatelessWidget {
                             size: 48,
                             color: Colors.grey.shade400),
                           const SizedBox(height: 12),
-                          Text(
+                          const Text(
                             'No changes recorded',
                             style: TextStyle(color: AppTheme.lightText)),
-                          Text(
+                          const Text(
                             'Grade is as originally entered',
                             style: TextStyle(
                               color: AppTheme.lightText,
@@ -249,21 +248,21 @@ class _TimelineEntry extends StatelessWidget {
                   // Who and when
                   Row(
                     children: [
-                      Icon(Icons.person_outline, size: 14, color: AppTheme.lightText),
+                      const Icon(Icons.person_outline, size: 14, color: AppTheme.lightText),
                       const SizedBox(width: 4),
                       Text(
                         entry.teacherName.isNotEmpty
                             ? entry.teacherName
                             : ('Unknown'),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppTheme.lightText)),
                       const SizedBox(width: 12),
-                      Icon(Icons.access_time, size: 14, color: AppTheme.lightText),
+                      const Icon(Icons.access_time, size: 14, color: AppTheme.lightText),
                       const SizedBox(width: 4),
                       Text(
                         _formatTimestamp(entry.timestamp),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppTheme.lightText)),
                     ]),
@@ -279,12 +278,12 @@ class _TimelineEntry extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, size: 14, color: AppTheme.info),
+                        const Icon(Icons.info_outline, size: 14, color: AppTheme.info),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             '${"Reason: "}${entry.reason}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               color: AppTheme.info,
                               fontStyle: FontStyle.italic))),
@@ -298,9 +297,9 @@ class _TimelineEntry extends StatelessWidget {
                       child: TextButton.icon(
                         onPressed: () => onRevert!(entry),
                         icon: const Icon(Icons.undo, size: 16),
-                        label: Text(
+                        label: const Text(
                           'Revert to this',
-                          style: const TextStyle(fontSize: 12)),
+                          style: TextStyle(fontSize: 12)),
                         style: TextButton.styleFrom(
                           foregroundColor: AppTheme.warning,
                           padding: const EdgeInsets.symmetric(
@@ -337,23 +336,23 @@ class _ScoreChangeDetail extends StatelessWidget {
           // Old value
           Column(
             children: [
-              Text(
+              const Text(
                 'Before',
                 style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
               Text(
                 '${old['grade'] ?? ''} (${(old['percentage'] as num?)?.toStringAsFixed(1) ?? (old['totalScore']?.toString() ?? '')}%)',
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   color: AppTheme.error,
                   decoration: TextDecoration.lineThrough)),
             ]),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
             child: Icon(Icons.arrow_forward, size: 16, color: AppTheme.warning)),
           // New value
           Column(
             children: [
-              Text(
+              const Text(
                 'After',
                 style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
               Text(

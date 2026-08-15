@@ -3,7 +3,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/class_info.dart';
 import '../models/student.dart';
-import '../config/integrity_metadata_keys.dart';
 
 /// Result of checking whether a class can be deleted.
 class ClassDeletionCheck {

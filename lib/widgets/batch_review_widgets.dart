@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
-import '../../models/scan_result.dart';
 
 /// Compact stat row with icon, label, and value.
 class BatchReviewMetric extends StatelessWidget {
@@ -94,7 +93,7 @@ class ReviewActionSection extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             message,
-            style: TextStyle(color: AppTheme.lightText, height: 1.3),
+            style: const TextStyle(color: AppTheme.lightText, height: 1.3),
           ),
           ...children,
         ],

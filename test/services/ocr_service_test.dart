@@ -366,7 +366,7 @@ void main() {
 
       try {
         final results = await Future.wait(
-          paths.map((p) => ocr.enhanceImage(p)),
+          paths.map(ocr.enhanceImage),
         );
         for (final result in results) {
           expect(result, contains('_enhanced'));
@@ -595,19 +595,19 @@ void main() {
 
     test('keeps highest confidence when same Q# detected twice', () {
       final answers = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.7,
           rawText: '1. A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.95,
           rawText: '1A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'B',
           confidence: 0.8,
@@ -625,19 +625,19 @@ void main() {
 
     test('keeps different answers for different questions', () {
       final answers = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.9,
           rawText: '1. A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'B',
           confidence: 0.85,
           rawText: '2. B',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 3,
           answer: 'C',
           confidence: 0.8,
@@ -654,13 +654,13 @@ void main() {
       'handles conflicting answers for same Q# (keeps highest confidence)',
       () {
         final answers = [
-          DetectedAnswer(
+          const DetectedAnswer(
             questionNumber: 1,
             answer: 'A',
             confidence: 0.9,
             rawText: '1. A',
           ),
-          DetectedAnswer(
+          const DetectedAnswer(
             questionNumber: 1,
             answer: 'B',
             confidence: 0.6,
@@ -683,19 +683,19 @@ void main() {
 
     test('results sorted by question number', () {
       final answers = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 3,
           answer: 'C',
           confidence: 0.8,
           rawText: '3. C',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.9,
           rawText: '1. A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'B',
           confidence: 0.85,
@@ -721,25 +721,25 @@ void main() {
     test('perfect answers → full score and A+ grade', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.9,
           rawText: '1. A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'B',
           confidence: 0.9,
           rawText: '2. B',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 3,
           answer: 'True',
           confidence: 0.9,
           rawText: '3. True',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 4,
           answer: 'D',
           confidence: 0.9,
@@ -762,25 +762,25 @@ void main() {
     test('all wrong → zero score and F grade', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'B',
           confidence: 0.9,
           rawText: '1. B',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'A',
           confidence: 0.9,
           rawText: '2. A',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 3,
           answer: 'False',
           confidence: 0.9,
           rawText: '3. False',
         ),
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 4,
           answer: 'A',
           confidence: 0.9,
@@ -801,14 +801,14 @@ void main() {
     test('missing answers → marked as [MISSING]', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.9,
           rawText: '1. A',
         ),
         // Q2 and Q3 missing
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 4,
           answer: 'D',
           confidence: 0.9,
@@ -831,25 +831,25 @@ void main() {
     test('partial correct → correct percentage', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0.9,
           rawText: '1. A',
         ), // correct
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 2,
           answer: 'A',
           confidence: 0.9,
           rawText: '2. A',
         ), // wrong
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 3,
           answer: 'True',
           confidence: 0.9,
           rawText: '3. True',
         ), // correct
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 4,
           answer: 'A',
           confidence: 0.9,
@@ -989,7 +989,7 @@ void main() {
     test('detected answer with null confidence handled gracefully', () {
       final assessment = makeAssessment();
       final detected = [
-        DetectedAnswer(
+        const DetectedAnswer(
           questionNumber: 1,
           answer: 'A',
           confidence: 0,

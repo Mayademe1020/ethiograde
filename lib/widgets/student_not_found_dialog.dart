@@ -94,11 +94,11 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(
+      title: const Row(
         children: [
           Icon(Icons.person_search, color: AppTheme.primaryYellow, size: 24),
-          const SizedBox(width: 8),
-          const Expanded(
+          SizedBox(width: 8),
+          Expanded(
             child: Text(
               'Student Not Found',
               style: TextStyle(fontSize: 18))),
@@ -116,7 +116,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                 borderRadius: BorderRadius.circular(8)),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.document_scanner,
                     size: 16,
                     color: AppTheme.lightText),
@@ -124,7 +124,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                   Expanded(
                     child: Text(
                       '"${widget.scannedName}"',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontStyle: FontStyle.italic,
                         color: AppTheme.lightText))),
                 ])),
@@ -142,7 +142,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Similar names in class:',
                       style: TextStyle(
                         fontSize: 12,
@@ -154,7 +154,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
             ],
 
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Add as new student?',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
@@ -184,7 +184,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
             // Gender
             Row(
               children: [
-                Text(
+                const Text(
                   'Gender:',
                   style: TextStyle(fontSize: 13, color: AppTheme.lightText)),
                 const SizedBox(width: 8),

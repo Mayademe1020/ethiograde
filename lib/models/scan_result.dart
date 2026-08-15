@@ -134,8 +134,7 @@ class ScanResult {
   }
 
   /// Whether this result has an unmatched student.
-  bool get isUnmatched =>
-      studentId.isEmpty || studentName.trim().isEmpty;
+  bool get isUnmatched => studentId.isEmpty || studentName.trim().isEmpty;
 
   Map<String, dynamic> toMap() => {
     'id': id,

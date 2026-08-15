@@ -24,7 +24,7 @@ void main() {
     });
 
     test('works with complex types', () {
-      final r = Result.success({'key': 'value'});
+      const r = Result.success({'key': 'value'});
       expect(r.success, isTrue);
       expect(r.data!['key'], 'value');
     });

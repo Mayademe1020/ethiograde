@@ -41,12 +41,12 @@ Future<void> main(List<String> args) async {
   final envContent = await envFile.readAsString();
   final envLines = envContent.split('\n').map((l) => l.trim()).toList();
 
-  String? geminiKey = envLines
+  final String? geminiKey = envLines
       .where((l) => l.startsWith('GEMINI_API_KEY='))
       .map((l) => l.substring('GEMINI_API_KEY='.length))
       .firstOrNull;
 
-  String? githubToken = envLines
+  final String? githubToken = envLines
       .where((l) => l.startsWith('GITHUB_TOKEN='))
       .map((l) => l.substring('GITHUB_TOKEN='.length))
       .firstOrNull;
@@ -83,14 +83,14 @@ Future<void> main(List<String> args) async {
 
     print('Sending to $provider...\n');
     responseBody = useGitHub
-        ? await _sendGitHubModels(base64Image, githubToken!)
+        ? await _sendGitHubModels(base64Image, githubToken)
         : await _sendGemini(base64Image, geminiKey!);
   } else {
     // Text mode: send text prompt directly
     print('Text mode: $inputPath');
     print('Sending to $provider...\n');
     responseBody = useGitHub
-        ? await _sendGitHubText(inputPath, githubToken!)
+        ? await _sendGitHubText(inputPath, githubToken)
         : await _sendGeminiText(inputPath, geminiKey!);
   }
 

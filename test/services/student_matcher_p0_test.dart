@@ -3,7 +3,7 @@ import 'package:ethiograde/models/student.dart';
 import 'package:ethiograde/services/student_matcher.dart';
 
 void main() {
-  List<Student> _makeStudents() {
+  List<Student> makeStudents() {
     return [
       Student(
         id: 's1',
@@ -59,7 +59,7 @@ void main() {
 
   group('P0.1 — Student matching precedence', () {
     test('exact student ID beats fuzzy name', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // OCR text contains roll number "003" (Dawit) but name "Abebe Tesfaye"
       // The exact ID should win over the fuzzy name match
       final result = StudentMatcher.matchFromOcr(
@@ -72,7 +72,7 @@ void main() {
     });
 
     test('exact full-name match works', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchFromOcr(
         'Abebe Tesfaye',
         students,
@@ -141,14 +141,14 @@ void main() {
     });
 
     test('wrong-class ID is rejected', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // Student ID "999" doesn't exist in this class
       final result = StudentMatcher.matchById('999', students);
       expect(result.hasMatch, false);
     });
 
     test('no ID and low-confidence name returns no match', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // Completely unknown name - use matchName directly
       final result = StudentMatcher.matchName(
         'Zzzzz Xxxxx',
@@ -158,7 +158,7 @@ void main() {
     });
 
     test('manual assignment returns needsReview', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // Use matchName directly for a completely unknown name
       final result = StudentMatcher.matchName(
         'Unknown Student',
@@ -169,7 +169,7 @@ void main() {
     });
 
     test('reassignment persistence via MatchResult', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchFromOcr(
         'Abebe Tesfaye',
         students,
@@ -183,7 +183,7 @@ void main() {
     });
 
     test('exact student ID match by matchById', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchById('002', students);
       expect(result.hasMatch, true);
       expect(result.matchedStudent!.id, 's2');
@@ -191,7 +191,7 @@ void main() {
     });
 
     test('non-existent student ID returns no match', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchById('999', students);
       expect(result.hasMatch, false);
     });
@@ -222,7 +222,7 @@ void main() {
 
   group('P0.1 — Name normalization', () {
     test('case-insensitive matching', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchFromOcr(
         'ABEBE TESFAYE',
         students,
@@ -232,7 +232,7 @@ void main() {
     });
 
     test('whitespace normalization', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       final result = StudentMatcher.matchFromOcr(
         '  Abebe   Tesfaye  ',
         students,
@@ -244,7 +244,7 @@ void main() {
 
   group('P0.1 — Fuzzy matching safety', () {
     test('fuzzy match only when confident and unambiguous', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // Slightly misspelled name
       final result = StudentMatcher.matchFromOcr(
         'Ababe Tesfaye',
@@ -256,7 +256,7 @@ void main() {
     });
 
     test('low-confidence fuzzy match returns no match', () {
-      final students = _makeStudents();
+      final students = makeStudents();
       // Use matchName directly for a very different name
       final result = StudentMatcher.matchName(
         'Xyzw Abcdef',

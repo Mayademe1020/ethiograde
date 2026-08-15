@@ -123,7 +123,7 @@ void main() {
 
   group('StudentMatcher — matchFromOcr', () {
     test('parses OCR text and matches', () {
-      final ocrText = '1. Abebe Kebede Male\n2. Habte Woldemariam Female';
+      const ocrText = '1. Abebe Kebede Male\n2. Habte Woldemariam Female';
       final result = StudentMatcher.matchFromOcr(ocrText, classList);
       expect(result.hasMatch, isTrue);
       expect(result.matchedStudent!.firstName, 'Abebe');
@@ -136,7 +136,7 @@ void main() {
 
     test('returns first parsed name when no class match', () {
       // Use input the roster parser won't parse as a valid name (too short/single char)
-      final ocrText = '---';
+      const ocrText = '---';
       final result = StudentMatcher.matchFromOcr(ocrText, classList);
       expect(result.hasMatch, isFalse);
     });

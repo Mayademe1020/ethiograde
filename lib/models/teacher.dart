@@ -49,7 +49,8 @@ class Teacher {
     role: map['role'] as String? ?? 'teacher',
     isActive: map['isActive'] as bool? ?? true,
     createdAt:
-        DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now());
+        DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+  );
 
   Teacher copyWith({
     String? name,
@@ -64,7 +65,8 @@ class Teacher {
     school: school ?? this.school,
     role: role ?? this.role,
     isActive: isActive ?? this.isActive,
-    createdAt: createdAt);
+    createdAt: createdAt,
+  );
 
   @override
   String toString() => 'Teacher($name, $subject, $role)';

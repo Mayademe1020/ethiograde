@@ -67,7 +67,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     curve: Curves.easeInOut,
                   );
                 },
-                child: Text(
+                child: const Text(
                   'Skip',
                   style: TextStyle(color: AppTheme.lightText),
                 ),
@@ -126,7 +126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             curve: Curves.easeInOut,
                           );
                         },
-                        child: Text('Back'),
+                        child: const Text('Back'),
                       ),
                     ),
                   if (_currentPage > 0) const SizedBox(width: 12),
@@ -159,36 +159,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _buildPage(_OnboardingPage page) {
     return Padding(
       padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryGreen.withOpacity(0.1),
-              shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen),
             ),
-            child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            page.titleEn,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            page.descEn,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppTheme.lightText,
-              height: 1.6,
+            const SizedBox(height: 32),
+            Text(
+              page.titleEn,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              page.descEn,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.lightText,
+                height: 1.6,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -218,9 +221,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Teacher name
           TextField(
             controller: _nameController,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Your Name',
-              prefixIcon: const Icon(Icons.person_outline),
+              prefixIcon: Icon(Icons.person_outline),
               hintText: 'e.g. Abebe Tesfaye',
             ),
           ),
@@ -229,9 +232,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // School name
           TextField(
             controller: _schoolController,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'School Name (optional)',
-              prefixIcon: const Icon(Icons.school_outlined),
+              prefixIcon: Icon(Icons.school_outlined),
               hintText: 'e.g. Bole Primary School',
             ),
           ),

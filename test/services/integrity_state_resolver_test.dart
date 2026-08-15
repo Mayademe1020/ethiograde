@@ -6,10 +6,10 @@ import 'package:ethiograde/services/integrity_state_resolver.dart';
 import 'package:ethiograde/services/answer_key_fingerprint_service.dart';
 
 void main() {
-  final resolver = const IntegrityStateResolver();
-  final fingerprintService = const AnswerKeyFingerprintService();
+  const resolver = IntegrityStateResolver();
+  const fingerprintService = AnswerKeyFingerprintService();
 
-  Assessment _makeAssessment({
+  Assessment makeAssessment({
     String? fingerprint,
     int revision = 1,
     Map<String, dynamic>? settings,
@@ -30,7 +30,7 @@ void main() {
     );
   }
 
-  ScanResult _makeResult({
+  ScanResult makeResult({
     String? fingerprint,
     int? revision,
     bool isManualEntry = false,
@@ -75,33 +75,33 @@ void main() {
 
   group('IntegrityStateResolver', () {
     test('matching fingerprint → current', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint);
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.current);
     });
 
     test('missing fingerprint on result → legacyUnknown', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(); // no fingerprint
+      final assessment = makeAssessment();
+      final result = makeResult(); // no fingerprint
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.legacyUnknown);
     });
 
     test('mismatched fingerprint → outdated', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: 'wrong-fingerprint-value');
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: 'wrong-fingerprint-value');
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.outdated);
     });
 
     test('manual entry → current', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint, isManualEntry: true);
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint, isManualEntry: true);
       // Manual entry with matching fingerprint is still current (just needs manual review)
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.currentNeedsManualReview);
     });
 
     test('has manual overrides → currentNeedsManualReview', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(
+      final assessment = makeAssessment();
+      final result = makeResult(
         fingerprint: assessment.answerKeyFingerprint,
         hasManualOverrides: true,
       );
@@ -109,8 +109,8 @@ void main() {
     });
 
     test('final score manually set → currentNeedsManualReview', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(
+      final assessment = makeAssessment();
+      final result = makeResult(
         fingerprint: assessment.answerKeyFingerprint,
         finalScoreManuallySet: true,
       );
@@ -118,51 +118,51 @@ void main() {
     });
 
     test('assessment with recalculation in progress → recalculating', () {
-      final assessment = _makeAssessment(settings: {
+      final assessment = makeAssessment(settings: {
         IntegrityMetadataKeys.recalculationInProgress: true,
       });
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint);
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.recalculating);
     });
 
     test('assessment with recalculation failed → recalculationFailed', () {
-      final assessment = _makeAssessment(settings: {
+      final assessment = makeAssessment(settings: {
         IntegrityMetadataKeys.recalculationFailed: true,
       });
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint);
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.recalculationFailed);
     });
 
     test('both missing fingerprints → current (legacy baseline)', () {
-      final assessment = _makeAssessment(fingerprint: '');
-      final result = _makeResult(); // no fingerprint
+      final assessment = makeAssessment(fingerprint: '');
+      final result = makeResult(); // no fingerprint
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.current);
     });
   });
 
   group('isEligibleForRecalculation', () {
     test('auto-scored result is eligible', () {
-      final result = _makeResult();
+      final result = makeResult();
       expect(resolver.isEligibleForRecalculation(result), isTrue);
     });
 
     test('manual entry is not eligible', () {
-      final result = _makeResult(isManualEntry: true);
+      final result = makeResult(isManualEntry: true);
       expect(resolver.isEligibleForRecalculation(result), isFalse);
     });
 
     test('result with manual overrides is not eligible', () {
-      final result = _makeResult(hasManualOverrides: true);
+      final result = makeResult(hasManualOverrides: true);
       expect(resolver.isEligibleForRecalculation(result), isFalse);
     });
 
     test('result with final score manually set is not eligible', () {
-      final result = _makeResult(finalScoreManuallySet: true);
+      final result = makeResult(finalScoreManuallySet: true);
       expect(resolver.isEligibleForRecalculation(result), isFalse);
     });
 
     test('result with teacher-corrected answers is not eligible', () {
-      final result = _makeResult(overrideTypes: {
+      final result = makeResult(overrideTypes: {
         '1': AnswerOverrideType.teacherCorrected,
         '2': AnswerOverrideType.auto,
       });
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('result with all auto overrides is eligible', () {
-      final result = _makeResult(overrideTypes: {
+      final result = makeResult(overrideTypes: {
         '1': AnswerOverrideType.auto,
         '2': AnswerOverrideType.auto,
       });
@@ -180,19 +180,19 @@ void main() {
 
   group('allCurrent', () {
     test('all matching fingerprints → true', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint),
-        _makeResult(fingerprint: assessment.answerKeyFingerprint),
+        makeResult(fingerprint: assessment.answerKeyFingerprint),
+        makeResult(fingerprint: assessment.answerKeyFingerprint),
       ];
       expect(resolver.allCurrent(results: results, assessment: assessment), isTrue);
     });
 
     test('one outdated → false', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint),
-        _makeResult(fingerprint: 'wrong-fingerprint'),
+        makeResult(fingerprint: assessment.answerKeyFingerprint),
+        makeResult(fingerprint: 'wrong-fingerprint'),
       ];
       expect(resolver.allCurrent(results: results, assessment: assessment), isFalse);
     });
@@ -200,11 +200,11 @@ void main() {
 
   group('countByState', () {
     test('counts correctly', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint),
-        _makeResult(fingerprint: assessment.answerKeyFingerprint, hasManualOverrides: true),
-        _makeResult(fingerprint: 'wrong-fingerprint'),
+        makeResult(fingerprint: assessment.answerKeyFingerprint),
+        makeResult(fingerprint: assessment.answerKeyFingerprint, hasManualOverrides: true),
+        makeResult(fingerprint: 'wrong-fingerprint'),
       ];
       final counts = resolver.countByState(results: results, assessment: assessment);
       expect(counts[IntegrityState.current], 1);

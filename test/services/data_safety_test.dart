@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:ethiograde/services/hybrid_grading_service.dart';
 import 'package:ethiograde/models/scan_result.dart';
 
 /// Tests for data safety fixes:
@@ -152,7 +151,7 @@ void main() {
   group('Corrupt box preservation', () {
     test('corrupt box file is copied before deletion', () async {
       // Create a "corrupt" Hive file
-      final boxName = 'corrupt_test';
+      const boxName = 'corrupt_test';
       final corruptFile = File('${tempDir.path}/$boxName.hive');
       await corruptFile.writeAsBytes([0x00, 0x01, 0x02]); // Invalid Hive data
 
@@ -191,7 +190,7 @@ void main() {
       expect(await imgFile.length(), 2048);
 
       // Verify format function logic
-      int totalBytes = 1024 + 2048;
+      const int totalBytes = 1024 + 2048;
       String formatted;
       if (totalBytes < 1024) {
         formatted = '$totalBytes B';

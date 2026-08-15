@@ -76,10 +76,6 @@ OmrResult _detectBubblesIsolate(_DetectBubblesParams params) {
 
         if (filledOptions.length > 1) {
           // Multiple marks detected — invalid response, requires teacher review
-          // Preserve original marks for inspection
-          final markedOptions = filledOptions
-              .map((e) => '${e.key}(${(e.value * 100).toStringAsFixed(0)}%)')
-              .join(',');
           detectedAnswers.add(
             OmrAnswer(
               questionNumber: qi + 1,

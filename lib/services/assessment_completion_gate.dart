@@ -67,7 +67,7 @@ class AssessmentCompletionGate {
         actionLabel: 'Complete answer key',
       ));
     } else {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'Answer key is complete',
         severity: CompletionSeverity.ready,
       ));
@@ -86,7 +86,7 @@ class AssessmentCompletionGate {
           actionLabel: 'Recalculate scores',
         ));
       } else {
-        items.add(CompletionItem(
+        items.add(const CompletionItem(
           label: 'All scores are current',
           severity: CompletionSeverity.ready,
         ));
@@ -95,7 +95,7 @@ class AssessmentCompletionGate {
 
     // 3. Recalculation failed
     if (assessment.settings[IntegrityMetadataKeys.recalculationFailed] == true) {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'Score recalculation failed',
         explanation: 'Previous recalculation attempt encountered an error.',
         severity: CompletionSeverity.blocking,
@@ -114,7 +114,7 @@ class AssessmentCompletionGate {
         actionLabel: 'Review papers',
       ));
     } else if (results.isNotEmpty) {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'All papers reviewed',
         severity: CompletionSeverity.ready,
       ));
@@ -177,7 +177,7 @@ class AssessmentCompletionGate {
           actionLabel: 'Mark absent or rescan',
         ));
       } else {
-        items.add(CompletionItem(
+        items.add(const CompletionItem(
           label: 'All roster students accounted for',
           severity: CompletionSeverity.ready,
         ));
@@ -212,14 +212,14 @@ class AssessmentCompletionGate {
 
     // 11. Grading scale is valid
     if (assessment.rubricType.isEmpty) {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'Grading scale not configured',
         severity: CompletionSeverity.blocking,
         actionRoute: '/settings/grading-scale',
         actionLabel: 'Set grading scale',
       ));
     } else {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'Grading scale is configured',
         severity: CompletionSeverity.ready,
       ));
@@ -241,7 +241,7 @@ class AssessmentCompletionGate {
           actionLabel: 'Review scores',
         ));
       } else {
-        items.add(CompletionItem(
+        items.add(const CompletionItem(
           label: 'All score totals are valid',
           severity: CompletionSeverity.ready,
         ));
@@ -250,7 +250,7 @@ class AssessmentCompletionGate {
 
     // 13. Results exist
     if (results.isEmpty) {
-      items.add(CompletionItem(
+      items.add(const CompletionItem(
         label: 'No results to finalize',
         explanation: 'Scan student papers or enter scores before finalizing.',
         severity: CompletionSeverity.needsAttention,

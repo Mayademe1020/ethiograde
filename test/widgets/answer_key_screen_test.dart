@@ -10,11 +10,11 @@ import 'package:ethiograde/services/scoring_service.dart';
 /// These prove the correctness of the integration logic without requiring
 /// Hive boxes or widget infrastructure.
 void main() {
-  final fingerprintService = const AnswerKeyFingerprintService();
-  final resolver = const IntegrityStateResolver();
-  final scoringService = const ScoringService();
+  const fingerprintService = AnswerKeyFingerprintService();
+  const resolver = IntegrityStateResolver();
+  const scoringService = ScoringService();
 
-  Assessment _makeAssessment({
+  Assessment makeAssessment({
     List<Question>? questions,
     int revision = 1,
     String? fingerprint,
@@ -31,7 +31,7 @@ void main() {
     );
   }
 
-  ScanResult _makeResult({
+  ScanResult makeResult({
     String? fingerprint,
     int? revision,
     bool isManualEntry = false,
@@ -71,7 +71,7 @@ void main() {
 
   group('Fingerprint change detection (AnswerKeyScreen logic)', () {
     test('no change → no dialog needed', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final preFingerprint = assessment.answerKeyFingerprint;
       final postFingerprint = fingerprintService.compute(assessment);
       expect(preFingerprint, equals(postFingerprint));
@@ -79,7 +79,7 @@ void main() {
     });
 
     test('MCQ change → dialog needed', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final preFingerprint = assessment.answerKeyFingerprint;
 
       // Change q1 from A to C
@@ -96,7 +96,7 @@ void main() {
     });
 
     test('presentation-only text change → no dialog', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final preFingerprint = assessment.answerKeyFingerprint;
 
       // Change q1 text only (not correctAnswer)
@@ -113,7 +113,7 @@ void main() {
     });
 
     test('points change → dialog needed', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final preFingerprint = assessment.answerKeyFingerprint;
 
       final newQs = [
@@ -130,7 +130,7 @@ void main() {
 
   group('Cancel behavior', () {
     test('assessment unchanged after cancel', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final originalFingerprint = assessment.answerKeyFingerprint;
       final originalRevision = assessment.answerKeyRevision;
 
@@ -142,8 +142,8 @@ void main() {
     });
 
     test('result unchanged after cancel', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(
+      final assessment = makeAssessment();
+      final result = makeResult(
         fingerprint: assessment.answerKeyFingerprint,
         revision: 1,
       );
@@ -158,7 +158,7 @@ void main() {
 
   group('Save and recalculate later behavior', () {
     test('assessment gets new fingerprint', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final oldFingerprint = assessment.answerKeyFingerprint;
 
       // Simulate answer key change
@@ -178,8 +178,8 @@ void main() {
     });
 
     test('result remains outdated', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(
+      final assessment = makeAssessment();
+      final result = makeResult(
         fingerprint: assessment.answerKeyFingerprint,
         revision: 1,
       );
@@ -196,8 +196,8 @@ void main() {
     });
 
     test('finalization blocked for outdated results', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(
+      final assessment = makeAssessment();
+      final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
       );
@@ -220,19 +220,19 @@ void main() {
 
   group('Recalculate now behavior', () {
     test('eligible result gets new fingerprint', () {
-      final assessment = _makeAssessment(questions: [
+      final assessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'B', points: 1),
       ]);
 
-      final result = _makeResult(
+      final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
         totalScore: 1,
       );
 
       // Simulate recalculation: checkAnswer with new key
-      final newAssessment = _makeAssessment(questions: [
+      final newAssessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'C', points: 1), // changed
       ], revision: 2);
@@ -265,7 +265,7 @@ void main() {
     });
 
     test('manual essay marks preserved', () {
-      final result = _makeResult(
+      final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
         totalScore: 7,
@@ -277,7 +277,7 @@ void main() {
     });
 
     test('teacher-corrected responses preserved', () {
-      final result = _makeResult(
+      final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
         overrideTypes: {'1': AnswerOverrideType.teacherCorrected},
@@ -287,7 +287,7 @@ void main() {
     });
 
     test('manual entry preserved', () {
-      final result = _makeResult(
+      final result = makeResult(
         fingerprint: 'old-fingerprint',
         revision: 1,
         isManualEntry: true,
@@ -297,10 +297,10 @@ void main() {
     });
 
     test('assessment becomes current when all results have matching fingerprint', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
-        _makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
+        makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
+        makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
       ];
 
       final allCurrent = resolver.allCurrent(results: results, assessment: assessment);
@@ -308,10 +308,10 @@ void main() {
     });
 
     test('assessment not current when any result is outdated', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
-        _makeResult(fingerprint: 'old-fingerprint', revision: 1), // outdated
+        makeResult(fingerprint: assessment.answerKeyFingerprint, revision: assessment.answerKeyRevision),
+        makeResult(fingerprint: 'old-fingerprint', revision: 1), // outdated
       ];
 
       final allCurrent = resolver.allCurrent(results: results, assessment: assessment);
@@ -321,15 +321,15 @@ void main() {
 
   group('Score computation after recalculation', () {
     test('changed score reflects new key', () {
-      final assessment = _makeAssessment(questions: [
+      final assessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'B', points: 1),
       ]);
 
       // Student: A, C
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: 'A'),
-        DetectedAnswer(questionNumber: 2, answer: 'C', confidence: 0.95, rawText: 'C'),
+        const DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: 'A'),
+        const DetectedAnswer(questionNumber: 2, answer: 'C', confidence: 0.95, rawText: 'C'),
       ];
 
       // Old key: A, B → q1 correct, q2 wrong → total=1, pct=50
@@ -338,7 +338,7 @@ void main() {
       expect(oldTotal, 1);
 
       // New key: A, C → both correct → total=2, pct=100
-      final newAssessment = _makeAssessment(questions: [
+      final newAssessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'C', points: 1),
       ], revision: 2);
@@ -355,18 +355,18 @@ void main() {
     });
 
     test('unchanged scores remain same', () {
-      final assessment = _makeAssessment(questions: [
+      final assessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'B', points: 1),
       ]);
 
       final detected = [
-        DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: 'A'),
-        DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.95, rawText: 'B'),
+        const DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: 'A'),
+        const DetectedAnswer(questionNumber: 2, answer: 'B', confidence: 0.95, rawText: 'B'),
       ];
 
       // Change q3 (not in this assessment) → scores unchanged
-      final newAssessment = _makeAssessment(questions: [
+      final newAssessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: 'B', points: 1),
       ], revision: 2);
@@ -383,26 +383,26 @@ void main() {
 
   group('Integrity state for all scenarios', () {
     test('current result → current', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint);
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.current);
     });
 
     test('outdated result → outdated', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: 'old-fp');
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: 'old-fp');
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.outdated);
     });
 
     test('legacy result → legacyUnknown', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(); // no fingerprint
+      final assessment = makeAssessment();
+      final result = makeResult(); // no fingerprint
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.legacyUnknown);
     });
 
     test('manual entry with matching fingerprint → currentNeedsManualReview', () {
-      final assessment = _makeAssessment();
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint, isManualEntry: true);
+      final assessment = makeAssessment();
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint, isManualEntry: true);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.currentNeedsManualReview);
     });
 
@@ -415,7 +415,7 @@ void main() {
         answerKeyFingerprint: fingerprintService.compute(baseAssessment),
         settings: {IntegrityMetadataKeys.recalculationInProgress: true},
       );
-      final result = _makeResult(fingerprint: assessment.answerKeyFingerprint);
+      final result = makeResult(fingerprint: assessment.answerKeyFingerprint);
       expect(resolver.resolve(result: result, assessment: assessment), IntegrityState.recalculating);
     });
   });

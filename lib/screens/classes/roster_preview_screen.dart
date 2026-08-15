@@ -31,7 +31,7 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
   void initState() {
     super.initState();
     _students = widget.parsedStudents
-        .map((p) => _EditableStudent.fromParsed(p))
+        .map(_EditableStudent.fromParsed)
         .toList();
   }
 
@@ -43,7 +43,7 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Review Roster'),
+        title: const Text('Review Roster'),
         actions: [
           TextButton.icon(
             onPressed: _validCount > 0 ? _saveAll : null,
@@ -61,15 +61,15 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
             color: AppTheme.primaryGreen.withOpacity(0.08),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.check_circle_outline,
                   color: AppTheme.primaryGreen,
                   size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    "$_validCount students found — verify and edit below",
-                    style: TextStyle(
+                    '$_validCount students found — verify and edit below',
+                    style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppTheme.primaryGreen))),
               ])),
@@ -100,7 +100,7 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
                 onPressed: _validCount > 0 ? _saveAll : null,
                 icon: const Icon(Icons.save),
                 label: Text(
-                  "Save $_validCount Students"),
+                  'Save $_validCount Students'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primaryGreen,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -218,14 +218,14 @@ class _StudentEditCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     student.rawLine,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
                       color: AppTheme.lightText,
                       fontStyle: FontStyle.italic),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis)),
                 IconButton(
-                  icon: Icon(Icons.close, size: 18, color: AppTheme.primaryRed),
+                  icon: const Icon(Icons.close, size: 18, color: AppTheme.primaryRed),
                   onPressed: onRemove,
                   tooltip: 'Remove',
                   padding: EdgeInsets.zero,
@@ -241,10 +241,10 @@ class _StudentEditCard extends StatelessWidget {
                   width: 60,
                   child: TextFormField(
                     initialValue: student.studentId,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'ID',
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 8)),
                     style: const TextStyle(fontSize: 13),
@@ -254,10 +254,10 @@ class _StudentEditCard extends StatelessWidget {
                 Expanded(
                   child: TextFormField(
                     initialValue: student.firstName,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'First',
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 8)),
                     style: const TextStyle(fontSize: 13),
@@ -267,10 +267,10 @@ class _StudentEditCard extends StatelessWidget {
                 Expanded(
                   child: TextFormField(
                     initialValue: student.lastName,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Last',
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 8)),
                     style: const TextStyle(fontSize: 13),
@@ -281,7 +281,7 @@ class _StudentEditCard extends StatelessWidget {
             // Gender toggle
             Row(
               children: [
-                Text(
+                const Text(
                   'Gender:',
                   style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
                 const SizedBox(width: 8),

@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ethiograde/models/coordinate_map.dart';
 
 void main() {
   group('P0.4 — Template identity validation', () {
     test('correct template has matching assessmentId', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'assess-123',
         page: PageDimensions(),
         anchors: [],
@@ -16,7 +15,7 @@ void main() {
     });
 
     test('wrong template has different assessmentId', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'assess-456', // Different assessment
         page: PageDimensions(),
         anchors: [],
@@ -27,7 +26,7 @@ void main() {
     });
 
     test('missing assessmentId in map produces warning', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: '', // Empty
         page: PageDimensions(),
         anchors: [],
@@ -38,14 +37,14 @@ void main() {
     });
 
     test('outdated coordinate map detected by version mismatch', () {
-      final oldMap = CoordinateMap(
+      const oldMap = CoordinateMap(
         assessmentId: 'assess-123',
         version: '0.9', // Old version
         page: PageDimensions(),
         anchors: [],
         questions: [],
       );
-      final newMap = CoordinateMap(
+      const newMap = CoordinateMap(
         assessmentId: 'assess-123',
         version: '1.0',
         page: PageDimensions(),
@@ -56,7 +55,7 @@ void main() {
     });
 
     test('regenerated map preserves assessmentId', () {
-      final original = CoordinateMap(
+      const original = CoordinateMap(
         assessmentId: 'assess-123',
         page: PageDimensions(),
         anchors: [],
@@ -78,12 +77,12 @@ void main() {
       // Teacher can override by confirming in the UI
       // This test verifies the check exists
       final mapJson = {'assessmentId': 'wrong-assessment'};
-      final currentAssessmentId = 'correct-assessment';
+      const currentAssessmentId = 'correct-assessment';
       expect(mapJson['assessmentId'] != currentAssessmentId, true);
     });
 
     test('anchor count mismatch indicates wrong template', () {
-      final map1 = CoordinateMap(
+      const map1 = CoordinateMap(
         assessmentId: 'assess-123',
         page: PageDimensions(),
         anchors: [
@@ -92,7 +91,7 @@ void main() {
         ],
         questions: [],
       );
-      final map2 = CoordinateMap(
+      const map2 = CoordinateMap(
         assessmentId: 'assess-123',
         page: PageDimensions(),
         anchors: [

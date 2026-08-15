@@ -362,7 +362,7 @@ class DemoDataService {
     List<double> scoreRatios,
   ) {
     final maxScore = assessment.maxScore;
-    final scoring = const ScoringService();
+    const scoring = ScoringService();
 
     final results = <ScanResult>[];
 

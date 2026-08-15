@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ethiograde/services/weighted_grade_service.dart';
 import 'package:ethiograde/models/weighted_grade.dart';
-import 'package:ethiograde/models/scan_result.dart';
 import 'package:ethiograde/models/student.dart';
 
 void main() {

@@ -3,7 +3,7 @@ import 'package:ethiograde/services/scoring_service.dart';
 import 'package:ethiograde/models/assessment.dart';
 
 void main() {
-  final scoringService = const ScoringService();
+  const scoringService = ScoringService();
 
   group('P0.3 — Multiple-mark answer handling', () {
     test('no mark → empty detected answer scores zero', () {
@@ -16,7 +16,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '', confidence: 0, rawText: '')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '', confidence: 0, rawText: '')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, false);
@@ -33,7 +33,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '[MISSING]', confidence: 0, rawText: '')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '[MISSING]', confidence: 0, rawText: '')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, false);
@@ -50,7 +50,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'A,B filled')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'A,B filled')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, false);
@@ -68,7 +68,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: '[OMR] fill=85%')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 0.95, rawText: '[OMR] fill=85%')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, true);
@@ -86,7 +86,7 @@ void main() {
 
       // Simulate what OMR would return for multiple marks
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'A(80%),B(75%)')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'A(80%),B(75%)')],
         assessment: assessment,
       );
       // Even though A is correct, multiple marks mean score is 0
@@ -105,7 +105,7 @@ void main() {
 
       // Teacher corrects to single answer
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 1.0, rawText: '(manual: A)')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: 'A', confidence: 1.0, rawText: '(manual: A)')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, true);
@@ -122,7 +122,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'True,False filled')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'True,False filled')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, false);
@@ -139,7 +139,7 @@ void main() {
       );
 
       final matches = scoringService.scoreAnswers(
-        detected: [DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'multiple matches detected')],
+        detected: [const DetectedAnswer(questionNumber: 1, answer: '[MULTIPLE]', confidence: 0, rawText: 'multiple matches detected')],
         assessment: assessment,
       );
       expect(matches[0].isCorrect, false);
@@ -149,7 +149,7 @@ void main() {
     test('original detected marks preserved in ocrRawText', () {
       // The OMR service stores fill ratios in rawText
       // This test verifies the data is available for teacher inspection
-      final rawText = '[OMR] fill=85%,A(80%),B(75%)';
+      const rawText = '[OMR] fill=85%,A(80%),B(75%)';
       expect(rawText, contains('A(80%)'));
       expect(rawText, contains('B(75%)'));
     });

@@ -33,10 +33,10 @@ void main() {
     });
 
     // Shared template for all batch sheets
-    final template = BubbleTemplate(
+    const template = BubbleTemplate(
       name: 'batch_test',
       questionCount: 10,
-      options: const ['A', 'B', 'C', 'D', 'E'],
+      options: ['A', 'B', 'C', 'D', 'E'],
       startY: 120,
       rowSpacing: 45,
       startX: 100,

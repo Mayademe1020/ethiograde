@@ -9,8 +9,6 @@ import 'package:ethiograde/screens/students/import_excel_screen.dart';
 import 'package:ethiograde/services/student_provider.dart';
 import 'package:ethiograde/services/class_provider.dart';
 import 'package:ethiograde/services/settings_provider.dart';
-import 'package:ethiograde/models/student.dart';
-import 'package:ethiograde/config/theme.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

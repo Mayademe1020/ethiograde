@@ -1,7 +1,5 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
-import 'package:camera/camera.dart';
 import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -220,11 +218,11 @@ class MockCameraPlatform extends CameraPlatform {
     }
 
     // Draw answer bubbles grid
-    final startX = 100;
-    final startY = 120;
-    final bubbleRadius = 8;
-    final rowHeight = 45;
-    final colWidth = 50;
+    const startX = 100;
+    const startY = 120;
+    const bubbleRadius = 8;
+    const rowHeight = 45;
+    const colWidth = 50;
 
     final answerList = answers ?? List.generate(questions, (i) {
       // Alternate between A-E for test answers

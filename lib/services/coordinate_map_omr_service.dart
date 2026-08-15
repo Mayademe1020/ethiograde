@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import '../models/assessment.dart';
 import '../models/coordinate_map.dart';
-import '../services/answer_sheet_generator.dart';
 
 /// Coordinate-map-aware OMR scanning service.
 ///
@@ -43,7 +42,7 @@ class CoordinateMapOmrService {
     required Assessment assessment,
   }) async {
     if (pages.isEmpty) {
-      return MultiPageScanResult(
+      return const MultiPageScanResult(
         pageIndex: -1,
         omrResult: CoordinateMapOmrResult.empty,
         totalPages: 0,
@@ -162,7 +161,6 @@ class CoordinateMapOmrService {
 
       // 5. Sample bubbles
       final detected = <CoordinateMapAnswer>[];
-      int objectiveCount = 0;
 
       for (final qMap in coordinateMap.questions) {
         final assessmentQ = assessment.questions.firstWhere(
@@ -171,8 +169,6 @@ class CoordinateMapOmrService {
 
         if (assessmentQ.number == 0) continue; // Question not in assessment
         if (!assessmentQ.isObjective) continue; // Skip essay/short answer
-
-        objectiveCount++;
 
         // Find the filled bubble
         double bestFill = 0;
@@ -367,8 +363,9 @@ class CoordinateMapOmrService {
       for (int dx = -half; dx <= half; dx++) {
         final px = cx + dx;
         final py = cy + dy;
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height)
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height) {
           continue;
+        }
 
         final brightness = image.getPixel(px, py).r / 255.0;
         if (brightness < 0.3) darkCount++;
@@ -463,7 +460,7 @@ class CoordinateMapOmrService {
   }
 
   List<double>? _solveLinear(List<List<double>> a, List<double> b) {
-    final n = 8;
+    const n = 8;
     final aug = List.generate(n, (i) => [...a[i], b[i]]);
 
     for (int col = 0; col < n; col++) {
@@ -542,8 +539,9 @@ class CoordinateMapOmrService {
       for (int dx = -radius; dx <= radius; dx++) {
         final px = cx + dx;
         final py = cy + dy;
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height)
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height) {
           continue;
+        }
 
         final brightness = image.getPixel(px, py).r / 255.0;
         if (brightness < 0.4) darkCount++;

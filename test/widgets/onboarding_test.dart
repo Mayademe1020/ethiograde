@@ -1,38 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:provider/provider.dart';
 import 'package:ethiograde/screens/onboarding/onboarding_screen.dart';
 
 void main() {
-  Widget _wrap(Widget child) {
+  Widget wrap(Widget child) {
     return MaterialApp(
       home: child);
   }
 
   group('OnboardingScreen', () {
     testWidgets('renders first page with scan & grade title', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       expect(find.text('Scan & Grade'), findsOneWidget);
     });
 
     testWidgets('has Skip button', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       expect(find.text('Skip'), findsOneWidget);
     });
 
     testWidgets('has Next button', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       expect(find.text('Next'), findsOneWidget);
     });
 
     testWidgets('navigates to next page on Next tap', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       // First page
@@ -46,7 +45,7 @@ void main() {
     });
 
     testWidgets('shows Back button on second page', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       // Navigate to page 2
@@ -57,7 +56,7 @@ void main() {
     });
 
     testWidgets('Skip jumps to setup page', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Skip'));
@@ -68,7 +67,7 @@ void main() {
     });
 
     testWidgets('setup page has name and school fields', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       // Jump to setup page
@@ -80,7 +79,7 @@ void main() {
     });
 
     testWidgets('setup page has Get Started button', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Skip'));
@@ -90,7 +89,7 @@ void main() {
     });
 
     testWidgets('dot indicator shows correct number of pages', (tester) async {
-      await tester.pumpWidget(_wrap(const OnboardingScreen()));
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       // 4 info pages + 1 setup page = 5 dots

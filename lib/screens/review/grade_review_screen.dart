@@ -75,11 +75,12 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       },
     );
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _isReading = false;
         _readingIndex = -1;
       });
+    }
   }
 
   @override
@@ -165,7 +166,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
               _isReading ? Icons.stop_circle : Icons.volume_up,
               color: _isReading ? AppTheme.primaryRed : null,
             ),
-            onPressed: results.isNotEmpty ? () => _readAllScores() : null,
+            onPressed: results.isNotEmpty ? _readAllScores : null,
             tooltip: _isReading ? 'Stop' : 'Read All Scores',
           ),
           if (results.isNotEmpty)
@@ -177,7 +178,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
         ],
       ),
       body: results.isEmpty
-          ? Center(
+          ? const Center(
               child: Text(
                 'No results to review',
                 style: TextStyle(color: AppTheme.lightText),
@@ -233,9 +234,9 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () => _confirmAndSave(context),
                         icon: const Icon(Icons.check_circle),
-                        label: Text(
+                        label: const Text(
                           'Confirm & Save',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -258,7 +259,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
 
   void _confirmAndSave(BuildContext context) async {
     // Check completion gate before saving
-    final gate = const AssessmentCompletionGate();
+    const gate = AssessmentCompletionGate();
     final check = gate.check(assessment: assessment, results: results);
 
     if (!check.isReady) {
@@ -307,7 +308,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("${results.length} results saved"),
+          content: Text('${results.length} results saved'),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );
@@ -475,7 +476,7 @@ class _StudentRow extends StatelessWidget {
             0.1,
           ),
           child: isReading
-              ? Icon(Icons.volume_up, color: AppTheme.info, size: 20)
+              ? const Icon(Icons.volume_up, color: AppTheme.info, size: 20)
               : Text(
                   '$rank',
                   style: TextStyle(
@@ -504,9 +505,9 @@ class _StudentRow extends StatelessWidget {
                   color: AppTheme.primaryGreen.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
+                child: const Text(
                   'Top',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     color: AppTheme.primaryGreen,
                   ),
@@ -519,9 +520,9 @@ class _StudentRow extends StatelessWidget {
                   color: AppTheme.primaryRed.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
+                child: const Text(
                   'Low',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     color: AppTheme.primaryRed,
                   ),
@@ -531,7 +532,7 @@ class _StudentRow extends StatelessWidget {
         ),
         subtitle: Text(
           '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-          style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+          style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -571,7 +572,7 @@ class _StudentRow extends StatelessWidget {
             const SizedBox(width: 8),
             if (!readOnly)
               IconButton(
-                icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
+                icon: const Icon(Icons.edit, size: 18, color: AppTheme.lightText),
                 onPressed: onEdit,
                 tooltip: 'Edit',
                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
@@ -621,10 +622,10 @@ class _WeightedGradeBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.balance, size: 18, color: AppTheme.info),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Weighted Composite Grade',
@@ -655,8 +656,8 @@ class _WeightedGradeBanner extends StatelessWidget {
 
               final grades = snapshot.data;
               if (grades == null || grades.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                return const Padding(
+                  padding: EdgeInsets.only(top: 6),
                   child: Text(
                     'Composite grades appear once all components are graded',
                     style: TextStyle(fontSize: 11, color: AppTheme.lightText),
@@ -665,7 +666,7 @@ class _WeightedGradeBanner extends StatelessWidget {
               }
 
               // Show composite stats
-              final service = const WeightedGradeService();
+              const service = WeightedGradeService();
               final stats = service.computeClassStats(grades);
               return Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -732,13 +733,13 @@ class _CompositeStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
             color: AppTheme.info,
           ),
         ),
-        Text(label, style: TextStyle(fontSize: 11, color: AppTheme.lightText)),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.lightText)),
       ],
     );
   }

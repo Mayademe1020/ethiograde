@@ -28,8 +28,12 @@ int _levenshtein(String a, String b) {
   final matrix = List.generate(
     a.length + 1,
     (i) => List.filled(b.length + 1, 0));
-  for (var i = 0; i <= a.length; i++) matrix[i][0] = i;
-  for (var j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (var i = 0; i <= a.length; i++) {
+    matrix[i][0] = i;
+  }
+  for (var j = 0; j <= b.length; j++) {
+    matrix[0][j] = j;
+  }
   for (var i = 1; i <= a.length; i++) {
     for (var j = 1; j <= b.length; j++) {
       final cost = a[i - 1] == b[j - 1] ? 0 : 1;
@@ -147,7 +151,7 @@ class StudentMatcher {
   /// Match by student ID (exact, faster than name matching).
   static MatchResult matchById(String studentId, List<Student> classStudents) {
     if (studentId.trim().isEmpty || classStudents.isEmpty) {
-      return MatchResult(scannedName: '');
+      return const MatchResult(scannedName: '');
     }
 
     final matches = classStudents
@@ -181,7 +185,7 @@ class StudentMatcher {
     final parsed = parser.parse(ocrText);
 
     if (parsed.isEmpty) {
-      return MatchResult(scannedName: '');
+      return const MatchResult(scannedName: '');
     }
 
     // ── Priority 1: Exact student ID match (highest trust) ──

@@ -1,6 +1,5 @@
 import '../models/weighted_grade.dart';
 import '../models/scan_result.dart';
-import '../models/assessment.dart';
 import '../models/student.dart';
 import 'scoring_service.dart';
 

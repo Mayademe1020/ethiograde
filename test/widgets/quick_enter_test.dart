@@ -12,7 +12,6 @@ import 'package:ethiograde/services/class_provider.dart';
 import 'package:ethiograde/services/settings_provider.dart';
 import 'package:ethiograde/models/assessment.dart';
 import 'package:ethiograde/models/student.dart';
-import 'package:ethiograde/models/class_info.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -57,8 +56,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => ClassProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
-      child: MaterialApp(
-        home: const QuickEnterScreen()),
+      child: const MaterialApp(
+        home: QuickEnterScreen()),
     );
   }
 
@@ -83,7 +82,7 @@ void main() {
               child: const Text('GO'))))));
   }
 
-  Assessment _makeAssessment({String className = ''}) {
+  Assessment makeAssessment({String className = ''}) {
     return Assessment(
       id: 'a1',
       title: 'Math Midterm',
@@ -111,7 +110,7 @@ void main() {
 
   group('QuickEnterScreen — Score Table', () {
     testWidgets('renders title and assessment info', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       await tester.pumpWidget(buildWithAssessment(assessment));
       await tester.pump();
       await tester.pump();
@@ -126,7 +125,7 @@ void main() {
     });
 
     testWidgets('shows no students message when roster empty', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       await tester.pumpWidget(buildWithAssessment(assessment));
       await tester.pumpAndSettle();
 
@@ -139,7 +138,7 @@ void main() {
     });
 
     testWidgets('renders score table headers with questions', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final studentProv = StudentProvider();
       final student = Student(
         id: 's1', firstName: 'Abebe', lastName: 'Kebede',
@@ -180,7 +179,7 @@ void main() {
     });
 
     testWidgets('save all button exists and is enabled', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final studentProv = StudentProvider();
       await tester.runAsync(() => studentProv.addStudent(Student(
         id: 's1', firstName: 'Abebe', lastName: 'Kebede',
@@ -216,7 +215,7 @@ void main() {
     });
 
     testWidgets('score cells show dash when no score entered', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final studentProv = StudentProvider();
       await tester.runAsync(() => studentProv.addStudent(Student(
         id: 's1', firstName: 'Abebe', lastName: 'Kebede',
@@ -251,7 +250,7 @@ void main() {
     });
 
     testWidgets('tapping score cell opens bottom sheet', (tester) async {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final studentProv = StudentProvider();
       await tester.runAsync(() => studentProv.addStudent(Student(
         id: 's1', firstName: 'Abebe', lastName: 'Kebede',

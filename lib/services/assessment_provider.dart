@@ -107,7 +107,7 @@ class AssessmentProvider extends ChangeNotifier {
       await box.put(assessment.id, assessment.toMap());
     } catch (e) {
       debugPrint('[AssessmentProvider] addAssessment Hive write failed: $e');
-      return Result.failure('Failed to save assessment');
+      return const Result.failure('Failed to save assessment');
     }
 
     _assessments.insert(0, assessment);
@@ -134,7 +134,7 @@ class AssessmentProvider extends ChangeNotifier {
       await box.put(assessment.id, assessment.toMap());
     } catch (e) {
       debugPrint('[AssessmentProvider] updateAssessment Hive write failed: $e');
-      return Result.failure('Failed to update assessment');
+      return const Result.failure('Failed to update assessment');
     }
 
     final index = _assessments.indexWhere((a) => a.id == assessment.id);
@@ -162,7 +162,7 @@ class AssessmentProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint(
         '[AssessmentProvider] deleteAssessment Hive delete failed: $e');
-      return Result.failure('Failed to delete assessment');
+      return const Result.failure('Failed to delete assessment');
     }
 
     _assessments.removeWhere((a) => a.id == assessmentId);
@@ -170,7 +170,7 @@ class AssessmentProvider extends ChangeNotifier {
       _currentAssessment = null;
     }
     notifyListeners();
-    return Result.success(null);
+    return const Result.success(null);
   }
 
   // ── Compat ─────────────────────────────────────────────────────────

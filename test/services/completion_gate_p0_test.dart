@@ -5,9 +5,9 @@ import 'package:ethiograde/services/assessment_completion_gate.dart';
 import 'package:ethiograde/services/answer_key_fingerprint_service.dart';
 
 void main() {
-  final fingerprintService = const AnswerKeyFingerprintService();
+  const fingerprintService = AnswerKeyFingerprintService();
 
-  Assessment _makeAssessment({
+  Assessment makeAssessment({
     List<Question>? questions,
     String? fingerprint,
   }) {
@@ -22,7 +22,7 @@ void main() {
     );
   }
 
-  ScanResult _makeResult({
+  ScanResult makeResult({
     String? fingerprint,
     double confidence = 0.95,
     ScanStatus status = ScanStatus.graded,
@@ -56,13 +56,13 @@ void main() {
 
   group('P0.6 — Assessment completion gate', () {
     test('complete assessment with current results is ready', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: assessment.answerKeyFingerprint),
-        _makeResult(fingerprint: assessment.answerKeyFingerprint, studentId: 's2', studentName: 'Student 2'),
+        makeResult(fingerprint: assessment.answerKeyFingerprint),
+        makeResult(fingerprint: assessment.answerKeyFingerprint, studentId: 's2', studentName: 'Student 2'),
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, true);
@@ -70,13 +70,13 @@ void main() {
     });
 
     test('incomplete answer key is blocking', () {
-      final assessment = _makeAssessment(questions: [
+      final assessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: 'A', points: 1),
         Question(id: 'q2', number: 2, type: QuestionType.mcq, correctAnswer: null, points: 1), // No answer
       ]);
-      final results = [_makeResult()];
+      final results = [makeResult()];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, false);
@@ -84,12 +84,12 @@ void main() {
     });
 
     test('outdated results are blocking', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(fingerprint: 'old-fingerprint'), // Outdated
+        makeResult(fingerprint: 'old-fingerprint'), // Outdated
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, false);
@@ -97,12 +97,12 @@ void main() {
     });
 
     test('unresolved review issues are blocking', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(confidence: 0.5), // Low confidence → needs review
+        makeResult(confidence: 0.5), // Low confidence → needs review
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, false);
@@ -110,12 +110,12 @@ void main() {
     });
 
     test('unmatched papers are blocking', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(studentId: '', studentName: ''), // No student assigned
+        makeResult(studentId: '', studentName: ''), // No student assigned
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, false);
@@ -123,16 +123,16 @@ void main() {
     });
 
     test('multiple-mark responses are blocking', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(
+        makeResult(
           answers: [
             AnswerMatch(questionNumber: 1, detectedAnswer: '[MULTIPLE]', correctAnswer: 'A', isCorrect: false, score: 0, maxScore: 1, confidence: 0),
           ],
         ),
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, false);
@@ -140,9 +140,9 @@ void main() {
     });
 
     test('no results is needs attention, not blocking', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: []);
 
       expect(check.isReady, true); // No blocking items
@@ -150,31 +150,31 @@ void main() {
     });
 
     test('resolved issues do not block', () {
-      final assessment = _makeAssessment();
+      final assessment = makeAssessment();
       final results = [
-        _makeResult(
+        makeResult(
           confidence: 0.5,
           status: ScanStatus.reviewed, // Teacher reviewed
         ),
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       expect(check.isReady, true);
     });
 
     test('each blocking item has an action', () {
-      final assessment = _makeAssessment(questions: [
+      final assessment = makeAssessment(questions: [
         Question(id: 'q1', number: 1, type: QuestionType.mcq, correctAnswer: null, points: 1),
       ]);
       final results = [
-        _makeResult(studentId: '', studentName: '', answers: [
+        makeResult(studentId: '', studentName: '', answers: [
           AnswerMatch(questionNumber: 1, detectedAnswer: 'A', correctAnswer: '', isCorrect: false, score: 0, maxScore: 1, confidence: 0.95),
         ]),
       ];
 
-      final gate = const AssessmentCompletionGate();
+      const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);
 
       for (final item in check.blocking) {

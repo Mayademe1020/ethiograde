@@ -85,7 +85,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "${widget.student.fullName} transferred to ${_selectedClass!.displayName}"),
+              '${widget.student.fullName} transferred to ${_selectedClass!.displayName}'),
             backgroundColor: AppTheme.primaryGreen,
             action: SnackBarAction(
               label: 'UNDO',
@@ -124,7 +124,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "${widget.student.fullName} restored to ${widget.fromClass.displayName}"),
+              '${widget.student.fullName} restored to ${widget.fromClass.displayName}'),
             backgroundColor: AppTheme.info));
       }
     }
@@ -140,14 +140,14 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         .toList();
 
     return AlertDialog(
-      title: Row(
+      title: const Row(
         children: [
           Icon(Icons.swap_horiz, color: AppTheme.info),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text('Transfer Student'),
         ]),
       content: availableClasses.isEmpty
-          ? Text(
+          ? const Text(
               'No other classes — create one first',
               style: TextStyle(color: AppTheme.lightText))
           : SingleChildScrollView(
@@ -180,16 +180,16 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                                 style: const TextStyle(fontWeight: FontWeight.w600)),
                               Text(
                                 '${"From"}: ${widget.fromClass.displayName}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.lightText)),
                             ])),
                       ])),
                   const SizedBox(height: 16),
                   // Destination class picker
-                  Text(
+                  const Text(
                     'To (select class)',
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                    style: TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -209,7 +209,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                   // Reason field
                   TextField(
                     controller: _reasonController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Reason (optional)',
                       hintText: 'e.g. Moved to different section',
                       isDense: true),
@@ -218,11 +218,11 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel')),
+          child: const Text('Cancel')),
         if (availableClasses.isNotEmpty)
           ElevatedButton(
             onPressed: _selectedClass != null && !_isTransferring
-                ? () => _transfer()
+                ? _transfer
                 : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen),
@@ -231,7 +231,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Transfer')),
+                : const Text('Transfer')),
       ]);
   }
 }

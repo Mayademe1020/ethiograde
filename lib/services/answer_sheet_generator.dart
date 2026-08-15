@@ -205,12 +205,12 @@ class AnswerSheetGenerator {
   }) {
     final anchors = <AnchorPoint>[];
     final questionBubbles = <QuestionBubble>[];
-    final inset = _hsAnchorInsetMm;
-    final size = _hsAnchorSizeMm;
+    const inset = _hsAnchorInsetMm;
+    const size = _hsAnchorSizeMm;
 
     // Anchors (relative to the half-sheet origin)
     anchors.addAll([
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topLeft',
         position: BubblePosition(
           xMm: inset,
@@ -218,7 +218,7 @@ class AnswerSheetGenerator {
           widthMm: size,
           heightMm: size,
           option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topRight',
         position: BubblePosition(
           xMm: _halfSheetWidthMm - inset - size,
@@ -226,7 +226,7 @@ class AnswerSheetGenerator {
           widthMm: size,
           heightMm: size,
           option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'bottomLeft',
         position: BubblePosition(
           xMm: inset,
@@ -234,7 +234,7 @@ class AnswerSheetGenerator {
           widthMm: size,
           heightMm: size,
           option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'bottomRight',
         position: BubblePosition(
           xMm: _halfSheetWidthMm - inset - size,
@@ -245,8 +245,8 @@ class AnswerSheetGenerator {
     ]);
 
     // Table start position
-    final tableStartX = _hsMarginMm;
-    final tableStartY = _hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm;
+    const tableStartX = _hsMarginMm;
+    const tableStartY = _hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm;
 
     // Question rows
     for (int i = 0; i < questions.length; i++) {
@@ -281,7 +281,7 @@ class AnswerSheetGenerator {
     }
 
     // Answer key checkbox position
-    final checkboxY = _halfSheetHeightMm -
+    const checkboxY = _halfSheetHeightMm -
         _hsAnchorInsetMm -
         _hsAnchorSizeMm -
         _checkboxBottomOffsetMm;
@@ -304,7 +304,7 @@ class AnswerSheetGenerator {
 
     return CoordinateMap(
       assessmentId: assessmentId,
-      page: PageDimensions(
+      page: const PageDimensions(
         widthMm: _halfSheetWidthMm,
         heightMm: _halfSheetHeightMm),
       anchors: anchors,
@@ -350,7 +350,7 @@ class AnswerSheetGenerator {
           top: (_halfSheetHeightMm + 1) * _mmToPt,
           child: pw.Text(
             '── CUT HERE ──',
-            style: pw.TextStyle(
+            style: const pw.TextStyle(
               fontSize: 6,
               color: PdfColors.grey500))),
 
@@ -407,10 +407,10 @@ class AnswerSheetGenerator {
 
   /// Build 4 corner anchors for a half-sheet.
   List<pw.Widget> _buildHalfSheetAnchors(double offsetYMm) {
-    final size = _hsAnchorSizeMm * _mmToPt;
-    final inset = _hsAnchorInsetMm * _mmToPt;
-    final w = _halfSheetWidthMm * _mmToPt;
-    final h = _halfSheetHeightMm * _mmToPt;
+    const size = _hsAnchorSizeMm * _mmToPt;
+    const inset = _hsAnchorInsetMm * _mmToPt;
+    const w = _halfSheetWidthMm * _mmToPt;
+    const h = _halfSheetHeightMm * _mmToPt;
 
     pw.Widget anchor(double left, double top) => pw.Positioned(
           left: left,
@@ -439,12 +439,6 @@ class AnswerSheetGenerator {
     final displayId = hasStudent
         ? (student.studentId.isNotEmpty ? student.studentId : '______')
         : '__________';
-    final displayClass = hasStudent
-        ? (student.className.isNotEmpty
-            ? student.className
-            : (assessment.className.isNotEmpty ? assessment.className : '______'))
-        : '________';
-
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -495,7 +489,7 @@ class AnswerSheetGenerator {
                 ])),
             pw.Text(
               '${"Date"}: ____/____/____',
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
+              style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
           ]),
         pw.SizedBox(height: 1.5 * _mmToPt),
         pw.Divider(color: PdfColors.grey300, height: 0.5),
@@ -510,9 +504,7 @@ class AnswerSheetGenerator {
   /// │ 1 │ ○ │ ○ │ ○ │ ○ │ ○ │
   /// │ 2 │ ○ │ ○ │ ○ │ ○ │ ○ │
   pw.Widget _buildQuestionTable(List<Question> questions) {
-    final totalWidth = _hsQNumColWidthMm + _defaultMcqOptions.length * _hsOptionColWidthMm;
-    final border = pw.BorderSide(color: PdfColors.black, width: _hsTableBorderWidth);
-    final cellBorder = pw.Border(left: border, right: border, top: border, bottom: border);
+    const border = pw.BorderSide(color: PdfColors.black, width: _hsTableBorderWidth);
 
     pw.Widget cell({
       required double width,
@@ -562,7 +554,7 @@ class AnswerSheetGenerator {
     for (final q in questions) {
       final qIsTf = q.type == QuestionType.trueFalse;
       final qOptions = qIsTf ? _tfOptions : _defaultMcqOptions;
-      final bubbleSize = _hsBubbleDiameterMm * _mmToPt;
+      const bubbleSize = _hsBubbleDiameterMm * _mmToPt;
 
       final rowCells = <pw.Widget>[
         // Question number
@@ -610,7 +602,7 @@ class AnswerSheetGenerator {
 
   /// Build the answer key checkbox at the bottom of the sheet.
   pw.Widget _buildAnswerKeyCheckbox() {
-    final size = _checkboxSizeMm * _mmToPt;
+    const size = _checkboxSizeMm * _mmToPt;
     return pw.Row(
       children: [
         pw.Container(
@@ -647,7 +639,7 @@ class AnswerSheetGenerator {
     bool prefillNames = false,
   }) async {
     final questions = assessment.questions;
-    final questionsPerPage = _maxQuestionsPerPage;
+    const questionsPerPage = _maxQuestionsPerPage;
     final totalPages = (questions.length / questionsPerPage).ceil();
 
     // Split questions into pages
@@ -680,7 +672,6 @@ class AnswerSheetGenerator {
 
     // Build PDF
     final pdf = pw.Document();
-    final usePrefill = prefillNames && students.isNotEmpty;
 
     for (final pageQuestions in pages) {
       final hasRightColumn = pageQuestions.length > _maxQuestionsPerColumn;
@@ -797,25 +788,25 @@ class AnswerSheetGenerator {
     final anchors = <AnchorPoint>[];
     final questionBubbles = <QuestionBubble>[];
 
-    final anchorInset = _anchorInsetMm;
-    final anchorSize = _anchorSizeMm;
+    const anchorInset = _anchorInsetMm;
+    const anchorSize = _anchorSizeMm;
     anchors.addAll([
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topLeft',
         position: BubblePosition(
           xMm: anchorInset, yMm: anchorInset,
           widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topRight',
         position: BubblePosition(
           xMm: _a4WidthMm - anchorInset - anchorSize, yMm: anchorInset,
           widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'bottomLeft',
         position: BubblePosition(
           xMm: anchorInset, yMm: _a4HeightMm - anchorInset - anchorSize,
           widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'bottomRight',
         position: BubblePosition(
           xMm: _a4WidthMm - anchorInset - anchorSize,
@@ -823,8 +814,8 @@ class AnswerSheetGenerator {
           widthMm: anchorSize, heightMm: anchorSize, option: '')),
     ]);
 
-    final leftStartX = _marginMm + _questionNumberWidthMm;
-    final startY = _anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm;
+    const leftStartX = _marginMm + _questionNumberWidthMm;
+    const startY = _anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm;
 
     for (int i = 0; i < leftQuestions.length; i++) {
       final q = leftQuestions[i];
@@ -841,7 +832,7 @@ class AnswerSheetGenerator {
     }
 
     if (rightQuestions.isNotEmpty) {
-      final rightStartX = _a4WidthMm / 2 + _columnGapMm + _questionNumberWidthMm;
+      const rightStartX = _a4WidthMm / 2 + _columnGapMm + _questionNumberWidthMm;
       for (int i = 0; i < rightQuestions.length; i++) {
         final q = rightQuestions[i];
         final yMm = startY + i * _rowHeightMm;
@@ -929,8 +920,8 @@ class AnswerSheetGenerator {
   }
 
   List<pw.Widget> _buildFullA4Anchors() {
-    final size = _anchorSizeMm * _mmToPt;
-    final inset = _anchorInsetMm * _mmToPt;
+    const size = _anchorSizeMm * _mmToPt;
+    const inset = _anchorInsetMm * _mmToPt;
     pw.Widget anchor(double left, double top) => pw.Positioned(
           left: left,
           top: top,
@@ -1030,15 +1021,15 @@ class AnswerSheetGenerator {
     required List<Question> questions,}) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: questions.map((q) => _buildFullA4QuestionRow(q)).toList());
+      children: questions.map(_buildFullA4QuestionRow).toList());
   }
 
   pw.Widget _buildFullA4QuestionRow(Question question) {
     final isTf = question.type == QuestionType.trueFalse;
     final options = isTf ? _tfOptions : question.options;
     final spacing = (isTf ? _tfSpacingMm : _mcqSpacingMm) * _mmToPt;
-    final bubbleSize = _bubbleDiameterMm * _mmToPt;
-    final rowH = _rowHeightMm * _mmToPt;
+    const bubbleSize = _bubbleDiameterMm * _mmToPt;
+    const rowH = _rowHeightMm * _mmToPt;
 
     return pw.Container(
       height: rowH,

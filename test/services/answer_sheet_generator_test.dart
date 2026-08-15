@@ -409,7 +409,7 @@ void main() {
       final thirtyStudents = List.generate(
         30,
         (i) => Student(
-          studentId: '${(i + 1).toString().padLeft(3, '0')}',
+          studentId: (i + 1).toString().padLeft(3, '0'),
           firstName: 'Student',
           lastName: '${i + 1}'));
 
@@ -653,7 +653,7 @@ void main() {
       final students = List.generate(
         4,
         (i) => Student(
-          studentId: '${(i + 1).toString().padLeft(3, '0')}',
+          studentId: (i + 1).toString().padLeft(3, '0'),
           firstName: 'Student',
           lastName: '${i + 1}'));
 

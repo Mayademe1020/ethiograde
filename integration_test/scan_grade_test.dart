@@ -3,13 +3,9 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
-import 'package:ethiograde/models/assessment.dart';
-import 'package:ethiograde/models/coordinate_map.dart';
 import 'package:ethiograde/models/scan_result.dart';
 import 'package:ethiograde/services/omr_service.dart';
-import 'package:ethiograde/services/coordinate_map_omr_service.dart';
 import 'package:ethiograde/services/bubble_template.dart';
-import 'package:ethiograde/services/answer_sheet_generator.dart';
 import 'package:ethiograde/services/scoring_service.dart';
 
 import 'mock_camera_platform.dart';
@@ -95,10 +91,10 @@ void main() {
         await File(imagePath).writeAsBytes(jpegBytes);
 
         // Create a basic MCQ template
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'test10',
           questionCount: 10,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,
@@ -130,10 +126,10 @@ void main() {
         final imagePath = '${tempDir.path}/empty_sheet.jpg';
         await File(imagePath).writeAsBytes(jpegBytes);
 
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'test_empty',
           questionCount: 0,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,
@@ -152,10 +148,10 @@ void main() {
       });
 
       test('OmrService handles missing image file gracefully', () async {
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'test5',
           questionCount: 5,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,
@@ -301,10 +297,10 @@ void main() {
         await File(imagePath).writeAsBytes(jpegBytes);
 
         // OMR scan
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'e2e_test',
           questionCount: 10,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,
@@ -361,10 +357,10 @@ void main() {
         await File(corruptPath).writeAsBytes(
           Uint8List.fromList(List.generate(100, (i) => i % 256)));
 
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'corrupt_test',
           questionCount: 5,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,
@@ -386,10 +382,10 @@ void main() {
         final emptyPath = '${tempDir.path}/empty.jpg';
         await File(emptyPath).writeAsBytes(Uint8List(0));
 
-        final template = BubbleTemplate(
+        const template = BubbleTemplate(
           name: 'empty_test',
           questionCount: 5,
-          options: const ['A', 'B', 'C', 'D', 'E'],
+          options: ['A', 'B', 'C', 'D', 'E'],
           startY: 120,
           rowSpacing: 45,
           startX: 100,

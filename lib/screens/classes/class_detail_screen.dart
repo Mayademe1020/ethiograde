@@ -784,7 +784,7 @@ class _EmptyClassState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
-        child: SingleChildScrollView(
+        child: const SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

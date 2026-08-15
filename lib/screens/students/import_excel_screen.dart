@@ -34,214 +34,216 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text('Import Students')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Import instructions
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.info.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.info.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: AppTheme.info),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Instructions',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.info,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '1. Prepare a CSV file (.csv)\n'
-                    '2. First row should be headers (Name, Last Name, ID...)\n'
-                    '3. Select the file below',
-                    style: const TextStyle(fontSize: 13, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Import button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isImporting ? null : _pickAndImport,
-                icon: _isImporting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.upload_file),
-                label: Text(
-                  _isImporting ? ('Importing...') : ('Select CSV File'),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Manual entry button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _showManualEntry(),
-                icon: const Icon(Icons.person_add),
-                label: Text('Add Manually'),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Status message
-            if (_statusMessage.isNotEmpty)
+      appBar: AppBar(title: const Text('Import Students')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Import instructions
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _importedStudents.isNotEmpty
-                      ? AppTheme.primaryGreen.withOpacity(0.1)
-                      : AppTheme.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppTheme.info.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.info.withValues(alpha: 0.2)),
                 ),
-                child: Text(
-                  _statusMessage,
-                  style: TextStyle(
-                    color: _importedStudents.isNotEmpty
-                        ? AppTheme.primaryGreen
-                        : AppTheme.warning,
-                  ),
-                ),
-              ),
-
-            // Imported students list
-            if (_importedStudents.isNotEmpty) ...[
-              _ImportReviewPanel(
-                review: review,
-                onSaveReady: review.saveableEntries.isEmpty
-                    ? null
-                    : () => _saveImportedStudents(review),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${review.visibleEntries.length} ${'Students'}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: review.saveableEntries.isEmpty
-                        ? null
-                        : () => _saveImportedStudents(review),
-                    icon: const Icon(Icons.check),
-                    label: Text(
-                      review.hasOpenIssues ? 'Save ready' : 'Save All',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: review.visibleEntries.length,
-                itemBuilder: (context, index) {
-                  final entry = review.visibleEntries[index];
-                  final s = entry.student;
-                  final rowColor = entry.hasIssues && !entry.approved
-                      ? AppTheme.warning
-                      : AppTheme.primaryGreen;
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: rowColor.withOpacity(0.1),
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          color: rowColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      entry.hasIssues && !entry.approved
-                          ? '${s.fullName} - ${entry.issueLabels.join(', ')}'
-                          : entry.approved
-                          ? '${s.fullName} - approved'
-                          : s.fullName,
-                    ),
-                    subtitle: Text(
-                      [
-                        if (s.className.isNotEmpty) s.className,
-                        if (s.studentId.isNotEmpty) 'ID: ${s.studentId}',
-                      ].join(' • '),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'edit':
-                            _showEditImportedStudent(entry.student);
-                          case 'keep':
-                            setState(
-                              () => _approvedIssueIds.add(entry.student.id),
-                            );
-                          case 'skip':
-                            setState(() {
-                              _skippedImportIds.add(entry.student.id);
-                              _approvedIssueIds.remove(entry.student.id);
-                            });
-                          case 'remove':
-                            setState(() {
-                              _importedStudents.removeWhere(
-                                (student) => student.id == entry.student.id,
-                              );
-                              _skippedImportIds.remove(entry.student.id);
-                              _approvedIssueIds.remove(entry.student.id);
-                            });
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        if (entry.hasIssues)
-                          const PopupMenuItem(
-                            value: 'keep',
-                            child: Text('Keep anyway'),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, color: AppTheme.info),
+                        SizedBox(width: 8),
+                        Text(
+                          'Instructions',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.info,
                           ),
-                        const PopupMenuItem(
-                          value: 'skip',
-                          child: Text('Skip for now'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'remove',
-                          child: Text('Remove'),
                         ),
                       ],
                     ),
-                  );
-                },
+                    SizedBox(height: 8),
+                    Text(
+                      '1. Prepare a CSV file (.csv)\n'
+                      '2. First row should be headers (Name, Last Name, ID...)\n'
+                      '3. Select the file below',
+                      style: TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 24),
+
+              // Import button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isImporting ? null : _pickAndImport,
+                  icon: _isImporting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.upload_file),
+                  label: Text(
+                    _isImporting ? ('Importing...') : ('Select CSV File'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Manual entry button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showManualEntry,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Add Manually'),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Status message
+              if (_statusMessage.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _importedStudents.isNotEmpty
+                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                        : AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _statusMessage,
+                    style: TextStyle(
+                      color: _importedStudents.isNotEmpty
+                          ? AppTheme.primaryGreen
+                          : AppTheme.warning,
+                    ),
+                  ),
+                ),
+
+              // Imported students list
+              if (_importedStudents.isNotEmpty) ...[
+                _ImportReviewPanel(
+                  review: review,
+                  onSaveReady: review.saveableEntries.isEmpty
+                      ? null
+                      : () => _saveImportedStudents(review),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${review.visibleEntries.length} ${'Students'}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: review.saveableEntries.isEmpty
+                          ? null
+                          : () => _saveImportedStudents(review),
+                      icon: const Icon(Icons.check),
+                      label: Text(
+                        review.hasOpenIssues ? 'Save ready' : 'Save All',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: review.visibleEntries.length,
+                  itemBuilder: (context, index) {
+                    final entry = review.visibleEntries[index];
+                    final s = entry.student;
+                    final rowColor = entry.hasIssues && !entry.approved
+                        ? AppTheme.warning
+                        : AppTheme.primaryGreen;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: rowColor.withValues(alpha: 0.1),
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: rowColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        entry.hasIssues && !entry.approved
+                            ? '${s.fullName} - ${entry.issueLabels.join(', ')}'
+                            : entry.approved
+                            ? '${s.fullName} - approved'
+                            : s.fullName,
+                      ),
+                      subtitle: Text(
+                        [
+                          if (s.className.isNotEmpty) s.className,
+                          if (s.studentId.isNotEmpty) 'ID: ${s.studentId}',
+                        ].join(' • '),
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'edit':
+                              _showEditImportedStudent(entry.student);
+                            case 'keep':
+                              setState(
+                                () => _approvedIssueIds.add(entry.student.id),
+                              );
+                            case 'skip':
+                              setState(() {
+                                _skippedImportIds.add(entry.student.id);
+                                _approvedIssueIds.remove(entry.student.id);
+                              });
+                            case 'remove':
+                              setState(() {
+                                _importedStudents.removeWhere(
+                                  (student) => student.id == entry.student.id,
+                                );
+                                _skippedImportIds.remove(entry.student.id);
+                                _approvedIssueIds.remove(entry.student.id);
+                              });
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                          if (entry.hasIssues)
+                            const PopupMenuItem(
+                              value: 'keep',
+                              child: Text('Keep anyway'),
+                            ),
+                          const PopupMenuItem(
+                            value: 'skip',
+                            child: Text('Skip for now'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'remove',
+                            child: Text('Remove'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -324,10 +326,10 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 // Student ID
                 TextFormField(
                   controller: idCtrl,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Student ID (Roll No.) *',
                     hintText: 'e.g. 001',
-                    prefixIcon: const Icon(Icons.badge_outlined),
+                    prefixIcon: Icon(Icons.badge_outlined),
                   ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
@@ -342,7 +344,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 const SizedBox(height: 12),
 
                 // Name (English)
-                Text(
+                const Text(
                   'Name (English) *',
                   style: TextStyle(
                     fontSize: 13,
@@ -356,7 +358,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: firstNameCtrl,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'First Name',
                           hintText: 'Abebe',
                         ),
@@ -369,7 +371,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                     Expanded(
                       child: TextFormField(
                         controller: lastNameCtrl,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Last Name',
                           hintText: 'Kebede',
                         ),
@@ -383,7 +385,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 const SizedBox(height: 16),
 
                 // Gender
-                Text(
+                const Text(
                   'Gender *',
                   style: TextStyle(
                     fontSize: 13,
@@ -496,12 +498,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       builder: (context, setClassState) => Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: DropdownButtonFormField<String>(
-                          value: selectedClassId.isEmpty
+                          initialValue: selectedClassId.isEmpty
                               ? null
                               : selectedClassId,
-                          decoration: InputDecoration(
+                          decoration: const InputDecoration(
                             labelText: 'Class',
-                            prefixIcon: const Icon(Icons.class_outlined),
+                            prefixIcon: Icon(Icons.class_outlined),
                           ),
                           items: classes
                               .map(
@@ -527,7 +529,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       if (!formKey.currentState!.validate()) return;
                       if (gender.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Gender is required'),
                             backgroundColor: AppTheme.primaryRed,
                           ),
@@ -536,8 +538,9 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       }
 
                       final classIds = <String>[];
-                      if (selectedClassId.isNotEmpty)
+                      if (selectedClassId.isNotEmpty) {
                         classIds.add(selectedClassId);
+                      }
 
                       final student = Student(
                         id: const Uuid().v4(),
@@ -553,7 +556,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       Navigator.pop(c);
                     },
                     icon: const Icon(Icons.person_add),
-                    label: Text('Add Student'),
+                    label: const Text('Add Student'),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -780,8 +783,9 @@ class _ImportRosterReview {
             final id = _normalize(student.studentId);
             final name = _normalize(student.fullName);
             if (id.isEmpty) labels.add('Needs ID');
-            if ((importedIdCounts[id] ?? 0) > 1)
+            if ((importedIdCounts[id] ?? 0) > 1) {
               labels.add('Duplicate ID in file');
+            }
             if (existingIds.contains(id)) labels.add('ID already exists');
             if ((importedNameCounts[name] ?? 0) > 1) {
               labels.add('Duplicate name in file');
@@ -832,9 +836,9 @@ class _ImportReviewPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.24)),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,7 +884,7 @@ class _ImportReviewPanel extends StatelessWidget {
           ),
           if (review.hasOpenIssues) ...[
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Edit rows with missing IDs or duplicates, or save only ready rows.',
               style: TextStyle(color: AppTheme.lightText, fontSize: 12),
             ),
@@ -918,9 +922,9 @@ class _ImportChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.24)),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

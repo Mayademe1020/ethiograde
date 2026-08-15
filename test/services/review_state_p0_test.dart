@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ethiograde/models/scan_result.dart';
 
 void main() {
-  ScanResult _makeResult({
+  ScanResult makeResult({
     double confidence = 0.95,
     List<AnswerMatch>? answers,
     ScanStatus status = ScanStatus.graded,
@@ -38,17 +38,17 @@ void main() {
 
   group('P0.2 — Review state semantics', () {
     test('low confidence → needs review', () {
-      final result = _makeResult(confidence: 0.5);
+      final result = makeResult(confidence: 0.5);
       expect(result.needsReview, true);
     });
 
     test('high confidence → no review needed', () {
-      final result = _makeResult(confidence: 0.95);
+      final result = makeResult(confidence: 0.95);
       expect(result.needsReview, false);
     });
 
     test('low confidence answer → needs review', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.95,
         answers: [
           AnswerMatch(
@@ -66,14 +66,14 @@ void main() {
     });
 
     test('unmatched student does not count as low-confidence review', () {
-      final result = _makeResult(studentId: '', studentName: '');
+      final result = makeResult(studentId: '', studentName: '');
       // Unmatched students are checked via isUnmatched, not needsReview
       expect(result.needsReview, false);
       expect(result.isUnmatched, true);
     });
 
     test('multiple marks detected → needs review', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.95,
         answers: [
           AnswerMatch(
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('teacher reviewed → no review needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         status: ScanStatus.reviewed,
       );
@@ -99,7 +99,7 @@ void main() {
     });
 
     test('teacherReviewed metadata → no review needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'teacherReviewed': true},
       );
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('batchReviewResolution metadata → no review needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'batchReviewResolution': 'assigned_student'},
       );
@@ -115,7 +115,7 @@ void main() {
     });
 
     test('duplicateReviewed metadata → no review needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'duplicateReviewed': true},
       );
@@ -123,7 +123,7 @@ void main() {
     });
 
     test('studentMatchResolved metadata → no review needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'studentMatchResolved': true},
       );
@@ -132,11 +132,11 @@ void main() {
 
     test('resolved issues do not block finalization', () {
       final results = [
-        _makeResult(
+        makeResult(
           confidence: 0.5,
           status: ScanStatus.reviewed,
         ),
-        _makeResult(
+        makeResult(
           confidence: 0.95,
           studentId: 's2',
           studentName: 'Student 2',
@@ -148,7 +148,7 @@ void main() {
 
     test('unresolved issues remain visible after restart', () {
       // Metadata persists in Hive, so needsReview is computed from persisted state
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {}, // No resolution flags
       );
@@ -156,7 +156,7 @@ void main() {
     });
 
     test('resolution persists explicitly', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'teacherReviewed': true},
       );
@@ -166,22 +166,22 @@ void main() {
 
   group('requiresTeacherAction — unified resolver', () {
     test('low confidence → requires teacher action', () {
-      final result = _makeResult(confidence: 0.5);
+      final result = makeResult(confidence: 0.5);
       expect(result.requiresTeacherAction, true);
     });
 
     test('high confidence, matched student → no action needed', () {
-      final result = _makeResult(confidence: 0.95);
+      final result = makeResult(confidence: 0.95);
       expect(result.requiresTeacherAction, false);
     });
 
     test('unmatched student → requires teacher action', () {
-      final result = _makeResult(studentId: '', studentName: '');
+      final result = makeResult(studentId: '', studentName: '');
       expect(result.requiresTeacherAction, true);
     });
 
     test('multiple marks → requires teacher action', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.95,
         answers: [
           AnswerMatch(
@@ -199,7 +199,7 @@ void main() {
     });
 
     test('teacher reviewed → no action needed even with low confidence', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         status: ScanStatus.reviewed,
       );
@@ -207,7 +207,7 @@ void main() {
     });
 
     test('batchReviewResolution set → no action needed', () {
-      final result = _makeResult(
+      final result = makeResult(
         confidence: 0.5,
         metadata: {'batchReviewResolution': 'assigned_student'},
       );
@@ -215,7 +215,7 @@ void main() {
     });
 
     test('unmatched student with batchReviewResolution → no action', () {
-      final result = _makeResult(
+      final result = makeResult(
         studentId: '',
         studentName: '',
         metadata: {'batchReviewResolution': 'absent'},
@@ -224,12 +224,12 @@ void main() {
     });
 
     test('isResolved combines all resolution flags', () {
-      expect(_makeResult(status: ScanStatus.reviewed).isResolved, true);
-      expect(_makeResult(metadata: {'teacherReviewed': true}).isResolved, true);
-      expect(_makeResult(metadata: {'batchReviewResolution': 'x'}).isResolved, true);
-      expect(_makeResult(metadata: {'duplicateReviewed': true}).isResolved, true);
-      expect(_makeResult(metadata: {'studentMatchResolved': true}).isResolved, true);
-      expect(_makeResult(confidence: 0.5).isResolved, false);
+      expect(makeResult(status: ScanStatus.reviewed).isResolved, true);
+      expect(makeResult(metadata: {'teacherReviewed': true}).isResolved, true);
+      expect(makeResult(metadata: {'batchReviewResolution': 'x'}).isResolved, true);
+      expect(makeResult(metadata: {'duplicateReviewed': true}).isResolved, true);
+      expect(makeResult(metadata: {'studentMatchResolved': true}).isResolved, true);
+      expect(makeResult(confidence: 0.5).isResolved, false);
     });
   });
 }

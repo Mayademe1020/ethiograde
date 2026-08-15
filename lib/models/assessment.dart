@@ -82,7 +82,9 @@ class Assessment {
 
   /// Number of questions with a non-null, non-empty correct answer.
   int get answeredQuestionCount => questions
-      .where((q) => q.correctAnswer != null && q.correctAnswer.toString().isNotEmpty)
+      .where(
+        (q) => q.correctAnswer != null && q.correctAnswer.toString().isNotEmpty,
+      )
       .length;
 
   /// 0.0–1.0 ratio of answered questions.
@@ -98,7 +100,8 @@ class Assessment {
       '$answeredQuestionCount/${questions.length} answers set';
 
   /// True if a coordinate map file has been generated for this assessment.
-  bool get hasCoordinateMap => coordinateMapPath != null && coordinateMapPath!.isNotEmpty;
+  bool get hasCoordinateMap =>
+      coordinateMapPath != null && coordinateMapPath!.isNotEmpty;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -180,7 +183,16 @@ class Assessment {
 }
 
 @HiveType(typeId: 5)
-enum AssessmentStatus { @HiveField(0) draft, @HiveField(1) active, @HiveField(2) grading, @HiveField(3) completed }
+enum AssessmentStatus {
+  @HiveField(0)
+  draft,
+  @HiveField(1)
+  active,
+  @HiveField(2)
+  grading,
+  @HiveField(3)
+  completed,
+}
 
 @HiveType(typeId: 3)
 class Question {
@@ -197,8 +209,7 @@ class Question {
   @HiveField(6)
   final List<String> options; // For MCQ: ['A', 'B', 'C', 'D', 'E']
   @HiveField(7)
-  final dynamic
-  correctAnswer; // String for MCQ/TF, List<String> for short answer
+  final dynamic correctAnswer; // String for MCQ/TF, List<String> for short answer
   @HiveField(8)
   final String? explanation;
   @HiveField(9)
@@ -223,7 +234,10 @@ class Question {
   }) : id = id ?? const Uuid().v4();
 
   bool get isObjective =>
-      type == QuestionType.mcq || type == QuestionType.trueFalse || type == QuestionType.matching || type == QuestionType.multiAnswer;
+      type == QuestionType.mcq ||
+      type == QuestionType.trueFalse ||
+      type == QuestionType.matching ||
+      type == QuestionType.multiAnswer;
   bool get isSubjective =>
       type == QuestionType.shortAnswer || type == QuestionType.essay;
 
@@ -257,7 +271,8 @@ class Question {
           : null,
       essayRubric: map['essayRubric'] != null
           ? EssayRubric.fromMap(Map<String, dynamic>.from(map['essayRubric']))
-          : null);
+          : null,
+    );
   }
 
   static const _sentinel = Object();
@@ -281,7 +296,9 @@ class Question {
     text: text ?? this.text,
     points: points ?? this.points,
     options: options ?? this.options,
-    correctAnswer: correctAnswer == _sentinel ? this.correctAnswer : correctAnswer,
+    correctAnswer: correctAnswer == _sentinel
+        ? this.correctAnswer
+        : correctAnswer,
     explanation: explanation == _sentinel ? this.explanation : explanation,
     topicTag: topicTag == _sentinel ? this.topicTag : topicTag,
     keywords: keywords == _sentinel ? this.keywords : keywords,
@@ -290,7 +307,20 @@ class Question {
 }
 
 @HiveType(typeId: 6)
-enum QuestionType { @HiveField(0) mcq, @HiveField(1) trueFalse, @HiveField(2) shortAnswer, @HiveField(3) essay, @HiveField(4) matching, @HiveField(5) multiAnswer }
+enum QuestionType {
+  @HiveField(0)
+  mcq,
+  @HiveField(1)
+  trueFalse,
+  @HiveField(2)
+  shortAnswer,
+  @HiveField(3)
+  essay,
+  @HiveField(4)
+  matching,
+  @HiveField(5)
+  multiAnswer,
+}
 
 @HiveType(typeId: 4)
 class EssayRubric {
@@ -327,5 +357,7 @@ class EssayRubric {
     grammarWeight: (map['grammarWeight'] ?? 0.20).toDouble(),
     analysisWeight: (map['analysisWeight'] ?? 0.25).toDouble(),
     criteriaDescriptions: Map<String, String>.from(
-      map['criteriaDescriptions'] ?? {}));
+      map['criteriaDescriptions'] ?? {},
+    ),
+  );
 }

@@ -41,13 +41,13 @@ void main() {
 
     // Anchor positions in synthetic image (top-left of 20x20 squares)
     // Converted to center mm positions for the coordinate map
-    final anchorTlMm = BubblePosition(
+    const anchorTlMm = BubblePosition(
         xMm: (40 + 10) * pxToMmX, yMm: (40 + 10) * pxToMmY, option: '');
-    final anchorTrMm = BubblePosition(
+    const anchorTrMm = BubblePosition(
         xMm: (1140 + 10) * pxToMmX, yMm: (40 + 10) * pxToMmY, option: '');
-    final anchorBlMm = BubblePosition(
+    const anchorBlMm = BubblePosition(
         xMm: (40 + 10) * pxToMmX, yMm: (1540 + 10) * pxToMmY, option: '');
-    final anchorBrMm = BubblePosition(
+    const anchorBrMm = BubblePosition(
         xMm: (1140 + 10) * pxToMmX, yMm: (1540 + 10) * pxToMmY, option: '');
 
     /// Build a CoordinateMap matching the synthetic image layout.
@@ -86,10 +86,10 @@ void main() {
         assessmentId: 'cm_test',
         page: const PageDimensions(widthMm: 210, heightMm: 297),
         anchors: [
-          AnchorPoint(corner: 'topLeft', position: anchorTlMm),
-          AnchorPoint(corner: 'topRight', position: anchorTrMm),
-          AnchorPoint(corner: 'bottomLeft', position: anchorBlMm),
-          AnchorPoint(corner: 'bottomRight', position: anchorBrMm),
+          const AnchorPoint(corner: 'topLeft', position: anchorTlMm),
+          const AnchorPoint(corner: 'topRight', position: anchorTrMm),
+          const AnchorPoint(corner: 'bottomLeft', position: anchorBlMm),
+          const AnchorPoint(corner: 'bottomRight', position: anchorBrMm),
         ],
         questions: questionBubbles,
       );
