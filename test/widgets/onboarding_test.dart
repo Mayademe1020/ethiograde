@@ -96,5 +96,19 @@ void main() {
       // AnimatedContainers are used for dots
       expect(find.byType(AnimatedContainer), findsNWidgets(5));
     });
+
+    testWidgets('does not overflow on a narrow phone', (tester) async {
+      tester.view.physicalSize = const Size(360, 360);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final ex = tester.takeException();
+      expect(ex, isNull, reason: 'Onboarding overflowed at 360x360: $ex');
+    });
   });
 }

@@ -202,6 +202,9 @@ void main() {
     }
 
     _printReport(report, recordedErrors);
+
+    expect(recordedErrors, isEmpty,
+        reason: 'Walkthrough produced FlutterErrors:\n${recordedErrors.join('\n')}');
   });
 }
 
