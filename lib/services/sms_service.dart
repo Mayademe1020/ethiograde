@@ -1,6 +1,6 @@
-import 'package:telephony/telephony.dart';
-import 'package:uuid/uuid.dart';
 import 'package:hive/hive.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 
 /// Result of an SMS send attempt.
 class SmsResult {
@@ -63,36 +63,64 @@ class DefaultTemplates {
 }
 
 /// Sends SMS messages to parents.
+///
+/// Uses the platform's default SMS app via `url_launcher`'s `sms:` URI —
+/// no restricted `SEND_SMS` permission required, works reliably across
+/// devices, and is Play Store safe. The user confirms each message in
+/// their SMS app before it is actually delivered.
 class SmsService {
-  final Telephony telephony;
   final bool offlineQueue;
 
-  SmsService({Telephony? telephony, this.offlineQueue = true})
-      : telephony = telephony ?? Telephony.instance;
+  static const String _queueBox = 'sms_offline_queue';
 
+  SmsService({this.offlineQueue = true});
+
+  /// Opens the default SMS app pre-filled with [message] to [phoneNumber].
+  /// Returns success when the SMS app was launched; delivery is confirmed
+  /// by the user inside that app.
   Future<SmsResult> sendSms({
     required String phoneNumber,
     required String message,
     String studentName = '',
     String templateName = '',
   }) async {
-    try {
-      final cleaned = _cleanPhoneNumber(phoneNumber);
+    final cleaned = _cleanPhoneNumber(phoneNumber);
 
-      if (!_isValidPhone(cleaned)) {
-        return SmsResult(
-          success: false,
-          phoneNumber: phoneNumber,
-          errorMessage: 'Invalid phone number',
-        );
-      }
-
-      await telephony.sendSms(
-        to: cleaned,
+    if (!_isValidPhone(cleaned)) {
+      const error = 'Invalid phone number';
+      await _logSms(
+        studentName: studentName,
+        phoneNumber: phoneNumber,
         message: message,
+        templateName: templateName,
+        success: false,
+        errorMessage: error,
+      );
+      return SmsResult(
+        success: false,
+        phoneNumber: phoneNumber,
+        errorMessage: error,
+      );
+    }
+
+    // Build sms: URI with message body. The `?body=` form works on Android;
+    // iOS uses the same sms: scheme. url_launcher resolves platform quirks.
+    final uri = Uri(
+      scheme: 'sms',
+      path: cleaned,
+      query: 'body=${Uri.encodeQueryComponent(message)}',
+    );
+
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
       );
 
-      // Log successful send
+      if (!launched) {
+        throw StateError('No SMS app available to handle the request');
+      }
+
       await _logSms(
         studentName: studentName,
         phoneNumber: cleaned,
@@ -103,10 +131,9 @@ class SmsService {
 
       return SmsResult(success: true, phoneNumber: cleaned);
     } catch (e) {
-      // Log failed send
       await _logSms(
         studentName: studentName,
-        phoneNumber: phoneNumber,
+        phoneNumber: cleaned,
         message: message,
         templateName: templateName,
         success: false,
@@ -114,11 +141,16 @@ class SmsService {
       );
 
       if (offlineQueue) {
-        await _queueMessage(phoneNumber: phoneNumber, message: message);
+        await _queueMessage(
+          phoneNumber: cleaned,
+          message: message,
+          studentName: studentName,
+          templateName: templateName,
+        );
       }
       return SmsResult(
         success: false,
-        phoneNumber: phoneNumber,
+        phoneNumber: cleaned,
         errorMessage: e.toString(),
       );
     }
@@ -144,9 +176,10 @@ class SmsService {
     return results;
   }
 
-  Future<bool> requestPermission() async {
-    final granted = await telephony.requestSmsPermissions;
-    return granted ?? false;
+  /// Whether the app can launch an SMS handler (best-effort check).
+  Future<bool> canSend() async {
+    final uri = Uri.parse('sms:');
+    return await canLaunchUrl(uri);
   }
 
   String _cleanPhoneNumber(String phone) {
@@ -167,10 +200,46 @@ class SmsService {
   Future<void> _queueMessage({
     required String phoneNumber,
     required String message,
+    String studentName = '',
+    String templateName = '',
   }) async {
+    try {
+      final box = await Hive.openBox(_queueBox);
+      final entry = {
+        'id': const Uuid().v4(),
+        'phoneNumber': phoneNumber,
+        'message': message,
+        'studentName': studentName,
+        'templateName': templateName,
+        'queuedAt': DateTime.now().toIso8601String(),
+      };
+      await box.put(entry['id'], entry);
+    } catch (_) {
+      // Queueing failure shouldn't break the caller.
+    }
   }
 
-  Future<void> processQueue() async {
+  /// Retries sending all queued messages. Returns the number re-sent.
+  Future<int> processQueue() async {
+    final box = await Hive.openBox(_queueBox);
+    final keys = box.keys.toList();
+    var sent = 0;
+
+    for (final key in keys) {
+      final entry = Map<String, dynamic>.from(box.get(key) as Map);
+      final result = await sendSms(
+        phoneNumber: entry['phoneNumber'] ?? '',
+        message: entry['message'] ?? '',
+        studentName: entry['studentName'] ?? '',
+        templateName: entry['templateName'] ?? '',
+      );
+      if (result.success) {
+        await box.delete(key);
+        sent++;
+      }
+    }
+
+    return sent;
   }
 
   Future<void> _logSms({
