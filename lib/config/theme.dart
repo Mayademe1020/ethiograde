@@ -9,10 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 class AppSpacing {
   AppSpacing._();
   static const double xs = 4;
-  static const double xs2 = 12;
   static const double sm = 8;
   static const double md = 16;
-  static const double lgSm = 20;
   static const double lg = 24;
   static const double xl = 32;
   static const double xxl = 48;
@@ -94,25 +92,6 @@ class AppTheme {
   static const Color outlineDark = Color(0xFF2C3E35);
   static const Color onSurfaceDark = Color(0xFFE4EDE9);
   static const Color onSurfaceVariantDark = Color(0xFF8BA898);
-
-  // ── Extended dark surfaces ──────────────────
-  static const Color surfaceDarkAlt = Color(0xFF242424);
-  static const Color surfaceDarker = Color(0xFF1A1A1A);
-
-  // ── Status tint colors ──────────────────────
-  static const Color infoLight = Color(0xFF7EB8DA);
-  static const Color successLight = Color(0xFFA8D5BA);
-  static const Color warningLight = Color(0xFFF0C674);
-  static const Color errorLight = Color(0xFFE8A0B8);
-
-  // ── Subject accent colors ───────────────────
-  static const Color purpleDark = Color(0xFF3A2650);
-  static const Color purpleLight = Color(0xFFC5A3E8);
-  static const Color brownDark = Color(0xFF5C3A1A);
-  static const Color brownLight = Color(0xFFE8B07A);
-  static const Color pinkDark = Color(0xFF5C2040);
-  static const Color pinkLight = Color(0xFFE8A0B8);
-  static const Color greenVariant = Color(0xFF3D6B4F);
 
   // ── Legacy aliases (used in existing widgets) ─
   static const Color primaryGreen = primary;
