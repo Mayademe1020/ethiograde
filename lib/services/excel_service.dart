@@ -16,7 +16,6 @@ class ImportService {
   factory ImportService() => _instance;
   ImportService._();
 
-
   static final _columnPatterns = <String, List<RegExp>>{
     'firstName': [
       RegExp(r'^ስም$', unicode: true),
@@ -79,7 +78,8 @@ class ImportService {
   Future<ImportResult> importStudents({String? classId}) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv']);
+      allowedExtensions: ['csv'],
+    );
 
     if (result == null || result.files.isEmpty) {
       return ImportResult(success: false, message: 'No file selected');
@@ -103,8 +103,9 @@ class ImportService {
     Map<String, int> columnMap = {};
 
     for (int i = 0; i < rows.length; i++) {
-      final headerCandidates =
-          rows[i].map((cell) => cell.toString().trim()).toList();
+      final headerCandidates = rows[i]
+          .map((cell) => cell.toString().trim())
+          .toList();
       final detected = _detectColumns(headerCandidates);
       if (detected.containsKey('firstName') ||
           detected.containsKey('studentId')) {
@@ -117,7 +118,8 @@ class ImportService {
     if (headerRow == -1) {
       return ImportResult(
         success: false,
-        message: 'No header row found — expected columns like ስም / Name / ID');
+        message: 'No header row found — expected columns like ስም / Name / ID',
+      );
     }
 
     final students = <Student>[];
@@ -143,18 +145,20 @@ class ImportService {
         final classIds = <String>[];
         if (classId != null && classId.isNotEmpty) classIds.add(classId);
 
-        students.add(Student(
-          id: const Uuid().v4(),
-          studentId: studentId,
-          firstName: firstName,
-          lastName: lastName,
-          gender: _normalizeGender(genderRaw),
-          classIds: classIds,
-          className: className,
-          section: section,
-          grade: int.tryParse(gradeStr) ?? 1,
-          parentPhone: parentPhone.isEmpty ? null : parentPhone,
-        ));
+        students.add(
+          Student(
+            id: const Uuid().v4(),
+            studentId: studentId,
+            firstName: firstName,
+            lastName: lastName,
+            gender: _normalizeGender(genderRaw),
+            classIds: classIds,
+            className: className,
+            section: section,
+            grade: int.tryParse(gradeStr) ?? 1,
+            parentPhone: parentPhone.isEmpty ? null : parentPhone,
+          ),
+        );
       } catch (e) {
         errors.add('Row ${i + 1}: $e');
       }
@@ -167,14 +171,16 @@ class ImportService {
         message: dataRows > 0
             ? 'Found $dataRows rows but none had valid names'
             : 'No data rows found after header',
-        errors: errors);
+        errors: errors,
+      );
     }
 
     return ImportResult(
       success: true,
       students: students,
       message: 'Found ${students.length} students',
-      errors: errors);
+      errors: errors,
+    );
   }
 
   // ── Export ──────────────────────────────────────────────────────
@@ -186,24 +192,18 @@ class ImportService {
     String? outputDir,
   }) async {
     final rows = <List<dynamic>>[
-      [
-        'ID',
-        'FirstName',
-        'LastName',
-        'Gender',
-        'Class',
-        'Section',
-        'Grade',
-      ],
-      ...students.map((s) => [
-            s.studentId,
-            s.firstName,
-            s.lastName,
-            s.gender,
-            s.className,
-            s.section,
-            s.grade,
-          ]),
+      ['ID', 'FirstName', 'LastName', 'Gender', 'Class', 'Section', 'Grade'],
+      ...students.map(
+        (s) => [
+          s.studentId,
+          s.firstName,
+          s.lastName,
+          s.gender,
+          s.className,
+          s.section,
+          s.grade,
+        ],
+      ),
     ];
 
     final csv = const ListToCsvConverter().convert(rows);
@@ -217,15 +217,56 @@ class ImportService {
 
   /// Export assessment results to CSV file.
   /// [outputDir] overrides the default directory (for testing).
+  ///
+  /// Includes per-question score columns (Q1, Q2, ...) derived from each
+  /// result's `answers` when present, plus review status and confidence.
   Future<String> exportResults({
     required String assessmentTitle,
     required List<Map<String, dynamic>> results,
     String? outputDir,
   }) async {
+    final questionNumbers = <int>{};
+    for (final r in results) {
+      final answers = r['answers'];
+      if (answers is List) {
+        for (final a in answers) {
+          if (a is Map && a['questionNumber'] is int) {
+            questionNumbers.add(a['questionNumber'] as int);
+          }
+        }
+      }
+    }
+    final qNumbers = questionNumbers.toList()..sort();
+
+    final headers = <dynamic>[
+      'StudentName',
+      'StudentID',
+      'Score',
+      'MaxScore',
+      'Percentage',
+      'Grade',
+      'Status',
+      'PaperLabel',
+      'Confidence',
+      'ReviewStatus',
+      ...qNumbers.map((n) => 'Q$n'),
+    ];
+
     final rows = <List<dynamic>>[
-      ['StudentName', 'StudentID', 'Score', 'MaxScore', 'Percentage', 'Grade', 'Status'],
+      headers,
       ...results.map((r) {
         final pct = (r['percentage'] ?? 0).toDouble();
+        final confidence = (r['confidence'] ?? 0).toDouble();
+        final answers = r['answers'];
+        final scoreByQuestion = <int, Map<String, dynamic>>{};
+        if (answers is List) {
+          for (final a in answers) {
+            if (a is Map && a['questionNumber'] is int) {
+              scoreByQuestion[a['questionNumber'] as int] =
+                  Map<String, dynamic>.from(a);
+            }
+          }
+        }
         return [
           r['studentName'] ?? '',
           r['studentId'] ?? '',
@@ -234,6 +275,16 @@ class ImportService {
           '${pct.toStringAsFixed(1)}%',
           r['grade'] ?? '',
           if (pct >= 50) 'PASS' else 'FAIL',
+          r['paperLabel'] ?? '',
+          confidence.toStringAsFixed(2),
+          r['reviewStatus'] ?? '',
+          ...qNumbers.map((n) {
+            final a = scoreByQuestion[n];
+            if (a == null) return '';
+            final score = (a['score'] ?? 0).toDouble();
+            final max = (a['maxScore'] ?? 1).toDouble();
+            return '${score.toStringAsFixed(0)}/${max.toStringAsFixed(0)}';
+          }),
         ];
       }),
     ];
@@ -271,7 +322,11 @@ class ImportService {
   String _normalizeGender(String raw) {
     if (raw.isEmpty) return '';
     final lower = raw.trim().toLowerCase();
-    if (lower == 'ወንድ' || lower == 'ወ' || lower == 'm' || lower == 'male' || lower == 'w') {
+    if (lower == 'ወንድ' ||
+        lower == 'ወ' ||
+        lower == 'm' ||
+        lower == 'male' ||
+        lower == 'w') {
       return 'M';
     }
     if (lower == 'ሴት' || lower == 'ሴ' || lower == 'f' || lower == 'female') {

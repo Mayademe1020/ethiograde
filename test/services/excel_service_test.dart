@@ -14,7 +14,8 @@ void main() {
         lastName: 'Kebede',
         className: '10A',
         section: 'A',
-        studentId: '1001');
+        studentId: '1001',
+      );
 
       expect(student.firstName, 'Abebe');
       expect(student.lastName, 'Kebede');
@@ -28,7 +29,8 @@ void main() {
         studentId: '001',
         firstName: 'Abebe',
         lastName: 'Kebede',
-        className: '10A');
+        className: '10A',
+      );
 
       final map = original.toMap();
       final restored = Student.fromMap(map);
@@ -54,18 +56,21 @@ void main() {
           studentId: '001',
           firstName: 'Abebe',
           lastName: 'Kebede',
-          className: '10A'),
+          className: '10A',
+        ),
         Student(
           id: 's2',
           studentId: '002',
           firstName: 'Bekele',
           lastName: 'Tesfaye',
-          className: '10A'),
+          className: '10A',
+        ),
       ];
 
       final path = await service.exportStudents(
         students,
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
       final file = File(path);
       expect(await file.exists(), isTrue);
 
@@ -93,6 +98,13 @@ void main() {
           'maxScore': 50,
           'percentage': 90.0,
           'grade': 'A',
+          'paperLabel': 'Paper 1',
+          'confidence': 0.95,
+          'reviewStatus': 'Reviewed',
+          'answers': [
+            {'questionNumber': 1, 'score': 1.0, 'maxScore': 1.0},
+            {'questionNumber': 2, 'score': 0.0, 'maxScore': 1.0},
+          ],
         },
         {
           'studentName': 'Bekele',
@@ -101,13 +113,21 @@ void main() {
           'maxScore': 50,
           'percentage': 40.0,
           'grade': 'F',
+          'paperLabel': 'Paper 2',
+          'confidence': 0.55,
+          'reviewStatus': 'Needs review',
+          'answers': [
+            {'questionNumber': 1, 'score': 0.0, 'maxScore': 1.0},
+            {'questionNumber': 2, 'score': 0.0, 'maxScore': 1.0},
+          ],
         },
       ];
 
       final path = await service.exportResults(
         assessmentTitle: 'Math Final',
         results: results,
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
       final file = File(path);
       expect(await file.exists(), isTrue);
 
@@ -119,8 +139,18 @@ void main() {
 
       expect(lines.length, 3);
       expect(lines[0], contains('StudentName'));
+      expect(lines[0], contains('PaperLabel'));
+      expect(lines[0], contains('ReviewStatus'));
+      expect(lines[0], contains('Confidence'));
+      expect(lines[0], contains('Q1'));
+      expect(lines[0], contains('Q2'));
       expect(lines[1], contains('PASS'));
+      expect(lines[1], contains('Reviewed'));
+      expect(lines[1], contains('Paper 1'));
+      expect(lines[1], contains('1/1'));
+      expect(lines[1], contains('0/1'));
       expect(lines[2], contains('FAIL'));
+      expect(lines[2], contains('Needs review'));
 
       await file.delete();
     });
@@ -132,12 +162,14 @@ void main() {
           studentId: '001',
           firstName: 'Abebe, Jr.',
           lastName: 'Kebede',
-          className: '10A'),
+          className: '10A',
+        ),
       ];
 
       final path = await service.exportStudents(
         students,
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
       final file = File(path);
       final content = await file.readAsString();
 
@@ -154,12 +186,14 @@ void main() {
           studentId: '001',
           firstName: 'አበበ',
           lastName: 'ከበደ',
-          className: '10ሀ'),
+          className: '10ሀ',
+        ),
       ];
 
       final path = await service.exportStudents(
         students,
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
       final file = File(path);
       final content = await file.readAsString();
 
@@ -172,7 +206,8 @@ void main() {
     test('CSV handles empty students list', () async {
       final path = await service.exportStudents(
         [],
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
       final file = File(path);
       final content = await file.readAsString();
       final lines = content
@@ -192,7 +227,8 @@ void main() {
         results: [
           {'studentName': 'Abebe', 'percentage': 80.0},
         ],
-        outputDir: Directory.systemTemp.path);
+        outputDir: Directory.systemTemp.path,
+      );
 
       expect(path, contains('Math_Final_Exam'));
 
