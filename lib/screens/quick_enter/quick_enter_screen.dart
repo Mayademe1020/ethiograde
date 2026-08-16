@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -183,7 +183,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                 label: Text(
                   '$savedCount/${_students.length}',
                   style: const TextStyle(fontSize: 12)),
-                backgroundColor: AppTheme.primaryGreen.withOpacity(0.1))),
+                backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1))),
         ]),
       body: _students.isEmpty
           ? Center(
@@ -209,7 +209,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  color: AppTheme.primaryGreen.withOpacity(0.05),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.05),
                   child: Row(
                     children: [
                       const Icon(
@@ -268,7 +268,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
         // Header row
         TableRow(
           decoration: BoxDecoration(
-            color: AppTheme.primaryGreen.withOpacity(0.05)),
+            color: AppTheme.primaryGreen.withValues(alpha: 0.05)),
           children: [
             const SizedBox(
               width: 150,
@@ -316,7 +316,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
 
           return TableRow(
             decoration: BoxDecoration(
-              color: isSaved ? AppTheme.primaryGreen.withOpacity(0.03) : null),
+              color: isSaved ? AppTheme.primaryGreen.withValues(alpha: 0.03) : null),
             children: [
               // Student name
               SizedBox(
@@ -394,10 +394,10 @@ class _ScoreCell extends StatelessWidget {
             decoration: BoxDecoration(
               color: hasScore
                   ? (currentScore! >= maxPoints
-                        ? AppTheme.primaryGreen.withOpacity(0.15)
+                        ? AppTheme.primaryGreen.withValues(alpha: 0.15)
                         : currentScore! > 0
-                        ? AppTheme.primaryYellow.withOpacity(0.15)
-                        : AppTheme.primaryRed.withOpacity(0.15))
+                        ? AppTheme.primaryYellow.withValues(alpha: 0.15)
+                        : AppTheme.primaryRed.withValues(alpha: 0.15))
                   : Colors.grey.shade50,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
@@ -540,7 +540,7 @@ class _AssessmentPicker extends StatelessWidget {
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
                       child: const Icon(
                         Icons.assignment,
                         color: AppTheme.primaryGreen)),

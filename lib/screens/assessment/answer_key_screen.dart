@@ -200,8 +200,8 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Expanded(
-              child: const Text(
+            const Expanded(
+              child: Text(
                 'Answer Key',
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
@@ -1650,12 +1650,15 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
     final summary = StringBuffer();
     summary.write('${result.recalculated} recalculated');
-    if (result.scoresChanged > 0)
+    if (result.scoresChanged > 0) {
       summary.write(', ${result.scoresChanged} scores changed');
-    if (result.scoresUnchanged > 0)
+    }
+    if (result.scoresUnchanged > 0) {
       summary.write(', ${result.scoresUnchanged} unchanged');
-    if (result.preserved > 0)
+    }
+    if (result.preserved > 0) {
       summary.write(', ${result.preserved} preserved (manual)');
+    }
     if (result.failed > 0) summary.write(', ${result.failed} failed');
 
     ScaffoldMessenger.of(context).showSnackBar(

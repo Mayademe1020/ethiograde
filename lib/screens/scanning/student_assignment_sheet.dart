@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/student.dart';
@@ -59,8 +59,8 @@ Future<Student?> showStudentAssignmentSheet({
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: alreadyAssigned
-                        ? Colors.orange.withOpacity(0.2)
-                        : AppTheme.primaryGreen.withOpacity(0.1),
+                        ? Colors.orange.withValues(alpha: 0.2)
+                        : AppTheme.primaryGreen.withValues(alpha: 0.1),
                     child: Text(
                       s.studentId.isNotEmpty ? s.studentId : '${i + 1}',
                       style: TextStyle(

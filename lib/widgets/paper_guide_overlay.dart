@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../config/theme.dart';
 
@@ -94,10 +94,10 @@ class _CountdownDisplay extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.primaryGreen.withOpacity(0.9),
+              color: AppTheme.primaryGreen.withValues(alpha: 0.9),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryGreen.withOpacity(0.4),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.4),
                   blurRadius: 20,
                   spreadRadius: 4,
                 ),
@@ -193,7 +193,7 @@ class _PaperGuidePainter extends CustomPainter {
     ..strokeCap = StrokeCap.round;
 
   late final _fillPaint = Paint()
-    ..color = _bracketColor.withOpacity(0.06)
+    ..color = _bracketColor.withValues(alpha: 0.06)
     ..style = PaintingStyle.fill;
 
   Color get _bracketColor {
@@ -244,7 +244,7 @@ class _PaperGuidePainter extends CustomPainter {
     // During countdown, draw a pulsing border around the guide
     if (countdown != null) {
       final pulsePaint = Paint()
-        ..color = AppTheme.primaryGreen.withOpacity(0.5)
+        ..color = AppTheme.primaryGreen.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
       canvas.drawRect(rect, pulsePaint);

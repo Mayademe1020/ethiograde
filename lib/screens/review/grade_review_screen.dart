@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -418,7 +418,7 @@ class _StatChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -469,10 +469,10 @@ class _StudentRow extends StatelessWidget {
         : null;
 
     return ColoredBox(
-      color: isReading ? AppTheme.info.withOpacity(0.06) : Colors.transparent,
+      color: isReading ? AppTheme.info.withValues(alpha: 0.06) : Colors.transparent,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: (highlightColor ?? AppTheme.lightText).withOpacity(
+          backgroundColor: (highlightColor ?? AppTheme.lightText).withValues(alpha: 
             0.1,
           ),
           child: isReading
@@ -502,7 +502,7 @@ class _StudentRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.1),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
@@ -517,7 +517,7 @@ class _StudentRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryRed.withOpacity(0.1),
+                  color: AppTheme.primaryRed.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
@@ -541,8 +541,8 @@ class _StudentRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: passed
-                    ? AppTheme.primaryGreen.withOpacity(0.1)
-                    : AppTheme.primaryRed.withOpacity(0.1),
+                    ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                    : AppTheme.primaryRed.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -615,9 +615,9 @@ class _WeightedGradeBanner extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.info.withOpacity(0.06),
+        color: AppTheme.info.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.info.withOpacity(0.2)),
+        border: Border.all(color: AppTheme.info.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -261,7 +261,7 @@ class _QuickGradeScreenState extends State<QuickGradeScreen> {
                         ? 'Use your last answer key or enter a new one'
                         : 'Enter your answer key once, then scan papers instantly',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14)),
                 ])),
             const SizedBox(height: 24),
 
@@ -275,7 +275,7 @@ class _QuickGradeScreenState extends State<QuickGradeScreen> {
                   border: Border.all(color: Colors.teal.shade200),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.teal.withOpacity(0.1),
+                      color: Colors.teal.withValues(alpha: 0.1),
                       blurRadius: 8,
                       offset: const Offset(0, 2))]),
                 child: Column(

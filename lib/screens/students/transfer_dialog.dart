@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -164,7 +164,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                          backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
                           child: Text(
                             widget.student.firstName.isNotEmpty
                                 ? widget.student.firstName[0]
@@ -200,7 +200,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                         label: Text(cls.displayName),
                         selected: selected,
                         onSelected: (_) => setState(() => _selectedClass = cls),
-                        selectedColor: AppTheme.primaryGreen.withOpacity(0.2),
+                        selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
                         labelStyle: TextStyle(
                           color: selected ? AppTheme.primaryGreen : AppTheme.darkText,
                           fontWeight: selected ? FontWeight.w600 : FontWeight.normal));

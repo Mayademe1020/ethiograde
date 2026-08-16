@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -628,6 +628,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     try {
       final path = await ImportService().exportResults(
         assessmentTitle: _assessmentTitle(results),
+        roster: _rosterForExport(results),
         results: results.map((result) {
           final row = result.toMap();
           row['paperLabel'] = result.studentName;
@@ -701,6 +702,33 @@ class _ReviewScreenState extends State<ReviewScreen> {
       results.first.assessmentId,
     );
     return assessment?.title ?? 'EthioGrade Results';
+  }
+
+  /// Resolves the class roster for the current assessment so the export can
+  /// include students whose papers were not scanned as ungraded rows.
+  List<Map<String, dynamic>> _rosterForExport(List<ScanResult> results) {
+    if (results.isEmpty) return const [];
+    final assessment = context
+        .read<AssessmentProvider>()
+        .getAssessmentById(results.first.assessmentId);
+    if (assessment == null || assessment.className.isEmpty) return const [];
+
+    final classProvider = context.read<ClassProvider>();
+    final studentProvider = context.read<StudentProvider>();
+    final cls = classProvider.classes
+        .where(
+          (c) => c.id == assessment.className ||
+              c.displayName == assessment.className,
+        )
+        .firstOrNull;
+    if (cls == null) return const [];
+
+    return studentProvider.studentsByClassId(cls.id).map((student) {
+      return {
+        'studentId': student.id,
+        'studentName': student.fullName,
+      };
+    }).toList();
   }
 
   Future<bool> _confirmFinalSaveIfNeeded() async {
@@ -1518,9 +1546,9 @@ class _DuplicatePairTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.06),
+        color: AppTheme.warning.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.24)),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1838,7 +1866,7 @@ class _QueueActionTile extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: isPrimary ? 0 : 6),
       child: Material(
-        color: isPrimary ? action.color.withOpacity(0.08) : Colors.transparent,
+        color: isPrimary ? action.color.withValues(alpha: 0.08) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: action.onTap,
@@ -1851,14 +1879,14 @@ class _QueueActionTile extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: isPrimary
-                  ? Border.all(color: action.color.withOpacity(0.35))
+                  ? Border.all(color: action.color.withValues(alpha: 0.35))
                   : null,
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: isPrimary ? 18 : 15,
-                  backgroundColor: action.color.withOpacity(0.12),
+                  backgroundColor: action.color.withValues(alpha: 0.12),
                   child: Icon(action.icon, size: 18, color: action.color),
                 ),
                 const SizedBox(width: 10),
@@ -1917,9 +1945,9 @@ class _ReviewChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2080,8 +2108,8 @@ class _ResultCard extends StatelessWidget {
                   // Student avatar
                   CircleAvatar(
                     backgroundColor: passed
-                        ? AppTheme.primaryGreen.withOpacity(0.1)
-                        : AppTheme.primaryRed.withOpacity(0.1),
+                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                        : AppTheme.primaryRed.withValues(alpha: 0.1),
                     child: Text(
                       result.studentName.isNotEmpty
                           ? result.studentName[0]
@@ -2172,7 +2200,7 @@ class _ResultCard extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: AppTheme.warning.withOpacity(0.1),
+                              color: AppTheme.warning.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -2208,8 +2236,8 @@ class _ResultCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: passed
-                          ? AppTheme.primaryGreen.withOpacity(0.1)
-                          : AppTheme.primaryRed.withOpacity(0.1),
+                          ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                          : AppTheme.primaryRed.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -2247,12 +2275,12 @@ class _ResultCard extends StatelessWidget {
                   final isLowConfidence =
                       a.confidence > 0 && a.confidence < 0.6;
                   final bgColor = a.isCorrect
-                      ? AppTheme.primaryGreen.withOpacity(0.15)
+                      ? AppTheme.primaryGreen.withValues(alpha: 0.15)
                       : a.detectedAnswer == '[MISSING]'
                       ? Colors.grey.shade200
                       : isLowConfidence
-                      ? AppTheme.warning.withOpacity(0.2)
-                      : AppTheme.primaryRed.withOpacity(0.15);
+                      ? AppTheme.warning.withValues(alpha: 0.2)
+                      : AppTheme.primaryRed.withValues(alpha: 0.15);
                   final borderColor = a.isCorrect
                       ? AppTheme.primaryGreen
                       : a.detectedAnswer == '[MISSING]'
@@ -2469,8 +2497,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppTheme.primaryGreen.withOpacity(0.1),
-                    AppTheme.primaryGreen.withOpacity(0.05),
+                    AppTheme.primaryGreen.withValues(alpha: 0.1),
+                    AppTheme.primaryGreen.withValues(alpha: 0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(12),
@@ -2699,7 +2727,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: AppTheme.warning.withOpacity(0.08),
+            color: AppTheme.warning.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2768,7 +2796,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 CircleAvatar(
                   backgroundColor:
                       (isMissing ? AppTheme.warning : AppTheme.primaryRed)
-                          .withOpacity(0.1),
+                          .withValues(alpha: 0.1),
                   child: Text(
                     '${answer.questionNumber}',
                     style: TextStyle(
@@ -2808,9 +2836,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppTheme.warning.withOpacity(0.08),
+                  color: AppTheme.warning.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.warning.withOpacity(0.3)),
+                  border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   children: [
@@ -2847,7 +2875,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryRed.withOpacity(0.06),
+                      color: AppTheme.primaryRed.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -2882,8 +2910,8 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                             ),
                             decoration: BoxDecoration(
                               color: answer.confidence < 0.6
-                                  ? AppTheme.warning.withOpacity(0.15)
-                                  : AppTheme.primaryRed.withOpacity(0.1),
+                                  ? AppTheme.warning.withValues(alpha: 0.15)
+                                  : AppTheme.primaryRed.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -3073,10 +3101,10 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryYellow.withOpacity(0.12),
+                        color: AppTheme.primaryYellow.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: AppTheme.primaryYellow.withOpacity(0.3),
+                          color: AppTheme.primaryYellow.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
@@ -3420,7 +3448,7 @@ class _TfAnswerPicker extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 color: isTrue
-                    ? AppTheme.primaryGreen.withOpacity(0.15)
+                    ? AppTheme.primaryGreen.withValues(alpha: 0.15)
                     : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -3457,7 +3485,7 @@ class _TfAnswerPicker extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 color: !isTrue
-                    ? AppTheme.primaryRed.withOpacity(0.15)
+                    ? AppTheme.primaryRed.withValues(alpha: 0.15)
                     : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
@@ -3574,7 +3602,7 @@ class _QuickEntryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -3583,7 +3611,7 @@ class _QuickEntryButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -3647,7 +3675,7 @@ class _AnswerTile extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: AppTheme.warning.withOpacity(0.5),
+            color: AppTheme.warning.withValues(alpha: 0.5),
             width: 1.5,
           ),
         ),
@@ -3659,7 +3687,7 @@ class _AnswerTile extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppTheme.warning.withOpacity(0.1),
+                  backgroundColor: AppTheme.warning.withValues(alpha: 0.1),
                   child: Text(
                     '${answer.questionNumber}',
                     style: const TextStyle(
@@ -3697,7 +3725,7 @@ class _AnswerTile extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppTheme.warning.withOpacity(0.1),
+                    color: AppTheme.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Row(
@@ -3729,8 +3757,8 @@ class _AnswerTile extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: answer.isCorrect
-              ? AppTheme.primaryGreen.withOpacity(0.1)
-              : AppTheme.primaryRed.withOpacity(0.1),
+              ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+              : AppTheme.primaryRed.withValues(alpha: 0.1),
           child: Text(
             '${answer.questionNumber}',
             style: TextStyle(
@@ -3891,7 +3919,7 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: isCurrent
-                                ? AppTheme.primaryGreen.withOpacity(0.15)
+                                ? AppTheme.primaryGreen.withValues(alpha: 0.15)
                                 : Colors.grey.shade100,
                             child: Text(
                               s.studentId.isNotEmpty ? s.studentId : '${i + 1}',

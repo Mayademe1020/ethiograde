@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
@@ -268,7 +268,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    color: AppTheme.info.withOpacity(0.08),
+                    color: AppTheme.info.withValues(alpha: 0.08),
                     child: Row(
                       children: [
                         const Icon(
@@ -293,7 +293,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 // Progress header
                 Container(
                   padding: const EdgeInsets.all(16),
-                  color: AppTheme.primaryGreen.withOpacity(0.05),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.05),
                   child: Column(
                     children: [
                       Row(
@@ -404,10 +404,10 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                     ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryYellow.withOpacity(0.15),
+                      color: AppTheme.primaryYellow.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: AppTheme.primaryYellow.withOpacity(0.4),
+                        color: AppTheme.primaryYellow.withValues(alpha: 0.4),
                       ),
                     ),
                     child: Column(
@@ -469,8 +469,8 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: passed
-                                      ? AppTheme.primaryGreen.withOpacity(0.1)
-                                      : AppTheme.primaryRed.withOpacity(0.1),
+                                      ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                                      : AppTheme.primaryRed.withValues(alpha: 0.1),
                                   child: Text(
                                     '${index + 1}',
                                     style: TextStyle(
@@ -610,13 +610,13 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: ready
-                    ? AppTheme.primaryGreen.withOpacity(0.08)
-                    : AppTheme.primaryRed.withOpacity(0.08),
+                    ? AppTheme.primaryGreen.withValues(alpha: 0.08)
+                    : AppTheme.primaryRed.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: ready
-                      ? AppTheme.primaryGreen.withOpacity(0.24)
-                      : AppTheme.primaryRed.withOpacity(0.24),
+                      ? AppTheme.primaryGreen.withValues(alpha: 0.24)
+                      : AppTheme.primaryRed.withValues(alpha: 0.24),
                 ),
               ),
               child: Row(

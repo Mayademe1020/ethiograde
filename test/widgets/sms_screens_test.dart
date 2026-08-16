@@ -9,7 +9,6 @@ import 'package:ethiograde/screens/analytics/analytics_screen.dart';
 import 'package:ethiograde/screens/sms/sms_compose_screen.dart';
 import 'package:ethiograde/screens/sms/sms_history_screen.dart';
 import 'package:ethiograde/services/assessment_provider.dart';
-import 'package:ethiograde/services/sms_service.dart';
 import 'package:ethiograde/services/student_provider.dart';
 
 void main() {

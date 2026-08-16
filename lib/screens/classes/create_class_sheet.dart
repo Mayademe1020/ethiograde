@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -238,7 +238,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                         border: Border.all(color: Colors.grey.shade300),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 4,
                             offset: const Offset(0, 2))]),
                       child: ListView.builder(
@@ -304,9 +304,9 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.08),
+                    color: AppTheme.primaryGreen.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2))),
+                    border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2))),
                   child: Row(
                     children: [
                       const Icon(Icons.label_outlined, size: 18, color: AppTheme.primaryGreen),

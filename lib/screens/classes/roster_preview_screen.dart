@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../services/class_provider.dart';
@@ -58,7 +58,7 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: AppTheme.primaryGreen.withOpacity(0.08),
+            color: AppTheme.primaryGreen.withValues(alpha: 0.08),
             child: Row(
               children: [
                 const Icon(
@@ -207,7 +207,7 @@ class _StudentEditCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
                   child: Text(
                     '${index + 1}',
                     style: const TextStyle(

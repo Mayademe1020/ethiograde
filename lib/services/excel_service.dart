@@ -223,6 +223,7 @@ class ImportService {
   Future<String> exportResults({
     required String assessmentTitle,
     required List<Map<String, dynamic>> results,
+    List<Map<String, dynamic>>? roster,
     String? outputDir,
   }) async {
     final questionNumbers = <int>{};
@@ -287,6 +288,17 @@ class ImportService {
           }),
         ];
       }),
+      ..._missingStudentRows(
+        roster: roster,
+        results: results,
+        qNumbers: qNumbers,
+        maxScore: results.fold<double>(
+          0,
+          (max, r) => (r['maxScore'] ?? 0).toDouble() > max
+              ? (r['maxScore'] ?? 0).toDouble()
+              : max,
+        ),
+      ),
     ];
 
     final csv = const ListToCsvConverter().convert(rows);
@@ -300,6 +312,43 @@ class ImportService {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────
+
+  /// Roster students who have no scanned result appear as ungraded rows
+  /// (Score 0, status UNGRADED) so an export reflects the full class,
+  /// not just the papers that were scanned.
+  List<List<dynamic>> _missingStudentRows({
+    required List<Map<String, dynamic>>? roster,
+    required List<Map<String, dynamic>> results,
+    required List<int> qNumbers,
+    required double maxScore,
+  }) {
+    if (roster == null || roster.isEmpty) return const [];
+    final scannedIds = results
+        .map((r) => (r['studentId'] ?? '').toString().trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final rows = <List<dynamic>>[];
+    for (final student in roster) {
+      final id = (student['studentId'] ?? '').toString().trim();
+      final name = (student['studentName'] ?? '').toString().trim();
+      if (id.isNotEmpty && scannedIds.contains(id)) continue;
+      rows.add([
+        name,
+        id,
+        0.0,
+        maxScore,
+        '0.0%',
+        '',
+        'UNGRADED',
+        '',
+        '',
+        'Not scanned',
+        ...qNumbers.map((_) => ''),
+      ]);
+    }
+    return rows;
+  }
 
   Map<String, int> _detectColumns(List<String> headers) {
     final map = <String, int>{};

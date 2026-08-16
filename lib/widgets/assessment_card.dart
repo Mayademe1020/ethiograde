@@ -167,8 +167,9 @@ class AssessmentCard extends StatelessWidget {
                                         orElse: () => classProv.classes.last,
                                       )
                                     : null;
-                                if (cls == null || cls.academicYear.isEmpty)
+                                if (cls == null || cls.academicYear.isEmpty) {
                                   return const SizedBox.shrink();
+                                }
                                 return _MetaBadge(
                                   icon: Icons.calendar_today_outlined,
                                   label: cls.academicYear,

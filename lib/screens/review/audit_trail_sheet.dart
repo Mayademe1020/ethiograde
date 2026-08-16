@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
 import '../../models/audit_entry.dart';
@@ -78,7 +78,7 @@ class AuditTrailSheet extends StatelessWidget {
                       horizontal: 12,
                       vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withOpacity(0.1),
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
                     child: Text(
                       '${result.grade} (${result.percentage.toStringAsFixed(1)}%)',
@@ -217,7 +217,7 @@ class _TimelineEntry extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                     border: Border.all(color: color, width: 2)),
                   child: Icon(_actionIcon(entry.action), size: 16, color: color)),
@@ -327,9 +327,9 @@ class _ScoreChangeDetail extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.05),
+        color: AppTheme.warning.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.2))),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.2))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
