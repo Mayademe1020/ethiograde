@@ -66,43 +66,33 @@ Future<String> _enhanceImageIsolate(_EnhanceParams params) async {
       );
     }
 
-// ── Step 1: Blue channel extraction ──
-  // Dark blue ink absorbs more blue light → low blue value
-  // White paper reflects all light → high blue value
-  // Notebook lines (light blue) → medium value, less prominent
-  // Optimize: set R=G=B from blue channel directly using flat pixel list
-  for (int y = 0; y < image.height; y++) {
-    for (int x = 0; x < image.width; x++) {
-      final pixel = image.getPixel(x, y);
-      pixel.r = pixel.b;
-      pixel.g = pixel.b;
-      pixel.b = pixel.b;
-      image.setPixel(x, y, pixel);
+    // ── Step 1: Blue channel extraction ──
+    // Dark blue ink absorbs more blue light → low blue value
+    // White paper reflects all light → high blue value
+    // Notebook lines (light blue) → medium value, less prominent
+    // PixelUint8 is a live view into the buffer — mutating it writes through.
+    for (final pixel in image) {
+      final b = pixel.b;
+      pixel.r = b;
+      pixel.g = b;
     }
-  }
 
-  // ── Step 2: Otsu binarization ──
-  // Calculate optimal threshold from histogram
-  // Pure black/white eliminates notebook lines entirely
-  final histogram = List<int>.filled(256, 0);
-  for (int i = 0; i < image.width * image.height; i++) {
-    final x = i % image.width;
-    final y = i ~/ image.width;
-    histogram[image.getPixel(x, y).r.toInt()]++;
-  }
-  final totalPixels = image.width * image.height;
-  final threshold = _otsuThreshold(histogram, totalPixels);
+    // ── Step 2: Otsu binarization ──
+    // Calculate optimal threshold from histogram
+    // Pure black/white eliminates notebook lines entirely
+    final histogram = List<int>.filled(256, 0);
+    for (final pixel in image) {
+      histogram[pixel.r.toInt()]++;
+    }
+    final totalPixels = image.width * image.height;
+    final threshold = _otsuThreshold(histogram, totalPixels);
 
-  for (int i = 0; i < image.width * image.height; i++) {
-    final x = i % image.width;
-    final y = i ~/ image.width;
-    final v = image.getPixel(x, y).r.toInt() < threshold ? 0 : 255;
-    final pixel = image.getPixel(x, y);
-    pixel.r = v;
-    pixel.g = v;
-    pixel.b = v;
-    image.setPixel(x, y, pixel);
-  }
+    for (final pixel in image) {
+      final v = pixel.r.toInt() < threshold ? 0 : 255;
+      pixel.r = v;
+      pixel.g = v;
+      pixel.b = v;
+    }
 
     // ── Step 3: Sharpening kernel ──
     // Makes letter edges crisp for ML Kit
@@ -531,7 +521,9 @@ class OcrService {
         'OCR: ${regions.length} lines, skew ${skewDegrees.toStringAsFixed(1)}°',
       );
       // DEBUG: Show exactly what ML Kit detected
-      debugPrint('OCR RAW: ${regions.map((r) => '"${r.text}" (${r.confidence.toStringAsFixed(2)})').join(', ')}');
+      debugPrint(
+        'OCR RAW: ${regions.map((r) => '"${r.text}" (${r.confidence.toStringAsFixed(2)})').join(', ')}',
+      );
       return (regions: regions, skewAngle: skewDegrees);
     } catch (e, st) {
       debugPrint('OCR: recognition failed ($e)\n$st');

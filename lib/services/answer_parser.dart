@@ -70,7 +70,10 @@ class AnswerParser {
   /// Normalize MCQ answer letters to canonical form.
   /// "B" → "B", "b" → "B", "AC" → "A,C", "aC" → "A,C"
   static String _normalizeMcqAnswer(String raw) {
-    final letters = raw.split('').where((c) => RegExp(r'[a-eA-E]').hasMatch(c)).toList();
+    final letters = raw
+        .split('')
+        .where((c) => RegExp(r'[a-eA-E]').hasMatch(c))
+        .toList();
     if (letters.isEmpty) return '';
     if (letters.length == 1) return letters.first.toUpperCase();
     // Multiple letters → comma-separated
@@ -102,7 +105,8 @@ class AnswerParser {
     if (words.length >= 2) {
       final lastTwo = words.sublist(words.length - 2);
       final bothLetters = lastTwo.every(
-        (w) => RegExp(r'^[a-zA-Z]$').hasMatch(w));
+        (w) => RegExp(r'^[a-zA-Z]$').hasMatch(w),
+      );
       if (bothLetters) {
         int letterStart = words.length - 2;
         while (letterStart > 0 &&
@@ -131,17 +135,9 @@ class AnswerParser {
       return lastWord;
     }
 
-// Fallback: check if entire text is a known answer (MCQ, T/F, etc.)
-    final normalized = normalizeAnswer(trimmed);
-    if (normalized.isNotEmpty && normalized.length <= 20) {
-      // Strip any leading question-number prefix (e.g., "1. Addis Ababa")
-      final match = RegExp(r'^\d+[\.\-:)]?').firstMatch(trimmed);
-      final stripped = match != null
-          ? trimmed.substring(match.end).trim()
-          : trimmed;
-      return stripped.isEmpty ? trimmed : stripped;
-    }
-
+    // Fallback: return original text (let normalizeAnswer handle it).
+    // Note: any leading question-number prefix has already been stripped by
+    // parseQuestionAnswer before this method is reached.
     return trimmed;
   }
 
@@ -174,9 +170,7 @@ class AnswerParser {
     if (trimmed == 'ሐሰት') return 'False';
 
     // ── Amharic MCQ letters (ሀ=A, ለ=B, ሐ=C, መ=D, ሠ=E) ──
-    const amharicMcq = {
-      'ሀ': 'A', 'ለ': 'B', 'ሐ': 'C', 'መ': 'D', 'ሠ': 'E',
-    };
+    const amharicMcq = {'ሀ': 'A', 'ለ': 'B', 'ሐ': 'C', 'መ': 'D', 'ሠ': 'E'};
     if (amharicMcq.containsKey(trimmed)) {
       return amharicMcq[trimmed]!;
     }
@@ -222,19 +216,21 @@ class AnswerParser {
   /// Returns null if not a matching pair.
   String? _tryParseMatchingPair(String text) {
     // Split by spaces or commas
-    final tokens =
-        text.split(RegExp(r'[\s,]+')).where((t) => t.isNotEmpty).toList();
+    final tokens = text
+        .split(RegExp(r'[\s,]+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     if (tokens.length < 2) return null;
 
     // All tokens must be single letters
     final allSingleLetters = tokens.every(
-      (t) => RegExp(r'^[a-zA-Z]$').hasMatch(t));
+      (t) => RegExp(r'^[a-zA-Z]$').hasMatch(t),
+    );
     if (!allSingleLetters) return null;
 
     // At least one letter beyond E (F-Z) → likely matching, not MCQ
-    final hasNonMcq = tokens.any(
-      (t) => RegExp(r'^[f-zF-Z]$').hasMatch(t));
+    final hasNonMcq = tokens.any((t) => RegExp(r'^[f-zF-Z]$').hasMatch(t));
     final isMatchingPattern = hasNonMcq;
 
     if (!isMatchingPattern) return null;
@@ -262,7 +258,9 @@ class AnswerParser {
             questionNumber: parsed.$1,
             answer: parsed.$2,
             confidence: region.confidence,
-            rawText: region.text));
+            rawText: region.text,
+          ),
+        );
       }
     }
 
@@ -336,7 +334,9 @@ class AnswerParser {
               questionNumber: qNum,
               answer: normalized,
               confidence: line[i].confidence,
-              rawText: '${line.first.text} ${line[i].text}'));
+              rawText: '${line.first.text} ${line[i].text}',
+            ),
+          );
           answeredQs.add(qNum);
           break;
         }

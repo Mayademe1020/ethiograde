@@ -173,6 +173,27 @@ void main() {
       expect(result.$2, '42');
     });
 
+    test('"6. 2.5" decimal answer preserved (no prefix strip)', () {
+      final result = parser.parseQuestionAnswer('6. 2.5');
+      expect(result, isNotNull);
+      expect(result!.$1, 6);
+      expect(result.$2, '2.5');
+    });
+
+    test('"7. 42 km" numeric short answer preserved', () {
+      final result = parser.parseQuestionAnswer('7. 42 km');
+      expect(result, isNotNull);
+      expect(result!.$1, 7);
+      expect(result.$2, '42 km');
+    });
+
+    test('"8. 1984" bare numeric answer preserved', () {
+      final result = parser.parseQuestionAnswer('8. 1984');
+      expect(result, isNotNull);
+      expect(result!.$1, 8);
+      expect(result.$2, '1984');
+    });
+
     test('"7-Photosynthesis"', () {
       final result = parser.parseQuestionAnswer('7-Photosynthesis');
       expect(result, isNotNull);
@@ -306,7 +327,8 @@ void main() {
       expect(parser.normalizeAnswer('42 kilometers'), '42 kilometers');
       expect(
         parser.normalizeAnswer('this is a valid short answer'),
-        'this is a valid short answer');
+        'this is a valid short answer',
+      );
     });
 
     test('pure noise (no alphanumeric) still returns empty', () {
@@ -361,7 +383,8 @@ void main() {
         expect(answers.length, 2);
         expect(answers[0].questionNumber, 1);
         expect(answers[1].questionNumber, 3);
-      });
+      },
+    );
 
     test('noisy OCR — extra spaces, mixed delimiters', () {
       final regions = [
@@ -418,7 +441,8 @@ void main() {
         const TextRegionInput(text: '2. B', confidence: 0.90),
         const TextRegionInput(
           text: 'Grade 10 Mathematics Final Exam',
-          confidence: 0.93),
+          confidence: 0.93,
+        ),
         const TextRegionInput(text: 'ID: 12345678', confidence: 0.91),
       ];
 
@@ -435,7 +459,9 @@ void main() {
 
   group('parseQuestionAnswer — Format 1: Ethiopian answer-before-question', () {
     test('"B 1. What is the capital of France?" → Q1, B', () {
-      final result = parser.parseQuestionAnswer('B 1. What is the capital of France?');
+      final result = parser.parseQuestionAnswer(
+        'B 1. What is the capital of France?',
+      );
       expect(result, isNotNull);
       expect(result!.$1, 1);
       expect(result.$2, 'B');
@@ -463,7 +489,9 @@ void main() {
     });
 
     test('"AC 4. Name two colors" → Q4, A,C (multi-letter)', () {
-      final result = parser.parseQuestionAnswer('AC 4. Name two colors in the flag');
+      final result = parser.parseQuestionAnswer(
+        'AC 4. Name two colors in the flag',
+      );
       expect(result, isNotNull);
       expect(result!.$1, 4);
       expect(result.$2, 'A,C');
@@ -484,7 +512,9 @@ void main() {
     });
 
     test('"a 10. Which planet..." → Q10, A (double-digit Q#)', () {
-      final result = parser.parseQuestionAnswer('a 10. Which planet is closest?');
+      final result = parser.parseQuestionAnswer(
+        'a 10. Which planet is closest?',
+      );
       expect(result, isNotNull);
       expect(result!.$1, 10);
       expect(result.$2, 'A');
@@ -508,10 +538,16 @@ void main() {
   group('parseAnswers — Ethiopian format full simulation', () {
     test('5-question Ethiopian exam paper', () {
       final regions = [
-        const TextRegionInput(text: 'B 1. What is the capital of France?', confidence: 0.92),
+        const TextRegionInput(
+          text: 'B 1. What is the capital of France?',
+          confidence: 0.92,
+        ),
         const TextRegionInput(text: 'A 2. What is 2+2?', confidence: 0.88),
         const TextRegionInput(text: 'C 3. Who wrote Hamlet?', confidence: 0.91),
-        const TextRegionInput(text: 'AC 4. Name two colors in the flag', confidence: 0.85),
+        const TextRegionInput(
+          text: 'AC 4. Name two colors in the flag',
+          confidence: 0.85,
+        ),
         const TextRegionInput(text: 'D 5. Largest ocean?', confidence: 0.90),
       ];
 
