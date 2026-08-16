@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -14,6 +14,7 @@ import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/excel_service.dart';
 import '../../services/student_provider.dart';
+import '../../services/class_provider.dart';
 import '../../services/settings_provider.dart';
 import '../../services/paper_image_intake_service.dart';
 import '../../services/ocr_service.dart';
@@ -329,7 +330,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final missingPhones = <String>[];
 
     for (final result in _results!) {
-      final student = students.where((s) => s.id == result.studentId).firstOrNull;
+      final student = students
+          .where((s) => s.id == result.studentId)
+          .firstOrNull;
       if (student == null) continue;
 
       if (student.parentPhone == null || student.parentPhone!.isEmpty) {
@@ -341,7 +344,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
         studentName: student.fullName,
         subject: result.assessmentId,
         percentage: result.percentage,
-        schoolName: settings.schoolName.isEmpty ? 'School' : settings.schoolName,
+        schoolName: settings.schoolName.isEmpty
+            ? 'School'
+            : settings.schoolName,
         amharic: false,
       );
 
@@ -669,8 +674,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
     try {
       final assessment = context.read<AssessmentProvider>().getAssessmentById(
-            results.first.assessmentId,
-          );
+        results.first.assessmentId,
+      );
       if (assessment == null) return;
 
       final settings = context.read<SettingsProvider>();
@@ -708,26 +713,24 @@ class _ReviewScreenState extends State<ReviewScreen> {
   /// include students whose papers were not scanned as ungraded rows.
   List<Map<String, dynamic>> _rosterForExport(List<ScanResult> results) {
     if (results.isEmpty) return const [];
-    final assessment = context
-        .read<AssessmentProvider>()
-        .getAssessmentById(results.first.assessmentId);
+    final assessment = context.read<AssessmentProvider>().getAssessmentById(
+      results.first.assessmentId,
+    );
     if (assessment == null || assessment.className.isEmpty) return const [];
 
     final classProvider = context.read<ClassProvider>();
     final studentProvider = context.read<StudentProvider>();
     final cls = classProvider.classes
         .where(
-          (c) => c.id == assessment.className ||
+          (c) =>
+              c.id == assessment.className ||
               c.displayName == assessment.className,
         )
         .firstOrNull;
     if (cls == null) return const [];
 
     return studentProvider.studentsByClassId(cls.id).map((student) {
-      return {
-        'studentId': student.id,
-        'studentName': student.fullName,
-      };
+      return {'studentId': student.id, 'studentName': student.fullName};
     }).toList();
   }
 
@@ -737,7 +740,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
     // Use centralized completion gate
     final assessment = results.isNotEmpty
-        ? context.read<AssessmentProvider>().getAssessmentById(results.first.assessmentId)
+        ? context.read<AssessmentProvider>().getAssessmentById(
+            results.first.assessmentId,
+          )
         : null;
     if (assessment == null) return true;
 
@@ -762,59 +767,96 @@ class _ReviewScreenState extends State<ReviewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (blockingItems.isNotEmpty) ...[
-                const Text('Blocking issues:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Blocking issues:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                ...blockingItems.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.block, size: 16, color: Colors.red),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
-                            if (item.explanation != null)
-                              Text(item.explanation!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
+                ...blockingItems.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.block, size: 16, color: Colors.red),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (item.explanation != null)
+                                Text(
+                                  item.explanation!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                )),
+                ),
               ],
               if (attentionItems.isNotEmpty) ...[
-                const Text('Needs attention:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Needs attention:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                ...attentionItems.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.warning_amber, size: 16, color: Colors.orange),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500)),
-                            if (item.explanation != null)
-                              Text(item.explanation!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
+                ...attentionItems.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.warning_amber,
+                          size: 16,
+                          color: Colors.orange,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (item.explanation != null)
+                                Text(
+                                  item.explanation!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )),
+                ),
               ],
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, _ReviewSaveAction.keepReviewing),
+            onPressed: () =>
+                Navigator.pop(context, _ReviewSaveAction.keepReviewing),
             child: const Text('Review remaining'),
           ),
           OutlinedButton.icon(
@@ -824,7 +866,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
           ),
           if (blockingItems.isEmpty)
             FilledButton(
-              onPressed: () => Navigator.pop(context, _ReviewSaveAction.finalSaveAnyway),
+              onPressed: () =>
+                  Navigator.pop(context, _ReviewSaveAction.finalSaveAnyway),
               child: const Text('Final save anyway'),
             ),
         ],
@@ -834,7 +877,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (!mounted) return false;
     if (action == _ReviewSaveAction.finalSaveAnyway) return true;
     if (action == _ReviewSaveAction.draft) {
-      await _saveReviewDraft(_ReviewQueue.fromResults(results, assessment: assessment));
+      await _saveReviewDraft(
+        _ReviewQueue.fromResults(results, assessment: assessment),
+      );
     }
     return false;
   }
@@ -926,28 +971,27 @@ class _ReviewScreenState extends State<ReviewScreen> {
           ),
         ],
       ),
-body: results.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No results to review',
-                      style: TextStyle(color: AppTheme.lightText, fontSize: 16),
-                    ),
-                  ],
-                ),
-              )
-: ListView(
-                padding: EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal:
-                    ResponsiveLayout.horizontalPadding(context) * 0.8,
-                ),
+      body: results.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _ReviewSituationPanel(
+                  Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No results to review',
+                    style: TextStyle(color: AppTheme.lightText, fontSize: 16),
+                  ),
+                ],
+              ),
+            )
+          : ListView(
+              padding: EdgeInsets.symmetric(
+                vertical: 16,
+                horizontal: ResponsiveLayout.horizontalPadding(context) * 0.8,
+              ),
+              children: [
+                _ReviewSituationPanel(
                   results: results,
                   queue: queue,
                   assessment: assessment,
@@ -1028,7 +1072,9 @@ body: results.isEmpty
                       icon: const Icon(Icons.picture_as_pdf),
                       tooltip: 'Export PDF',
                       style: IconButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1197,7 +1243,9 @@ body: results.isEmpty
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(summary.toString()),
-        backgroundColor: recalcResult.allSucceeded ? AppTheme.primaryGreen : Colors.orange,
+        backgroundColor: recalcResult.allSucceeded
+            ? AppTheme.primaryGreen
+            : Colors.orange,
       ),
     );
   }
@@ -1330,7 +1378,11 @@ enum _SortMode {
   answerKeyFirst,
 }
 
-enum _AnswerKeyChangedAction { regradeAll, keepCurrentScores, saveAndRecalculateLater }
+enum _AnswerKeyChangedAction {
+  regradeAll,
+  keepCurrentScores,
+  saveAndRecalculateLater,
+}
 
 enum _ReviewSaveAction { keepReviewing, draft, finalSaveAnyway }
 
@@ -1344,7 +1396,10 @@ class _ReviewQueue {
 
   bool get hasBlockingIssues => blockingCount > 0;
 
-  factory _ReviewQueue.fromResults(List<ScanResult> results, {Assessment? assessment}) {
+  factory _ReviewQueue.fromResults(
+    List<ScanResult> results, {
+    Assessment? assessment,
+  }) {
     final duplicateIndexes = _duplicateIndexes(results);
     const resolver = IntegrityStateResolver();
     final grouped = <_ReviewIssue, List<_ReviewQueueItem>>{
@@ -1353,7 +1408,12 @@ class _ReviewQueue {
 
     for (var i = 0; i < results.length; i++) {
       final result = results[i];
-      final issue = _issueFor(result, duplicateIndexes.contains(i), assessment: assessment, resolver: resolver);
+      final issue = _issueFor(
+        result,
+        duplicateIndexes.contains(i),
+        assessment: assessment,
+        resolver: resolver,
+      );
       grouped[issue]!.add(
         _ReviewQueueItem(resultIndex: i, result: result, issue: issue),
       );
@@ -1430,7 +1490,12 @@ class _ReviewQueue {
     };
   }
 
-  static _ReviewIssue _issueFor(ScanResult result, bool isDuplicate, {Assessment? assessment, IntegrityStateResolver? resolver}) {
+  static _ReviewIssue _issueFor(
+    ScanResult result,
+    bool isDuplicate, {
+    Assessment? assessment,
+    IntegrityStateResolver? resolver,
+  }) {
     // Check integrity state first (new system)
     if (assessment != null && resolver != null) {
       final state = resolver.resolve(result: result, assessment: assessment);
@@ -1504,7 +1569,10 @@ class _ReviewQueueHeader extends StatelessWidget {
                 ),
                 Text(
                   section.subtitle,
-                  style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppTheme.lightText,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -1642,12 +1710,22 @@ class _ReviewSituationPanel extends StatelessWidget {
         .where(_ReviewScreenState._needsStudentIdentity)
         .length;
     final staleKeyCount = assessment != null
-        ? results.where((result) =>
-            const IntegrityStateResolver().resolve(result: result, assessment: assessment!) == IntegrityState.outdated
-        ).length
-        : results.where(
-            (result) => result.metadata['answerKeyChangedNeedsRegrade'] == true,
-          ).length;
+        ? results
+              .where(
+                (result) =>
+                    const IntegrityStateResolver().resolve(
+                      result: result,
+                      assessment: assessment!,
+                    ) ==
+                    IntegrityState.outdated,
+              )
+              .length
+        : results
+              .where(
+                (result) =>
+                    result.metadata['answerKeyChangedNeedsRegrade'] == true,
+              )
+              .length;
 
     final nextAction = staleKeyCount > 0
         ? _QueueAction(
@@ -1866,7 +1944,9 @@ class _QueueActionTile extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: isPrimary ? 0 : 6),
       child: Material(
-        color: isPrimary ? action.color.withValues(alpha: 0.08) : Colors.transparent,
+        color: isPrimary
+            ? action.color.withValues(alpha: 0.08)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: action.onTap,
@@ -2326,12 +2406,18 @@ class _ResultCard extends StatelessWidget {
                 children: [
                   Text(
                     '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppTheme.lightText,
+                      fontSize: 12,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     '${'Confidence'}: ${(result.confidence * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppTheme.lightText,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   // View audit history button
@@ -2343,10 +2429,7 @@ class _ResultCard extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(4),
                     child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -2732,7 +2815,11 @@ class _SideBySideReviewState extends State<SideBySideReview> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.warning_amber, size: 16, color: AppTheme.warning),
+              const Icon(
+                Icons.warning_amber,
+                size: 16,
+                color: AppTheme.warning,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${'Wrong'} ${safeIndex + 1} / ${wrong.length}',
@@ -2838,7 +2925,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 decoration: BoxDecoration(
                   color: AppTheme.warning.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppTheme.warning.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -3150,10 +3239,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               // Change answer section
               const Text(
                 'Change Answer',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
               const SizedBox(height: 8),
 
@@ -3202,10 +3288,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
               // Quick correct/wrong toggle
               const Text(
                 'Or Quick Toggle',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               ),
               const SizedBox(height: 8),
               Row(
@@ -3646,7 +3729,10 @@ class _ScoreItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.lightText)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
+        ),
         Text(
           value,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
