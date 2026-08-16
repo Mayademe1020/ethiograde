@@ -234,5 +234,74 @@ void main() {
 
       await File(path).delete();
     });
+
+    test(
+      'exportResults appends ungraded rows for roster students not scanned',
+      () async {
+        final results = [
+          {
+            'studentName': 'Abebe',
+            'studentId': '001',
+            'totalScore': 45,
+            'maxScore': 50,
+            'percentage': 90.0,
+            'grade': 'A',
+            'paperLabel': 'Paper 1',
+            'confidence': 0.95,
+            'reviewStatus': 'Reviewed',
+            'answers': [
+              {'questionNumber': 1, 'score': 1.0, 'maxScore': 1.0},
+              {'questionNumber': 2, 'score': 1.0, 'maxScore': 1.0},
+            ],
+          },
+        ];
+        final roster = [
+          {'studentId': '001', 'studentName': 'Abebe'},
+          {'studentId': '002', 'studentName': 'Bekele'},
+          {'studentId': '003', 'studentName': 'Chaltu'},
+        ];
+
+        final path = await service.exportResults(
+          assessmentTitle: 'Math Final',
+          results: results,
+          roster: roster,
+          outputDir: Directory.systemTemp.path,
+        );
+        final file = File(path);
+        final content = await file.readAsString();
+        final lines = content
+            .split('\n')
+            .where((l) => l.trim().isNotEmpty)
+            .toList();
+
+        // Header + 1 scanned + 2 ungraded roster students
+        expect(lines.length, 4);
+        expect(content, contains('Bekele'));
+        expect(content, contains('Chaltu'));
+        expect(content, contains('UNGRADED'));
+
+        await file.delete();
+      },
+    );
+
+    test('exportResults ignores roster when empty or omitted', () async {
+      final path = await service.exportResults(
+        assessmentTitle: 'Math Final',
+        results: [
+          {'studentName': 'Abebe', 'percentage': 80.0},
+        ],
+        outputDir: Directory.systemTemp.path,
+      );
+      final file = File(path);
+      final content = await file.readAsString();
+      final lines = content
+          .split('\n')
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+
+      expect(lines.length, 2); // header + 1 result, no ungraded rows
+
+      await file.delete();
+    });
   });
 }
