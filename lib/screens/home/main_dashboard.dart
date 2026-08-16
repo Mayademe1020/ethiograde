@@ -72,7 +72,10 @@ class _MainDashboardState extends State<MainDashboard> {
     final body = IndexedStack(
       index: _currentIndex,
       children: [
-        _DashboardHome(onSeeAll: () => setState(() => _currentIndex = 1)),
+        _DashboardHome(
+          onSeeAll: () => setState(() => _currentIndex = 1),
+          isActive: _currentIndex == 0,
+        ),
         const AssessmentsTab(),
         const StudentsTab(),
         const SettingsTab(),
@@ -111,7 +114,8 @@ class _MainDashboardState extends State<MainDashboard> {
 
 class _DashboardHome extends StatefulWidget {
   final VoidCallback onSeeAll;
-  const _DashboardHome({required this.onSeeAll});
+  final bool isActive;
+  const _DashboardHome({required this.onSeeAll, required this.isActive});
 
   @override
   State<_DashboardHome> createState() => _DashboardHomeState();
@@ -124,6 +128,17 @@ class _DashboardHomeState extends State<_DashboardHome> {
   void initState() {
     super.initState();
     _loadAction();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DashboardHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh the primary action whenever the teacher returns to Home —
+    // the dashboard stays alive in the IndexedStack, so scanning/reviewing
+    // elsewhere would otherwise leave the action stale.
+    if (widget.isActive && !oldWidget.isActive) {
+      _loadAction();
+    }
   }
 
   Future<void> _loadAction() async {
@@ -158,7 +173,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
         _action ??
         const DashboardAction(
           type: DashboardActionType.gradePapers,
-          priority: 4,
+          priority: 5,
           title: 'Grade papers',
           description:
               'Scan answer sheets or enter scores. Quick and accurate.',
