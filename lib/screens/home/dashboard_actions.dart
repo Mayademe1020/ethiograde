@@ -1,4 +1,5 @@
 import '../../models/assessment.dart';
+import '../../models/scan_result.dart';
 import '../../services/draft_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ import '../../services/draft_service.dart';
 enum DashboardActionType {
   resumeDraft,
   finishSetup,
+  reviewPapers,
   startScanning,
   gradePapers,
 }
@@ -44,8 +46,9 @@ class DashboardAction {
 /// Priority order:
 /// 1. Valid interrupted draft
 /// 2. Incomplete answer key or setup
-/// 3. Ready-to-grade assessment
-/// 4. Generic start-grading action
+/// 3. Scanned papers needing teacher review
+/// 4. Ready-to-grade assessment
+/// 5. Generic start-grading action
 ///
 /// A draft is valid when:
 /// - it exists and is < 7 days old
@@ -57,9 +60,13 @@ class DashboardAction {
 /// lookup so that assessments with status `grading` are not rejected.
 /// [activeAssessments] is the filtered active-only list — used for
 /// setup/ready prioritization.
+/// [resultsByAssessment] maps assessment ID → its scan results, used to
+/// detect papers needing teacher review (blocking completion). Optional —
+/// when omitted, review-aware actions are skipped.
 Future<DashboardAction> resolveDashboardAction({
   required List<Assessment> allAssessments,
   required List<Assessment> activeAssessments,
+  Map<String, List<ScanResult>>? resultsByAssessment,
 }) async {
   // ── Priority 1: Valid interrupted draft ──
   // Look up assessment from full collection (not just active) so that
@@ -110,7 +117,35 @@ Future<DashboardAction> resolveDashboardAction({
     );
   }
 
-  // ── Priority 3: Ready-to-grade assessment ──
+  // ── Priority 3: Papers needing teacher review ──
+  if (resultsByAssessment != null) {
+    final reviewAssessments = activeAssessments
+        .where((a) {
+          final results = resultsByAssessment[a.id];
+          return results != null && results.any((r) => r.requiresTeacherAction);
+        })
+        .toList(growable: false);
+    if (reviewAssessments.isNotEmpty) {
+      final a = reviewAssessments.first;
+      final results = resultsByAssessment[a.id]!;
+      final needAction = results.where((r) => r.requiresTeacherAction).length;
+      return DashboardAction(
+        type: DashboardActionType.reviewPapers,
+        priority: 3,
+        title: 'Review papers',
+        description:
+            '$needAction of ${results.length} papers in '
+            '${a.title} need your review.',
+        ctaLabel: 'Review',
+        assessment: a,
+        completedCount: results.length - needAction,
+        totalCount: results.length,
+        reason: 'Scanned papers need teacher action',
+      );
+    }
+  }
+
+  // ── Priority 4: Ready-to-grade assessment ──
   final readyAssessments = activeAssessments
       .where((a) => a.isAnswerKeyComplete)
       .toList(growable: false);
@@ -118,7 +153,7 @@ Future<DashboardAction> resolveDashboardAction({
     final a = readyAssessments.first;
     return DashboardAction(
       type: DashboardActionType.startScanning,
-      priority: 3,
+      priority: 4,
       title: 'Start scanning',
       description: '${a.title} is ready. Scan student papers to grade.',
       ctaLabel: 'Start Scanning',
@@ -127,10 +162,10 @@ Future<DashboardAction> resolveDashboardAction({
     );
   }
 
-  // ── Priority 4: Generic start-grading action ──
+  // ── Priority 5: Generic start-grading action ──
   return const DashboardAction(
     type: DashboardActionType.gradePapers,
-    priority: 4,
+    priority: 5,
     title: 'Grade papers',
     description: 'Scan answer sheets or enter scores. Quick and accurate.',
     ctaLabel: 'Grade Papers',

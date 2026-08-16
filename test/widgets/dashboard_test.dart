@@ -13,6 +13,7 @@ import 'package:ethiograde/services/settings_provider.dart';
 import 'package:ethiograde/services/class_provider.dart';
 import 'package:ethiograde/services/teacher_provider.dart';
 import 'package:ethiograde/models/assessment.dart';
+import 'package:ethiograde/models/scan_result.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -234,7 +235,7 @@ void main() {
         activeAssessments: [],
       );
       expect(action.type, DashboardActionType.gradePapers);
-      expect(action.priority, 4);
+      expect(action.priority, 5);
       expect(action.ctaLabel, 'Grade Papers');
     });
 
@@ -282,16 +283,93 @@ void main() {
         activeAssessments: [ready],
       );
       expect(action.type, DashboardActionType.startScanning);
-      expect(action.priority, 3);
+      expect(action.priority, 4);
     });
 
-    test('completed assessment not in active list returns grade papers', () async {
-      final action = await resolveDashboardAction(
-        allAssessments: [],
-        activeAssessments: [],
+    test('papers needing review outrank start scanning', () async {
+      final ready = Assessment(
+        title: 'Quiz',
+        subject: 'Science',
+        questions: List.generate(
+          10,
+          (i) => Question(
+            number: i + 1,
+            type: QuestionType.mcq,
+            text: 'Q${i + 1}',
+            correctAnswer: 'A',
+          ),
+        ),
+        status: AssessmentStatus.active,
       );
-      expect(action.type, DashboardActionType.gradePapers);
+      ScanResult needReview() => ScanResult(
+        id: 'r1',
+        assessmentId: ready.id,
+        studentId: '',
+        studentName: '',
+        imagePath: '/p.jpg',
+        answers: const [],
+        status: ScanStatus.graded,
+        confidence: 0.5,
+      );
+      final action = await resolveDashboardAction(
+        allAssessments: [ready],
+        activeAssessments: [ready],
+        resultsByAssessment: {
+          ready.id: [needReview()],
+        },
+      );
+      expect(action.type, DashboardActionType.reviewPapers);
+      expect(action.priority, 3);
+      expect(action.assessment!.title, 'Quiz');
+      expect(action.completedCount, 0);
+      expect(action.totalCount, 1);
     });
+
+    test('reviewed papers fall back to start scanning', () async {
+      final ready = Assessment(
+        title: 'Quiz',
+        subject: 'Science',
+        questions: List.generate(
+          10,
+          (i) => Question(
+            number: i + 1,
+            type: QuestionType.mcq,
+            text: 'Q${i + 1}',
+            correctAnswer: 'A',
+          ),
+        ),
+        status: AssessmentStatus.active,
+      );
+      final clean = ScanResult(
+        id: 'r1',
+        assessmentId: ready.id,
+        studentId: 's1',
+        studentName: 'Abebe',
+        imagePath: '/p.jpg',
+        answers: const [],
+        status: ScanStatus.reviewed,
+        confidence: 0.9,
+      );
+      final action = await resolveDashboardAction(
+        allAssessments: [ready],
+        activeAssessments: [ready],
+        resultsByAssessment: {
+          ready.id: [clean],
+        },
+      );
+      expect(action.type, DashboardActionType.startScanning);
+    });
+
+    test(
+      'completed assessment not in active list returns grade papers',
+      () async {
+        final action = await resolveDashboardAction(
+          allAssessments: [],
+          activeAssessments: [],
+        );
+        expect(action.type, DashboardActionType.gradePapers);
+      },
+    );
 
     test('incomplete setup wins over ready assessment', () async {
       final ready = Assessment(

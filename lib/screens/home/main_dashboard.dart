@@ -15,6 +15,7 @@ import '../../widgets/assessment_card.dart';
 import '../../widgets/ui_components.dart';
 import '../../services/draft_service.dart';
 import '../../models/scan_result.dart';
+import '../../services/hybrid_grading_service.dart';
 import '../classes/create_class_sheet.dart';
 import 'dashboard_actions.dart';
 import 'settings_tab.dart';
@@ -127,9 +128,16 @@ class _DashboardHomeState extends State<_DashboardHome> {
 
   Future<void> _loadAction() async {
     final assessments = context.read<AssessmentProvider>();
+    // Load scan results once so the resolver can detect papers needing review.
+    final results = await HybridGradingService().loadAllScanResults();
+    final resultsByAssessment = <String, List<ScanResult>>{};
+    for (final r in results) {
+      resultsByAssessment.putIfAbsent(r.assessmentId, () => []).add(r);
+    }
     final action = await resolveDashboardAction(
       allAssessments: assessments.assessments,
       activeAssessments: assessments.activeAssessments,
+      resultsByAssessment: resultsByAssessment,
     );
     if (mounted) {
       setState(() {
@@ -146,14 +154,17 @@ class _DashboardHomeState extends State<_DashboardHome> {
     context.watch<TeacherProvider>();
     final hp = ResponsiveLayout.horizontalPadding(context);
 
-    final action = _action ?? const DashboardAction(
-      type: DashboardActionType.gradePapers,
-      priority: 4,
-      title: 'Grade papers',
-      description: 'Scan answer sheets or enter scores. Quick and accurate.',
-      ctaLabel: 'Grade Papers',
-      reason: 'Loading...',
-    );
+    final action =
+        _action ??
+        const DashboardAction(
+          type: DashboardActionType.gradePapers,
+          priority: 4,
+          title: 'Grade papers',
+          description:
+              'Scan answer sheets or enter scores. Quick and accurate.',
+          ctaLabel: 'Grade Papers',
+          reason: 'Loading...',
+        );
 
     return SafeArea(
       child: CustomScrollView(
@@ -348,6 +359,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
         icon = Icons.play_circle_fill;
       case DashboardActionType.finishSetup:
         icon = Icons.key;
+      case DashboardActionType.reviewPapers:
+        icon = Icons.fact_check_outlined;
       case DashboardActionType.startScanning:
         icon = Icons.document_scanner;
       case DashboardActionType.gradePapers:
@@ -465,7 +478,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
     );
   }
 
-  Future<void> _handleActionTap(BuildContext context, DashboardAction action) async {
+  Future<void> _handleActionTap(
+    BuildContext context,
+    DashboardAction action,
+  ) async {
     switch (action.type) {
       case DashboardActionType.resumeDraft:
         await _resumeDraft(context, action.assessment!);
@@ -479,7 +495,17 @@ class _DashboardHomeState extends State<_DashboardHome> {
         _handleScanTap(context);
       case DashboardActionType.gradePapers:
         Navigator.pushNamed(context, AppRoutes.createAssessment);
+      case DashboardActionType.reviewPapers:
+        await _openReview(context, action);
     }
+  }
+
+  Future<void> _openReview(BuildContext context, DashboardAction action) async {
+    final assessment = action.assessment;
+    if (assessment == null) return;
+    final results = await HybridGradingService().loadScanResults(assessment.id);
+    if (!context.mounted) return;
+    Navigator.pushNamed(context, AppRoutes.review, arguments: results);
   }
 
   Future<void> _resumeDraft(BuildContext context, Assessment assessment) async {
@@ -585,55 +611,55 @@ class _EmptyClassesCard extends StatelessWidget {
         color: cs.primaryContainer.withValues(alpha: 0.3),
         borderColor: cs.primary.withValues(alpha: 0.15),
         child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.group_add, color: cs.primary, size: 22),
                 ),
-                child: Icon(Icons.group_add, color: cs.primary, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create your first class',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Create your first class',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Group students by grade, subject, or section',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurfaceVariant,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Group students by grade, subject, or section',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(Icons.arrow_forward_ios, size: 14, color: cs.primary),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Create First Class'),
+                Icon(Icons.arrow_forward_ios, size: 14, color: cs.primary),
+              ],
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Create First Class'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -654,7 +680,8 @@ class _ClassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Semantics(
-      label: '${classInfo.displayName}, $studentCount student${studentCount == 1 ? '' : 's'}',
+      label:
+          '${classInfo.displayName}, $studentCount student${studentCount == 1 ? '' : 's'}',
       button: true,
       child: GestureDetector(
         onTap: onTap,
@@ -892,7 +919,10 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(color: Colors.grey.shade300),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                ),
               ],
             ),
             child: Column(
@@ -903,7 +933,9 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
                     dense: true,
                     leading: CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                      backgroundColor: AppTheme.primaryGreen.withValues(
+                        alpha: 0.1,
+                      ),
                       child: Text(
                         s.fullName[0].toUpperCase(),
                         style: const TextStyle(
