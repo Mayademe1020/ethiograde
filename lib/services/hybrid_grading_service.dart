@@ -110,7 +110,11 @@ class HybridGradingService with HiveBoxMixin {
             r.metadata['detectedMethod'] == 'cloud-ocr',
       );
       if (alreadyGraded.isNotEmpty) {
-        AppLog.info(this, 'gradePaper', 'skipping — already graded by cloud OCR');
+        AppLog.info(
+          this,
+          'gradePaper',
+          'skipping — already graded by cloud OCR',
+        );
         return alreadyGraded.first;
       }
 
@@ -120,17 +124,18 @@ class HybridGradingService with HiveBoxMixin {
 
       // ── Step 2: Determine grading mode ──
       // Auto-detect based on question types to avoid wasted processing
-      final hasTextQuestions = assessment.shortAnswerCount > 0 ||
+      final hasTextQuestions =
+          assessment.shortAnswerCount > 0 ||
           assessment.essayCount > 0 ||
           assessment.multiAnswerCount > 0;
-      final hasBubbleQuestions = assessment.mcqCount > 0 ||
-          assessment.trueFalseCount > 0;
+      final hasBubbleQuestions =
+          assessment.mcqCount > 0 || assessment.trueFalseCount > 0;
 
       final gradingMode = hasTextQuestions && hasBubbleQuestions
           ? 'hybrid'
           : hasTextQuestions
-              ? 'ocr-only'
-              : 'omr-only';
+          ? 'ocr-only'
+          : 'omr-only';
 
       AppLog.info(this, 'gradePaper', 'grading mode: $gradingMode');
 
@@ -138,7 +143,11 @@ class HybridGradingService with HiveBoxMixin {
       ({List<TextRegion> regions, double skewAngle})? extractionResult;
       if (gradingMode != 'omr-only') {
         extractionResult = await _ocr.extractTextRegions(enhancedPath);
-        AppLog.info(this, 'gradePaper', 'OCR returned ${extractionResult.regions.length} text regions');
+        AppLog.info(
+          this,
+          'gradePaper',
+          'OCR returned ${extractionResult.regions.length} text regions',
+        );
       }
 
       // ── Step 3.5: Class-aware student matching ──
@@ -153,7 +162,11 @@ class HybridGradingService with HiveBoxMixin {
         if (match.hasMatch && !match.isAmbiguous) {
           resolvedId = match.matchedStudent!.id;
           resolvedName = match.matchedStudent!.fullName;
-          AppLog.info(this, 'gradePaper', 'matched "$resolvedName" (${(match.confidence * 100).toStringAsFixed(0)}%)');
+          AppLog.info(
+            this,
+            'gradePaper',
+            'matched "$resolvedName" (${(match.confidence * 100).toStringAsFixed(0)}%)',
+          );
         } else if (onStudentNotFound != null) {
           // Ask the UI to resolve — teacher can add or select
           final scannedName = match.scannedName.isNotEmpty
@@ -187,7 +200,8 @@ class HybridGradingService with HiveBoxMixin {
       if (gradingMode != 'ocr-only') {
         try {
           // Try calibrated template first, then fall back to provided/default
-          final effectiveTemplate = template ?? await _loadCalibratedTemplate(assessment.id);
+          final effectiveTemplate =
+              template ?? await _loadCalibratedTemplate(assessment.id);
 
           final omrResult = await _omr.detectAndParse(
             enhancedImagePath: enhancedPath,
@@ -197,9 +211,17 @@ class HybridGradingService with HiveBoxMixin {
           omrAnswers = omrResult;
           omrRan = true;
           omrTemplateName = effectiveTemplate?.name ?? 'auto';
-          AppLog.info(this, 'gradePaper', 'OMR detected ${omrAnswers.length} answers (template: $omrTemplateName)');
+          AppLog.info(
+            this,
+            'gradePaper',
+            'OMR detected ${omrAnswers.length} answers (template: $omrTemplateName)',
+          );
         } catch (e, st) {
-          AppLog.warn(this, 'gradePaper', 'OMR failed, falling back to OCR: $e');
+          AppLog.warn(
+            this,
+            'gradePaper',
+            'OMR failed, falling back to OCR: $e',
+          );
           AppErrorHandler.catchError(this, 'gradePaper/OMR', e, st);
         }
       }
@@ -213,7 +235,11 @@ class HybridGradingService with HiveBoxMixin {
         omrAnswers: omrAnswers,
         assessment: assessment,
       );
-      AppLog.info(this, 'gradePaper', 'merged ${mergedAnswers.length} answers (OMR ran: $omrRan)');
+      AppLog.info(
+        this,
+        'gradePaper',
+        'merged ${mergedAnswers.length} answers (OMR ran: $omrRan)',
+      );
 
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
@@ -243,8 +269,10 @@ class HybridGradingService with HiveBoxMixin {
         'skewWarning': (extractionResult?.skewAngle.abs() ?? 0.0) > 8.0,
         'detectedMethod': gradingMode,
         if (omrRan) 'omrTemplate': omrTemplateName,
-        IntegrityMetadataKeys.scoredWithKeyFingerprint: assessment.answerKeyFingerprint,
-        IntegrityMetadataKeys.scoredWithKeyRevision: assessment.answerKeyRevision,
+        IntegrityMetadataKeys.scoredWithKeyFingerprint:
+            assessment.answerKeyFingerprint,
+        IntegrityMetadataKeys.scoredWithKeyRevision:
+            assessment.answerKeyRevision,
       };
 
       // ── Step 7: Apply weighted scoring if scale is provided ──
@@ -282,7 +310,11 @@ class HybridGradingService with HiveBoxMixin {
         metadata: metadata,
       );
 
-      AppLog.info(this, 'gradePaper', '${result.studentName} → ${result.totalScore}/${result.maxScore} (${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, ${metadata['detectedMethod']})');
+      AppLog.info(
+        this,
+        'gradePaper',
+        '${result.studentName} → ${result.totalScore}/${result.maxScore} (${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, ${metadata['detectedMethod']})',
+      );
 
       // Auto-save with retry — never let persistence break the grading flow
       await _saveWithRetry(result);
@@ -371,9 +403,12 @@ class HybridGradingService with HiveBoxMixin {
     }
 
     final validResults = results.whereType<ScanResult>().toList();
-    AppLog.info(this, 'gradeBatch',
-        'batch complete — ${validResults.where((r) => r.status == ScanStatus.graded).length} graded, '
-        '${validResults.where((r) => r.status == ScanStatus.needsRescan).length} need rescan');
+    AppLog.info(
+      this,
+      'gradeBatch',
+      'batch complete — ${validResults.where((r) => r.status == ScanStatus.graded).length} graded, '
+          '${validResults.where((r) => r.status == ScanStatus.needsRescan).length} need rescan',
+    );
 
     return validResults;
   }
@@ -461,7 +496,8 @@ class HybridGradingService with HiveBoxMixin {
         ),
       );
 
-      final isObjective = question.type == QuestionType.mcq ||
+      final isObjective =
+          question.type == QuestionType.mcq ||
           question.type == QuestionType.trueFalse;
 
       if (isObjective) {
@@ -472,10 +508,9 @@ class HybridGradingService with HiveBoxMixin {
           merged.add(ocr);
         } else if (omr != null) {
           // OMR exists but low confidence — include flagged for review
-          merged.add(omr.copyWith(
-            needsReview: true,
-            source: 'omr-low-confidence',
-          ));
+          merged.add(
+            omr.copyWith(needsReview: true, source: 'omr-low-confidence'),
+          );
         }
       } else {
         // Subjective: OCR wins
@@ -494,7 +529,11 @@ class HybridGradingService with HiveBoxMixin {
       final calibrationService = OmrCalibrationService();
       return await calibrationService.loadCalibration(assessmentId);
     } catch (e) {
-      AppLog.warn(this, '_loadCalibratedTemplate', 'Failed to load calibration: $e');
+      AppLog.warn(
+        this,
+        '_loadCalibratedTemplate',
+        'Failed to load calibration: $e',
+      );
       return null;
     }
   }
@@ -520,7 +559,11 @@ class HybridGradingService with HiveBoxMixin {
     // Validate before writing
     final validation = _validator.validateScanResult(result);
     if (!validation.isValid) {
-      AppLog.warn(this, '_saveWithRetry', 'scan result validation failed: ${validation.errors}');
+      AppLog.warn(
+        this,
+        '_saveWithRetry',
+        'scan result validation failed: ${validation.errors}',
+      );
       // Still save — validation is advisory, not blocking
     }
 
@@ -535,7 +578,11 @@ class HybridGradingService with HiveBoxMixin {
       // Trigger auto-backup check (every N scans)
       BackupService.instance.recordScanAndMaybeBackup();
     } catch (e) {
-      AppLog.warn(this, '_saveWithRetry', 'save failed (${e.runtimeType}), retrying in 500ms…');
+      AppLog.warn(
+        this,
+        '_saveWithRetry',
+        'save failed (${e.runtimeType}), retrying in 500ms…',
+      );
       await Future.delayed(const Duration(milliseconds: 500));
       try {
         final box = await openBox(_scanResultsBoxName);
@@ -568,7 +615,11 @@ class HybridGradingService with HiveBoxMixin {
 
     _pendingSaves.removeWhere(succeeded.contains);
     if (succeeded.isNotEmpty) {
-      AppLog.info(this, 'flushPendingSaves', 'flushed ${succeeded.length} pending saves');
+      AppLog.info(
+        this,
+        'flushPendingSaves',
+        'flushed ${succeeded.length} pending saves',
+      );
     }
   }
 
@@ -576,7 +627,14 @@ class HybridGradingService with HiveBoxMixin {
 
   /// Load all scan results for a specific assessment.
   /// Sorts by score descending (best first).
-  Future<List<ScanResult>> loadScanResults(String assessmentId) async {
+  ///
+  /// When [throwOnError] is true, storage failures are rethrown so the
+  /// caller can surface a real error state instead of silently treating
+  /// the failure as "no results".
+  Future<List<ScanResult>> loadScanResults(
+    String assessmentId, {
+    bool throwOnError = false,
+  }) async {
     try {
       final box = await openBox(_scanResultsBoxName);
       final results = <ScanResult>[];
@@ -593,13 +651,19 @@ class HybridGradingService with HiveBoxMixin {
       results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
       return results;
     } catch (e, st) {
+      if (throwOnError) rethrow;
       AppErrorHandler.catchError(this, 'loadScanResults', e, st);
       return [];
     }
   }
 
   /// Load ALL scan results from the box.
-  Future<List<ScanResult>> loadAllScanResults() async {
+  ///
+  /// When [throwOnError] is true, storage failures are rethrown so the
+  /// caller can surface a real error state instead of an empty list.
+  Future<List<ScanResult>> loadAllScanResults({
+    bool throwOnError = false,
+  }) async {
     try {
       final box = await openBox(_scanResultsBoxName);
       final results = <ScanResult>[];
@@ -612,6 +676,7 @@ class HybridGradingService with HiveBoxMixin {
 
       return results;
     } catch (e, st) {
+      if (throwOnError) rethrow;
       AppErrorHandler.catchError(this, 'loadAllScanResults', e, st);
       return [];
     }

@@ -31,8 +31,7 @@ class AppCard extends StatefulWidget {
   State<AppCard> createState() => _AppCardState();
 }
 
-class _AppCardState extends State<AppCard>
-    with SingleTickerProviderStateMixin {
+class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scale;
 
@@ -45,9 +44,10 @@ class _AppCardState extends State<AppCard>
       lowerBound: 0.0,
       upperBound: 0.015,
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.985).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.985,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -125,10 +125,7 @@ class AppSection extends StatelessWidget {
                 ),
               ),
               if (actionLabel != null && onAction != null)
-                TextButton(
-                  onPressed: onAction,
-                  child: Text(actionLabel!),
-                ),
+                TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ),
           const SizedBox(height: AppSpacing.sm + 4),
@@ -169,45 +166,123 @@ class AppEmptyState extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                shape: BoxShape.circle,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 40, color: cs.primary),
               ),
-              child: Icon(icon, size: 40, color: cs.primary),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: cs.onSurfaceVariant,
-                height: 1.5,
-              ),
-            ),
-            if (buttonLabel != null && onPressed != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton.icon(
-                onPressed: onPressed,
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(buttonLabel!),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(200, 48),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  height: 1.5,
                 ),
               ),
+              if (buttonLabel != null && onPressed != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton.icon(
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(buttonLabel!),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(200, 48),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  AppErrorState — load-failure state with retry
+// ─────────────────────────────────────────────
+
+class AppErrorState extends StatelessWidget {
+  final String title;
+  final String message;
+  final VoidCallback? onRetry;
+
+  const AppErrorState({
+    super.key,
+    required this.title,
+    required this.message,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  size: 40,
+                  color: AppTheme.error,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Retry'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(200, 48),
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -247,10 +322,7 @@ class _SkeletonBoxState extends State<SkeletonBox>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
   }
 
   @override

@@ -6,6 +6,7 @@ import '../../config/routes.dart';
 import '../../config/responsive.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../services/error_handler.dart';
 import '../../models/assessment.dart';
 import '../../models/scan_result.dart';
 import '../../widgets/assessment_card.dart';
@@ -21,6 +22,7 @@ class AssessmentsTab extends StatefulWidget {
 class _AssessmentsTabState extends State<AssessmentsTab> {
   bool _showCompleted = false;
   Map<String, List<ScanResult>> _resultsByAssessment = {};
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -29,15 +31,25 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
   }
 
   Future<void> _loadResults() async {
-    final results = await HybridGradingService().loadAllScanResults();
-    final grouped = <String, List<ScanResult>>{};
-    for (final r in results) {
-      grouped.putIfAbsent(r.assessmentId, () => []).add(r);
-    }
-    if (mounted) {
-      setState(() {
-        _resultsByAssessment = grouped;
-      });
+    try {
+      final results = await HybridGradingService().loadAllScanResults(
+        throwOnError: true,
+      );
+      final grouped = <String, List<ScanResult>>{};
+      for (final r in results) {
+        grouped.putIfAbsent(r.assessmentId, () => []).add(r);
+      }
+      if (mounted) {
+        setState(() {
+          _resultsByAssessment = grouped;
+          _loadFailed = false;
+        });
+      }
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_loadResults', e, st);
+      if (mounted) {
+        setState(() => _loadFailed = true);
+      }
     }
   }
 
@@ -118,7 +130,14 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: _showCompleted
+            child: _loadFailed
+                ? AppErrorState(
+                    title: 'Couldn\'t load assessments',
+                    message:
+                        'Something went wrong while reading your saved data. Try again.',
+                    onRetry: _loadResults,
+                  )
+                : _showCompleted
                 ? _buildCompletedList(context, completedAssessments)
                 : _buildActiveList(context, readyAssessments, setupAssessments),
           ),

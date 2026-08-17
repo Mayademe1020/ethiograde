@@ -7,6 +7,7 @@ import '../../models/scan_result.dart';
 import '../../services/class_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/draft_service.dart';
+import '../../services/error_handler.dart';
 import '../../screens/home/dashboard_actions.dart';
 
 class AssessmentCard extends StatelessWidget {
@@ -249,7 +250,7 @@ class AssessmentCard extends StatelessWidget {
   void _openAction(BuildContext context, AssessmentAction action) {
     switch (action.kind) {
       case AssessmentActionKind.reviewPapers:
-        Navigator.pushNamed(context, AppRoutes.review, arguments: results);
+        _openReview(context);
       case AssessmentActionKind.addAnswerKey:
         Navigator.pushNamed(
           context,
@@ -265,41 +266,81 @@ class AssessmentCard extends StatelessWidget {
     }
   }
 
-  Future<void> _resumeGrading(BuildContext context) async {
-    final drafts = await DraftService().getAllDrafts();
+  Future<void> _openReview(BuildContext context) async {
+    final loaded =
+        results ??
+        await HybridGradingService().loadScanResults(
+          assessment.id,
+          throwOnError: true,
+        );
     if (!context.mounted) return;
-    final matches = drafts.where((d) => d.assessmentId == assessment.id);
-    if (matches.isEmpty) {
-      Navigator.pushNamed(context, AppRoutes.review, arguments: results);
-      return;
+    Navigator.pushNamed(context, AppRoutes.review, arguments: loaded);
+  }
+
+  Future<void> _resumeGrading(BuildContext context) async {
+    try {
+      final drafts = await DraftService().getAllDrafts(throwOnError: true);
+      if (!context.mounted) return;
+      final matches = drafts.where((d) => d.assessmentId == assessment.id);
+      if (matches.isEmpty) {
+        Navigator.pushNamed(context, AppRoutes.review, arguments: results);
+        return;
+      }
+      final draft = matches.first;
+      final completedResults = draft.completedResults
+          .map((m) => ScanResult.fromMap(Map<String, dynamic>.from(m)))
+          .toList();
+      Navigator.pushNamed(
+        context,
+        AppRoutes.batchScan,
+        arguments: {
+          'assessment': assessment,
+          'draftCompletedResults': completedResults,
+          'draftCurrentIndex': draft.currentStudentIndex,
+        },
+      );
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_resumeGrading', e, st);
+      if (context.mounted) {
+        _showLoadError(context);
+      }
     }
-    final draft = matches.first;
-    final completedResults = draft.completedResults
-        .map((m) => ScanResult.fromMap(Map<String, dynamic>.from(m)))
-        .toList();
-    Navigator.pushNamed(
-      context,
-      AppRoutes.batchScan,
-      arguments: {
-        'assessment': assessment,
-        'draftCompletedResults': completedResults,
-        'draftCurrentIndex': draft.currentStudentIndex,
-      },
-    );
   }
 
   Future<void> _openResults(BuildContext context) async {
-    final loaded =
-        results ?? await HybridGradingService().loadScanResults(assessment.id);
-    if (!context.mounted) return;
-    Navigator.pushNamed(
-      context,
-      AppRoutes.gradeReview,
-      arguments: {
-        'assessment': assessment,
-        'results': loaded,
-        'readOnly': true,
-      },
+    try {
+      final loaded =
+          results ??
+          await HybridGradingService().loadScanResults(
+            assessment.id,
+            throwOnError: true,
+          );
+      if (!context.mounted) return;
+      Navigator.pushNamed(
+        context,
+        AppRoutes.gradeReview,
+        arguments: {
+          'assessment': assessment,
+          'results': loaded,
+          'readOnly': true,
+        },
+      );
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_openResults', e, st);
+      if (context.mounted) {
+        _showLoadError(context);
+      }
+    }
+  }
+
+  void _showLoadError(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Couldn\'t load this exam\'s saved data. Please try again.',
+        ),
+        backgroundColor: AppTheme.error,
+      ),
     );
   }
 }

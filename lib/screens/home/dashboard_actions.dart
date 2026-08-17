@@ -71,7 +71,7 @@ Future<DashboardAction> resolveDashboardAction({
   // ── Priority 1: Valid interrupted draft ──
   // Look up assessment from full collection (not just active) so that
   // assessments with status `grading` are not rejected.
-  final drafts = await DraftService().getAllDrafts();
+  final drafts = await DraftService().getAllDrafts(throwOnError: true);
   for (final draft in drafts) {
     if (draft.age.inDays >= 7) continue;
     if (draft.completedResults.isEmpty) continue;

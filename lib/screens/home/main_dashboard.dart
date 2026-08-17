@@ -16,6 +16,7 @@ import '../../widgets/ui_components.dart';
 import '../../services/draft_service.dart';
 import '../../models/scan_result.dart';
 import '../../services/hybrid_grading_service.dart';
+import '../../services/error_handler.dart';
 import '../classes/create_class_sheet.dart';
 import 'dashboard_actions.dart';
 import 'settings_tab.dart';
@@ -123,6 +124,7 @@ class _DashboardHome extends StatefulWidget {
 
 class _DashboardHomeState extends State<_DashboardHome> {
   DashboardAction? _action;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -142,22 +144,34 @@ class _DashboardHomeState extends State<_DashboardHome> {
   }
 
   Future<void> _loadAction() async {
-    final assessments = context.read<AssessmentProvider>();
-    // Load scan results once so the resolver can detect papers needing review.
-    final results = await HybridGradingService().loadAllScanResults();
-    final resultsByAssessment = <String, List<ScanResult>>{};
-    for (final r in results) {
-      resultsByAssessment.putIfAbsent(r.assessmentId, () => []).add(r);
-    }
-    final action = await resolveDashboardAction(
-      allAssessments: assessments.assessments,
-      activeAssessments: assessments.activeAssessments,
-      resultsByAssessment: resultsByAssessment,
-    );
-    if (mounted) {
-      setState(() {
-        _action = action;
-      });
+    try {
+      final assessments = context.read<AssessmentProvider>();
+      // Load scan results once so the resolver can detect papers needing
+      // review. Storage failures are surfaced instead of silently treated
+      // as "no results".
+      final results = await HybridGradingService().loadAllScanResults(
+        throwOnError: true,
+      );
+      final resultsByAssessment = <String, List<ScanResult>>{};
+      for (final r in results) {
+        resultsByAssessment.putIfAbsent(r.assessmentId, () => []).add(r);
+      }
+      final action = await resolveDashboardAction(
+        allAssessments: assessments.assessments,
+        activeAssessments: assessments.activeAssessments,
+        resultsByAssessment: resultsByAssessment,
+      );
+      if (mounted) {
+        setState(() {
+          _action = action;
+          _loadFailed = false;
+        });
+      }
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_loadAction', e, st);
+      if (mounted) {
+        setState(() => _loadFailed = true);
+      }
     }
   }
 
@@ -215,7 +229,9 @@ class _DashboardHomeState extends State<_DashboardHome> {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(hp, 16, hp, 0),
-              child: _buildPrimaryAction(context, action),
+              child: _loadFailed
+                  ? _buildActionLoadError(context)
+                  : _buildPrimaryAction(context, action),
             ),
           ),
 
@@ -549,6 +565,51 @@ class _DashboardHomeState extends State<_DashboardHome> {
     if (cls != null && context.mounted) {
       await context.read<ClassProvider>().addClass(cls);
     }
+  }
+
+  Widget _buildActionLoadError(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppTheme.error, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Couldn\'t load your grading data',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Something went wrong while reading saved papers. Your data is still safe.',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: _loadAction,
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

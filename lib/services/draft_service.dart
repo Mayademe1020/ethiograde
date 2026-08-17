@@ -38,7 +38,11 @@ class DraftService with HiveBoxMixin {
         'savedAt': DateTime.now().toIso8601String(),
         'metadata': metadata ?? {},
       });
-      AppLog.info(this, 'saveDraft', 'saved $assessmentId (${completedResults.length} results, index $currentStudentIndex)');
+      AppLog.info(
+        this,
+        'saveDraft',
+        'saved $assessmentId (${completedResults.length} results, index $currentStudentIndex)',
+      );
     } catch (e, st) {
       AppErrorHandler.catchError(this, 'saveDraft', e, st);
       // Never crash on draft save failure
@@ -95,7 +99,7 @@ class DraftService with HiveBoxMixin {
   }
 
   /// Get all draft assessments (for showing "resume grading" prompts).
-  Future<List<GradingDraft>> getAllDrafts() async {
+  Future<List<GradingDraft>> getAllDrafts({bool throwOnError = false}) async {
     try {
       final box = await openBox(_boxName);
       return box.values.map((data) {
@@ -113,6 +117,7 @@ class DraftService with HiveBoxMixin {
         );
       }).toList()..sort((a, b) => b.savedAt.compareTo(a.savedAt));
     } catch (e, st) {
+      if (throwOnError) rethrow;
       AppErrorHandler.catchError(this, 'getAllDrafts', e, st);
       return [];
     }

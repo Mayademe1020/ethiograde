@@ -38,7 +38,8 @@ void main() {
           [
             Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
             Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-          ]);
+          ],
+    );
   }
 
   /// Create a test image with some text-like content.
@@ -85,7 +86,8 @@ void main() {
         imagePath: '/nonexistent/image.jpg',
         assessment: assessment,
         studentId: 's1',
-        studentName: 'Test Student');
+        studentName: 'Test Student',
+      );
 
       expect(result.status, ScanStatus.needsRescan);
       expect(result.confidence, 0);
@@ -105,7 +107,8 @@ void main() {
             imagePath: imagePath,
             assessment: assessment,
             studentId: 's1',
-            studentName: 'Abebe');
+            studentName: 'Abebe',
+          );
 
           // Should complete without throwing
           expect(result.studentName, 'Abebe');
@@ -113,11 +116,13 @@ void main() {
           // Status should be either graded or needsRescan
           expect(
             result.status,
-            anyOf(ScanStatus.graded, ScanStatus.needsRescan));
+            anyOf(ScanStatus.graded, ScanStatus.needsRescan),
+          );
         } finally {
           await cleanupFiles([imagePath]);
         }
-      });
+      },
+    );
 
     test('returns proper ScanResult structure', () async {
       final service = HybridGradingService();
@@ -129,7 +134,8 @@ void main() {
           imagePath: imagePath,
           assessment: assessment,
           studentId: 'student_42',
-          studentName: 'Kebede Alemu');
+          studentName: 'Kebede Alemu',
+        );
 
         expect(result.studentId, 'student_42');
         expect(result.studentName, 'Kebede Alemu');
@@ -154,7 +160,8 @@ void main() {
 
       final results = await service.gradeBatch(
         imagePaths: [],
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results, isEmpty);
     });
@@ -176,7 +183,8 @@ void main() {
           assessment: assessment,
           onProgress: (processed, total) {
             progressLog.add([processed, total]);
-          });
+          },
+        );
 
         expect(progressLog, hasLength(3));
         expect(progressLog[0], [1, 3]);
@@ -200,7 +208,8 @@ void main() {
         final results = await service.gradeBatch(
           imagePaths: paths,
           assessment: assessment,
-          studentNames: ['Abebe Kebede', 'Sara Tadesse']);
+          studentNames: ['Abebe Kebede', 'Sara Tadesse'],
+        );
 
         expect(results, hasLength(2));
         expect(results[0].studentName, 'Abebe Kebede');
@@ -222,7 +231,8 @@ void main() {
       try {
         final results = await service.gradeBatch(
           imagePaths: paths,
-          assessment: assessment);
+          assessment: assessment,
+        );
 
         expect(results, hasLength(2));
         expect(results[0].studentName, 'Student 1');
@@ -266,7 +276,8 @@ void main() {
       try {
         final results = await service.gradeBatch(
           imagePaths: paths,
-          assessment: assessment);
+          assessment: assessment,
+        );
 
         expect(results, hasLength(2));
         // First should process normally
@@ -292,7 +303,8 @@ void main() {
         imagePath: '/nonexistent/regrade.jpg',
         assessment: assessment,
         studentId: 's1',
-        studentName: 'Regrade Test');
+        studentName: 'Regrade Test',
+      );
 
       expect(result.studentName, 'Regrade Test');
       expect(result.status, ScanStatus.needsRescan);
@@ -319,8 +331,10 @@ void main() {
             isCorrect: true,
             score: 1,
             maxScore: 1,
-            confidence: 0.9),
-        ]);
+            confidence: 0.9,
+          ),
+        ],
+      );
 
       expect(service.detectBatchDuplicates([result]), isEmpty);
     });
@@ -340,20 +354,23 @@ void main() {
         isCorrect: true,
         score: 1,
         maxScore: 1,
-        confidence: 0.9);
+        confidence: 0.9,
+      );
 
       final r1 = ScanResult(
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Abebe',
         imagePath: '/a.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
       final r2 = ScanResult(
         assessmentId: 'a1',
         studentId: 's2',
         studentName: 'Kebede',
         imagePath: '/b.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
 
       final dupes = service.detectBatchDuplicates([r1, r2]);
 
@@ -373,23 +390,65 @@ void main() {
         isCorrect: false,
         score: 0,
         maxScore: 1,
-        confidence: 0.9);
+        confidence: 0.9,
+      );
 
       final r1 = ScanResult(
         assessmentId: 'a1',
         studentId: 's1',
         studentName: 'Abebe',
         imagePath: '/a.jpg',
-        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')]);
+        answers: [am(1, 'A'), am(2, 'B'), am(3, 'C')],
+      );
       final r2 = ScanResult(
         assessmentId: 'a1',
         studentId: 's2',
         studentName: 'Kebede',
         imagePath: '/b.jpg',
-        answers: [am(1, 'D'), am(2, 'E'), am(3, 'A')]);
+        answers: [am(1, 'D'), am(2, 'E'), am(3, 'A')],
+      );
 
       final dupes = service.detectBatchDuplicates([r1, r2]);
       expect(dupes, isEmpty);
+    });
+  });
+
+  group('loadAllScanResults failure handling', () {
+    Future<void> poisonBox() async {
+      final box = await Hive.openBox('scan_results');
+      await box.close();
+      await Hive.deleteBoxFromDisk('scan_results');
+      // Reopen fresh, then store a value whose shape breaks ScanResult.fromMap.
+      final fresh = await Hive.openBox('scan_results');
+      await fresh.put('bad', {'assessmentId': 'a1', 'status': 999999});
+      await fresh.close();
+    }
+
+    Future<void> restoreBox() async {
+      await Hive.deleteBoxFromDisk('scan_results');
+      await Hive.openBox('scan_results');
+    }
+
+    test('swallows storage errors and returns empty by default', () async {
+      await poisonBox();
+
+      final service = HybridGradingService();
+      final result = await service.loadAllScanResults();
+      expect(result, isEmpty);
+
+      await restoreBox();
+    });
+
+    test('rethrows storage errors when throwOnError is set', () async {
+      await poisonBox();
+
+      final service = HybridGradingService();
+      await expectLater(
+        () => service.loadAllScanResults(throwOnError: true),
+        throwsA(anything),
+      );
+
+      await restoreBox();
     });
   });
 }
