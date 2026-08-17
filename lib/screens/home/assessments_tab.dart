@@ -7,6 +7,7 @@ import '../../config/responsive.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../models/assessment.dart';
+import '../../models/scan_result.dart';
 import '../../widgets/assessment_card.dart';
 import '../../widgets/ui_components.dart';
 
@@ -19,6 +20,26 @@ class AssessmentsTab extends StatefulWidget {
 
 class _AssessmentsTabState extends State<AssessmentsTab> {
   bool _showCompleted = false;
+  Map<String, List<ScanResult>> _resultsByAssessment = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadResults();
+  }
+
+  Future<void> _loadResults() async {
+    final results = await HybridGradingService().loadAllScanResults();
+    final grouped = <String, List<ScanResult>>{};
+    for (final r in results) {
+      grouped.putIfAbsent(r.assessmentId, () => []).add(r);
+    }
+    if (mounted) {
+      setState(() {
+        _resultsByAssessment = grouped;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,8 +165,13 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
             padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
             sliver: SliverList.builder(
               itemCount: setup.length,
-              itemBuilder: (_, index) =>
-                  AssessmentCard(assessment: setup[index]),
+              itemBuilder: (_, index) {
+                final a = setup[index];
+                return AssessmentCard(
+                  assessment: a,
+                  results: _resultsByAssessment[a.id],
+                );
+              },
             ),
           ),
         ],
@@ -166,8 +192,13 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
             padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
             sliver: SliverList.builder(
               itemCount: ready.length,
-              itemBuilder: (_, index) =>
-                  AssessmentCard(assessment: ready[index]),
+              itemBuilder: (_, index) {
+                final a = ready[index];
+                return AssessmentCard(
+                  assessment: a,
+                  results: _resultsByAssessment[a.id],
+                );
+              },
             ),
           ),
         ],
@@ -205,30 +236,17 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
           padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
           sliver: SliverList.builder(
             itemCount: completed.length,
-            itemBuilder: (_, index) => AssessmentCard(
-              assessment: completed[index],
-              onTap: () => _openCompletedExam(context, completed[index]),
-            ),
+            itemBuilder: (_, index) {
+              final a = completed[index];
+              return AssessmentCard(
+                assessment: a,
+                results: _resultsByAssessment[a.id],
+              );
+            },
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
       ],
-    );
-  }
-
-  void _openCompletedExam(BuildContext context, Assessment assessment) async {
-    final results = await HybridGradingService().loadScanResults(assessment.id);
-
-    if (!context.mounted) return;
-
-    Navigator.pushNamed(
-      context,
-      AppRoutes.gradeReview,
-      arguments: {
-        'assessment': assessment,
-        'results': results,
-        'readOnly': true,
-      },
     );
   }
 }

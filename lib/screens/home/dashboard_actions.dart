@@ -174,6 +174,90 @@ Future<DashboardAction> resolveDashboardAction({
 }
 
 // ─────────────────────────────────────────────────────────────────────
+//  Per-Assessment Next-Action Resolver
+//
+//  Returns the single next action for an assessment card, mirroring the
+//  dashboard priority order but scoped to one assessment:
+//  1. Scanned papers needing teacher review
+//  2. Incomplete answer key / setup
+//  3. Ready to scan student papers
+//  4. Grading in progress (resume)
+//  5. Graded — view results
+// ─────────────────────────────────────────────────────────────────────
+
+enum AssessmentActionKind {
+  reviewPapers,
+  addAnswerKey,
+  scanPapers,
+  resumeGrading,
+  viewResults,
+}
+
+class AssessmentAction {
+  final AssessmentActionKind kind;
+  final String label;
+  final String description;
+
+  const AssessmentAction({
+    required this.kind,
+    required this.label,
+    required this.description,
+  });
+}
+
+/// Resolve the next action for a single assessment card.
+///
+/// [results] is optional — when omitted, review-aware states are skipped
+/// and setup/scanning states take precedence.
+AssessmentAction resolveAssessmentAction({
+  required Assessment assessment,
+  List<ScanResult>? results,
+}) {
+  final resolved = resolveOperationalStatus(assessment);
+
+  // Priority 1: scanned papers need teacher review
+  if (results != null && results.isNotEmpty) {
+    final needAction = results.where((r) => r.requiresTeacherAction).length;
+    if (needAction > 0) {
+      return AssessmentAction(
+        kind: AssessmentActionKind.reviewPapers,
+        label: 'Review $needAction paper${needAction == 1 ? '' : 's'}',
+        description: results.length == 1
+            ? 'One scanned paper needs your review.'
+            : '${results.length} papers scanned — $needAction need review.',
+      );
+    }
+  }
+
+  switch (resolved.status) {
+    case OperationalStatus.setupIncomplete:
+      return const AssessmentAction(
+        kind: AssessmentActionKind.addAnswerKey,
+        label: 'Add answer key',
+        description: 'Set the correct answers to start grading.',
+      );
+    case OperationalStatus.readyToGrade:
+      return const AssessmentAction(
+        kind: AssessmentActionKind.scanPapers,
+        label: 'Scan student papers',
+        description: 'Answer key is ready. Scan papers to grade.',
+      );
+    case OperationalStatus.gradingInProgress:
+      return const AssessmentAction(
+        kind: AssessmentActionKind.resumeGrading,
+        label: 'Continue grading',
+        description: 'Grading is in progress — pick up where you left off.',
+      );
+    case OperationalStatus.graded:
+      return const AssessmentAction(
+        kind: AssessmentActionKind.viewResults,
+        label: 'View results',
+        description: 'See final scores, grades, and exports.',
+      );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
 //  Operational-Status Resolver
 //
 //  Derives a consistent display status for any assessment using only

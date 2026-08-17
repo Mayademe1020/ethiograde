@@ -3,14 +3,23 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/assessment.dart';
+import '../../models/scan_result.dart';
 import '../../services/class_provider.dart';
+import '../../services/hybrid_grading_service.dart';
+import '../../services/draft_service.dart';
 import '../../screens/home/dashboard_actions.dart';
 
 class AssessmentCard extends StatelessWidget {
   final Assessment assessment;
+  final List<ScanResult>? results;
   final VoidCallback? onTap;
 
-  const AssessmentCard({super.key, required this.assessment, this.onTap});
+  const AssessmentCard({
+    super.key,
+    required this.assessment,
+    this.results,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,19 +43,18 @@ class AssessmentCard extends StatelessWidget {
       ),
     };
 
+    final action = resolveAssessmentAction(
+      assessment: assessment,
+      results: results,
+    );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm + 2),
       child: Material(
         color: cs.surface,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         child: InkWell(
-          onTap:
-              onTap ??
-              () => Navigator.pushNamed(
-                context,
-                AppRoutes.answerKey,
-                arguments: assessment,
-              ),
+          onTap: onTap ?? () => _openAction(context, action),
           borderRadius: BorderRadius.circular(AppRadius.xl),
           child: Container(
             decoration: BoxDecoration(
@@ -223,8 +231,10 @@ class AssessmentCard extends StatelessWidget {
                       const SizedBox(height: AppSpacing.sm),
 
                       // ── Next action ──────────────────────────
-                      if (resolved.status == OperationalStatus.readyToGrade)
-                        _NextActionCard(assessment: assessment),
+                      _NextActionCard(
+                        action: action,
+                        onTap: () => _openAction(context, action),
+                      ),
                     ],
                   ),
                 ),
@@ -233,6 +243,63 @@ class AssessmentCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _openAction(BuildContext context, AssessmentAction action) {
+    switch (action.kind) {
+      case AssessmentActionKind.reviewPapers:
+        Navigator.pushNamed(context, AppRoutes.review, arguments: results);
+      case AssessmentActionKind.addAnswerKey:
+        Navigator.pushNamed(
+          context,
+          AppRoutes.answerKey,
+          arguments: assessment,
+        );
+      case AssessmentActionKind.scanPapers:
+        Navigator.pushNamed(context, AppRoutes.camera);
+      case AssessmentActionKind.resumeGrading:
+        _resumeGrading(context);
+      case AssessmentActionKind.viewResults:
+        _openResults(context);
+    }
+  }
+
+  Future<void> _resumeGrading(BuildContext context) async {
+    final drafts = await DraftService().getAllDrafts();
+    if (!context.mounted) return;
+    final matches = drafts.where((d) => d.assessmentId == assessment.id);
+    if (matches.isEmpty) {
+      Navigator.pushNamed(context, AppRoutes.review, arguments: results);
+      return;
+    }
+    final draft = matches.first;
+    final completedResults = draft.completedResults
+        .map((m) => ScanResult.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    Navigator.pushNamed(
+      context,
+      AppRoutes.batchScan,
+      arguments: {
+        'assessment': assessment,
+        'draftCompletedResults': completedResults,
+        'draftCurrentIndex': draft.currentStudentIndex,
+      },
+    );
+  }
+
+  Future<void> _openResults(BuildContext context) async {
+    final loaded =
+        results ?? await HybridGradingService().loadScanResults(assessment.id);
+    if (!context.mounted) return;
+    Navigator.pushNamed(
+      context,
+      AppRoutes.gradeReview,
+      arguments: {
+        'assessment': assessment,
+        'results': loaded,
+        'readOnly': true,
+      },
     );
   }
 }
@@ -355,65 +422,74 @@ class _AnswerKeyBar extends StatelessWidget {
 }
 
 class _NextActionCard extends StatelessWidget {
-  final Assessment assessment;
+  final AssessmentAction action;
+  final VoidCallback onTap;
 
-  const _NextActionCard({required this.assessment});
+  const _NextActionCard({required this.action, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryGreen.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2)),
+    final (icon, color) = switch (action.kind) {
+      AssessmentActionKind.reviewPapers => (
+        Icons.fact_check_outlined,
+        AppTheme.warning,
       ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.lightbulb_outlined,
-            size: 16,
-            color: AppTheme.primaryGreen,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Ready to grade',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryGreen,
+      AssessmentActionKind.addAnswerKey => (
+        Icons.edit_note_outlined,
+        AppTheme.warning,
+      ),
+      AssessmentActionKind.scanPapers => (
+        Icons.document_scanner_outlined,
+        AppTheme.primaryGreen,
+      ),
+      AssessmentActionKind.resumeGrading => (
+        Icons.play_circle_outline,
+        AppTheme.info,
+      ),
+      AssessmentActionKind.viewResults => (
+        Icons.bar_chart_outlined,
+        AppTheme.success,
+      ),
+    };
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    action.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
                   ),
-                ),
-                Text(
-                  'Tap to view and complete your results',
-                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryGreen,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'Review',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+                  Text(
+                    action.description,
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            Icon(Icons.chevron_right, size: 16, color: color),
+          ],
+        ),
       ),
     );
   }

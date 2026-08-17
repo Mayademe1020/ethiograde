@@ -579,4 +579,113 @@ void main() {
       expect(r.status, OperationalStatus.readyToGrade);
     });
   });
+
+  group('resolveAssessmentAction', () {
+    Assessment draft() => Assessment(
+      title: 'Draft Exam',
+      subject: 'Math',
+      questions: [],
+      status: AssessmentStatus.draft,
+    );
+
+    Assessment ready() => Assessment(
+      title: 'Ready Exam',
+      subject: 'Math',
+      questions: [
+        Question(
+          number: 1,
+          type: QuestionType.mcq,
+          text: 'Q1',
+          correctAnswer: 'A',
+        ),
+      ],
+      status: AssessmentStatus.active,
+    );
+
+    Assessment graded() => Assessment(
+      title: 'Done Exam',
+      subject: 'Math',
+      questions: [
+        Question(
+          number: 1,
+          type: QuestionType.mcq,
+          text: 'Q1',
+          correctAnswer: 'A',
+        ),
+      ],
+      status: AssessmentStatus.completed,
+      completedAt: DateTime.now(),
+    );
+
+    ScanResult result({bool requiresAction = true}) => ScanResult(
+      assessmentId: 'ready',
+      studentId: requiresAction ? '' : 's1',
+      studentName: requiresAction ? '' : 'Abebe',
+      imagePath: '',
+      answers: [],
+      totalScore: 10,
+      maxScore: 10,
+      percentage: 100,
+      grade: 'A',
+      status: requiresAction ? ScanStatus.pending : ScanStatus.reviewed,
+      confidence: requiresAction ? 0.4 : 0.95,
+    );
+
+    test('setup-incomplete assessment → add answer key', () {
+      final a = draft();
+      final action = resolveAssessmentAction(assessment: a);
+      expect(action.kind, AssessmentActionKind.addAnswerKey);
+      expect(action.label, 'Add answer key');
+    });
+
+    test('ready assessment with no results → scan papers', () {
+      final action = resolveAssessmentAction(assessment: ready());
+      expect(action.kind, AssessmentActionKind.scanPapers);
+      expect(action.label, 'Scan student papers');
+    });
+
+    test('ready assessment with papers needing review → review papers', () {
+      final action = resolveAssessmentAction(
+        assessment: ready(),
+        results: [result(requiresAction: true), result(requiresAction: false)],
+      );
+      expect(action.kind, AssessmentActionKind.reviewPapers);
+      expect(action.label, 'Review 1 paper');
+    });
+
+    test('grading-in-progress assessment → resume grading', () {
+      final a = Assessment(
+        title: 'Mid',
+        subject: 'Math',
+        questions: [
+          Question(
+            number: 1,
+            type: QuestionType.mcq,
+            text: 'Q1',
+            correctAnswer: 'A',
+          ),
+        ],
+        status: AssessmentStatus.grading,
+      );
+      final action = resolveAssessmentAction(assessment: a);
+      expect(action.kind, AssessmentActionKind.resumeGrading);
+    });
+
+    test('graded assessment → view results', () {
+      final action = resolveAssessmentAction(
+        assessment: graded(),
+        results: [result(requiresAction: false)],
+      );
+      expect(action.kind, AssessmentActionKind.viewResults);
+      expect(action.label, 'View results');
+    });
+
+    test('graded assessment with unresolved paper still flags review', () {
+      final action = resolveAssessmentAction(
+        assessment: graded(),
+        results: [result(requiresAction: true)],
+      );
+      expect(action.kind, AssessmentActionKind.reviewPapers);
+    });
+  });
 }
