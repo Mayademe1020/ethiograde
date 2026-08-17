@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -17,6 +17,7 @@ import '../../services/voice_service.dart';
 import '../../services/settings_provider.dart';
 import '../../services/assessment_completion_gate.dart';
 import '../../services/results_pdf_service.dart';
+import '../../widgets/scan_accuracy_summary_card.dart';
 import '../analytics/item_analysis_screen.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
@@ -150,14 +151,14 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
             icon: const Icon(Icons.analytics_outlined),
             onPressed: results.isNotEmpty
                 ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ItemAnalysisScreen(
-                          assessment: assessment,
-                          results: results,
-                        ),
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ItemAnalysisScreen(
+                        assessment: assessment,
+                        results: results,
                       ),
-                    )
+                    ),
+                  )
                 : null,
             tooltip: 'Item Analysis',
           ),
@@ -196,6 +197,11 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                   highest: highest,
                   lowest: lowest,
                 ),
+                // Scan accuracy summary
+                ScanAccuracySummaryCard(
+                  assessment: assessment,
+                  results: results,
+                ),
                 const Divider(height: 1),
                 // Weighted composite grade banner (if configured)
                 if (assessment.weightedScaleId != null)
@@ -226,32 +232,32 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                 // Confirm button (hidden in read-only mode)
                 if (!widget.readOnly)
                   SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _confirmAndSave(context),
-                        icon: const Icon(Icons.check_circle),
-                        label: const Text(
-                          'Confirm & Save',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _confirmAndSave(context),
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text(
+                            'Confirm & Save',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryGreen,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryGreen,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
     );
@@ -263,7 +269,9 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     final check = gate.check(assessment: assessment, results: results);
 
     if (!check.isReady) {
-      final blockingLabels = check.blocking.map((i) => '• ${i.label}').join('\n');
+      final blockingLabels = check.blocking
+          .map((i) => '• ${i.label}')
+          .join('\n');
       if (context.mounted) {
         final proceed = await showDialog<bool>(
           context: context,
@@ -469,11 +477,13 @@ class _StudentRow extends StatelessWidget {
         : null;
 
     return ColoredBox(
-      color: isReading ? AppTheme.info.withValues(alpha: 0.06) : Colors.transparent,
+      color: isReading
+          ? AppTheme.info.withValues(alpha: 0.06)
+          : Colors.transparent,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: (highlightColor ?? AppTheme.lightText).withValues(alpha: 
-            0.1,
+          backgroundColor: (highlightColor ?? AppTheme.lightText).withValues(
+            alpha: 0.1,
           ),
           child: isReading
               ? const Icon(Icons.volume_up, color: AppTheme.info, size: 20)
@@ -507,10 +517,7 @@ class _StudentRow extends StatelessWidget {
                 ),
                 child: const Text(
                   'Top',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppTheme.primaryGreen,
-                  ),
+                  style: TextStyle(fontSize: 10, color: AppTheme.primaryGreen),
                 ),
               ),
             if (isLowest)
@@ -522,10 +529,7 @@ class _StudentRow extends StatelessWidget {
                 ),
                 child: const Text(
                   'Low',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppTheme.primaryRed,
-                  ),
+                  style: TextStyle(fontSize: 10, color: AppTheme.primaryRed),
                 ),
               ),
           ],
@@ -572,7 +576,11 @@ class _StudentRow extends StatelessWidget {
             const SizedBox(width: 8),
             if (!readOnly)
               IconButton(
-                icon: const Icon(Icons.edit, size: 18, color: AppTheme.lightText),
+                icon: const Icon(
+                  Icons.edit,
+                  size: 18,
+                  color: AppTheme.lightText,
+                ),
                 onPressed: onEdit,
                 tooltip: 'Edit',
                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
@@ -739,7 +747,10 @@ class _CompositeStat extends StatelessWidget {
             color: AppTheme.info,
           ),
         ),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.lightText)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+        ),
       ],
     );
   }
