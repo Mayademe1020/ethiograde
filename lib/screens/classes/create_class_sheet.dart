@@ -418,6 +418,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
     setState(() => _isSaving = true);
 
     final settings = context.read<SettingsProvider>();
+    final teacherId = context.read<TeacherProvider>().activeTeacher?.id ?? '';
     final subject = _subjectCtrl.text.trim();
 
     // Auto-add new subject to the list
@@ -425,7 +426,6 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
       await settings.addSubject(subject);
     }
 
-    final teacherId = context.read<TeacherProvider>().activeTeacher?.id ?? '';
     final name = _buildPreviewName();
 
     if (_isEdit) {

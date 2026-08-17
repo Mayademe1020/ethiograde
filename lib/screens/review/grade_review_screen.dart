@@ -268,6 +268,11 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     const gate = AssessmentCompletionGate();
     final check = gate.check(assessment: assessment, results: results);
 
+    // Pull real teacher identity from TeacherProvider (before any await)
+    final teacher = context.read<TeacherProvider>().activeTeacher;
+    final teacherName = teacher?.name ?? ('Unknown Teacher');
+    final teacherId = teacher?.id ?? 'unknown';
+
     if (!check.isReady) {
       final blockingLabels = check.blocking
           .map((i) => '• ${i.label}')
@@ -296,11 +301,6 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
         if (proceed != true) return;
       }
     }
-
-    // Pull real teacher identity from TeacherProvider
-    final teacher = context.read<TeacherProvider>().activeTeacher;
-    final teacherName = teacher?.name ?? ('Unknown Teacher');
-    final teacherId = teacher?.id ?? 'unknown';
 
     for (final result in results) {
       await AuditService().recordCreated(

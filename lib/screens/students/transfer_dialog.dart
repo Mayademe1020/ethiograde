@@ -58,6 +58,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
   Future<void> _transfer() async {
     if (_selectedClass == null) return;
 
+    final studentProvider = context.read<StudentProvider>();
+    final classProv = context.read<ClassProvider>();
+
     setState(() => _isTransferring = true);
 
     final result = await StudentTransferService().transferStudent(
@@ -70,11 +73,10 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
 
     if (result.success && result.updatedStudent != null) {
       // Update the student in StudentProvider
-      await context.read<StudentProvider>().updateStudent(result.updatedStudent!);
+      await studentProvider.updateStudent(result.updatedStudent!);
 
       // Update class rosters — student must be removed from old class and
       // added to new class in ClassProvider, otherwise the roster is stale
-      final classProv = context.read<ClassProvider>();
       await classProv.removeStudentFromClass(widget.fromClass.id, widget.student.id);
       await classProv.addStudentToClass(_selectedClass!.id, widget.student.id);
 
@@ -105,6 +107,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
   }
 
   Future<void> _undoTransfer(Student currentStudent) async {
+    final studentProvider = context.read<StudentProvider>();
+    final classProv = context.read<ClassProvider>();
+
     // Transfer back using the CURRENT student state (not stale widget.student)
     final result = await StudentTransferService().transferStudent(
       student: currentStudent,
@@ -113,10 +118,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
       reason: 'Undo transfer');
 
     if (result.success && result.updatedStudent != null && mounted) {
-      await context.read<StudentProvider>().updateStudent(result.updatedStudent!);
+      await studentProvider.updateStudent(result.updatedStudent!);
 
       // Update class rosters back
-      final classProv = context.read<ClassProvider>();
       await classProv.removeStudentFromClass(_selectedClass!.id, widget.student.id);
       await classProv.addStudentToClass(widget.fromClass.id, widget.student.id);
 

@@ -326,13 +326,16 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
+
+    final settingsProvider = context.read<SettingsProvider>();
+    final teacherProvider = context.read<TeacherProvider>();
 
     // Save the scale
-    await context.read<SettingsProvider>().saveCustomScale(scale);
+    await settingsProvider.saveCustomScale(scale);
 
     // Audit: record the scale change
     try {
-      final teacherProvider = context.read<TeacherProvider>();
       final teacher = teacherProvider.activeTeacher;
       await AuditService().recordScaleChange(
         scaleId: scale.id,

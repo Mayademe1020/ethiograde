@@ -941,19 +941,21 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
 
     // Delete scan results
     final grading = HybridGradingService();
+    final assessmentProvider = context.read<AssessmentProvider>();
+    final assessmentId = _assessment!.id;
     for (final result in _results) {
       await grading.deleteScanResult(result.id);
     }
 
     // Delete assessment
-    await context.read<AssessmentProvider>().deleteAssessment(_assessment!.id);
+    await assessmentProvider.deleteAssessment(assessmentId);
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Assessment discarded')));
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.pop(context); // Back to dashboard
   }
 

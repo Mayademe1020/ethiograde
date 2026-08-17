@@ -529,6 +529,11 @@ class CameraProcessor {
   }) async {
     if (controller == null || !controller.value.isInitialized) return null;
 
+    final grading = HybridGradingService();
+    final weightedScale = assessment.weightedScaleId != null
+        ? context.read<WeightedGradeProvider>().getForExam(assessment.id)
+        : null;
+
     callbacks.onCapturingChanged(true);
 
     try {
@@ -537,11 +542,6 @@ class CameraProcessor {
 
       // Skip auto-crop for re-scan — use original image
       final String reScanPath = image.path;
-
-      final grading = HybridGradingService();
-      final weightedScale = assessment.weightedScaleId != null
-          ? context.read<WeightedGradeProvider>().getForExam(assessment.id)
-          : null;
 
       final newResult = await grading.gradePaper(
         imagePath: reScanPath,
