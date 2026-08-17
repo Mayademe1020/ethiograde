@@ -56,17 +56,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
+            // Skip — go straight to the dashboard, bypassing the name/school
+            // setup page entirely so users can finish onboarding without a name.
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
-                onPressed: () {
-                  _pageController.animateToPage(
-                    _pages.length,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
+                onPressed: _completeSetup,
                 child: const Text(
                   'Skip',
                   style: TextStyle(color: AppTheme.lightText),
@@ -263,11 +258,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     // Seed demo data in debug builds so the dashboard isn't empty on first launch
     if (mounted && kDebugMode) {
-      await DemoDataService.seed(
-        classProvider: context.read<ClassProvider>(),
-        studentProvider: context.read<StudentProvider>(),
-        assessmentProvider: context.read<AssessmentProvider>(),
-      );
+      try {
+        await DemoDataService.seed(
+          classProvider: context.read<ClassProvider>(),
+          studentProvider: context.read<StudentProvider>(),
+          assessmentProvider: context.read<AssessmentProvider>(),
+        );
+      } catch (e) {
+        debugPrint('Demo data seeding failed: $e');
+      }
     }
 
     if (mounted) {
