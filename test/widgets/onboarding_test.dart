@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ethiograde/config/routes.dart';
 import 'package:ethiograde/screens/onboarding/onboarding_screen.dart';
@@ -21,8 +23,30 @@ void main() {
   }
 
   group('OnboardingScreen', () {
-    setUp(() {
+    late Directory tempDir;
+
+    setUp(() async {
       SharedPreferences.setMockInitialValues({});
+      tempDir = await Directory.systemTemp.createTemp('ethiograde_onboard_');
+      Hive.init(tempDir.path);
+      // Pre-open the boxes _completeSetup touches so it uses the in-memory
+      // registry instead of real disk I/O (which hangs under FakeAsync).
+      for (final name in [
+        'settings_pii',
+        'scan_results',
+        'classes',
+        'students',
+        'assessments',
+      ]) {
+        if (!Hive.isBoxOpen(name)) {
+          await Hive.openBox(name);
+        }
+      }
+    });
+
+    tearDown(() async {
+      await Hive.close();
+      await tempDir.delete(recursive: true);
     });
     testWidgets('renders first page with scan & grade title', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
@@ -70,15 +94,59 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
     });
 
-    testWidgets('Skip goes straight to the dashboard', (tester) async {
+    testWidgets('Skip jumps to the setup page', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
 
-      // Skip completes setup and lands on the dashboard route.
+      // Skip takes the teacher to the setup page (name is still required).
+      expect(find.text('Welcome!'), findsOneWidget);
+      expect(find.text('Your Name'), findsOneWidget);
+    });
+
+    testWidgets('Get Started without a name shows an error', (tester) async {
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
+      await tester.pumpAndSettle();
+
+      // Skip to setup page, leave name empty.
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Get Started'));
+      await tester.pumpAndSettle();
+
+      // Still on onboarding — not the dashboard — with a validation error.
+      expect(find.text('Please enter your name'), findsOneWidget);
+      expect(find.text('DASHBOARD'), findsNothing);
+    });
+
+    testWidgets('Get Started with a name finishes setup', (tester) async {
+      await tester.pumpWidget(wrap(const OnboardingScreen()));
+      await tester.pumpAndSettle();
+
+      // Skip to setup page and enter a name.
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Your Name'),
+        'Abebe',
+      );
+      // _completeSetup does real Hive I/O, so run the whole interaction
+      // inside runAsync where those futures can actually complete.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Get Started'));
+        await tester.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      });
+      await tester.pumpAndSettle();
+
+      // Lands on the dashboard route.
       expect(find.text('DASHBOARD'), findsOneWidget);
+      expect(find.text('Please enter your name'), findsNothing);
+      expect(find.text('Welcome!'), findsNothing);
     });
 
     testWidgets('setup page has name and school fields', (tester) async {

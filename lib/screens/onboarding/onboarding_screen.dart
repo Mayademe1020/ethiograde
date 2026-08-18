@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   final _nameController = TextEditingController();
   final _schoolController = TextEditingController();
+  bool _nameError = false;
 
   final List<_OnboardingPage> _pages = [
     _OnboardingPage(
@@ -56,12 +57,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip — go straight to the dashboard, bypassing the name/school
-            // setup page entirely so users can finish onboarding without a name.
+            // Skip — jump ahead to the setup page so the teacher still provides a name.
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
-                onPressed: _completeSetup,
+                onPressed: () {
+                  _pageController.animateToPage(
+                    _pages.length,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
                 child: const Text(
                   'Skip',
                   style: TextStyle(color: AppTheme.lightText),
@@ -216,10 +222,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Teacher name
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
+            onChanged: (_) {
+              if (_nameError) setState(() => _nameError = false);
+            },
+            decoration: InputDecoration(
               labelText: 'Your Name',
-              prefixIcon: Icon(Icons.person_outline),
+              prefixIcon: const Icon(Icons.person_outline),
               hintText: 'e.g. Abebe Tesfaye',
+              errorText: _nameError ? 'Please enter your name' : null,
             ),
           ),
           const SizedBox(height: 16),
@@ -239,21 +249,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeSetup() async {
+    if (_nameController.text.trim().isEmpty) {
+      setState(() => _nameError = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name to continue')),
+      );
+      return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('first_launch', false);
     await prefs.setString('language', 'en');
 
     // PII → encrypted Hive (not SharedPreferences)
-    if (_nameController.text.isNotEmpty || _schoolController.text.isNotEmpty) {
-      final piiBox = Hive.isBoxOpen('settings_pii')
-          ? Hive.box('settings_pii')
-          : await Hive.openBox('settings_pii');
-      if (_nameController.text.isNotEmpty) {
-        await piiBox.put('teacher_name', _nameController.text);
+    try {
+      if (_nameController.text.isNotEmpty ||
+          _schoolController.text.isNotEmpty) {
+        final piiBox = Hive.isBoxOpen('settings_pii')
+            ? Hive.box('settings_pii')
+            : await Hive.openBox('settings_pii');
+        if (_nameController.text.isNotEmpty) {
+          await piiBox.put('teacher_name', _nameController.text);
+        }
+        if (_schoolController.text.isNotEmpty) {
+          await piiBox.put('school_name', _schoolController.text);
+        }
       }
-      if (_schoolController.text.isNotEmpty) {
-        await piiBox.put('school_name', _schoolController.text);
-      }
+    } catch (e) {
+      debugPrint('Couldn\'t save onboarding details: $e');
     }
 
     // Seed demo data in debug builds so the dashboard isn't empty on first launch
