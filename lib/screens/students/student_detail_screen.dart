@@ -459,8 +459,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             final color = pct >= 80
                 ? AppTheme.primaryGreen
                 : pct >= 50
-                 ? AppTheme.warning
-                 : AppTheme.primaryRed;
+                ? AppTheme.warning
+                : AppTheme.primaryRed;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -493,7 +493,9 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     child: LinearProgressIndicator(
                       value: pct / 100,
                       minHeight: 6,
-                      backgroundColor: AppTheme.outlineLight.withValues(alpha: 0.5),
+                      backgroundColor: AppTheme.outlineLight.withValues(
+                        alpha: 0.5,
+                      ),
                       valueColor: AlwaysStoppedAnimation(color),
                     ),
                   ),
@@ -567,12 +569,13 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       final pct = results.first.percentage;
       if (pct >= 90) {
         rank = 'Top 10%';
-      } else if (pct >= 75)
+      } else if (pct >= 75) {
         rank = 'Top 25%';
-      else if (pct >= 50)
+      } else if (pct >= 50) {
         rank = 'Middle';
-      else
+      } else {
         rank = 'Needs support';
+      }
     }
     return _StudentStats(
       examCount: results.length,

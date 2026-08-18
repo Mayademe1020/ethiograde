@@ -36,7 +36,7 @@ class _BoxNames {
 const String _hiveKeyStorageKey = 'hive_encryption_key';
 
 /// Wrapper so [main] can report init errors to the UI.
-enum _InitStatus { ok, fallback, corruption }
+enum InitStatus { ok, fallback, corruption }
 
 /// Tracks whether any Hive box was corrupt during init.
 /// Used by the UI to show a recovery message.
@@ -51,31 +51,31 @@ bool _hiveCorruptionDetected = false;
 /// [Hive] boxes are closed on [AppLifecycleState.detached] to flush pending
 /// writes and prevent corruption on force-close.
 class _AppLifecycleObserver with WidgetsBindingObserver {
-   _AppLifecycleObserver() {
-     WidgetsBinding.instance.addObserver(this);
-   }
+  _AppLifecycleObserver() {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
-   void dispose() {
-     WidgetsBinding.instance.removeObserver(this);
-   }
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
 
-   @override
-   void didChangeAppLifecycleState(AppLifecycleState state) {
-     if (state == AppLifecycleState.detached) {
-       _cleanup();
-     }
-   }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      _cleanup();
+    }
+  }
 
-   /// Best-effort cleanup — never throw from lifecycle callbacks.
-   static void _cleanup() {
-     try {
-       OcrService.instance.dispose();
-     } catch (_) {}
-     try {
-       // Flush and close all Hive boxes to prevent corruption on force-kill.
-       Hive.close();
-     } catch (_) {}
-   }
+  /// Best-effort cleanup — never throw from lifecycle callbacks.
+  static void _cleanup() {
+    try {
+      OcrService.instance.dispose();
+    } catch (_) {}
+    try {
+      // Flush and close all Hive boxes to prevent corruption on force-kill.
+      Hive.close();
+    } catch (_) {}
+  }
 }
 
 void main() async {
@@ -131,13 +131,13 @@ void main() async {
     );
   };
 
-  _InitStatus status;
+  InitStatus status;
 
   try {
     status = await _initEncryptedHive();
   } catch (e, st) {
     debugPrint('[Hive] Unexpected init failure: $e\n$st');
-    status = _InitStatus.fallback;
+    status = InitStatus.fallback;
   }
 
   final isFirstLaunch = await AppConstants.isFirstLaunch;
@@ -160,7 +160,7 @@ void main() async {
 ///
 /// On *any* failure the caller falls back to in-memory-only state;
 /// the app always launches.
-Future<_InitStatus> _initEncryptedHive() async {
+Future<InitStatus> _initEncryptedHive() async {
   // ── 1. Hive init ──────────────────────────────────────────────────
   await Hive.initFlutter();
 
@@ -200,10 +200,7 @@ Future<_InitStatus> _initEncryptedHive() async {
   // Only open core boxes at startup — others open on-demand via providers.
   final students = await _openBoxSafe(_BoxNames.students, cipher: cipher);
   final assessments = await _openBoxSafe(_BoxNames.assessments, cipher: cipher);
-  final scanResults = await _openBoxSafe(
-    _BoxNames.scanResults,
-    cipher: cipher,
-  );
+  final scanResults = await _openBoxSafe(_BoxNames.scanResults, cipher: cipher);
 
   // PII settings box (encrypted) — teacher name, phone, handles
   await _openBoxSafe('settings_pii', cipher: cipher);
@@ -229,7 +226,7 @@ Future<_InitStatus> _initEncryptedHive() async {
     'scan_results: ${scanResults.length}',
   );
 
-  return _hiveCorruptionDetected ? _InitStatus.corruption : _InitStatus.ok;
+  return _hiveCorruptionDetected ? InitStatus.corruption : InitStatus.ok;
 }
 
 /// Open a regular [Box] with error recovery.
@@ -272,7 +269,7 @@ Future<void> _preserveCorruptBox(String name) async {
 }
 
 class EthioGradeApp extends StatelessWidget {
-  final _InitStatus initStatus;
+  final InitStatus initStatus;
   final bool isFirstLaunch;
 
   const EthioGradeApp({
@@ -312,7 +309,7 @@ class EthioGradeApp extends StatelessWidget {
                 : AppRoutes.dashboard,
             onGenerateRoute: AppRoutes.onGenerateRoute,
             // Non-intrusive banner if Hive had issues.
-            builder: initStatus != _InitStatus.ok
+            builder: initStatus != InitStatus.ok
                 ? (context, child) =>
                       _InitBanner(status: initStatus, child: child)
                 : null,
@@ -325,13 +322,13 @@ class EthioGradeApp extends StatelessWidget {
 
 /// Banner shown when Hive init had issues (fallback or corruption).
 class _InitBanner extends StatelessWidget {
-  final _InitStatus status;
+  final InitStatus status;
   final Widget? child;
   const _InitBanner({required this.status, this.child});
 
   @override
   Widget build(BuildContext context) {
-    final isCorruption = status == _InitStatus.corruption;
+    final isCorruption = status == InitStatus.corruption;
     final cs = Theme.of(context).colorScheme;
     return Column(
       children: [

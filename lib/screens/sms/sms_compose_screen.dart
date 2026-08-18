@@ -42,9 +42,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
     }
   }
 
-  final _schoolNameController = TextEditingController(
-    text: 'My School',
-  );
+  final _schoolNameController = TextEditingController(text: 'My School');
 
   @override
   void dispose() {
@@ -119,9 +117,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Send'),
-        content: Text(
-          'Send ${_pendingMessages.length} SMS message(s)?',
-        ),
+        content: Text('Send ${_pendingMessages.length} SMS message(s)?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -166,44 +162,45 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              'Template',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text('Template', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: AppSpacing.sm),
-            ...DefaultTemplates.all.map((t) {
-              final selected = t.name == _selectedTemplate.name;
-              return Card(
-                color: selected
-                    ? AppTheme.primary.withValues(alpha: 0.1)
-                    : null,
-                child: RadioListTile<String>(
-                  title: Text(t.name),
-                  subtitle: Text(
-                    _useAmharic ? t.amharicTemplate : t.englishTemplate,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  value: t.name,
-                  groupValue: _selectedTemplate.name,
-                  onChanged: (v) {
-                    setState(() {
-                      _selectedTemplate = DefaultTemplates.all.firstWhere(
-                        (t) => t.name == v,
-                      );
-                      _results = null;
-                    });
-                  },
-                ),
-              );
-            }),
+            RadioGroup<String>(
+              groupValue: _selectedTemplate.name,
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _selectedTemplate = DefaultTemplates.all.firstWhere(
+                    (t) => t.name == v,
+                  );
+                  _results = null;
+                });
+              },
+              child: Column(
+                children: [
+                  ...DefaultTemplates.all.map((t) {
+                    final selected = t.name == _selectedTemplate.name;
+                    return Card(
+                      color: selected
+                          ? AppTheme.primary.withValues(alpha: 0.1)
+                          : null,
+                      child: RadioListTile<String>(
+                        title: Text(t.name),
+                        subtitle: Text(
+                          _useAmharic ? t.amharicTemplate : t.englishTemplate,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        value: t.name,
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
             const SizedBox(height: AppSpacing.md),
             Row(
               children: [
-                Text(
-                  'Language',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text('Language', style: Theme.of(context).textTheme.titleSmall),
                 const Spacer(),
                 const Text('English'),
                 Switch(
@@ -266,18 +263,24 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
                       ),
                     )
                   else
-                    ..._pendingMessages.take(5).map((m) => Card(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-                          child: ListTile(
-                            dense: true,
-                            title: Text(m['student'] ?? ''),
-                            subtitle: Text(m['message'] ?? ''),
-                            trailing: Text(
-                              m['phone'] ?? '',
-                              style: Theme.of(context).textTheme.bodySmall,
+                    ..._pendingMessages
+                        .take(5)
+                        .map(
+                          (m) => Card(
+                            margin: const EdgeInsets.only(
+                              bottom: AppSpacing.xs,
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              title: Text(m['student'] ?? ''),
+                              subtitle: Text(m['message'] ?? ''),
+                              trailing: Text(
+                                m['phone'] ?? '',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                   if (_pendingMessages.length > 5)
                     Text(
                       '... and ${_pendingMessages.length - 5} more',

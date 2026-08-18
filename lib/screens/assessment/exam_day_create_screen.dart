@@ -45,7 +45,9 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final teacher = context.read<TeacherProvider>().activeTeacher;
-      if (teacher != null && teacher.subject.isNotEmpty && _subjectController.text.isEmpty) {
+      if (teacher != null &&
+          teacher.subject.isNotEmpty &&
+          _subjectController.text.isEmpty) {
         _subjectController.text = teacher.subject;
       }
     });
@@ -91,13 +93,13 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
             // 1. Exam title
-            _TitleField(),
+            _buildTitleField(),
             const SizedBox(height: 12),
             // 2. Answer key mode
-            _AnswerKeyModeCard(),
+            _buildAnswerKeyModeCard(),
             const SizedBox(height: 18),
             // 3. Questions + Class
-            _QuestionCountAndClassCard(classes: classes),
+            _buildQuestionCountAndClassCard(classes: classes),
           ],
         ),
       ),
@@ -105,7 +107,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     );
   }
 
-  Widget _TitleField() {
+  Widget _buildTitleField() {
     return TextField(
       controller: _titleController,
       textInputAction: TextInputAction.next,
@@ -117,7 +119,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     );
   }
 
-  Widget _AnswerKeyModeCard() {
+  Widget _buildAnswerKeyModeCard() {
     return _ModeCard(
       selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
       icon: Icons.document_scanner_outlined,
@@ -127,15 +129,15 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     );
   }
 
-  Widget _QuestionCountAndClassCard({required List<ClassInfo> classes}) {
+  Widget _buildQuestionCountAndClassCard({required List<ClassInfo> classes}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Questions',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -157,7 +159,9 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: isActive ? AppTheme.primaryGreen : AppTheme.lightText,
+                    color: isActive
+                        ? AppTheme.primaryGreen
+                        : AppTheme.lightText,
                   ),
                 ),
                 style: FilledButton.styleFrom(minimumSize: const Size(50, 32)),
@@ -191,17 +195,20 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 },
               ),
             ),
-            if (classes.isNotEmpty) _ClassSelector(classes: classes),
+            if (classes.isNotEmpty) _buildClassSelector(classes: classes),
           ],
         ),
       ],
     );
   }
 
-  Widget _ClassSelector({required List<ClassInfo> classes}) {
+  Widget _buildClassSelector({required List<ClassInfo> classes}) {
     return Row(
       children: [
-        const Text('Class:', style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
+        const Text(
+          'Class:',
+          style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+        ),
         const SizedBox(width: 8),
         ...classes.take(3).map((cls) {
           final isSelected = _selectedClassId == cls.id;
@@ -220,12 +227,14 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
           Flexible(
             fit: FlexFit.loose,
             child: _ModeCard(
-              selected: _studentMode == _StudentMode.classList &&
+              selected:
+                  _studentMode == _StudentMode.classList &&
                   _effectiveSelectedClassId(classes) == classes.last.id,
               icon: Icons.more,
               title: 'Plus ${classes.length - 3}',
               subtitle: 'View all ${classes.length} classes',
-              onTap: () => setState(() => _studentMode = _StudentMode.classList),
+              onTap: () =>
+                  setState(() => _studentMode = _StudentMode.classList),
             ),
           ),
       ],
@@ -243,9 +252,11 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
           height: 54,
           child: FilledButton.icon(
             onPressed: _createAssessment,
-            icon: Icon(_answerKeyMode == _AnswerKeyMode.scanMaster
-                ? Icons.document_scanner
-                : Icons.edit_note),
+            icon: Icon(
+              _answerKeyMode == _AnswerKeyMode.scanMaster
+                  ? Icons.document_scanner
+                  : Icons.edit_note,
+            ),
             label: Text(
               _answerKeyMode == _AnswerKeyMode.scanMaster
                   ? 'Continue to Scan'
@@ -272,9 +283,9 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   Future<void> _createAssessment() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Exam title is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Exam title is required')));
       return;
     }
 
@@ -284,7 +295,8 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     if (_studentMode == _StudentMode.classList && selectedClassId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Choose a class or use no-roster grading')),
+          content: Text('Choose a class or use no-roster grading'),
+        ),
       );
       return;
     }
@@ -299,7 +311,9 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
 
     final assessment = Assessment(
       title: title,
-      subject: _subjectController.text.trim().isEmpty ? 'Exam' : _subjectController.text.trim(),
+      subject: _subjectController.text.trim().isEmpty
+          ? 'Exam'
+          : _subjectController.text.trim(),
       className: selectedClass?.displayName ?? '',
       rubricType: defaultRubric,
       questions: _buildQuestions(),
@@ -330,7 +344,10 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     Navigator.pushReplacementNamed(
       context,
       AppRoutes.answerKey,
-      arguments: AnswerKeyRouteArgs(assessment: assessment, returnToConfirmation: true),
+      arguments: AnswerKeyRouteArgs(
+        assessment: assessment,
+        returnToConfirmation: true,
+      ),
     );
   }
 
@@ -379,7 +396,9 @@ class _ModeCard extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: 76),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: selected ? AppTheme.primaryGreen.withValues(alpha: 0.07) : Colors.white,
+              color: selected
+                  ? AppTheme.primaryGreen.withValues(alpha: 0.07)
+                  : Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: selected ? AppTheme.primaryGreen : Colors.grey.shade300,
