@@ -25,7 +25,8 @@ void main() {
     section: section,
     subject: subject,
     ownerId: ownerId,
-    studentIds: studentIds);
+    studentIds: studentIds,
+  );
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('ethiograde_class_test_');
@@ -73,6 +74,23 @@ void main() {
       await provider.loadClasses();
       await provider.loadClasses(); // second call should be no-op
       expect(provider.isLoaded, isTrue);
+    });
+
+    test('flags loadFailed on read failure, reload recovers', () async {
+      final box = Hive.box(boxName);
+      await box.put('broken', {'name': 123, 'grade': 'not-an-int'});
+
+      final provider = ClassProvider();
+      await provider.loadClasses();
+
+      expect(provider.loadFailed, isTrue);
+      expect(provider.classes, isEmpty);
+
+      // Repair storage then reload — clears the failure flag.
+      await box.delete('broken');
+      await provider.reload();
+      expect(provider.loadFailed, isFalse);
+      expect(provider.classes, isEmpty);
     });
   });
 

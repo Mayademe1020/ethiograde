@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ethiograde/config/routes.dart';
 import 'package:ethiograde/screens/onboarding/onboarding_screen.dart';
 
 void main() {
   Widget wrap(Widget child) {
     return MaterialApp(
-      home: child);
+      home: child,
+      onGenerateRoute: (settings) {
+        if (settings.name == AppRoutes.dashboard) {
+          return MaterialPageRoute<void>(
+            builder: (_) =>
+                const Scaffold(body: Center(child: Text('DASHBOARD'))),
+          );
+        }
+        return null;
+      },
+    );
   }
 
   group('OnboardingScreen', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
     testWidgets('renders first page with scan & grade title', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
@@ -55,24 +70,26 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
     });
 
-    testWidgets('Skip jumps to setup page', (tester) async {
+    testWidgets('Skip goes straight to the dashboard', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
 
-      // Setup page has Welcome text
-      expect(find.text('Welcome!'), findsOneWidget);
+      // Skip completes setup and lands on the dashboard route.
+      expect(find.text('DASHBOARD'), findsOneWidget);
     });
 
     testWidgets('setup page has name and school fields', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
-      // Jump to setup page
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      // Navigate through all info pages to reach the setup page.
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      }
 
       expect(find.text('Your Name'), findsOneWidget);
       expect(find.text('School Name (optional)'), findsOneWidget);
@@ -82,8 +99,10 @@ void main() {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      }
 
       expect(find.text('Get Started'), findsOneWidget);
     });
