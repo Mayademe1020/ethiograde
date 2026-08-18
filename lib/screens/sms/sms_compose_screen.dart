@@ -29,6 +29,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
   List<SmsResult>? _results;
   List<Map<String, String>> _pendingMessages = [];
   bool _messagesPrepared = false;
+  bool _prepareFailed = false;
 
   @override
   void initState() {
@@ -60,44 +61,55 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
       return;
     }
 
-    final latestAssessment = assessments.first;
-    final results = await HybridGradingService().loadScanResults(
-      latestAssessment.id,
-    );
+    try {
+      final latestAssessment = assessments.first;
+      final results = await HybridGradingService().loadScanResults(
+        latestAssessment.id,
+        throwOnError: true,
+      );
 
-    final messages = <Map<String, String>>[];
+      final messages = <Map<String, String>>[];
 
-    for (final student in students) {
-      if (student.parentPhone == null || student.parentPhone!.isEmpty) {
-        continue;
+      for (final student in students) {
+        if (student.parentPhone == null || student.parentPhone!.isEmpty) {
+          continue;
+        }
+
+        final studentResults = results.where((r) => r.studentId == student.id);
+        if (studentResults.isEmpty) continue;
+
+        final best = studentResults.reduce(
+          (a, b) => a.percentage > b.percentage ? a : b,
+        );
+
+        final message = _selectedTemplate.render(
+          studentName: student.fullName,
+          subject: latestAssessment.subject,
+          percentage: best.percentage,
+          schoolName: _schoolNameController.text,
+          amharic: _useAmharic,
+        );
+
+        messages.add({
+          'phone': student.parentPhone!,
+          'message': message,
+          'student': student.fullName,
+        });
       }
 
-      final studentResults = results.where((r) => r.studentId == student.id);
-      if (studentResults.isEmpty) continue;
-
-      final best = studentResults.reduce(
-        (a, b) => a.percentage > b.percentage ? a : b,
-      );
-
-      final message = _selectedTemplate.render(
-        studentName: student.fullName,
-        subject: latestAssessment.subject,
-        percentage: best.percentage,
-        schoolName: _schoolNameController.text,
-        amharic: _useAmharic,
-      );
-
-      messages.add({
-        'phone': student.parentPhone!,
-        'message': message,
-        'student': student.fullName,
+      setState(() {
+        _pendingMessages = messages;
+        _messagesPrepared = true;
+        _prepareFailed = false;
       });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _messagesPrepared = true;
+          _prepareFailed = true;
+        });
+      }
     }
-
-    setState(() {
-      _pendingMessages = messages;
-      _messagesPrepared = true;
-    });
   }
 
   Future<void> _sendAll() async {
@@ -207,6 +219,34 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
             const SizedBox(height: AppSpacing.lg),
             if (!_messagesPrepared)
               const Center(child: CircularProgressIndicator())
+            else if (_prepareFailed)
+              Card(
+                color: AppTheme.error.withValues(alpha: 0.06),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: AppTheme.error),
+                      const SizedBox(width: AppSpacing.sm),
+                      const Expanded(
+                        child: Text(
+                          'Couldn\'t load grading results. Check your data and try again.',
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _messagesPrepared = false;
+                            _prepareFailed = false;
+                          });
+                          _prepareMessages();
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             else
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

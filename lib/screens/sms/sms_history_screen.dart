@@ -60,6 +60,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
   static const String _boxName = 'sms_history';
   List<SmsLogEntry> _logs = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -85,11 +86,15 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
         setState(() {
           _logs = logs;
           _isLoading = false;
+          _loadFailed = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _loadFailed = true;
+        });
       }
     }
   }
@@ -137,9 +142,46 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _logs.isEmpty
-              ? _buildEmptyState()
-              : _buildLogList(),
+          : _loadFailed
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: AppTheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Couldn\'t load SMS history',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Your SMS history couldn\'t be read from storage.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.lightText,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isLoading = true;
+                            _loadFailed = false;
+                          });
+                          _loadLogs();
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : _logs.isEmpty
+                  ? _buildEmptyState()
+                  : _buildLogList(),
     );
   }
 

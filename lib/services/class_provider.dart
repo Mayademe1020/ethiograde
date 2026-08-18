@@ -25,10 +25,12 @@ class ClassProvider extends ChangeNotifier {
 
   List<ClassInfo> _classes = [];
   bool _loaded = false;
+  bool _loadFailed = false;
   String _selectedClassId = '';
 
   List<ClassInfo> get classes => List.unmodifiable(_classes);
   bool get isLoaded => _loaded;
+  bool get loadFailed => _loadFailed;
   String get selectedClassId => _selectedClassId;
 
   ClassInfo? get selectedClass {
@@ -76,13 +78,22 @@ class ClassProvider extends ChangeNotifier {
               .toList()
             ..sort((a, b) => a.name.compareTo(b.name));
       _loaded = true;
+      _loadFailed = false;
       debugPrint('ClassProvider: loaded ${_classes.length} class(es)');
     } catch (e) {
       debugPrint('ClassProvider: load failed ($e)');
       _classes = [];
       _loaded = true;
+      _loadFailed = true;
     }
     notifyListeners();
+  }
+
+  /// Clear the loaded cache and reload from Hive (used for retry).
+  Future<void> reload() async {
+    _loaded = false;
+    _loadFailed = false;
+    await loadClasses();
   }
 
   // ── Add ───────────────────────────────────────────────────────────

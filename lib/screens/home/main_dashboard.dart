@@ -179,7 +179,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
   Widget build(BuildContext context) {
     final assessments = context.watch<AssessmentProvider>();
     final settings = context.watch<SettingsProvider>();
-    final classes = context.watch<ClassProvider>().classes;
+    final classProvider = context.watch<ClassProvider>();
+    final classes = classProvider.classes;
     context.watch<TeacherProvider>();
     final hp = ResponsiveLayout.horizontalPadding(context);
 
@@ -367,7 +368,14 @@ class _DashboardHomeState extends State<_DashboardHome> {
                 ),
               ),
             ),
-          ] else
+          ] else if (classProvider.loadFailed)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
+                child: _ClassesLoadErrorCard(onRetry: classProvider.reload),
+              ),
+            )
+          else
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
@@ -736,6 +744,47 @@ class _EmptyClassesCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ClassesLoadErrorCard extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _ClassesLoadErrorCard({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      borderColor: AppTheme.error.withValues(alpha: 0.25),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppTheme.error, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Couldn't load your classes",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Your class data couldn\'t be read from storage. Try again.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }

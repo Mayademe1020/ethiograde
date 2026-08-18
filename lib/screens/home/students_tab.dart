@@ -6,6 +6,7 @@ import '../../config/routes.dart';
 import '../../config/responsive.dart';
 import '../../models/student.dart';
 import '../../services/student_provider.dart';
+import '../../widgets/ui_components.dart';
 
 class StudentsTab extends StatefulWidget {
   const StudentsTab({super.key});
@@ -109,7 +110,15 @@ class _StudentsTabState extends State<StudentsTab> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: students.students.isEmpty
+            child: students.loadFailed
+                ? AppErrorState(
+                    title: "Couldn't load students",
+                    message:
+                        'Your student data couldn\'t be read from storage. '
+                        'Try again.',
+                    onRetry: students.loadStudents,
+                  )
+                : students.students.isEmpty
                 ? _buildEmptyState(context)
                 : _buildStudentList(context, filtered),
           ),

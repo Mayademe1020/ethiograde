@@ -21,11 +21,13 @@ class StudentProvider extends ChangeNotifier with HiveBoxMixin {
 
   List<Student> _students = [];
   bool _isLoading = false;
+  bool _loadFailed = false;
   String _selectedClassName = '';
   String _searchQuery = '';
 
   List<Student> get students => List.unmodifiable(_students);
   bool get isLoading => _isLoading;
+  bool get loadFailed => _loadFailed;
   String get selectedClassName => _selectedClassName;
   String get searchQuery => _searchQuery;
 
@@ -83,9 +85,11 @@ class StudentProvider extends ChangeNotifier with HiveBoxMixin {
               (a, b) =>
                   a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
             );
+      _loadFailed = false;
     } catch (e, st) {
       AppErrorHandler.catchError(this, 'loadStudents', e, st);
       _students = [];
+      _loadFailed = true;
     }
 
     _isLoading = false;

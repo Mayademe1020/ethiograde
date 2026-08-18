@@ -788,10 +788,24 @@ class _CameraScreenState extends State<CameraScreen>
     _existingHashesLoaded = true;
     try {
       final grading = HybridGradingService();
-      final existingScans = await grading.loadScanResults(assessment.id);
+      final existingScans = await grading.loadScanResults(
+        assessment.id,
+        throwOnError: true,
+      );
       _existingHashes = existingScans.map((s) => s.imageHash).toList();
     } catch (_) {
       _existingHashes = [];
+      _existingHashesLoaded = false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Couldn\'t load scanned records — duplicate detection disabled. '
+              'Retry when scanning.',
+            ),
+          ),
+        );
+      }
     }
   }
 
