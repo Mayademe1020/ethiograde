@@ -130,6 +130,18 @@ afterEvaluate {
             }
         }
     }
+
+    tasks.matching { it.name == 'assembleRelease' }.all { task ->
+        task.doLast {
+            flutterApkDir.mkdirs()
+            def srcApk = file("${androidApkDir}/app-release.apk")
+            if (srcApk.exists()) {
+                def dstApk = file("${flutterApkDir}/app-release.apk")
+                dstApk.bytes = srcApk.bytes
+                println("[EthioGrade] APK copied to: ${dstApk}")
+            }
+        }
+    }
 }
 
 // AndroidX dependencies are provided transitively by Flutter plugins.
