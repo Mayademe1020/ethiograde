@@ -341,14 +341,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         label: Text(
                           subject,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 15,
                             fontWeight: _selectedSubjects.any(
                                   (s) =>
                                       s.toLowerCase() ==
                                       subject.toLowerCase(),
                                 )
-                                ? FontWeight.w700
-                                : FontWeight.w600,
+                                ? FontWeight.w800
+                                : FontWeight.w700,
                             color: _selectedSubjects.any(
                                   (s) =>
                                       s.toLowerCase() ==
@@ -383,11 +383,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         selectedColor: AppTheme.primaryGreen,
                         backgroundColor: Colors.grey.shade100,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          horizontal: 14,
+                          vertical: 10,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: _selectedSubjects.any(
+                                  (s) =>
+                                      s.toLowerCase() ==
+                                      subject.toLowerCase(),
+                                )
+                                ? AppTheme.primaryGreen
+                                : Colors.grey.shade400,
+                            width: _selectedSubjects.any(
+                                  (s) =>
+                                      s.toLowerCase() ==
+                                      subject.toLowerCase(),
+                                )
+                                ? 2
+                                : 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -442,8 +458,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           if (classes.isNotEmpty)
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 for (final cls in classes)
                   FilterChip(
@@ -453,8 +469,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Text(
                           'Grade ${cls.grade}',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
                             color: _selectedClassIds.contains(cls.id)
                                 ? Colors.white
                                 : Colors.black87,
@@ -467,12 +483,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ? cls.section
                                   : 'No subject',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                             color: _selectedClassIds.contains(cls.id)
-                                ? const Color(
-                                    0xFFE7F4EC,
-                                  )
-                                : Colors.grey.shade600,
+                                ? const Color(0xFFE7F4EC)
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ],
@@ -492,11 +507,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     selectedColor: AppTheme.primaryGreen,
                     backgroundColor: Colors.grey.shade100,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                      horizontal: 14,
+                      vertical: 10,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: _selectedClassIds.contains(cls.id)
+                            ? AppTheme.primaryGreen
+                            : Colors.grey.shade400,
+                        width: _selectedClassIds.contains(cls.id) ? 2 : 1.5,
+                      ),
                     ),
                   ),
               ],
