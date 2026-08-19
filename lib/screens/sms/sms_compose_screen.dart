@@ -30,6 +30,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
   List<Map<String, String>> _pendingMessages = [];
   bool _messagesPrepared = false;
   bool _prepareFailed = false;
+  int _skippedNoPhone = 0;
 
   @override
   void initState() {
@@ -67,9 +68,11 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
       );
 
       final messages = <Map<String, String>>[];
+      var skippedNoPhone = 0;
 
       for (final student in students) {
         if (student.parentPhone == null || student.parentPhone!.isEmpty) {
+          skippedNoPhone++;
           continue;
         }
 
@@ -99,6 +102,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
         _pendingMessages = messages;
         _messagesPrepared = true;
         _prepareFailed = false;
+        _skippedNoPhone = skippedNoPhone;
       });
     } catch (_) {
       if (mounted) {
@@ -253,6 +257,30 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  if (_skippedNoPhone > 0)
+                    Card(
+                      color: context.warning.withValues(alpha: 0.08),
+                      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.phone_missed_outlined,
+                              size: 18,
+                              color: context.warning,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                '$_skippedNoPhone student(s) skipped — no parent phone on file.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   if (_pendingMessages.isEmpty)
                     const Card(
                       child: Padding(

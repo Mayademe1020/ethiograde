@@ -5,6 +5,7 @@ import '../../models/student.dart';
 import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/teacher_provider.dart';
+import '../../services/sms_service.dart';
 
 /// Add or edit a single student. Optionally pre-select a class.
 ///
@@ -199,6 +200,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               // ── Parent phone (recommended for SMS results) ──────────
               TextFormField(
                 controller: _parentPhoneCtrl,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
                   labelText: 'Parent Phone',
                   hintText: '+251...',
@@ -206,7 +209,16 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                   helperText: 'Needed to send results by SMS',
                   helperMaxLines: 1,
                 ),
-                keyboardType: TextInputType.phone,
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  if (value.isEmpty) return null;
+                  if (!SmsService.isValidPhone(
+                    SmsService.cleanPhoneNumber(value),
+                  )) {
+                    return 'Enter a valid Ethiopian number (e.g. +251912345678)';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 32),
 
@@ -265,7 +277,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           : (existing?.className ?? ''),
       parentPhone: _parentPhoneCtrl.text.trim().isEmpty
           ? null
-          : _parentPhoneCtrl.text.trim(),
+          : SmsService.cleanPhoneNumber(_parentPhoneCtrl.text),
       createdBy: existing?.createdBy ?? teacherId,
       createdAt: existing?.createdAt,
     );

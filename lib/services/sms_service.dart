@@ -182,8 +182,10 @@ class SmsService {
     return await canLaunchUrl(uri);
   }
 
-  String _cleanPhoneNumber(String phone) {
-    var cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+  /// Normalizes an Ethiopian phone number to E.164 (`+251...`) form.
+  /// Strips spaces/dashes/parens, converts leading `0` or 9-digit numbers.
+  static String cleanPhoneNumber(String phone) {
+    var cleaned = phone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
     if (cleaned.startsWith('0')) {
       cleaned = '+251${cleaned.substring(1)}';
     } else if (!cleaned.startsWith('+251') && cleaned.length == 9) {
@@ -192,10 +194,15 @@ class SmsService {
     return cleaned;
   }
 
-  bool _isValidPhone(String phone) {
+  /// Whether [phone] is a valid Ethiopian mobile number (`+251XXXXXXXXX`).
+  static bool isValidPhone(String phone) {
     final regex = RegExp(r'^\+251\d{9}$');
     return regex.hasMatch(phone);
   }
+
+  String _cleanPhoneNumber(String phone) => cleanPhoneNumber(phone);
+
+  bool _isValidPhone(String phone) => isValidPhone(phone);
 
   Future<void> _queueMessage({
     required String phoneNumber,

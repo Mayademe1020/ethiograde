@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/student.dart';
+import 'sms_service.dart';
 
 /// CSV import and export for students and assessment results.
 ///
@@ -156,7 +157,9 @@ class ImportService {
             className: className,
             section: section,
             grade: int.tryParse(gradeStr) ?? 1,
-            parentPhone: parentPhone.isEmpty ? null : parentPhone,
+            parentPhone: parentPhone.isEmpty
+                ? null
+                : SmsService.cleanPhoneNumber(parentPhone),
           ),
         );
       } catch (e) {
