@@ -1,15 +1,11 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../models/class_info.dart';
 import '../../models/teacher.dart';
-import '../../services/demo_data_service.dart';
 import '../../services/class_provider.dart';
-import '../../services/student_provider.dart';
-import '../../services/assessment_provider.dart';
 import '../../services/teacher_provider.dart';
 import '../../services/settings_provider.dart';
 
@@ -28,6 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _subjectController = TextEditingController();
   final List<String> _selectedSubjects = [];
   final List<String> _selectedClassIds = [];
+  int? _selectedGrade;
   bool _nameError = false;
 
   final List<_OnboardingPage> _pages = [
@@ -63,11 +60,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip — jump ahead to the setup page so the teacher still provides a name.
+            // Skip — pre-fill the name so the teacher can finish quickly and add
+            // subject/classes later in Settings.
             Align(
               alignment: Alignment.topRight,
               child: TextButton(
                 onPressed: () {
+                  if (_nameController.text.trim().isEmpty) {
+                    _nameController.text = 'Teacher';
+                  }
                   _pageController.animateToPage(
                     _pages.length,
                     duration: const Duration(milliseconds: 300),
@@ -253,6 +254,49 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Grade selector — Grades 1-12. A class is created for the chosen
+          // grade so the teacher can scan/enter right away.
+          Text(
+            'Which grade do you teach?',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(12, (i) {
+                final grade = i + 1;
+                final selected = _selectedGrade == grade;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(
+                      'Grade $grade',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.normal,
+                        color: selected ? Colors.white : null,
+                      ),
+                    ),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _selectedGrade = grade),
+                    selectedColor: AppTheme.primaryGreen,
+                    backgroundColor: Colors.transparent,
+                    side: BorderSide(
+                      color: selected
+                          ? AppTheme.primaryGreen
+                          : Colors.grey.shade400,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // Subject — default + multiple
           Text(
             'What do you teach?',
@@ -265,41 +309,66 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             controller: _subjectController,
             textInputAction: TextInputAction.done,
             onSubmitted: _addSubjectChip,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Subject (default)',
-              prefixIcon: Icon(Icons.menu_book_outlined),
+              prefixIcon: const Icon(Icons.menu_book_outlined),
               hintText: 'e.g. Mathematics',
+              suffixIcon: IconButton(
+                tooltip: 'Add subject',
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () => _addSubjectChip(_subjectController.text),
+              ),
             ),
           ),
           const SizedBox(height: 8),
           if (settings.subjects.isNotEmpty) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final subject in settings.subjects)
-                  FilterChip(
-                    label: Text(subject),
-                    selected: _selectedSubjects.any(
-                      (s) => s.toLowerCase() == subject.toLowerCase(),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final subject in settings.subjects)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6, bottom: 6),
+                      child: FilterChip(
+                        label: Text(
+                          subject,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: _selectedSubjects.any(
+                                  (s) =>
+                                      s.toLowerCase() ==
+                                      subject.toLowerCase(),
+                                )
+                                ? FontWeight.w700
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        selected: _selectedSubjects.any(
+                          (s) => s.toLowerCase() == subject.toLowerCase(),
+                        ),
+                        onSelected: (sel) {
+                          setState(() {
+                            if (sel) {
+                              if (!_selectedSubjects.any(
+                                (s) =>
+                                    s.toLowerCase() ==
+                                    subject.toLowerCase(),
+                              )) {
+                                _selectedSubjects.add(subject);
+                              }
+                            } else {
+                              _selectedSubjects.removeWhere(
+                                (s) =>
+                                    s.toLowerCase() ==
+                                    subject.toLowerCase(),
+                              );
+                            }
+                          });
+                        },
+                      ),
                     ),
-                    onSelected: (sel) {
-                      setState(() {
-                        if (sel) {
-                          if (!_selectedSubjects.any(
-                            (s) => s.toLowerCase() == subject.toLowerCase(),
-                          )) {
-                            _selectedSubjects.add(subject);
-                          }
-                        } else {
-                          _selectedSubjects.removeWhere(
-                            (s) => s.toLowerCase() == subject.toLowerCase(),
-                          );
-                        }
-                      });
-                    },
-                  ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -370,100 +439,157 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _addSubjectChip(String value) {
+  Future<void> _addSubjectChip(String value) async {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return;
-    if (_selectedSubjects.any(
+    final exists = _selectedSubjects.any(
       (s) => s.toLowerCase() == trimmed.toLowerCase(),
-    )) {
-      _subjectController.clear();
-      return;
+    );
+    if (!exists) {
+      // Persist new subjects to Settings so they appear in future selectors
+      // and stay in sync with the teacher profile.
+      try {
+        await context.read<SettingsProvider>().addSubject(trimmed);
+      } catch (e) {
+        debugPrint("Couldn't save subject: $e");
+      }
+      setState(() => _selectedSubjects.add(trimmed));
     }
-    setState(() {
-      _selectedSubjects.add(trimmed);
-      _subjectController.clear();
-    });
+    _subjectController.clear();
   }
 
   Future<void> _completeSetup() async {
-    if (_nameController.text.trim().isEmpty) {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
       setState(() => _nameError = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your name to continue')),
       );
       return;
     }
+    setState(() => _nameError = false);
 
-    // Capture providers before awaiting so BuildContext isn't used across async gaps.
+    final settings = context.read<SettingsProvider>();
     final classProvider = context.read<ClassProvider>();
-    final studentProvider = context.read<StudentProvider>();
-    final assessmentProvider = context.read<AssessmentProvider>();
     final teacherProvider = context.read<TeacherProvider>();
     final navigator = Navigator.of(context);
 
+    // Mark onboarding complete so we never show it again.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('first_launch', false);
-    await prefs.setString('language', 'en');
 
-    // PII → encrypted Hive (not SharedPreferences)
-    try {
-      if (_nameController.text.isNotEmpty ||
-          _schoolController.text.isNotEmpty) {
-        final piiBox = Hive.isBoxOpen('settings_pii')
-            ? Hive.box('settings_pii')
-            : await Hive.openBox('settings_pii');
-        if (_nameController.text.isNotEmpty) {
-          await piiBox.put('teacher_name', _nameController.text);
-        }
-        if (_schoolController.text.isNotEmpty) {
-          await piiBox.put('school_name', _schoolController.text);
-        }
-      }
-    } catch (e) {
-      debugPrint('Couldn\'t save onboarding details: $e');
+    final schoolName = _schoolController.text.trim();
+
+    // Sync PII to Settings via the SettingsProvider (single source of truth).
+    await settings.updateSchoolInfo(
+      name: schoolName.isNotEmpty ? schoolName : null,
+      teacher: name,
+    );
+
+    // Ensure academic year is set so starter class has one.
+    final academicYear = settings.currentAcademicYear.isEmpty
+        ? ''
+        : settings.currentAcademicYear;
+
+    // Collect all unique subjects (controller + selected chips).
+    final subjectInput = _subjectController.text.trim();
+    final allSubjects = <String>{};
+    if (subjectInput.isNotEmpty) allSubjects.add(subjectInput);
+    for (final s in _selectedSubjects) {
+      if (s.trim().isNotEmpty) allSubjects.add(s.trim());
     }
 
-    // Create teacher record (subject + classes, more can be added later in Settings)
+    // Persist any new subjects to Settings so they appear in future selectors.
+    for (final s in allSubjects) {
+      if (!settings.subjects.any(
+        (e) => e.toLowerCase() == s.toLowerCase(),
+      )) {
+        try {
+          await settings.addSubject(s);
+        } catch (e) {
+          debugPrint('Couldn\'t save subject "$s": $e');
+        }
+      }
+    }
+
+    final subjectsList = [...allSubjects];
+    final primarySubject = subjectsList.firstOrNull ?? '';
+
+    // Create teacher record.
+    Teacher? createdTeacher;
     try {
-      final teachers = teacherProvider;
-      final name = _nameController.text.trim();
-      final hasExisting = teachers.teachers.any(
+      final hasExisting = teacherProvider.teachers.any(
         (t) => t.name.toLowerCase() == name.toLowerCase(),
       );
-      if (!hasExisting) {
-        final subject = _subjectController.text.trim();
-        final subjects = <String>[
-          if (subject.isNotEmpty) subject,
-          ..._selectedSubjects,
-        ];
-        final uniqueSubjects = <String>{};
-        for (final s in subjects) {
-          if (s.trim().isNotEmpty) uniqueSubjects.add(s.trim());
-        }
-        final teacher = Teacher(
-          id: 'teacher-${DateTime.now().millisecondsSinceEpoch}',
-          name: name,
-          role: 'teacher',
-          subject: uniqueSubjects.firstOrNull ?? '',
-          subjects: uniqueSubjects.isEmpty ? null : uniqueSubjects.toList(),
-          classIds: _selectedClassIds,
+      if (hasExisting) {
+        createdTeacher = teacherProvider.teachers.firstWhere(
+          (t) => t.name.toLowerCase() == name.toLowerCase(),
         );
-        await teachers.addTeacher(teacher);
+        // Update the existing teacher's subjects + school.
+        final updated = createdTeacher.copyWith(
+          school: schoolName,
+          subjects: subjectsList,
+          classIds: [...createdTeacher.classIds, ..._selectedClassIds],
+        );
+        final result = await teacherProvider.updateTeacher(updated);
+        if (result.success && mounted) {
+          createdTeacher = result.data;
+        }
+      } else {
+        final teacher = Teacher(
+          name: name,
+          school: schoolName,
+          subject: primarySubject,
+          subjects: subjectsList,
+          classIds: [..._selectedClassIds],
+        );
+        final result = await teacherProvider.addTeacher(teacher);
+        if (result.success && mounted) {
+          createdTeacher = result.data;
+        }
       }
     } catch (e) {
-      debugPrint('Couldn\'t create teacher record: $e');
+      debugPrint('Couldn\'t create/update teacher record: $e');
     }
 
-    // Seed demo data in debug builds so the dashboard isn't empty on first launch
-    if (kDebugMode) {
-      try {
-        await DemoDataService.seed(
-          classProvider: classProvider,
-          studentProvider: studentProvider,
-          assessmentProvider: assessmentProvider,
+    // Create a starter class if a grade was selected.
+    final classIds = [..._selectedClassIds];
+    if (_selectedGrade != null && createdTeacher != null) {
+      final grade = _selectedGrade!;
+      final className = 'Grade $grade';
+      final existing = classProvider.classesForTeacher(createdTeacher.id);
+      final hasClass = existing.any(
+        (c) => c.grade == grade && c.subject.toLowerCase() == primarySubject.toLowerCase(),
+      );
+      if (!hasClass) {
+        final starterClass = ClassInfo(
+          name: className,
+          school: schoolName,
+          grade: grade,
+          section: '',
+          subject: primarySubject,
+          studentIds: [],
+          ownerId: createdTeacher.id,
+          academicYear: academicYear,
         );
+        final classResult = await classProvider.addClass(starterClass);
+        if (classResult.success && classResult.data != null) {
+          classIds.add(classResult.data!.id);
+          classProvider.selectClass(classResult.data!.id);
+        }
+      }
+    }
+
+    // Update teacher's class list if we created a starter class.
+    if (createdTeacher != null &&
+        classIds.any((id) => !createdTeacher!.classIds.contains(id))) {
+      try {
+        final updated = createdTeacher.copyWith(
+          classIds: [...{...createdTeacher.classIds, ...classIds}],
+        );
+        await teacherProvider.updateTeacher(updated);
       } catch (e) {
-        debugPrint('Demo data seeding failed: $e');
+        debugPrint('Couldn\'t update teacher classIds: $e');
       }
     }
 
