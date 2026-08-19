@@ -272,7 +272,11 @@ class SettingsTab extends StatelessWidget {
                             child: Text(teacher.name[0].toUpperCase()),
                           ),
                           title: Text(teacher.name),
-                          subtitle: Text(teacher.role),
+                          subtitle: Text(
+                            _teacherSubtitle(ctx, teacher),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -330,6 +334,7 @@ class SettingsTab extends StatelessWidget {
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final formKey = GlobalKey<FormState>();
     var role = existing?.role ?? 'teacher';
+    final newSubjectCtrl = TextEditingController();
     final selectedSubjects = List<String>.from(
       existing == null
           ? const []
@@ -418,9 +423,45 @@ class SettingsTab extends StatelessWidget {
                 ),
                 if (settingsProvider.subjects.isEmpty)
                   Text(
-                    'No subjects configured yet — add them in the Subjects section.',
+                    'No subjects configured yet — add them in the Subjects section, or type one below.',
                     style: TextStyle(color: context.lightText, fontSize: 12),
                   ),
+                const SizedBox(height: 8),
+                // Add a brand-new subject not in the configured list
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: newSubjectCtrl,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _addNewSubject(
+                          setSheetState,
+                          newSubjectCtrl,
+                          selectedSubjects,
+                          settingsProvider,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Add a new subject',
+                          hintText: 'e.g. Biology',
+                          prefixIcon: Icon(Icons.add),
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: () => _addNewSubject(
+                        setSheetState,
+                        newSubjectCtrl,
+                        selectedSubjects,
+                        settingsProvider,
+                      ),
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Add subject',
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 // Classes they teach (multi-select)
                 Text(
@@ -509,6 +550,48 @@ class SettingsTab extends StatelessWidget {
         ).showSnackBar(SnackBar(content: Text(teachers.lastAddErrors.first)));
       }
     }
+  }
+
+  void _addNewSubject(
+    StateSetter setSheetState,
+    TextEditingController controller,
+    List<String> selectedSubjects,
+    SettingsProvider settingsProvider,
+  ) {
+    final value = controller.text.trim();
+    if (value.isEmpty) return;
+    setSheetState(() {
+      if (!selectedSubjects.any(
+        (s) => s.toLowerCase() == value.toLowerCase(),
+      )) {
+        selectedSubjects.add(value);
+      }
+      controller.clear();
+    });
+    settingsProvider.addSubject(value);
+  }
+
+  String _teacherSubtitle(BuildContext context, Teacher teacher) {
+    final parts = <String>[];
+    final subjects = teacher.allSubjects;
+    if (subjects.isNotEmpty) {
+      parts.add(subjects.join(', '));
+    }
+    final classProvider = context.read<ClassProvider>();
+    final classNames = teacher.classIds
+        .map((id) {
+          for (final cls in classProvider.classes) {
+            if (cls.id == id) return cls.displayName;
+          }
+          return null;
+        })
+        .whereType<String>()
+        .toList();
+    if (classNames.isNotEmpty) {
+      parts.add(classNames.join(', '));
+    }
+    if (parts.isEmpty) return teacher.role;
+    return '${teacher.role} · ${parts.join(' · ')}';
   }
 
   Future<void> _confirmDelete(
