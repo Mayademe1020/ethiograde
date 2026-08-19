@@ -56,7 +56,7 @@ class AuditTrailSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
                 children: [
-                  const Icon(Icons.history, color: AppTheme.primaryGreen),
+                  Icon(Icons.history, color: context.primaryGreen),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -68,8 +68,8 @@ class AuditTrailSheet extends StatelessWidget {
                               ?.copyWith(fontWeight: FontWeight.bold)),
                         Text(
                           result.studentName,
-                          style: const TextStyle(
-                            color: AppTheme.lightText,
+                          style: TextStyle(
+                            color: context.lightText,
                             fontSize: 14)),
                       ])),
                   // Current grade badge
@@ -78,13 +78,13 @@ class AuditTrailSheet extends StatelessWidget {
                       horizontal: 12,
                       vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                      color: context.primaryGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
                     child: Text(
                       '${result.grade} (${result.percentage.toStringAsFixed(1)}%)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryGreen))),
+                        color: context.primaryGreen))),
                 ])),
             const Divider(height: 1),
             // Timeline
@@ -99,13 +99,13 @@ class AuditTrailSheet extends StatelessWidget {
                             size: 48,
                             color: Colors.grey.shade400),
                           const SizedBox(height: 12),
-                          const Text(
+                          Text(
                             'No changes recorded',
-                            style: TextStyle(color: AppTheme.lightText)),
-                          const Text(
+                            style: TextStyle(color: context.lightText)),
+                          Text(
                             'Grade is as originally entered',
                             style: TextStyle(
-                              color: AppTheme.lightText,
+                              color: context.lightText,
                               fontSize: 12)),
                         ]))
                   : ListView.builder(
@@ -248,23 +248,23 @@ class _TimelineEntry extends StatelessWidget {
                   // Who and when
                   Row(
                     children: [
-                      const Icon(Icons.person_outline, size: 14, color: AppTheme.lightText),
+                      Icon(Icons.person_outline, size: 14, color: context.lightText),
                       const SizedBox(width: 4),
                       Text(
                         entry.teacherName.isNotEmpty
                             ? entry.teacherName
                             : ('Unknown'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.lightText)),
+                          color: context.lightText)),
                       const SizedBox(width: 12),
-                      const Icon(Icons.access_time, size: 14, color: AppTheme.lightText),
+                      Icon(Icons.access_time, size: 14, color: context.lightText),
                       const SizedBox(width: 4),
                       Text(
                         _formatTimestamp(entry.timestamp),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.lightText)),
+                          color: context.lightText)),
                     ]),
                   // Score change details (for overrides)
                   if (entry.action == 'score_override' ||
@@ -301,7 +301,7 @@ class _TimelineEntry extends StatelessWidget {
                           'Revert to this',
                           style: TextStyle(fontSize: 12)),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.warning,
+                          foregroundColor: context.warning,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4),
@@ -327,39 +327,39 @@ class _ScoreChangeDetail extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withValues(alpha: 0.05),
+        color: context.warning.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.2))),
+        border: Border.all(color: context.warning.withValues(alpha: 0.2))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Old value
           Column(
             children: [
-              const Text(
+              Text(
                 'Before',
-                style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                style: TextStyle(fontSize: 10, color: context.lightText)),
               Text(
                 '${old['grade'] ?? ''} (${(old['percentage'] as num?)?.toStringAsFixed(1) ?? (old['totalScore']?.toString() ?? '')}%)',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.error,
+                  color: context.error,
                   decoration: TextDecoration.lineThrough)),
             ]),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
-            child: Icon(Icons.arrow_forward, size: 16, color: AppTheme.warning)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Icon(Icons.arrow_forward, size: 16, color: context.warning)),
           // New value
           Column(
             children: [
-              const Text(
+              Text(
                 'After',
-                style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                style: TextStyle(fontSize: 10, color: context.lightText)),
               Text(
                 '${newV['grade'] ?? ''} (${(newV['percentage'] as num?)?.toStringAsFixed(1) ?? (newV['totalScore']?.toString() ?? '')}%)',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryGreen)),
+                  color: context.primaryGreen)),
             ]),
         ]));
   }

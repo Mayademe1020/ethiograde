@@ -168,12 +168,12 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                color: context.primaryGreen.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Organize $total questions into sections. Each section can have a different type and point value.',
-                style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
+                style: TextStyle(fontSize: 12, color: context.lightText),
               ),
             ),
             Expanded(
@@ -249,7 +249,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
                   IconButton(
                     onPressed: () => _removeSection(index),
                     icon: const Icon(Icons.delete_outline, size: 18),
-                    color: AppTheme.primaryRed,
+                    color: context.primaryRed,
                     visualDensity: VisualDensity.compact,
                   ),
               ],
@@ -312,7 +312,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.lightText)),
+        Text(label, style: TextStyle(fontSize: 10, color: context.lightText)),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -347,7 +347,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Type', style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+        Text('Type', style: TextStyle(fontSize: 10, color: context.lightText)),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -401,9 +401,9 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Points per Q',
-          style: TextStyle(fontSize: 10, color: AppTheme.lightText),
+          style: TextStyle(fontSize: 10, color: context.lightText),
         ),
         const SizedBox(height: 4),
         Container(

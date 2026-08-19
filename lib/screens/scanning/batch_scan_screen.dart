@@ -293,7 +293,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 // Progress header
                 Container(
                   padding: const EdgeInsets.all(16),
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                  color: context.primaryGreen.withValues(alpha: 0.05),
                   child: Column(
                     children: [
                       Row(
@@ -321,29 +321,29 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               : 0,
                           minHeight: 8,
                           backgroundColor: Colors.grey.shade200,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppTheme.primaryGreen,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            context.primaryGreen,
                           ),
                         ),
                       ),
                       if (_isProcessing)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              SizedBox(
+                              const SizedBox(
                                 width: 14,
                                 height: 14,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(
                                 'Processing...',
                                 style: TextStyle(
-                                  color: AppTheme.lightText,
+                                  color: context.lightText,
                                   fontSize: 12,
                                 ),
                               ),
@@ -364,7 +364,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                           child: MiniStat(
                             label: 'Avg',
                             value: _average.toStringAsFixed(1),
-                            color: AppTheme.primaryGreen,
+                            color: context.primaryGreen,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -380,7 +380,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                           child: MiniStat(
                             label: 'Low',
                             value: _lowest.toStringAsFixed(1),
-                            color: AppTheme.primaryRed,
+                            color: context.primaryRed,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -404,24 +404,24 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                     ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryYellow.withValues(alpha: 0.15),
+                      color: context.primaryYellow.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: AppTheme.primaryYellow.withValues(alpha: 0.4),
+                        color: context.primaryYellow.withValues(alpha: 0.4),
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Row(
+                        Row(
                           children: [
                             Icon(
                               Icons.warning_amber_rounded,
-                              color: AppTheme.primaryYellow,
+                              color: context.primaryYellow,
                               size: 20,
                             ),
-                            SizedBox(width: 8),
-                            Text(
+                            const SizedBox(width: 8),
+                            const Text(
                               'Possible Duplicates',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -452,10 +452,10 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 // Results list
                 Expanded(
                   child: _results.isEmpty && !_isProcessing
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'No results yet',
-                            style: TextStyle(color: AppTheme.lightText),
+                            style: TextStyle(color: context.lightText),
                           ),
                         )
                       : ListView.builder(
@@ -469,14 +469,14 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: passed
-                                      ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                                      : AppTheme.primaryRed.withValues(alpha: 0.1),
+                                      ? context.primaryGreen.withValues(alpha: 0.1)
+                                      : context.primaryRed.withValues(alpha: 0.1),
                                   child: Text(
                                     '${index + 1}',
                                     style: TextStyle(
                                       color: passed
-                                          ? AppTheme.primaryGreen
-                                          : AppTheme.primaryRed,
+                                          ? context.primaryGreen
+                                          : context.primaryRed,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -495,7 +495,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                                           Icons.person_add_outlined,
                                           size: 20,
                                         ),
-                                        color: AppTheme.primaryGreen,
+                                        color: context.primaryGreen,
                                         tooltip: 'Assign student',
                                         onPressed: () => _assignStudent(index),
                                       ),
@@ -505,8 +505,8 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         color: passed
-                                            ? AppTheme.primaryGreen
-                                            : AppTheme.primaryRed,
+                                            ? context.primaryGreen
+                                            : context.primaryRed,
                                       ),
                                     ),
                                   ],
@@ -552,8 +552,8 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: _isSpeaking
-                                    ? AppTheme.primaryRed
-                                    : AppTheme.primaryGreen,
+                                    ? context.primaryRed
+                                    : context.primaryGreen,
                               ),
                             ),
                           ),
@@ -566,7 +566,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                                   icon: const Icon(Icons.undo),
                                   label: const Text('Undo Last'),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppTheme.warning,
+                                    foregroundColor: context.warning,
                                   ),
                                 ),
                               ),
@@ -610,13 +610,13 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: ready
-                    ? AppTheme.primaryGreen.withValues(alpha: 0.08)
-                    : AppTheme.primaryRed.withValues(alpha: 0.08),
+                    ? context.primaryGreen.withValues(alpha: 0.08)
+                    : context.primaryRed.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: ready
-                      ? AppTheme.primaryGreen.withValues(alpha: 0.24)
-                      : AppTheme.primaryRed.withValues(alpha: 0.24),
+                      ? context.primaryGreen.withValues(alpha: 0.24)
+                      : context.primaryRed.withValues(alpha: 0.24),
                 ),
               ),
               child: Row(
@@ -626,7 +626,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                     ready
                         ? Icons.check_circle_outline
                         : Icons.warning_amber_rounded,
-                    color: ready ? AppTheme.primaryGreen : AppTheme.primaryRed,
+                    color: ready ? context.primaryGreen : context.primaryRed,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -648,8 +648,8 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               ? '$completeCount/$totalCount answers confirmed. Student papers will use this key.'
                               : (_masterKeyError ??
                                     'Rescan the answer sheet or enter answers manually.'),
-                          style: const TextStyle(
-                            color: AppTheme.lightText,
+                          style: TextStyle(
+                            color: context.lightText,
                             height: 1.35,
                           ),
                         ),
@@ -670,7 +670,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
               const SizedBox(height: 4),
               Text(
                 '${assessment.subject} • ${assessment.questionCount} questions',
-                style: const TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
               const SizedBox(height: 18),
               OutlinedButton.icon(
@@ -709,10 +709,10 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                 ),
             ],
             const Spacer(),
-            const Text(
+            Text(
               'Next: scan student papers one by one or in a batch. Scores stay reviewable before final save.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.lightText, height: 1.35),
+              style: TextStyle(color: context.lightText, height: 1.35),
             ),
           ],
         ),
@@ -828,7 +828,7 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Assigned to ${selected.fullName}'),
-        backgroundColor: AppTheme.primaryGreen,
+        backgroundColor: context.primaryGreen,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -844,10 +844,10 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
     });
     _saveDraftSnapshot();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Last scan removed'),
-        backgroundColor: AppTheme.warning,
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: const Text('Last scan removed'),
+        backgroundColor: context.warning,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

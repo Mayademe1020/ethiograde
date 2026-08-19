@@ -250,18 +250,18 @@ class _AtRiskTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppTheme.errorContainer.withValues(alpha: 0.3),
+            color: context.errorContainer.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Row(
             children: [
-              const Icon(Icons.warning_amber, color: AppTheme.error),
+              Icon(Icons.warning_amber, color: context.error),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   '${atRisk.length} student(s) need attention',
-                  style: const TextStyle(
-                    color: AppTheme.error,
+                  style: TextStyle(
+                    color: context.error,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -291,11 +291,11 @@ class _AtRiskCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: AppTheme.errorContainer,
+              backgroundColor: context.errorContainer,
               child: Text(
                 student.student.fullName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: AppTheme.error,
+                style: TextStyle(
+                  color: context.error,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -313,7 +313,7 @@ class _AtRiskCard extends StatelessWidget {
                   Text(
                     student.reason,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.error,
+                          color: context.error,
                         ),
                   ),
                 ],
@@ -321,8 +321,8 @@ class _AtRiskCard extends StatelessWidget {
             ),
             Text(
               '${student.averagePercentage.toStringAsFixed(0)}%',
-              style: const TextStyle(
-                color: AppTheme.error,
+              style: TextStyle(
+                color: context.error,
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -400,8 +400,8 @@ class _TrendCard extends StatelessWidget {
 
     final directionColor = switch (trend.direction) {
       TrendDirection.improving => AppTheme.success,
-      TrendDirection.declining => AppTheme.error,
-      TrendDirection.stable => AppTheme.onSurfaceVariantLight,
+      TrendDirection.declining => context.error,
+      TrendDirection.stable => context.lightText,
     };
 
     return Card(
@@ -461,12 +461,12 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 48, color: AppTheme.onSurfaceVariantLight),
+            Icon(icon, size: 48, color: context.lightText),
             const SizedBox(height: AppSpacing.md),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.onSurfaceVariantLight),
+              style: TextStyle(color: context.lightText),
             ),
           ],
         ),

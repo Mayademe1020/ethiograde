@@ -71,9 +71,9 @@ Future<bool?> showRenameSheet({
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Give it a name so you can find it later.',
-            style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+            style: TextStyle(color: context.lightText, fontSize: 13),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -131,9 +131,9 @@ Future<bool?> showRenameSheet({
 
   if (confirmed == true && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Assessment saved'),
-        backgroundColor: AppTheme.primaryGreen,
+      SnackBar(
+        content: const Text('Assessment saved'),
+        backgroundColor: context.primaryGreen,
       ),
     );
   }

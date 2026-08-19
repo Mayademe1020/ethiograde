@@ -30,7 +30,7 @@ class AssessmentCard extends StatelessWidget {
     final resolved = resolveOperationalStatus(assessment);
     final (statusColor, statusIcon) = switch (resolved.status) {
       OperationalStatus.setupIncomplete => (
-        AppTheme.warning,
+        context.warning,
         Icons.help_outline,
       ),
       OperationalStatus.readyToGrade => (
@@ -213,12 +213,12 @@ class AssessmentCard extends StatelessWidget {
                             if (assessment.shortAnswerCount > 0)
                               _TypePill(
                                 label: 'Short ${assessment.shortAnswerCount}',
-                                color: AppTheme.warning,
+                                color: context.warning,
                               ),
                             if (assessment.essayCount > 0)
                               _TypePill(
                                 label: 'Essay ${assessment.essayCount}',
-                                color: AppTheme.error,
+                                color: context.error,
                               ),
                           ],
                         ),
@@ -335,11 +335,11 @@ class AssessmentCard extends StatelessWidget {
 
   void _showLoadError(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
+      SnackBar(
+        content: const Text(
           'Couldn\'t load this exam\'s saved data. Please try again.',
         ),
-        backgroundColor: AppTheme.error,
+        backgroundColor: context.error,
       ),
     );
   }
@@ -424,7 +424,7 @@ class _AnswerKeyBar extends StatelessWidget {
     final color = complete
         ? AppTheme.success
         : ratio > 0.5
-        ? AppTheme.warning
+        ? context.warning
         : cs.onSurfaceVariant;
 
     final icon = complete
@@ -474,15 +474,15 @@ class _NextActionCard extends StatelessWidget {
     final (icon, color) = switch (action.kind) {
       AssessmentActionKind.reviewPapers => (
         Icons.fact_check_outlined,
-        AppTheme.warning,
+        context.warning,
       ),
       AssessmentActionKind.addAnswerKey => (
         Icons.edit_note_outlined,
-        AppTheme.warning,
+        context.warning,
       ),
       AssessmentActionKind.scanPapers => (
         Icons.document_scanner_outlined,
-        AppTheme.primaryGreen,
+        context.primaryGreen,
       ),
       AssessmentActionKind.resumeGrading => (
         Icons.play_circle_outline,

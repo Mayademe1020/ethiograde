@@ -30,7 +30,7 @@ class CameraAssistantPanel extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: AppTheme.primaryGreen.withValues(alpha: 0.2),
+              color: context.primaryGreen.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -137,11 +137,11 @@ class ScanModePill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: active
-            ? AppTheme.primaryGreen.withValues(alpha: 0.24)
+            ? context.primaryGreen.withValues(alpha: 0.24)
             : Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: active ? AppTheme.primaryGreen : Colors.white24,
+          color: active ? context.primaryGreen : Colors.white24,
         ),
       ),
       child: Row(

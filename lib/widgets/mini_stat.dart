@@ -34,7 +34,7 @@ class MiniStat extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+            style: TextStyle(fontSize: 11, color: context.lightText),
           ),
         ],
       ),

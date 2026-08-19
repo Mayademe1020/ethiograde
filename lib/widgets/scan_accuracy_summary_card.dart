@@ -47,8 +47,8 @@ class _ScanAccuracySummaryCardState extends State<ScanAccuracySummaryCard> {
     final color = accuracy >= _problemThreshold
         ? AppTheme.success
         : accuracy >= 0.6
-        ? AppTheme.warning
-        : AppTheme.error;
+        ? context.warning
+        : context.error;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -107,8 +107,8 @@ class _ScanAccuracySummaryCardState extends State<ScanAccuracySummaryCard> {
             const SizedBox(height: 4),
             ...problemQuestions.map((q) {
               final qColor = q.accuracy >= 0.6
-                  ? AppTheme.warning
-                  : AppTheme.error;
+                  ? context.warning
+                  : context.error;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(

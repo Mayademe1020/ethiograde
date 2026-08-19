@@ -100,19 +100,19 @@ class SectionHeader extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'Q${section.startQ}-${section.endQ}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 11,
-                color: AppTheme.lightText,
+                color: context.lightText,
               ),
             ),
             const SizedBox(width: 4),
             Text(
               '${section.points.toInt()}pt',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 10,
-                color: AppTheme.lightText,
+                color: context.lightText,
               ),
             ),
             const Spacer(),
@@ -122,8 +122,8 @@ class SectionHeader extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontSize: 11,
                 color: answeredCount >= section.questionCount
-                    ? AppTheme.primaryGreen
-                    : AppTheme.lightText,
+                    ? context.primaryGreen
+                    : context.lightText,
                 fontWeight: FontWeight.w500,
               ),
             ),

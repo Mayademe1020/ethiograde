@@ -172,7 +172,7 @@ class _ReScanSheetState extends State<_ReScanSheet> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 4),
-                        color: _isCapturing ? Colors.grey : AppTheme.primary,
+                        color: _isCapturing ? Colors.grey : context.primaryGreen,
                       ),
                       child: _isCapturing
                           ? const Center(

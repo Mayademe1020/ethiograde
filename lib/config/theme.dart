@@ -26,6 +26,29 @@ class AppRadius {
   static const double full = 999;
 }
 
+/// Theme-aware semantic colors. Migrate `AppTheme.*` usages in widgets to
+/// `context.*` so they adapt to the active light/dark ColorScheme.
+/// Only 1:1 semantic mappings are exposed here; brand-specific hues that have
+/// no ColorScheme role (info blue, success green) keep their static constants.
+extension AppThemeContext on BuildContext {
+  ColorScheme get _scheme => Theme.of(this).colorScheme;
+
+  Color get primaryGreen => _scheme.primary;
+  Color get primaryYellow => _scheme.secondary;
+  Color get primaryRed => _scheme.tertiary;
+  Color get warmGray => _scheme.surfaceContainerHighest;
+  Color get darkText => _scheme.onSurface;
+  Color get lightText => _scheme.onSurfaceVariant;
+  Color get cardBg => _scheme.surface;
+  Color get scaffoldBg => Theme.of(this).scaffoldBackgroundColor;
+
+  Color get warning => _scheme.secondary;
+  Color get warningContainer => _scheme.secondaryContainer;
+  Color get error => _scheme.error;
+  Color get errorContainer => _scheme.errorContainer;
+  Color get outlineLight => _scheme.outline;
+}
+
 class AppShadows {
   AppShadows._();
   static List<BoxShadow> card = [

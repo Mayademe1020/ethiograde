@@ -58,20 +58,20 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            color: AppTheme.primaryGreen.withValues(alpha: 0.08),
+            color: context.primaryGreen.withValues(alpha: 0.08),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_outline,
-                  color: AppTheme.primaryGreen,
+                  color: context.primaryGreen,
                   size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '$_validCount students found — verify and edit below',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryGreen))),
+                      color: context.primaryGreen))),
               ])),
 
           // Student list
@@ -102,7 +102,7 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
                 label: Text(
                   'Save $_validCount Students'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
+                  backgroundColor: context.primaryGreen,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   minimumSize: const Size(double.infinity, 0))))),
         ]));
@@ -140,8 +140,8 @@ class _RosterPreviewScreenState extends State<RosterPreviewScreen> {
           content: Text(
             "$saved saved${failed > 0 ? ' ($failed failed)' : ''}"),
           backgroundColor: failed > 0
-              ? AppTheme.primaryYellow
-              : AppTheme.primaryGreen));
+              ? context.primaryYellow
+              : context.primaryGreen));
       Navigator.pop(context);
     }
   }
@@ -207,25 +207,25 @@ class _StudentEditCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                  backgroundColor: context.primaryGreen.withValues(alpha: 0.1),
                   child: Text(
                     '${index + 1}',
-                    style: const TextStyle(
-                      color: AppTheme.primaryGreen,
+                    style: TextStyle(
+                      color: context.primaryGreen,
                       fontWeight: FontWeight.bold,
                       fontSize: 12))),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     student.rawLine,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppTheme.lightText,
+                      color: context.lightText,
                       fontStyle: FontStyle.italic),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis)),
                 IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: AppTheme.primaryRed),
+                  icon: Icon(Icons.close, size: 18, color: context.primaryRed),
                   onPressed: onRemove,
                   tooltip: 'Remove',
                   padding: EdgeInsets.zero,
@@ -281,9 +281,9 @@ class _StudentEditCard extends StatelessWidget {
             // Gender toggle
             Row(
               children: [
-                const Text(
+                Text(
                   'Gender:',
-                  style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
+                  style: TextStyle(fontSize: 12, color: context.lightText)),
                 const SizedBox(width: 8),
                 _MiniGenderChip(
                   label: 'M',
@@ -324,15 +324,15 @@ class _MiniGenderChip extends StatelessWidget {
         duration: const Duration(milliseconds: 100),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.primaryGreen : Colors.transparent,
+          color: selected ? context.primaryGreen : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: selected ? AppTheme.primaryGreen : Colors.grey.shade300)),
+            color: selected ? context.primaryGreen : Colors.grey.shade300)),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? Colors.white : AppTheme.lightText))));
+            color: selected ? Colors.white : context.lightText))));
   }
 }

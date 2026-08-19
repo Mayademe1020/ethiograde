@@ -112,7 +112,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+            style: FilledButton.styleFrom(backgroundColor: context.error),
             child: const Text('Clear'),
           ),
         ],
@@ -147,10 +147,10 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.error_outline,
                         size: 48,
-                        color: AppTheme.error,
+                        color: context.error,
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
@@ -161,7 +161,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
                       Text(
                         'Your SMS history couldn\'t be read from storage.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -190,19 +190,19 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.sms_outlined, size: 64, color: AppTheme.outlineLight),
+          Icon(Icons.sms_outlined, size: 64, color: context.outlineLight),
           const SizedBox(height: AppSpacing.md),
           Text(
             'No SMS history',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppTheme.lightText,
+              color: context.lightText,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'SMS messages sent to parents will appear here',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.lightText,
+              color: context.lightText,
             ),
           ),
         ],
@@ -219,13 +219,13 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
         // Summary header
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
-          color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+          color: context.primaryGreen.withValues(alpha: 0.05),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStat('Total', _logs.length.toString(), AppTheme.primary),
+              _buildStat('Total', _logs.length.toString(), context.primaryGreen),
               _buildStat('Sent', sentCount.toString(), AppTheme.success),
-              _buildStat('Failed', failedCount.toString(), AppTheme.error),
+              _buildStat('Failed', failedCount.toString(), context.error),
             ],
           ),
         ),
@@ -256,9 +256,9 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
         ),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppTheme.lightText,
+            color: context.lightText,
           ),
         ),
       ],
@@ -271,7 +271,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
     return ListTile(
       leading: Icon(
         log.success ? Icons.check_circle : Icons.error,
-        color: log.success ? AppTheme.success : AppTheme.error,
+        color: log.success ? AppTheme.success : context.error,
       ),
       title: Text(log.studentName),
       subtitle: Column(
@@ -287,7 +287,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.lightText,
+              color: context.lightText,
             ),
           ),
         ],
@@ -303,7 +303,7 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
           Text(
             log.templateName,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.lightText,
+              color: context.lightText,
               fontSize: 10,
             ),
           ),

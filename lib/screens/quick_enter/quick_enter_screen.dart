@@ -152,7 +152,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
       SnackBar(
         content: Text(
           '${_results.length} students saved'),
-        backgroundColor: AppTheme.primaryGreen));
+        backgroundColor: context.primaryGreen));
   }
 
   @override
@@ -183,7 +183,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                 label: Text(
                   '$savedCount/${_students.length}',
                   style: const TextStyle(fontSize: 12)),
-                backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1))),
+                backgroundColor: context.primaryGreen.withValues(alpha: 0.1))),
         ]),
       body: _students.isEmpty
           ? Center(
@@ -195,13 +195,13 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                     size: 64,
                     color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'No students found',
-                    style: TextStyle(color: AppTheme.lightText)),
+                    style: TextStyle(color: context.lightText)),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Add students or link a class first',
-                    style: TextStyle(color: AppTheme.lightText, fontSize: 12)),
+                    style: TextStyle(color: context.lightText, fontSize: 12)),
                 ]))
           : Column(
               children: [
@@ -209,12 +209,12 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                  color: context.primaryGreen.withValues(alpha: 0.05),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.edit_note,
-                        color: AppTheme.primaryGreen,
+                        color: context.primaryGreen,
                         size: 20),
                       const SizedBox(width: 8),
                       Expanded(
@@ -223,8 +223,8 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w600))),
                       Text(
                         '${questions.length} ${'Qs'}',
-                        style: const TextStyle(
-                          color: AppTheme.lightText,
+                        style: TextStyle(
+                          color: context.lightText,
                           fontSize: 12)),
                     ])),
 
@@ -268,7 +268,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
         // Header row
         TableRow(
           decoration: BoxDecoration(
-            color: AppTheme.primaryGreen.withValues(alpha: 0.05)),
+            color: context.primaryGreen.withValues(alpha: 0.05)),
           children: [
             const SizedBox(
               width: 150,
@@ -293,9 +293,9 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                           fontWeight: FontWeight.bold)),
                       Text(
                         '/${q.points.toInt()}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText)),
+                          color: context.lightText)),
                     ])))),
             const SizedBox(
               width: 70,
@@ -316,7 +316,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
 
           return TableRow(
             decoration: BoxDecoration(
-              color: isSaved ? AppTheme.primaryGreen.withValues(alpha: 0.03) : null),
+              color: isSaved ? context.primaryGreen.withValues(alpha: 0.03) : null),
             children: [
               // Student name
               SizedBox(
@@ -326,12 +326,12 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                   child: Row(
                     children: [
                       if (isSaved)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
                           child: Icon(
                             Icons.check_circle,
                             size: 14,
-                            color: AppTheme.primaryGreen)),
+                            color: context.primaryGreen)),
                       Expanded(
                         child: Text(
                           student.fullName,
@@ -356,8 +356,8 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: total >= maxTotal * 0.5
-                          ? AppTheme.primaryGreen
-                          : AppTheme.primaryRed)))),
+                          ? context.primaryGreen
+                          : context.primaryRed)))),
             ]);
         }),
       ]);
@@ -394,10 +394,10 @@ class _ScoreCell extends StatelessWidget {
             decoration: BoxDecoration(
               color: hasScore
                   ? (currentScore! >= maxPoints
-                        ? AppTheme.primaryGreen.withValues(alpha: 0.15)
+                        ? context.primaryGreen.withValues(alpha: 0.15)
                         : currentScore! > 0
-                        ? AppTheme.primaryYellow.withValues(alpha: 0.15)
-                        : AppTheme.primaryRed.withValues(alpha: 0.15))
+                        ? context.primaryYellow.withValues(alpha: 0.15)
+                        : context.primaryRed.withValues(alpha: 0.15))
                   : Colors.grey.shade50,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
@@ -410,10 +410,10 @@ class _ScoreCell extends StatelessWidget {
                 fontWeight: hasScore ? FontWeight.bold : FontWeight.normal,
                 color: hasScore
                     ? (currentScore! >= maxPoints
-                          ? AppTheme.primaryGreen
+                          ? context.primaryGreen
                           : currentScore! > 0
                           ? Colors.orange.shade700
-                          : AppTheme.primaryRed)
+                          : context.primaryRed)
                     : Colors.grey.shade400))))));
   }
 
@@ -437,7 +437,7 @@ class _ScoreCell extends StatelessWidget {
                   fontWeight: FontWeight.bold)),
               Text(
                 '${'of'} ${question.points.toStringAsFixed(0)} ${'points'}',
-                style: const TextStyle(color: AppTheme.lightText)),
+                style: TextStyle(color: context.lightText)),
               const SizedBox(height: 16),
 
               // Quick score buttons (0 to maxPoints)
@@ -449,7 +449,7 @@ class _ScoreCell extends StatelessWidget {
                   return ChoiceChip(
                     label: Text('$score'),
                     selected: isSelected,
-                    selectedColor: AppTheme.primaryGreen,
+                    selectedColor: context.primaryGreen,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : null,
                       fontWeight: FontWeight.bold),
@@ -499,7 +499,7 @@ class _ScoreCell extends StatelessWidget {
                     },
                     icon: const Icon(Icons.check, size: 20),
                     style: IconButton.styleFrom(
-                      backgroundColor: AppTheme.primaryGreen,
+                      backgroundColor: context.primaryGreen,
                       foregroundColor: Colors.white)),
                 ]),
             ]))));
@@ -528,9 +528,9 @@ class _AssessmentPicker extends StatelessWidget {
                     size: 64,
                     color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'No assessments yet',
-                    style: TextStyle(color: AppTheme.lightText)),
+                    style: TextStyle(color: context.lightText)),
                 ]))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -540,10 +540,10 @@ class _AssessmentPicker extends StatelessWidget {
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                      child: const Icon(
+                      backgroundColor: context.primaryGreen.withValues(alpha: 0.1),
+                      child: Icon(
                         Icons.assignment,
-                        color: AppTheme.primaryGreen)),
+                        color: context.primaryGreen)),
                     title: Text(a.title),
                     subtitle: Text(
                       '${a.subject} • ${a.questionCount} ${'questions'}'),

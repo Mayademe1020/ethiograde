@@ -372,7 +372,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+        color: context.primaryGreen.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -385,7 +385,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           const SizedBox(height: 4),
           Text(
             '${assessment.subject} • ${assessment.questionCount} questions • ${assessment.maxScore.toInt()} pts',
-            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: TextStyle(color: context.lightText, fontSize: 12),
           ),
         ],
       ),
@@ -406,10 +406,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             children: [
               Text(
                 '$answered / $total answers set',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,
-                  color: AppTheme.primaryGreen,
+                  color: context.primaryGreen,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -438,7 +438,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             height: 6,
             child: LinearProgressIndicator(
               value: completeness,
-              color: AppTheme.primaryGreen,
+              color: context.primaryGreen,
               backgroundColor: Colors.grey.shade200,
             ),
           ),
@@ -446,15 +446,15 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Overall completeness',
-                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                style: TextStyle(fontSize: 11, color: context.lightText),
               ),
               Text(
                 '${(completeness * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: AppTheme.primaryGreen,
+                  color: context.primaryGreen,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -506,7 +506,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isActive ? AppTheme.primaryGreen : Colors.transparent,
+              color: isActive ? context.primaryGreen : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -515,7 +515,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                 fontFamily: 'monospace',
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                color: isActive ? Colors.white : AppTheme.lightText,
+                color: isActive ? Colors.white : context.lightText,
               ),
             ),
           ),
@@ -556,9 +556,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             const SizedBox(width: 5),
             Container(width: 1, height: 12, color: Colors.grey.shade300),
             const SizedBox(width: 5),
-            const Text(
+            Text(
               'All:',
-              style: TextStyle(fontSize: 10, color: AppTheme.lightText),
+              style: TextStyle(fontSize: 10, color: context.lightText),
             ),
             const SizedBox(width: 4),
             _toolbarDropdown<QuestionType>(
@@ -618,7 +618,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w500,
-            color: isActive ? Colors.white : AppTheme.lightText,
+            color: isActive ? Colors.white : context.lightText,
           ),
         ),
       ),
@@ -782,7 +782,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             Icon(
               icon,
               size: 12,
-              color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText,
+              color: isPrimary ? const Color(0xFFA8D5BA) : context.lightText,
             ),
             const SizedBox(width: 4),
             Text(
@@ -790,7 +790,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 10,
-                color: isPrimary ? const Color(0xFFA8D5BA) : AppTheme.lightText,
+                color: isPrimary ? const Color(0xFFA8D5BA) : context.lightText,
               ),
             ),
           ],
@@ -809,7 +809,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       value: null,
       hint: Text(
         hint,
-        style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
+        style: TextStyle(fontSize: 10, color: context.lightText),
       ),
       isDense: true,
       underline: const SizedBox(),
@@ -1289,16 +1289,16 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryGreen.withValues(
+                                    color: context.primaryGreen.withValues(
                                       alpha: 0.1,
                                     ),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     'Q${p['num']}: ${p['answer']} (${p['type']})',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 10,
-                                      color: AppTheme.darkText,
+                                      color: context.darkText,
                                     ),
                                   ),
                                 ),
@@ -1308,10 +1308,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                       ),
                     ),
                   ] else if (controller.text.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Could not parse. Format: A, B+C, "text", T',
                       style: TextStyle(
-                        color: AppTheme.primaryRed,
+                        color: context.primaryRed,
                         fontSize: 11,
                       ),
                     ),
@@ -1555,18 +1555,18 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                   .map(
                     (d) => Text(
                       '  $d',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.lightText,
+                        color: context.lightText,
                       ),
                     ),
                   ),
               if (diff.length > 5)
                 Text(
                   '  and ${diff.length - 5} more...',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppTheme.lightText,
+                    color: context.lightText,
                   ),
                 ),
             ],
@@ -1665,7 +1665,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       SnackBar(
         content: Text(summary.toString()),
         backgroundColor: result.allSucceeded
-            ? AppTheme.primaryGreen
+            ? context.primaryGreen
             : Colors.orange,
       ),
     );
@@ -1779,10 +1779,10 @@ class _QuestionRow extends StatelessWidget {
           width: 22,
           child: Text(
             '${question.number}'.padLeft(2, '0'),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 11,
-              color: AppTheme.lightText,
+              color: context.lightText,
             ),
           ),
         ),
@@ -1838,10 +1838,10 @@ class _QuestionRow extends StatelessWidget {
         ),
         child: Text(
           '${question.points.toInt()}pt',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
             fontSize: 9,
-            color: AppTheme.lightText,
+            color: context.lightText,
           ),
         ),
       ),
@@ -2058,9 +2058,9 @@ class _QuestionRow extends StatelessWidget {
               if (answer.isNotEmpty)
                 Text(
                   '${1 + alts.length} accepted',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 8,
-                    color: AppTheme.lightText,
+                    color: context.lightText,
                   ),
                 ),
             ],
@@ -2099,9 +2099,9 @@ class _QuestionRow extends StatelessWidget {
           ),
         ),
         child: pairs.isEmpty
-            ? const Text(
+            ? Text(
                 'Tap to set matching pairs...',
-                style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                style: TextStyle(fontSize: 11, color: context.lightText),
               )
             : Wrap(
                 spacing: 6,
@@ -2334,27 +2334,27 @@ class _QuestionRow extends StatelessWidget {
                           alignment: Alignment.center,
                           child: Text(
                             left,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 12,
-                              color: AppTheme.lightText,
+                              color: context.lightText,
                             ),
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Text(
+                        Text(
                           '→',
-                          style: TextStyle(color: AppTheme.lightText),
+                          style: TextStyle(color: context.lightText),
                         ),
                         const SizedBox(width: 4),
                         if (right.isEmpty)
                           DropdownButton<String>(
                             value: null,
-                            hint: const Text(
+                            hint: Text(
                               'select',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: AppTheme.lightText,
+                                color: context.lightText,
                               ),
                             ),
                             isDense: true,

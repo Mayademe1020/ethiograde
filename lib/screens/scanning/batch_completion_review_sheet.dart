@@ -80,30 +80,30 @@ Future<bool?> showBatchCompletionReview({
                     noRoster
                         ? 'These papers can stay as Paper 1, Paper 2, and so on. Assign names later if needed.'
                         : 'Choose what happened before results are saved. Nothing is silently marked zero.',
-                    style: const TextStyle(color: AppTheme.lightText, height: 1.35),
+                    style: TextStyle(color: context.lightText, height: 1.35),
                   ),
                   const SizedBox(height: 16),
                   BatchReviewMetric(
                     icon: Icons.fact_check_outlined,
                     label: 'Scanned papers',
                     value: '${summary.scannedPapers}',
-                    color: AppTheme.primaryGreen,
+                    color: context.primaryGreen,
                   ),
                   BatchReviewMetric(
                     icon: Icons.report_gmailerrorred_outlined,
                     label: 'Papers needing action',
                     value: '${summary.papersNeedingAction}',
                     color: summary.papersNeedingAction == 0
-                        ? AppTheme.primaryGreen
-                        : AppTheme.warning,
+                        ? context.primaryGreen
+                        : context.warning,
                   ),
                   BatchReviewMetric(
                     icon: Icons.copy_all_outlined,
                     label: 'Possible duplicates',
                     value: '${summary.possibleDuplicates}',
                     color: summary.possibleDuplicates == 0
-                        ? AppTheme.primaryGreen
-                        : AppTheme.primaryRed,
+                        ? context.primaryGreen
+                        : context.primaryRed,
                   ),
                   if (!noRoster)
                     BatchReviewMetric(
@@ -111,8 +111,8 @@ Future<bool?> showBatchCompletionReview({
                       label: 'Missing students',
                       value: '${summary.missingStudents.length}',
                       color: summary.missingStudents.isEmpty
-                          ? AppTheme.primaryGreen
-                          : AppTheme.warning,
+                          ? context.primaryGreen
+                          : context.warning,
                     ),
                   Flexible(
                     child: SingleChildScrollView(
@@ -360,7 +360,7 @@ class DuplicateActions extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${duplicate.matchPercent.toStringAsFixed(0)}% answer match',
-                    style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+                    style: TextStyle(color: context.lightText, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   Wrap(

@@ -581,13 +581,13 @@ class _DashboardHomeState extends State<_DashboardHome> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.error.withValues(alpha: 0.08),
+        color: context.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppTheme.error.withValues(alpha: 0.25)),
+        border: Border.all(color: context.error.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: AppTheme.error, size: 28),
+          Icon(Icons.error_outline, color: context.error, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -612,7 +612,7 @@ class _DashboardHomeState extends State<_DashboardHome> {
           const SizedBox(width: 8),
           FilledButton(
             onPressed: _loadAction,
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+            style: FilledButton.styleFrom(backgroundColor: context.error),
             child: const Text('Retry'),
           ),
         ],
@@ -756,10 +756,10 @@ class _ClassesLoadErrorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      borderColor: AppTheme.error.withValues(alpha: 0.25),
+      borderColor: context.error.withValues(alpha: 0.25),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: AppTheme.error, size: 22),
+          Icon(Icons.error_outline, color: context.error, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1058,15 +1058,15 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
                     dense: true,
                     leading: CircleAvatar(
                       radius: 16,
-                      backgroundColor: AppTheme.primaryGreen.withValues(
+                      backgroundColor: context.primaryGreen.withValues(
                         alpha: 0.1,
                       ),
                       child: Text(
                         s.fullName[0].toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryGreen,
+                          color: context.primaryGreen,
                         ),
                       ),
                     ),

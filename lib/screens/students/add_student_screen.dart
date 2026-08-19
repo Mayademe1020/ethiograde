@@ -88,9 +88,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text(
+              Text(
                 'Only name and roll number are required.',
-                style: TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
               const SizedBox(height: 16),
 
@@ -131,12 +131,12 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               ),
               const SizedBox(height: 16),
 
-              const Text(
+              Text(
                 'Gender (optional)',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.lightText,
+                  color: context.lightText,
                 ),
               ),
               const SizedBox(height: 8),
@@ -196,13 +196,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // ── Parent phone (optional) ─────────────────────────────
+              // ── Parent phone (recommended for SMS results) ──────────
               TextFormField(
                 controller: _parentPhoneCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Parent Phone',
                   hintText: '+251...',
                   prefixIcon: Icon(Icons.phone_outlined),
+                  helperText: 'Needed to send results by SMS',
+                  helperMaxLines: 1,
                 ),
                 keyboardType: TextInputType.phone,
               ),
@@ -224,7 +226,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       : ('Save Student'),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
+                  backgroundColor: context.primaryGreen,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
@@ -279,7 +281,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.error ?? ('Error')),
-            backgroundColor: AppTheme.primaryRed,
+            backgroundColor: context.primaryRed,
           ),
         );
       }
@@ -295,7 +297,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${student.fullName} saved'),
-          backgroundColor: AppTheme.primaryGreen,
+          backgroundColor: context.primaryGreen,
         ),
       );
       Navigator.pop(context);
@@ -330,10 +332,10 @@ class _GenderChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surface,
+          color: selected ? context.primaryGreen : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppTheme.primaryGreen : AppTheme.outlineLight,
+            color: selected ? context.primaryGreen : context.outlineLight,
             width: 1.5,
           ),
         ),
@@ -347,14 +349,14 @@ class _GenderChip extends StatelessWidget {
                   ? Icons.female
                   : Icons.remove_circle_outline,
               size: 18,
-              color: selected ? Theme.of(context).colorScheme.surface : AppTheme.lightText,
+              color: selected ? Theme.of(context).colorScheme.surface : context.lightText,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: selected ? Theme.of(context).colorScheme.surface : AppTheme.darkText,
+                color: selected ? Theme.of(context).colorScheme.surface : context.darkText,
               ),
             ),
           ],

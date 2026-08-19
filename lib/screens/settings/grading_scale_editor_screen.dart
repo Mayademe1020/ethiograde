@@ -107,7 +107,7 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
               // Header
               Row(
                 children: [
-                  const Icon(Icons.grading, color: AppTheme.primaryGreen, size: 20),
+                  Icon(Icons.grading, color: context.primaryGreen, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'Grade Bands',
@@ -221,7 +221,7 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
             // Delete button
             IconButton(
               icon: const Icon(Icons.close, size: 18),
-              color: AppTheme.error,
+              color: context.error,
               onPressed: () => setState(() => _ranges.removeAt(index)),
               tooltip: 'Remove',
             ),
@@ -292,9 +292,9 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
                   : 'The scale "${scale.name}" will be available for grading sessions.',
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Existing saved records keep their current grades unless you explicitly regrade them.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+              style: TextStyle(color: context.lightText, fontSize: 13),
             ),
             if (isEditing) ...[
               const SizedBox(height: 12),

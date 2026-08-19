@@ -285,7 +285,7 @@ class SettingsTab extends StatelessWidget {
                                   tooltip: 'Set as active',
                                 ),
                               if (isActive)
-                                const Icon(Icons.star, color: AppTheme.warning),
+                                Icon(Icons.star, color: context.warning),
                               IconButton(
                                 onPressed: () =>
                                     _confirmDelete(context, teachers, teacher),
@@ -503,9 +503,9 @@ class SettingsTab extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Your key is stored encrypted on this device only.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+              style: TextStyle(color: context.lightText, fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -692,11 +692,11 @@ class SettingsTab extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (settings.academicYears.isNotEmpty)
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Previous years:',
-                                style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariantLight),
+                  style: TextStyle(fontSize: 12, color: context.lightText),
                 ),
               ),
             const SizedBox(height: 4),
@@ -768,7 +768,7 @@ class SettingsTab extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Export failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -800,7 +800,7 @@ class SettingsTab extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Import failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -846,7 +846,7 @@ class SettingsTab extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            style: TextButton.styleFrom(foregroundColor: context.error),
             child: const Text('Delete Everything'),
           ),
         ],
@@ -887,7 +887,7 @@ class SettingsTab extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+          SnackBar(content: Text('Error: $e'), backgroundColor: context.error),
         );
       }
     }
@@ -1066,10 +1066,10 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
                       onPressed: () => _editSubject(subject),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.delete_outline,
                         size: 20,
-                        color: AppTheme.error,
+                        color: context.error,
                       ),
                       onPressed: () => _deleteSubject(subject),
                     ),
@@ -1155,7 +1155,7 @@ class _SubjectsManagerState extends State<_SubjectsManager> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
+            style: FilledButton.styleFrom(backgroundColor: context.error),
             child: const Text('Delete'),
           ),
         ],
@@ -1184,7 +1184,7 @@ class StorageInfoTile extends StatelessWidget {
                   '${info.imageCount > 0 ? ' · ${info.imageCount} scanned images' : ''}';
 
         return ListTile(
-           leading: const Icon(Icons.storage_outlined, color: AppTheme.onSurfaceVariantLight),
+           leading: Icon(Icons.storage_outlined, color: context.lightText),
           title: const Text('Storage Usage'),
           subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
           trailing: info != null && info.totalBytes > 0
@@ -1198,11 +1198,11 @@ class StorageInfoTile extends StatelessWidget {
                         0.0,
                         1.0,
                       ),
-                      backgroundColor: AppTheme.outlineLight.withValues(alpha: 0.5),
+                      backgroundColor: context.outlineLight.withValues(alpha: 0.5),
                       valueColor: AlwaysStoppedAnimation(
                         info.totalBytes > 200 * 1024 * 1024
-                            ? AppTheme.primaryRed
-                            : AppTheme.primaryGreen,
+                            ? context.primaryRed
+                            : context.primaryGreen,
                       ),
                     ),
                   ),

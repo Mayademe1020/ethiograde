@@ -47,17 +47,17 @@ class ClassDetailScreen extends StatelessWidget {
               if (v == 'delete') _confirmDelete(context, currentClass);
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
                     Icon(
                       Icons.delete_outline,
-                      color: AppTheme.primaryRed,
+                      color: context.primaryRed,
                       size: 20,
                     ),
-                    SizedBox(width: 8),
-                    Text('Delete Class'),
+                    const SizedBox(width: 8),
+                    const Text('Delete Class'),
                   ],
                 ),
               ),
@@ -72,7 +72,7 @@ class ClassDetailScreen extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
-              color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+              color: context.primaryGreen.withValues(alpha: 0.05),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -121,7 +121,7 @@ class ClassDetailScreen extends StatelessWidget {
                     child: _ActionButton(
                       icon: Icons.person_add_outlined,
                       label: 'Add',
-                      color: AppTheme.primaryGreen,
+                      color: context.primaryGreen,
                       onTap: () => _addStudentManually(context, currentClass),
                     ),
                   ),
@@ -139,7 +139,7 @@ class ClassDetailScreen extends StatelessWidget {
                     child: _ActionButton(
                       icon: Icons.document_scanner_outlined,
                       label: 'Scan',
-                      color: AppTheme.primaryYellow,
+                      color: context.primaryYellow,
                       onTap: () => _scanRoster(context, currentClass),
                     ),
                   ),
@@ -170,13 +170,13 @@ class ClassDetailScreen extends StatelessWidget {
                         final s = students[studentIndex];
                         return ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: AppTheme.primaryGreen.withValues(alpha: 
-                              0.1,
+                            backgroundColor: context.primaryGreen.withValues(
+                              alpha: 0.1,
                             ),
                             child: Text(
                               '${studentIndex + 1}',
-                              style: const TextStyle(
-                                color: AppTheme.primaryGreen,
+                              style: TextStyle(
+                                color: context.primaryGreen,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -193,31 +193,31 @@ class ClassDetailScreen extends StatelessWidget {
                               if (s.gender.isNotEmpty)
                                 Text(
                                   s.gender == 'M' ? ('Male') : ('Female'),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: AppTheme.lightText,
+                                    color: context.lightText,
                                   ),
                                 ),
                               if (s.gender.isNotEmpty && s.studentId.isNotEmpty)
-                                const Text(
+                                Text(
                                   ' • ',
-                                  style: TextStyle(color: AppTheme.lightText),
+                                  style: TextStyle(color: context.lightText),
                                 ),
                               if (s.studentId.isNotEmpty)
                                 Text(
                                   '${'ID'}: ${s.studentId}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: AppTheme.lightText,
+                                    color: context.lightText,
                                   ),
                                 ),
                             ],
                           ),
                           trailing: PopupMenuButton<String>(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.more_vert,
                               size: 20,
-                              color: AppTheme.lightText,
+                              color: context.lightText,
                             ),
                             onSelected: (value) {
                               switch (value) {
@@ -258,17 +258,17 @@ class ClassDetailScreen extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'remove',
                                 child: Row(
                                   children: [
                                     Icon(
                                       Icons.remove_circle_outline,
                                       size: 18,
-                                      color: AppTheme.primaryRed,
+                                      color: context.primaryRed,
                                     ),
-                                    SizedBox(width: 8),
-                                    Text('Remove'),
+                                    const SizedBox(width: 8),
+                                    const Text('Remove'),
                                   ],
                                 ),
                               ),
@@ -325,7 +325,7 @@ class ClassDetailScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryRed,
+              backgroundColor: context.primaryRed,
             ),
             child: const Text('Remove'),
           ),
@@ -368,7 +368,7 @@ class ClassDetailScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryRed,
+              backgroundColor: context.primaryRed,
             ),
             child: const Text('Delete'),
           ),
@@ -462,8 +462,8 @@ class _ClassSituationPanel extends StatelessWidget {
     final color = students.isEmpty
         ? AppTheme.info
         : rosterHealth.hasIssues
-        ? AppTheme.warning
-        : AppTheme.primaryGreen;
+        ? context.warning
+        : context.primaryGreen;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -491,7 +491,7 @@ class _ClassSituationPanel extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: TextStyle(color: context.lightText, fontSize: 12),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -511,8 +511,8 @@ class _ClassSituationPanel extends StatelessWidget {
                     ? 'IDs ready'
                     : '${rosterHealth.missingIds.length} missing IDs',
                 color: rosterHealth.missingIds.isEmpty
-                    ? AppTheme.primaryGreen
-                    : AppTheme.warning,
+                    ? context.primaryGreen
+                    : context.warning,
               ),
               _RosterChip(
                 icon:
@@ -528,8 +528,8 @@ class _ClassSituationPanel extends StatelessWidget {
                 color:
                     rosterHealth.duplicateIds.isEmpty &&
                         rosterHealth.duplicateNames.isEmpty
-                    ? AppTheme.primaryGreen
-                    : AppTheme.warning,
+                    ? context.primaryGreen
+                    : context.warning,
               ),
             ],
           ),
@@ -580,18 +580,18 @@ class _RosterFixPanel extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withValues(alpha: 0.06),
+        color: context.warning.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.24)),
+        border: Border.all(color: context.warning.withValues(alpha: 0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.rule_folder_outlined, color: AppTheme.warning),
-              SizedBox(width: 8),
-              Expanded(
+              Icon(Icons.rule_folder_outlined, color: context.warning),
+              const SizedBox(width: 8),
+              const Expanded(
                 child: Text(
                   'Roster fixes',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -603,22 +603,22 @@ class _RosterFixPanel extends StatelessWidget {
           if (health.missingIds.isNotEmpty)
             Text(
               '${health.missingIds.length} student(s) need an ID for reliable matching.',
-              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: TextStyle(color: context.lightText, fontSize: 12),
             ),
           if (health.duplicateIds.isNotEmpty)
             Text(
               '${health.duplicateIds.length} duplicate ID value(s) found.',
-              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: TextStyle(color: context.lightText, fontSize: 12),
             ),
           if (health.duplicateNames.isNotEmpty)
             Text(
               '${health.duplicateNames.length} duplicate name value(s) found.',
-              style: const TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: TextStyle(color: context.lightText, fontSize: 12),
             ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Use each student menu to edit, transfer, or remove.',
-            style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+            style: TextStyle(color: context.lightText, fontSize: 12),
           ),
           const SizedBox(height: 10),
           Row(
@@ -703,12 +703,12 @@ class _InfoChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.outlineLight.withValues(alpha: 0.5)),
+        border: Border.all(color: context.outlineLight.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: AppTheme.primaryGreen),
+          Icon(icon, size: 16, color: context.primaryGreen),
           const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -722,7 +722,7 @@ class _InfoChip extends StatelessWidget {
               ),
               Text(
                 sublabel,
-                style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
+                style: TextStyle(fontSize: 10, color: context.lightText),
               ),
             ],
           ),
@@ -784,25 +784,25 @@ class _EmptyClassState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
-        child: const SingleChildScrollView(
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline, size: 64, color: AppTheme.onSurfaceVariantLight),
-              SizedBox(height: 16),
+              Icon(Icons.people_outline, size: 64, color: context.lightText),
+              const SizedBox(height: 16),
               Text(
                 'No students yet',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.darkText,
+                  color: context.darkText,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Import Excel, add manually, or scan a roster',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
             ],
           ),

@@ -60,14 +60,14 @@ Future<Student?> showStudentAssignmentSheet({
                   leading: CircleAvatar(
                     backgroundColor: alreadyAssigned
                         ? Colors.orange.withValues(alpha: 0.2)
-                        : AppTheme.primaryGreen.withValues(alpha: 0.1),
+                        : context.primaryGreen.withValues(alpha: 0.1),
                     child: Text(
                       s.studentId.isNotEmpty ? s.studentId : '${i + 1}',
                       style: TextStyle(
                         fontSize: 12,
                         color: alreadyAssigned
                             ? Colors.orange
-                            : AppTheme.primaryGreen,
+                            : context.primaryGreen,
                       ),
                     ),
                   ),

@@ -99,11 +99,11 @@ class _StudentsTabState extends State<StudentsTab> {
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(color: AppTheme.outlineLight),
+                  borderSide: BorderSide(color: context.outlineLight),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(color: AppTheme.outlineLight),
+                  borderSide: BorderSide(color: context.outlineLight),
                 ),
               ),
             ),
@@ -177,11 +177,11 @@ class _StudentsTabState extends State<StudentsTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.search_off, size: 48, color: AppTheme.onSurfaceVariantLight),
+              Icon(Icons.search_off, size: 48, color: context.lightText),
               const SizedBox(height: 12),
               Text(
                 'No students matching "$_query"',
-                style: const TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
             ],
           ),
@@ -198,11 +198,11 @@ class _StudentsTabState extends State<StudentsTab> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
+              backgroundColor: context.primaryGreen.withValues(alpha: 0.1),
               child: Text(
                 student.fullName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: AppTheme.primaryGreen,
+                style: TextStyle(
+                  color: context.primaryGreen,
                   fontWeight: FontWeight.bold,
                 ),
               ),

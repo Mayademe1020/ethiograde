@@ -174,7 +174,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
               child: Text(
                 'Needs Setup (${setup.length})',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppTheme.warning,
+                  color: context.warning,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -201,7 +201,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
               child: Text(
                 'Ready to Scan (${ready.length})',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppTheme.primaryGreen,
+                  color: context.primaryGreen,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -245,7 +245,7 @@ class _AssessmentsTabState extends State<AssessmentsTab> {
             child: Text(
               'Completed (${completed.length})',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: AppTheme.primaryGreen,
+                color: context.primaryGreen,
                 fontWeight: FontWeight.w600,
               ),
             ),

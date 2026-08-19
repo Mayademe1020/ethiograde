@@ -113,7 +113,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                   color: Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 24),
-            const Icon(Icons.calendar_today_outlined, size: 48, color: AppTheme.primaryGreen),
+            Icon(Icons.calendar_today_outlined, size: 48, color: context.primaryGreen),
             const SizedBox(height: 16),
             Text('Set Academic Year First',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
@@ -132,7 +132,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
               icon: const Icon(Icons.settings_outlined),
               label: const Text('Go to Settings'),
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryGreen,
+                backgroundColor: context.primaryGreen,
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24))),
             const SizedBox(height: 12),
             TextButton(
@@ -252,7 +252,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                             return ListTile(
                               dense: true,
                               leading: isExactMatch
-                                  ? const Icon(Icons.check, size: 18, color: AppTheme.primaryGreen)
+                                  ? Icon(Icons.check, size: 18, color: context.primaryGreen)
                                   : Icon(Icons.search, size: 18, color: Colors.grey.shade400),
                               title: Text(s, style: TextStyle(
                                 fontWeight: isExactMatch ? FontWeight.w600 : FontWeight.normal)),
@@ -266,10 +266,10 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                             // "Use new subject" option
                             return ListTile(
                               dense: true,
-                              leading: const Icon(Icons.add_circle_outline, size: 18, color: AppTheme.primaryGreen),
+                              leading: Icon(Icons.add_circle_outline, size: 18, color: context.primaryGreen),
                               title: Text('Use "${_subjectCtrl.text.trim()}"',
-                                style: const TextStyle(
-                                  color: AppTheme.primaryGreen,
+                                style: TextStyle(
+                                  color: context.primaryGreen,
                                   fontWeight: FontWeight.w600)),
                               subtitle: const Text('New subject will be added to your list',
                                 style: TextStyle(fontSize: 11)),
@@ -304,18 +304,18 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withValues(alpha: 0.08),
+                    color: context.primaryGreen.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2))),
+                    border: Border.all(color: context.primaryGreen.withValues(alpha: 0.2))),
                   child: Row(
                     children: [
-                      const Icon(Icons.label_outlined, size: 18, color: AppTheme.primaryGreen),
+                      Icon(Icons.label_outlined, size: 18, color: context.primaryGreen),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(previewName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.primaryGreen))),
+                            color: context.primaryGreen))),
                     ])),
               const SizedBox(height: 8),
 
@@ -365,7 +365,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                     ? 'Saving...'
                     : (_isEdit ? 'Save' : 'Create Class')),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
+                  backgroundColor: context.primaryGreen,
                   padding: const EdgeInsets.symmetric(vertical: 14))),
             ]))));
   }

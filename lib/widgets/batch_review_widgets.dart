@@ -71,16 +71,16 @@ class ReviewActionSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withValues(alpha: 0.08),
+        color: context.warning.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.2)),
+        border: Border.all(color: context.warning.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: AppTheme.warning),
+              Icon(icon, color: context.warning),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -93,7 +93,7 @@ class ReviewActionSection extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             message,
-            style: const TextStyle(color: AppTheme.lightText, height: 1.3),
+            style: TextStyle(color: context.lightText, height: 1.3),
           ),
           ...children,
         ],

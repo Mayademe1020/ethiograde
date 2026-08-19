@@ -109,7 +109,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to generate report: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -165,7 +165,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
           IconButton(
             icon: Icon(
               _isReading ? Icons.stop_circle : Icons.volume_up,
-              color: _isReading ? AppTheme.primaryRed : null,
+              color: _isReading ? context.primaryRed : null,
             ),
             onPressed: results.isNotEmpty ? _readAllScores : null,
             tooltip: _isReading ? 'Stop' : 'Read All Scores',
@@ -179,10 +179,10 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
         ],
       ),
       body: results.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'No results to review',
-                style: TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
             )
           : Column(
@@ -248,7 +248,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryGreen,
+backgroundColor: context.primaryGreen,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -317,7 +317,7 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${results.length} results saved'),
-          backgroundColor: AppTheme.primaryGreen,
+          backgroundColor: context.primaryGreen,
         ),
       );
       // Pop with results to indicate success
@@ -376,8 +376,8 @@ class _StatsHeader extends StatelessWidget {
                 label: 'Pass',
                 value: '$passCount/$total (${passRate.toStringAsFixed(0)}%)',
                 color: passRate >= 50
-                    ? AppTheme.primaryGreen
-                    : AppTheme.primaryRed,
+                    ? context.primaryGreen
+                    : context.primaryRed,
               ),
             ],
           ),
@@ -387,19 +387,19 @@ class _StatsHeader extends StatelessWidget {
               _StatChip(
                 label: 'Highest',
                 value: '${highest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryGreen,
+                color: context.primaryGreen,
               ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Lowest',
                 value: '${lowest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryRed,
+                color: context.primaryRed,
               ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Total',
                 value: '$total',
-                color: AppTheme.darkText,
+                color: context.darkText,
               ),
             ],
           ),
@@ -471,9 +471,9 @@ class _StudentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final passed = result.percentage >= 50;
     final highlightColor = isHighest
-        ? AppTheme.primaryGreen
+        ? context.primaryGreen
         : isLowest
-        ? AppTheme.primaryRed
+        ? context.primaryRed
         : null;
 
     return ColoredBox(
@@ -482,7 +482,7 @@ class _StudentRow extends StatelessWidget {
           : Colors.transparent,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: (highlightColor ?? AppTheme.lightText).withValues(
+          backgroundColor: (highlightColor ?? context.lightText).withValues(
             alpha: 0.1,
           ),
           child: isReading
@@ -490,7 +490,7 @@ class _StudentRow extends StatelessWidget {
               : Text(
                   '$rank',
                   style: TextStyle(
-                    color: highlightColor ?? AppTheme.darkText,
+                    color: highlightColor ?? context.darkText,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -512,31 +512,31 @@ class _StudentRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                  color: context.primaryGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   'Top',
-                  style: TextStyle(fontSize: 10, color: AppTheme.primaryGreen),
+                  style: TextStyle(fontSize: 10, color: context.primaryGreen),
                 ),
               ),
             if (isLowest)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryRed.withValues(alpha: 0.1),
+                  color: context.primaryRed.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   'Low',
-                  style: TextStyle(fontSize: 10, color: AppTheme.primaryRed),
+                  style: TextStyle(fontSize: 10, color: context.primaryRed),
                 ),
               ),
           ],
         ),
         subtitle: Text(
           '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-          style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
+          style: TextStyle(fontSize: 12, color: context.lightText),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -545,8 +545,8 @@ class _StudentRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: passed
-                    ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                    : AppTheme.primaryRed.withValues(alpha: 0.1),
+                    ? context.primaryGreen.withValues(alpha: 0.1)
+                    : context.primaryRed.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -556,18 +556,18 @@ class _StudentRow extends StatelessWidget {
                     result.grade,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: passed
-                          ? AppTheme.primaryGreen
-                          : AppTheme.primaryRed,
+color: passed
+                        ? context.primaryGreen
+                        : context.primaryRed,
                     ),
                   ),
                   Text(
                     '${result.percentage.toStringAsFixed(0)}%',
                     style: TextStyle(
                       fontSize: 11,
-                      color: passed
-                          ? AppTheme.primaryGreen
-                          : AppTheme.primaryRed,
+color: passed
+                        ? context.primaryGreen
+                        : context.primaryRed,
                     ),
                   ),
                 ],
@@ -576,10 +576,10 @@ class _StudentRow extends StatelessWidget {
             const SizedBox(width: 8),
             if (!readOnly)
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.edit,
                   size: 18,
-                  color: AppTheme.lightText,
+                  color: context.lightText,
                 ),
                 onPressed: onEdit,
                 tooltip: 'Edit',
@@ -664,11 +664,11 @@ class _WeightedGradeBanner extends StatelessWidget {
 
               final grades = snapshot.data;
               if (grades == null || grades.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 6),
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Composite grades appear once all components are graded',
-                    style: TextStyle(fontSize: 11, color: AppTheme.lightText),
+                    style: TextStyle(fontSize: 11, color: context.lightText),
                   ),
                 );
               }
@@ -749,7 +749,7 @@ class _CompositeStat extends StatelessWidget {
         ),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppTheme.lightText),
+          style: TextStyle(fontSize: 11, color: context.lightText),
         ),
       ],
     );

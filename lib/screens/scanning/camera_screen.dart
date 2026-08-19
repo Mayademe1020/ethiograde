@@ -379,7 +379,7 @@ class _CameraScreenState extends State<CameraScreen>
                             color: Colors.black.withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: AppTheme.primaryGreen.withValues(alpha: 0.5),
+                              color: context.primaryGreen.withValues(alpha: 0.5),
                             ),
                           ),
                           child: Row(
@@ -388,7 +388,7 @@ class _CameraScreenState extends State<CameraScreen>
                                 _lastCaptureTitle.contains('%')
                                     ? Icons.check_circle
                                     : Icons.info,
-                                color: AppTheme.primaryGreen,
+                                color: context.primaryGreen,
                                 size: 20,
                               ),
                               const SizedBox(width: 10),
@@ -433,7 +433,7 @@ class _CameraScreenState extends State<CameraScreen>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryGreen,
+                          color: context.primaryGreen,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
@@ -585,7 +585,7 @@ class _CameraScreenState extends State<CameraScreen>
                   shape: BoxShape.circle,
                   color: (_isCapturing || _isReScanProcessing)
                       ? Colors.grey
-                      : AppTheme.primaryGreen,
+                      : context.primaryGreen,
                 ),
                 child: (_isCapturing || _isReScanProcessing)
                     ? const CircularProgressIndicator(

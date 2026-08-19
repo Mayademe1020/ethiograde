@@ -121,7 +121,7 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
                             shape: BoxShape.circle,
                             color: _processing
                                 ? Colors.grey
-                                : AppTheme.primaryGreen,
+                                : context.primaryGreen,
                             border: Border.all(color: Colors.white, width: 3),
                           ),
                           child: _processing
@@ -175,9 +175,9 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
 
       if (parsed.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No names found — try again with better lighting'),
-            backgroundColor: AppTheme.primaryYellow,
+          SnackBar(
+            content: const Text('No names found — try again with better lighting'),
+            backgroundColor: context.primaryYellow,
           ),
         );
         setState(() => _processing = false);
@@ -201,7 +201,7 @@ class _RosterScanScreenState extends State<RosterScanScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppTheme.primaryRed,
+            backgroundColor: context.primaryRed,
           ),
         );
       }

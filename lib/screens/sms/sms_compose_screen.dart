@@ -181,7 +181,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
                     final selected = t.name == _selectedTemplate.name;
                     return Card(
                       color: selected
-                          ? AppTheme.primary.withValues(alpha: 0.1)
+                          ? context.primaryGreen.withValues(alpha: 0.1)
                           : null,
                       child: RadioListTile<String>(
                         title: Text(t.name),
@@ -218,12 +218,12 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
               const Center(child: CircularProgressIndicator())
             else if (_prepareFailed)
               Card(
-                color: AppTheme.error.withValues(alpha: 0.06),
+                color: context.error.withValues(alpha: 0.06),
                 child: Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: AppTheme.error),
+                      Icon(Icons.error_outline, color: context.error),
                       const SizedBox(width: AppSpacing.sm),
                       const Expanded(
                         child: Text(
@@ -307,7 +307,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
                       ),
                       Text(
                         'Failed: ${_results!.where((r) => !r.success).length}',
-                        style: const TextStyle(color: AppTheme.error),
+                        style: TextStyle(color: context.error),
                       ),
                     ],
                   ),

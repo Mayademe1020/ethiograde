@@ -82,14 +82,14 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primaryGreen.withValues(alpha: 
+                                  color: context.primaryGreen.withValues(alpha: 
                                     0.1,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.document_scanner_outlined,
-                                  color: AppTheme.primaryGreen,
+                                  color: context.primaryGreen,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -112,8 +112,8 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                       missing == 0 && weak == 0
                                           ? 'Looks clean. Check once, then use it as the answer key.'
                                           : 'Only fix the highlighted answers. The rest can stay as detected.',
-                                      style: const TextStyle(
-                                        color: AppTheme.lightText,
+                                      style: TextStyle(
+                                        color: context.lightText,
                                         height: 1.35,
                                       ),
                                     ),
@@ -130,7 +130,7 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                   label: 'Detected',
                                   value:
                                       '${objectiveQuestions.length - missing}/${objectiveQuestions.length}',
-                                  color: AppTheme.primaryGreen,
+                                  color: context.primaryGreen,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -139,8 +139,8 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                   label: 'Needs tap',
                                   value: '$missing',
                                   color: missing == 0
-                                      ? AppTheme.primaryGreen
-                                      : AppTheme.primaryRed,
+                                      ? context.primaryGreen
+                                      : context.primaryRed,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -149,8 +149,8 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                                   label: 'Weak',
                                   value: '$weak',
                                   color: weak == 0
-                                      ? AppTheme.primaryGreen
-                                      : AppTheme.warning,
+                                      ? context.primaryGreen
+                                      : context.warning,
                                 ),
                               ),
                             ],
@@ -283,8 +283,8 @@ class _MasterKeyStat extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.lightText,
+            style: TextStyle(
+              color: context.lightText,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -317,10 +317,10 @@ class _MasterKeyAnswerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = isMissing
-        ? AppTheme.primaryRed
+        ? context.primaryRed
         : isWeak
-        ? AppTheme.warning
-        : AppTheme.primaryGreen;
+        ? context.warning
+        : context.primaryGreen;
     final statusText = isMissing
         ? 'Missing'
         : isWeak
@@ -394,14 +394,14 @@ class _MasterKeyAnswerRow extends StatelessWidget {
                 label: Text(choice),
                 selected: isSelected,
                 onSelected: (_) => onSelected(choice),
-                selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.18),
+                selectedColor: context.primaryGreen.withValues(alpha: 0.18),
                 labelStyle: TextStyle(
-                  color: isSelected ? AppTheme.primaryGreen : AppTheme.darkText,
+                  color: isSelected ? context.primaryGreen : context.darkText,
                   fontWeight: FontWeight.w800,
                 ),
                 side: BorderSide(
                   color: isSelected
-                      ? AppTheme.primaryGreen
+                      ? context.primaryGreen
                       : Colors.grey.shade300,
                 ),
               );

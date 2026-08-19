@@ -88,7 +88,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
           SnackBar(
             content: Text(
               '${widget.student.fullName} transferred to ${_selectedClass!.displayName}'),
-            backgroundColor: AppTheme.primaryGreen,
+            backgroundColor: context.primaryGreen,
             action: SnackBarAction(
               label: 'UNDO',
               textColor: Colors.white,
@@ -101,7 +101,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message),
-            backgroundColor: AppTheme.error));
+            backgroundColor: context.error));
       }
     }
   }
@@ -151,9 +151,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
           Text('Transfer Student'),
         ]),
       content: availableClasses.isEmpty
-          ? const Text(
+          ? Text(
               'No other classes — create one first',
-              style: TextStyle(color: AppTheme.lightText))
+              style: TextStyle(color: context.lightText))
           : SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -168,12 +168,12 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                          backgroundColor: context.primaryGreen.withValues(alpha: 0.1),
                           child: Text(
                             widget.student.firstName.isNotEmpty
                                 ? widget.student.firstName[0]
                                 : '?',
-                            style: const TextStyle(color: AppTheme.primaryGreen))),
+                            style: TextStyle(color: context.primaryGreen))),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -184,9 +184,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                                 style: const TextStyle(fontWeight: FontWeight.w600)),
                               Text(
                                 '${"From"}: ${widget.fromClass.displayName}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: AppTheme.lightText)),
+                                  color: context.lightText)),
                             ])),
                       ])),
                   const SizedBox(height: 16),
@@ -204,9 +204,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                         label: Text(cls.displayName),
                         selected: selected,
                         onSelected: (_) => setState(() => _selectedClass = cls),
-                        selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.2),
+                        selectedColor: context.primaryGreen.withValues(alpha: 0.2),
                         labelStyle: TextStyle(
-                          color: selected ? AppTheme.primaryGreen : AppTheme.darkText,
+                          color: selected ? context.primaryGreen : context.darkText,
                           fontWeight: selected ? FontWeight.w600 : FontWeight.normal));
                     }).toList()),
                   const SizedBox(height: 16),
@@ -229,7 +229,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                 ? _transfer
                 : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen),
+              backgroundColor: context.primaryGreen),
             child: _isTransferring
                 ? const SizedBox(
                     width: 20,

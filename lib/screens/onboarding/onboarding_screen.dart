@@ -68,9 +68,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     curve: Curves.easeInOut,
                   );
                 },
-                child: const Text(
+                child: Text(
                   'Skip',
-                  style: TextStyle(color: AppTheme.lightText),
+                  style: TextStyle(color: context.lightText),
                 ),
               ),
             ),
@@ -104,7 +104,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     height: 8,
                     decoration: BoxDecoration(
                       color: _currentPage == i
-                          ? AppTheme.primaryGreen
+                          ? context.primaryGreen
                           : Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -169,10 +169,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                color: context.primaryGreen.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen),
+              child: Icon(page.icon, size: 56, color: context.primaryGreen),
             ),
             const SizedBox(height: 32),
             Text(
@@ -186,7 +186,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text(
               page.descEn,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppTheme.lightText,
+                color: context.lightText,
                 height: 1.6,
               ),
               textAlign: TextAlign.center,
@@ -215,7 +215,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             'Tell us about yourself',
             style: Theme.of(
               context,
-            ).textTheme.bodyLarge?.copyWith(color: AppTheme.lightText),
+            ).textTheme.bodyLarge?.copyWith(color: context.lightText),
           ),
           const SizedBox(height: 32),
 

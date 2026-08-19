@@ -118,16 +118,16 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     color: _importedStudents.isNotEmpty
-                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                        : AppTheme.warning.withValues(alpha: 0.1),
+                        ? context.primaryGreen.withValues(alpha: 0.1)
+                        : context.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     _statusMessage,
                     style: TextStyle(
                       color: _importedStudents.isNotEmpty
-                          ? AppTheme.primaryGreen
-                          : AppTheme.warning,
+                          ? context.primaryGreen
+                          : context.warning,
                     ),
                   ),
                 ),
@@ -170,8 +170,8 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                     final entry = review.visibleEntries[index];
                     final s = entry.student;
                     final rowColor = entry.hasIssues && !entry.approved
-                        ? AppTheme.warning
-                        : AppTheme.primaryGreen;
+                        ? context.warning
+                        : context.primaryGreen;
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: rowColor.withValues(alpha: 0.1),
@@ -344,12 +344,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 const SizedBox(height: 12),
 
                 // Name (English)
-                const Text(
+                Text(
                   'Name (English) *',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.lightText,
+                    color: context.lightText,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -385,12 +385,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 const SizedBox(height: 16),
 
                 // Gender
-                const Text(
+                Text(
                   'Gender *',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.lightText,
+                    color: context.lightText,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -405,12 +405,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               color: gender == 'M'
-                                  ? AppTheme.primaryGreen
+                                  ? context.primaryGreen
                                   : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: gender == 'M'
-                                    ? AppTheme.primaryGreen
+                                    ? context.primaryGreen
                                     : Colors.grey.shade300,
                                 width: 1.5,
                               ),
@@ -423,7 +423,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                                   size: 18,
                                   color: gender == 'M'
                                       ? Colors.white
-                                      : AppTheme.lightText,
+                                      : context.lightText,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
@@ -432,7 +432,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: gender == 'M'
                                         ? Colors.white
-                                        : AppTheme.darkText,
+                                        : context.darkText,
                                   ),
                                 ),
                               ],
@@ -449,12 +449,12 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
                               color: gender == 'F'
-                                  ? AppTheme.primaryGreen
+                                  ? context.primaryGreen
                                   : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: gender == 'F'
-                                    ? AppTheme.primaryGreen
+                                    ? context.primaryGreen
                                     : Colors.grey.shade300,
                                 width: 1.5,
                               ),
@@ -467,7 +467,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                                   size: 18,
                                   color: gender == 'F'
                                       ? Colors.white
-                                      : AppTheme.lightText,
+                                      : context.lightText,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
@@ -476,7 +476,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: gender == 'F'
                                         ? Colors.white
-                                        : AppTheme.darkText,
+                                        : context.darkText,
                                   ),
                                 ),
                               ],
@@ -529,9 +529,9 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                       if (!formKey.currentState!.validate()) return;
                       if (gender.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Gender is required'),
-                            backgroundColor: AppTheme.primaryRed,
+                          SnackBar(
+                            content: const Text('Gender is required'),
+                            backgroundColor: context.primaryRed,
                           ),
                         );
                         return;
@@ -713,8 +713,8 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                 : result.error ?? 'Could not save students',
           ),
           backgroundColor: result.success
-              ? AppTheme.primaryGreen
-              : AppTheme.primaryRed,
+              ? context.primaryGreen
+              : context.primaryRed,
         ),
       );
       if (result.success) Navigator.pop(context);
@@ -831,8 +831,8 @@ class _ImportReviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = review.hasOpenIssues
-        ? AppTheme.warning
-        : AppTheme.primaryGreen;
+        ? context.warning
+        : context.primaryGreen;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -865,28 +865,28 @@ class _ImportReviewPanel extends StatelessWidget {
               _ImportChip(
                 label: '${review.readyCount} ready',
                 icon: Icons.check_circle_outline,
-                color: AppTheme.primaryGreen,
+                color: context.primaryGreen,
               ),
               _ImportChip(
                 label: '${review.issueCount} need fix',
                 icon: Icons.warning_amber_outlined,
                 color: review.issueCount > 0
-                    ? AppTheme.warning
-                    : AppTheme.primaryGreen,
+                    ? context.warning
+                    : context.primaryGreen,
               ),
               if (review.skippedCount > 0)
                 _ImportChip(
                   label: '${review.skippedCount} skipped',
                   icon: Icons.block,
-                  color: AppTheme.lightText,
+                  color: context.lightText,
                 ),
             ],
           ),
           if (review.hasOpenIssues) ...[
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Edit rows with missing IDs or duplicates, or save only ready rows.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 12),
+              style: TextStyle(color: context.lightText, fontSize: 12),
             ),
           ],
           const SizedBox(height: 10),

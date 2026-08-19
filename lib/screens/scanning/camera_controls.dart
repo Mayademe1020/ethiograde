@@ -137,12 +137,12 @@ class CameraControls extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppTheme.primaryGreen,
+                      color: context.primaryGreen,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -190,7 +190,7 @@ class CameraControls extends StatelessWidget {
                   height: 64,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: capturedImages.isNotEmpty ? AppTheme.primaryGreen : Colors.white24,
+                    color: capturedImages.isNotEmpty ? context.primaryGreen : Colors.white24,
                   ),
                   child: Icon(
                     Icons.check,
@@ -237,7 +237,7 @@ class CameraControls extends StatelessWidget {
                 margin: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCapturing ? Colors.grey : AppTheme.primaryGreen,
+                  color: isCapturing ? Colors.grey : context.primaryGreen,
                 ),
                 child: isCapturing
                     ? const CircularProgressIndicator(
@@ -388,7 +388,7 @@ class CameraControls extends StatelessWidget {
                     margin: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isCapturing ? Colors.grey : AppTheme.primaryGreen,
+                      color: isCapturing ? Colors.grey : context.primaryGreen,
                     ),
                     child: isCapturing
                         ? const CircularProgressIndicator(
@@ -411,7 +411,7 @@ class CameraControls extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: capturedImages.isNotEmpty ? AppTheme.primaryGreen : Colors.white24,
+                    color: capturedImages.isNotEmpty ? context.primaryGreen : Colors.white24,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -512,15 +512,15 @@ Future<bool> showDuplicateDialog(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
           Icon(
             Icons.warning_amber_rounded,
-            color: AppTheme.primaryYellow,
+            color: context.primaryYellow,
             size: 22,
           ),
-          SizedBox(width: 8),
-          Text('Possible Duplicate'),
+          const SizedBox(width: 8),
+          const Text('Possible Duplicate'),
         ],
       ),
       content: const Text(
@@ -535,7 +535,7 @@ Future<bool> showDuplicateDialog(BuildContext context) async {
         ElevatedButton(
           onPressed: () => Navigator.pop(ctx, false),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryRed,
+            backgroundColor: context.primaryRed,
           ),
           child: const Text('Skip'),
         ),

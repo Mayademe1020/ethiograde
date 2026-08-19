@@ -146,6 +146,8 @@ class AppEmptyState extends StatelessWidget {
   final String message;
   final String? buttonLabel;
   final VoidCallback? onPressed;
+  final String? secondaryButtonLabel;
+  final VoidCallback? secondaryOnPressed;
 
   const AppEmptyState({
     super.key,
@@ -154,6 +156,8 @@ class AppEmptyState extends StatelessWidget {
     required this.message,
     this.buttonLabel,
     this.onPressed,
+    this.secondaryButtonLabel,
+    this.secondaryOnPressed,
   });
 
   @override
@@ -243,13 +247,13 @@ class AppErrorState extends StatelessWidget {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: AppTheme.error.withValues(alpha: 0.1),
+                  color: context.error.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.error_outline,
                   size: 40,
-                  color: AppTheme.error,
+                  color: context.error,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -277,7 +281,7 @@ class AppErrorState extends StatelessWidget {
                   label: const Text('Retry'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(200, 48),
-                    backgroundColor: AppTheme.error,
+                    backgroundColor: context.error,
                     foregroundColor: Colors.white,
                   ),
                 ),

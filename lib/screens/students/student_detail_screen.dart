@@ -78,13 +78,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               if (v == 'delete') _deleteStudent(context);
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
-                    SizedBox(width: 8),
-                    Text('Delete Student'),
+                    Icon(
+                      Icons.delete_outline,
+                      color: context.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Delete Student'),
                   ],
                 ),
               ),
@@ -259,14 +263,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     ? '${stats.average.toStringAsFixed(0)}%'
                     : '--',
                 color: stats.average >= 50
-                    ? AppTheme.primaryGreen
-                    : AppTheme.primaryRed,
+                    ? context.primaryGreen
+                    : context.primaryRed,
               ),
               const SizedBox(width: 16),
               _MiniStat(
                 label: 'Best',
                 value: stats.topGrade.isNotEmpty ? stats.topGrade : '--',
-                color: AppTheme.primaryGreen,
+                color: context.primaryGreen,
               ),
               const SizedBox(width: 16),
               _MiniStat(label: 'Rank', value: stats.rank, color: cs.primary),
@@ -309,7 +313,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 30,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -319,35 +323,35 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                         '100%',
                         style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                       Text(
                         '75%',
                         style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                       Text(
                         '50%',
                         style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                       Text(
                         '25%',
                         style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                       Text(
                         '0%',
                         style: TextStyle(
                           fontSize: 9,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                     ],
@@ -387,17 +391,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                                 height: (100 * pct).clamp(4.0, 100.0),
                                 decoration: BoxDecoration(
                                   color: passed
-                                      ? AppTheme.primaryGreen
-                                      : AppTheme.primaryRed,
+                                      ? context.primaryGreen
+                                      : context.primaryRed,
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 shortLabel,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 7,
-                                  color: AppTheme.lightText,
+                                  color: context.lightText,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -447,9 +451,9 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Strengths & areas to review',
-            style: TextStyle(fontSize: 12, color: AppTheme.lightText),
+            style: TextStyle(fontSize: 12, color: context.lightText),
           ),
           const SizedBox(height: 12),
           ...sorted.map((entry) {
@@ -457,10 +461,10 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             final stat = entry.value;
             final pct = stat.average;
             final color = pct >= 80
-                ? AppTheme.primaryGreen
+                ? context.primaryGreen
                 : pct >= 50
-                ? AppTheme.warning
-                : AppTheme.primaryRed;
+                ? context.warning
+                : context.primaryRed;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -493,7 +497,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     child: LinearProgressIndicator(
                       value: pct / 100,
                       minHeight: 6,
-                      backgroundColor: AppTheme.outlineLight.withValues(
+                      backgroundColor: context.outlineLight.withValues(
                         alpha: 0.5,
                       ),
                       valueColor: AlwaysStoppedAnimation(color),
@@ -587,10 +591,10 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   _TrendInfo _computeTrend(List<ScanResult> results) {
     if (results.length < 2) {
-      return const _TrendInfo(
+      return _TrendInfo(
         label: '',
         icon: Icons.remove,
-        color: AppTheme.onSurfaceVariantLight,
+        color: context.lightText,
       );
     }
     final latest = results.first;
@@ -600,17 +604,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         previous.length;
     final diff = latest.percentage - prevAvg;
     if (diff > 5) {
-      return const _TrendInfo(
+      return _TrendInfo(
         label: 'Improving',
         icon: Icons.trending_up,
-        color: AppTheme.primaryGreen,
+        color: context.primaryGreen,
       );
     }
     if (diff < -5) {
-      return const _TrendInfo(
+      return _TrendInfo(
         label: 'Declining',
         icon: Icons.trending_down,
-        color: AppTheme.primaryRed,
+        color: context.primaryRed,
       );
     }
     return const _TrendInfo(
@@ -677,7 +681,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(c, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            style: ElevatedButton.styleFrom(backgroundColor: context.error),
             child: const Text('Delete'),
           ),
         ],
@@ -716,7 +720,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -854,7 +858,7 @@ class _ResultRow extends StatelessWidget {
                   width: 4,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed,
+                    color: passed ? context.primaryGreen : context.primaryRed,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -875,9 +879,9 @@ class _ResultRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         '${result.totalScore.toInt()}/${result.maxScore.toInt()}  •  $dateStr',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.lightText,
+                          color: context.lightText,
                         ),
                       ),
                     ],
@@ -890,8 +894,8 @@ class _ResultRow extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: passed
-                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                        : AppTheme.primaryRed.withValues(alpha: 0.1),
+                        ? context.primaryGreen.withValues(alpha: 0.1)
+                        : context.primaryRed.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
@@ -901,8 +905,8 @@ class _ResultRow extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: passed
-                              ? AppTheme.primaryGreen
-                              : AppTheme.primaryRed,
+                              ? context.primaryGreen
+                              : context.primaryRed,
                         ),
                       ),
                       Text(
@@ -910,8 +914,8 @@ class _ResultRow extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 11,
                           color: passed
-                              ? AppTheme.primaryGreen
-                              : AppTheme.primaryRed,
+                              ? context.primaryGreen
+                              : context.primaryRed,
                         ),
                       ),
                     ],

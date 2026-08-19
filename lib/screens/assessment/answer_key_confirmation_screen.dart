@@ -30,12 +30,12 @@ class AnswerKeyConfirmationScreen extends StatelessWidget {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                    color: context.primaryGreen.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_circle_outline,
-                    color: AppTheme.primaryGreen,
+                    color: context.primaryGreen,
                     size: 40,
                   ),
                 ),

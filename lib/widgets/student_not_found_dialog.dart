@@ -94,11 +94,11 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.person_search, color: AppTheme.primaryYellow, size: 24),
-          SizedBox(width: 8),
-          Expanded(
+          Icon(Icons.person_search, color: context.primaryYellow, size: 24),
+          const SizedBox(width: 8),
+          const Expanded(
             child: Text(
               'Student Not Found',
               style: TextStyle(fontSize: 18))),
@@ -116,17 +116,17 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                 borderRadius: BorderRadius.circular(8)),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.document_scanner,
                     size: 16,
-                    color: AppTheme.lightText),
+                    color: context.lightText),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '"${widget.scannedName}"',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontStyle: FontStyle.italic,
-                        color: AppTheme.lightText))),
+                        color: context.lightText))),
                 ])),
 
             // Similar names warning
@@ -135,30 +135,30 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryYellow.withValues(alpha: 0.1),
+                  color: context.primaryYellow.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: AppTheme.primaryYellow.withValues(alpha: 0.3))),
+                    color: context.primaryYellow.withValues(alpha: 0.3))),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Similar names in class:',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryYellow)),
+                        color: context.primaryYellow)),
                     ..._similarNames.map(
                       (n) => Text('• $n', style: const TextStyle(fontSize: 12))),
                   ])),
             ],
 
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Add as new student?',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: AppTheme.darkText)),
+                color: context.darkText)),
             const SizedBox(height: 12),
 
             // Editable fields
@@ -184,15 +184,15 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
             // Gender
             Row(
               children: [
-                const Text(
+                Text(
                   'Gender:',
-                  style: TextStyle(fontSize: 13, color: AppTheme.lightText)),
+                  style: TextStyle(fontSize: 13, color: context.lightText)),
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text('M'),
                   selected: _gender == 'M',
                   onSelected: (_) => setState(() => _gender = 'M'),
-                  selectedColor: AppTheme.primaryGreen,
+                  selectedColor: context.primaryGreen,
                   labelStyle: TextStyle(
                     color: _gender == 'M' ? Colors.white : null)),
                 const SizedBox(width: 4),
@@ -200,7 +200,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                   label: const Text('F'),
                   selected: _gender == 'F',
                   onSelected: (_) => setState(() => _gender = 'F'),
-                  selectedColor: AppTheme.primaryGreen,
+                  selectedColor: context.primaryGreen,
                   labelStyle: TextStyle(
                     color: _gender == 'F' ? Colors.white : null)),
               ]),
@@ -220,7 +220,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.person_add, size: 18),
           label: const Text('Add'),
-          style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryGreen)),
+          style: FilledButton.styleFrom(backgroundColor: context.primaryGreen)),
       ]);
   }
 
@@ -250,7 +250,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.error ?? 'Error'),
-            backgroundColor: AppTheme.primaryRed));
+            backgroundColor: context.primaryRed));
       }
     }
   }

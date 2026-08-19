@@ -94,10 +94,10 @@ class _CountdownDisplay extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTheme.primaryGreen.withValues(alpha: 0.9),
+              color: context.primaryGreen.withValues(alpha: 0.9),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                  color: context.primaryGreen.withValues(alpha: 0.4),
                   blurRadius: 20,
                   spreadRadius: 4,
                 ),

@@ -161,8 +161,8 @@ class _SummaryCards extends StatelessWidget {
               label: 'Pass Rate',
               value: '${summary.passRate.toStringAsFixed(0)}%',
               color: summary.passRate >= 50
-                  ? AppTheme.primaryGreen
-                  : AppTheme.primaryRed,
+                  ? context.primaryGreen
+                  : context.primaryRed,
             ),
           ],
         ),
@@ -172,7 +172,7 @@ class _SummaryCards extends StatelessWidget {
             _SummaryCard(
               label: 'Easy',
               value: '${summary.easyCount}',
-              color: AppTheme.primaryGreen,
+              color: context.primaryGreen,
             ),
             const SizedBox(width: 8),
             _SummaryCard(
@@ -184,7 +184,7 @@ class _SummaryCards extends StatelessWidget {
             _SummaryCard(
               label: 'Hard',
               value: '${summary.hardCount}',
-              color: AppTheme.primaryRed,
+              color: context.primaryRed,
             ),
           ],
         ),
@@ -277,16 +277,16 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: AppTheme.darkText,
+            color: context.darkText,
           ),
         ),
         if (subtitle != null)
           Text(
             subtitle!,
-            style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
+            style: TextStyle(fontSize: 12, color: context.lightText),
           ),
       ],
     );
@@ -397,18 +397,18 @@ class _QuestionRow extends StatelessWidget {
                       children: [
                         Text(
                           '${(stats.difficulty * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.lightText,
+                            color: context.lightText,
                           ),
                         ),
                         if (stats.mostCommonWrong != null) ...[
                           const SizedBox(width: 8),
                           Text(
                             'Common wrong: ${stats.mostCommonWrong}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.lightText,
+                              color: context.lightText,
                             ),
                           ),
                         ],
@@ -425,7 +425,7 @@ class _QuestionRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: AppTheme.lightText),
+              Icon(Icons.chevron_right, color: context.lightText),
             ],
           ),
         ),
@@ -475,7 +475,7 @@ class _QuestionDetailSheet extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '${stats.correctCount}/${stats.totalStudents} students correct (${(stats.difficulty * 100).toStringAsFixed(0)}%)',
-                style: const TextStyle(color: AppTheme.lightText),
+                style: TextStyle(color: context.lightText),
               ),
               const SizedBox(height: 20),
               // Stats row
@@ -547,7 +547,7 @@ class _DetailStat extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(fontSize: 10, color: AppTheme.lightText),
+              style: TextStyle(fontSize: 10, color: context.lightText),
             ),
             const SizedBox(height: 2),
             Text(
@@ -555,7 +555,7 @@ class _DetailStat extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: isWarning ? Colors.orange : AppTheme.darkText,
+                color: isWarning ? Colors.orange : context.darkText,
               ),
             ),
           ],
@@ -591,7 +591,7 @@ class _AnswerBar extends StatelessWidget {
               option,
               style: TextStyle(
                 fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal,
-                color: isCorrect ? AppTheme.primaryGreen : AppTheme.darkText,
+                color: isCorrect ? context.primaryGreen : context.darkText,
               ),
             ),
           ),
@@ -602,7 +602,7 @@ class _AnswerBar extends StatelessWidget {
                 value: percentage / 100,
                 backgroundColor: Colors.grey.shade200,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  isCorrect ? AppTheme.primaryGreen : AppTheme.info,
+                  isCorrect ? context.primaryGreen : AppTheme.info,
                 ),
                 minHeight: 20,
               ),
@@ -613,7 +613,7 @@ class _AnswerBar extends StatelessWidget {
             width: 60,
             child: Text(
               '$count (${percentage.toStringAsFixed(0)}%)',
-              style: const TextStyle(fontSize: 12, color: AppTheme.lightText),
+            style: TextStyle(fontSize: 12, color: context.lightText),
             ),
           ),
         ],

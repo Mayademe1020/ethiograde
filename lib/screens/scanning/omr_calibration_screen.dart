@@ -93,7 +93,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Scan failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -128,7 +128,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Save failed: $e'),
-            backgroundColor: AppTheme.error,
+            backgroundColor: context.error,
           ),
         );
       }
@@ -153,7 +153,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Calibrate Bubble Sheet'),
-        backgroundColor: AppTheme.primary,
+        backgroundColor: context.primaryGreen,
         foregroundColor: Colors.white,
         actions: [
           if (_calibrationResult != null)
@@ -189,7 +189,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.info_outline, color: AppTheme.primary),
+                        Icon(Icons.info_outline, color: context.primaryGreen),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
                           'How Calibration Works',
@@ -226,9 +226,11 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
                   label: Text(template.name),
                   selected: isSelected,
                   onSelected: (_) => _selectTemplate(template),
-                  selectedColor: AppTheme.primary.withValues(alpha: 0.2),
+                  selectedColor: context.primaryGreen.withValues(alpha: 0.2),
                   labelStyle: TextStyle(
-                    color: isSelected ? AppTheme.primary : AppTheme.onSurfaceLight,
+                    color: isSelected
+                        ? context.primaryGreen
+                        : context.lightText,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 );
@@ -250,7 +252,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
                     : const Icon(Icons.camera_alt),
                 label: Text(_isScanning ? 'Scanning...' : 'Scan Blank Sheet'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: context.primaryGreen,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.all(AppSpacing.md),
                 ),
@@ -294,8 +296,8 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
     final statusColor = result.isGood
         ? AppTheme.success
         : result.isAcceptable
-            ? AppTheme.warning
-            : AppTheme.error;
+            ? context.warning
+            : context.error;
     final statusText = result.isGood
         ? 'Excellent alignment!'
         : result.isAcceptable
@@ -335,7 +337,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
               Text(
                 '${result.errors.length} bubbles have offset > 5px',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.warning,
+                  color: context.warning,
                 ),
               ),
             ],
@@ -402,10 +404,10 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: hasError
-                              ? AppTheme.error.withValues(alpha: 0.3)
+                              ? context.error.withValues(alpha: 0.3)
                               : AppTheme.success.withValues(alpha: 0.3),
                           border: Border.all(
-                            color: hasError ? AppTheme.error : AppTheme.success,
+                            color: hasError ? context.error : AppTheme.success,
                             width: 1,
                           ),
                         ),
@@ -414,7 +416,7 @@ class _OmrCalibrationScreenState extends State<OmrCalibrationScreen> {
                             template.options[oi],
                             style: TextStyle(
                               fontSize: 8,
-                              color: hasError ? AppTheme.error : AppTheme.success,
+                              color: hasError ? context.error : AppTheme.success,
                             ),
                           ),
                         ),
