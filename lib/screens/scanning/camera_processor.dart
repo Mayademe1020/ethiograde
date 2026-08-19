@@ -56,7 +56,7 @@ class CameraProcessor {
   final AutoScanFrameAnalyzer _autoScanFrameAnalyzer = AutoScanFrameAnalyzer();
   final PaperImageIntakeService _paperImageIntake = PaperImageIntakeService();
 
-  bool _autoCaptureEnabled = true;
+  bool _autoCaptureEnabled = false;
   int _countdownTicks = 1;
   bool _autoCaptureInFlight = false;
   bool _isImageStreamActive = false;
@@ -104,7 +104,7 @@ class CameraProcessor {
   }
 
   void _observeCameraFrame(CameraImage image, CameraController controller) {
-    if (_isAnalyzingFrame || !_autoCaptureEnabled || _isStreamStopping) return;
+    if (_isAnalyzingFrame || _isStreamStopping) return;
     _isAnalyzingFrame = true;
 
     try {
@@ -139,7 +139,7 @@ class CameraProcessor {
       final decision = _autoScanEngine.observe(
         frame: signal,
         now: now,
-        enabled: _autoCaptureEnabled,
+        enabled: true,
       );
 
       _lastAutoScanDecision = decision;
@@ -149,12 +149,20 @@ class CameraProcessor {
       callbacks.onGuideStateChanged(newGuideState);
 
       // Pass real-time feedback text to UI
-      callbacks.onFeedbackTextChanged(decision.message);
-    
+      final feedback =
+          _autoCaptureEnabled || decision.readiness != AutoScanReadiness.capture
+              ? decision.message
+              : 'Aligned — tap to capture';
+      callbacks.onFeedbackTextChanged(feedback);
+
       debugPrint('DECISION: ${decision.readiness}, shouldCapture=${decision.shouldCapture}');
 
-      // Auto-capture decision — start countdown instead of instant capture
-      if (decision.shouldCapture && !_autoCaptureInFlight && !_countdownActive) {
+      // Auto-capture decision — start countdown instead of instant capture.
+      // Gated on _autoCaptureEnabled so manual mode only gets guidance.
+      if (_autoCaptureEnabled &&
+          decision.shouldCapture &&
+          !_autoCaptureInFlight &&
+          !_countdownActive) {
         debugPrint('AUTO_CAPTURE: Starting countdown!');
         _autoCaptureInFlight = true;
         _consecutiveFalseDuringCountdown = 0;
@@ -330,7 +338,14 @@ class CameraProcessor {
   void toggleAutoCapture(CameraController? controller) {
     if (_autoCaptureEnabled) {
       debugPrint('AUTO_CAPTURE: Disabling auto-capture');
-      _disableAutoCapture(controller);
+      _autoCaptureEnabled = false;
+      _autoCaptureInFlight = false;
+      cancelCountdown();
+      _autoScanEngine.reset();
+      _autoScanFrameAnalyzer.reset();
+      _lastAutoScanDecision = null;
+      callbacks.onGuideStateChanged(PaperGuideState.idle);
+      callbacks.onFeedbackTextChanged('Manual mode — tap to capture');
     } else {
       debugPrint('AUTO_CAPTURE: Enabling auto-capture');
       _autoCaptureEnabled = true;
@@ -341,14 +356,6 @@ class CameraProcessor {
       callbacks.onGuideStateChanged(PaperGuideState.idle);
       startFrameObservation(controller);
     }
-  }
-
-  void _disableAutoCapture(CameraController? controller) {
-    _autoCaptureEnabled = false;
-    _autoCaptureInFlight = false;
-    _lastAutoScanDecision = null;
-    callbacks.onGuideStateChanged(PaperGuideState.idle);
-    stopFrameObservation(controller);
   }
 
   // ── Capture logic ──
@@ -396,6 +403,7 @@ class CameraProcessor {
       callbacks.onBatchChanged(capturedImages, capturedHashes);
 
       _signalCaptureSuccess();
+      _autoScanEngine.recordCapture(now: DateTime.now(), contentHash: hash);
 
       // Always grade locally — offline-first, no network required
       callbacks.onCaptureFeedbackChanged('Processing...', 'Reading answers');

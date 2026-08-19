@@ -27,12 +27,13 @@ enum PaperGuideState {
 ///
 /// Pure paint — no image processing, no allocations in [paint].
 /// Scales proportionally from 480p to 1440p screens.
-class PaperGuideOverlay extends StatelessWidget {
+class PaperGuideOverlay extends StatefulWidget {
   const PaperGuideOverlay({
     super.key,
     required this.state,
     this.countdown,
     this.feedbackText,
+    this.onEnableFlash,
   });
 
   final PaperGuideState state;
@@ -43,13 +44,70 @@ class PaperGuideOverlay extends StatelessWidget {
   /// Real-time position feedback text (e.g. "Move closer").
   final String? feedbackText;
 
+  /// Invoked when the user taps "Turn on flash" in the too-dark state.
+  final VoidCallback? onEnableFlash;
+
+  @override
+  State<PaperGuideOverlay> createState() => _PaperGuideOverlayState();
+}
+
+class _PaperGuideOverlayState extends State<PaperGuideOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  Animation<double>? _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(covariant PaperGuideOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) _syncPulse();
+  }
+
+  void _syncPulse() {
+    final shouldPulse = widget.state == PaperGuideState.aligned &&
+        widget.countdown == null;
+    if (shouldPulse) {
+      if (!_pulseController.isAnimating) {
+        _pulse = Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+        );
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      _pulseController.stop();
+      _pulseController.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _PaperGuidePainter(
-        state: state,
-        countdown: countdown,
-      ),
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _PaperGuidePainter(
+            state: widget.state,
+            countdown: widget.countdown,
+            pulse: _pulse?.value,
+          ),
+          child: child,
+        );
+      },
       child: Stack(
         children: [
           // Hint text at bottom of guide
@@ -57,13 +115,38 @@ class PaperGuideOverlay extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 140),
-              child: _HintText(state: state, feedbackText: feedbackText),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _HintText(
+                    state: widget.state,
+                    feedbackText: widget.feedbackText,
+                  ),
+                  if (widget.state == PaperGuideState.tooDark &&
+                      widget.onEnableFlash != null) ...[
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: widget.onEnableFlash,
+                      icon: const Icon(Icons.flash_on, size: 18),
+                      label: const Text('Turn on flash'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryYellow,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           // Countdown overlay in center
-          if (countdown != null)
+          if (widget.countdown != null)
             Center(
-              child: _CountdownDisplay(countdown: countdown!),
+              child: _CountdownDisplay(countdown: widget.countdown!),
             ),
         ],
       ),
@@ -139,22 +222,70 @@ class _HintText extends StatelessWidget {
       opacity: 1,
       duration: const Duration(milliseconds: 200),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _stateIcon(state),
+              color: _stateColor(state),
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  IconData _stateIcon(PaperGuideState state) {
+    switch (state) {
+      case PaperGuideState.aligned:
+        return Icons.check_circle;
+      case PaperGuideState.detected:
+      case PaperGuideState.outsideFrame:
+        return Icons.center_focus_weak;
+      case PaperGuideState.tooDark:
+        return Icons.brightness_low;
+      case PaperGuideState.moving:
+        return Icons.pan_tool;
+      case PaperGuideState.idle:
+        return Icons.center_focus_strong;
+    }
+  }
+
+  Color _stateColor(PaperGuideState state) {
+    switch (state) {
+      case PaperGuideState.aligned:
+        return AppTheme.primaryGreen;
+      case PaperGuideState.tooDark:
+      case PaperGuideState.moving:
+      case PaperGuideState.outsideFrame:
+        return AppTheme.primaryYellow;
+      case PaperGuideState.idle:
+      case PaperGuideState.detected:
+        return Colors.black87;
+    }
   }
 
   String? _label() {
@@ -180,16 +311,17 @@ class _HintText extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PaperGuidePainter extends CustomPainter {
-  _PaperGuidePainter({required this.state, this.countdown});
+  _PaperGuidePainter({required this.state, this.countdown, this.pulse});
 
   final PaperGuideState state;
   final int? countdown;
+  final double? pulse;
 
   // Pre-allocated paints (created once per painter, reused in paint).
   late final _bracketPaint = Paint()
     ..color = _bracketColor
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 3
+    ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
 
   late final _fillPaint = Paint()
@@ -213,9 +345,9 @@ class _PaperGuidePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Guide rect: 80% viewport width, 3:4 portrait aspect ratio.
+    // Guide rect: 80% viewport width, A4 portrait aspect ratio (~1:1.414).
     final guideWidth = size.width * 0.80;
-    final guideHeight = guideWidth * (4 / 3); // portrait: height > width
+    final guideHeight = guideWidth * 1.414;
 
     final centerX = size.width / 2;
     final centerY = size.height / 2 - 20; // slight upward shift for controls
@@ -231,14 +363,43 @@ class _PaperGuidePainter extends CustomPainter {
 
     // Corner brackets — 24dp arm length, proportional to width.
     final arm = guideWidth * 0.07; // ~24dp at 360dp width, scales up/down
-    _drawCornerBracket(canvas, rect.topLeft, arm, _BracketCorner.topLeft);
-    _drawCornerBracket(canvas, rect.topRight, arm, _BracketCorner.topRight);
-    _drawCornerBracket(canvas, rect.bottomLeft, arm, _BracketCorner.bottomLeft);
+
+    // Pulse: subtly grow the brackets and brighten them when aligned.
+    final pulseValue = pulse ?? 0.0;
+    final pulseGrow = 1.0 + pulseValue * 0.015;
+    final pulsingBracketPaint = Paint()
+      ..color = _bracketColor.withValues(alpha: 0.25 + pulseValue * 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    _drawCornerBracket(
+      canvas,
+      rect.topLeft,
+      arm * pulseGrow,
+      _BracketCorner.topLeft,
+      paint: pulseValue > 0 ? pulsingBracketPaint : _bracketPaint,
+    );
+    _drawCornerBracket(
+      canvas,
+      rect.topRight,
+      arm * pulseGrow,
+      _BracketCorner.topRight,
+      paint: pulseValue > 0 ? pulsingBracketPaint : _bracketPaint,
+    );
+    _drawCornerBracket(
+      canvas,
+      rect.bottomLeft,
+      arm * pulseGrow,
+      _BracketCorner.bottomLeft,
+      paint: pulseValue > 0 ? pulsingBracketPaint : _bracketPaint,
+    );
     _drawCornerBracket(
       canvas,
       rect.bottomRight,
-      arm,
+      arm * pulseGrow,
       _BracketCorner.bottomRight,
+      paint: pulseValue > 0 ? pulsingBracketPaint : _bracketPaint,
     );
 
     // During countdown, draw a pulsing border around the guide
@@ -255,8 +416,10 @@ class _PaperGuidePainter extends CustomPainter {
     Canvas canvas,
     Offset origin,
     double arm,
-    _BracketCorner corner,
-  ) {
+    _BracketCorner corner, {
+    Paint? paint,
+  }) {
+    final stroke = paint ?? _bracketPaint;
     late Offset hStart, hEnd, vStart, vEnd;
 
     switch (corner) {
@@ -286,13 +449,15 @@ class _PaperGuidePainter extends CustomPainter {
         break;
     }
 
-    canvas.drawLine(hStart, hEnd, _bracketPaint);
-    canvas.drawLine(vStart, vEnd, _bracketPaint);
+    canvas.drawLine(hStart, hEnd, stroke);
+    canvas.drawLine(vStart, vEnd, stroke);
   }
 
   @override
   bool shouldRepaint(covariant _PaperGuidePainter oldDelegate) {
-    return oldDelegate.state != state || oldDelegate.countdown != countdown;
+    return oldDelegate.state != state ||
+        oldDelegate.countdown != countdown ||
+        oldDelegate.pulse != pulse;
   }
 }
 

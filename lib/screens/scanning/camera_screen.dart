@@ -48,6 +48,8 @@ class _CameraScreenState extends State<CameraScreen>
   bool _isInitialized = false;
   bool _isCapturing = false;
   bool _isFlashOn = false;
+  int _flashModeIndex = 0; // 0 = off, 1 = auto, 2 = torch
+  bool _isFrontCamera = false;
   bool _isCameraStarting = true;
   String? _cameraError;
   final List<Timer> _cameraStartupTimers = [];
@@ -175,17 +177,21 @@ class _CameraScreenState extends State<CameraScreen>
       return;
     }
 
-    // Prefer back camera — front camera gives darkness for paper scanning
-    final backCamera = _cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => _cameras.first,
-    );
+    // Prefer camera matching the current lens direction — back for paper scanning.
+    final targetLens = _isFrontCamera
+        ? CameraLensDirection.front
+        : CameraLensDirection.back;
+    final selectedCamera = _cameras.where(
+      (c) => c.lensDirection == targetLens,
+    ).isEmpty
+        ? _cameras.first
+        : _cameras.firstWhere((c) => c.lensDirection == targetLens);
     debugPrint(
-      'CAMERA: using ${backCamera.lensDirection} (${backCamera.name})',
+      'CAMERA: using ${selectedCamera.lensDirection} (${selectedCamera.name})',
     );
 
     _cameraController = CameraController(
-      backCamera,
+      selectedCamera,
       ResolutionPreset.high,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
@@ -221,7 +227,10 @@ class _CameraScreenState extends State<CameraScreen>
         _isInitialized = true;
         _isCameraStarting = false;
       });
-      // Manual capture mode — auto-capture disabled by default
+      // Start the frame-observation stream so the guide overlay gives live
+      // detection feedback (bracket colors, countdown, low-light hints).
+      _processor.startFrameObservation(_cameraController);
+      debugPrint('CAMERA: frame observation started');
     }
   }
 
@@ -318,6 +327,7 @@ class _CameraScreenState extends State<CameraScreen>
                       state: _guideState,
                       countdown: _countdown,
                       feedbackText: _feedbackText,
+                      onEnableFlash: _turnOnFlash,
                     ),
                   ),
                   _buildTopBar(),
@@ -483,6 +493,14 @@ class _CameraScreenState extends State<CameraScreen>
                           capturedImages: _capturedImages,
                         ),
                         onCaptureMasterKey: _captureMasterKey,
+                        onToggleAutoCapture: () => setState(
+                          () => _processor.toggleAutoCapture(_cameraController),
+                        ),
+                        onToggleFlash: _toggleFlash,
+                        isFlashTorchOn: _isFlashOn,
+                        canFlipCamera: _cameras.length >= 2,
+                        onFlipCamera: _flipCamera,
+                        onPickUploaded: _pickUploadedPapers,
                         captureErrorMessage: _captureErrorMessage,
                         captureErrorOnRetry: _captureErrorOnRetry,
                         captureErrorAssessment: _captureErrorAssessment,
@@ -544,9 +562,14 @@ class _CameraScreenState extends State<CameraScreen>
               ),
               IconButton(
                 icon: Icon(
-                  _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                  _flashModeIndex == 2
+                      ? Icons.flash_on
+                      : _flashModeIndex == 1
+                          ? Icons.flash_auto
+                          : Icons.flash_off,
                   color: Colors.white,
                 ),
+                tooltip: 'Flash',
                 onPressed: _toggleFlash,
               ),
             ],
@@ -777,10 +800,51 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> _toggleFlash() async {
     if (_cameraController == null) return;
-    setState(() => _isFlashOn = !_isFlashOn);
-    await _cameraController!.setFlashMode(
-      _isFlashOn ? FlashMode.torch : FlashMode.off,
+    final modes = [FlashMode.off, FlashMode.auto, FlashMode.torch];
+    setState(() {
+      _flashModeIndex = (_flashModeIndex + 1) % modes.length;
+      _isFlashOn = modes[_flashModeIndex] == FlashMode.torch;
+    });
+    await _cameraController!.setFlashMode(modes[_flashModeIndex]);
+  }
+
+  Future<void> _turnOnFlash() async {
+    if (_cameraController == null) return;
+    setState(() {
+      _flashModeIndex = 2;
+      _isFlashOn = true;
+    });
+    await _cameraController!.setFlashMode(FlashMode.torch);
+  }
+
+  Future<void> _flipCamera() async {
+    if (_cameras.length < 2) return;
+    final hadFront = _isFrontCamera;
+    setState(() {
+      _isFrontCamera = !_isFrontCamera;
+      _isInitialized = false;
+      _isCameraStarting = true;
+    });
+    await _initializeCamera();
+    if (mounted && hadFront == _isFrontCamera) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _pickUploadedPapers() async {
+    if (_selectedAssessment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an assessment first')),
+      );
+      return;
+    }
+    _processor.stopFrameObservation(_cameraController);
+    await _processor.pickUploadedPapers(
+      assessment: _selectedAssessment,
+      capturedImages: _capturedImages,
+      capturedHashes: _capturedHashes,
     );
+    if (mounted) _processor.startFrameObservation(_cameraController);
   }
 
   Future<void> _loadExistingHashes(Assessment assessment) async {
