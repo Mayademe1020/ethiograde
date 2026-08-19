@@ -60,28 +60,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip — pre-fill the name so the teacher can finish quickly and add
-            // subject/classes later in Settings.
-            Align(
-              alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: () {
-                  if (_nameController.text.trim().isEmpty) {
-                    _nameController.text = 'Teacher';
-                  }
-                  _pageController.animateToPage(
-                    _pages.length,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-                child: Text(
-                  'Skip',
-                  style: TextStyle(color: context.lightText),
-                ),
-              ),
-            ),
-
             // Pages
             Expanded(
               child: PageView.builder(
@@ -239,6 +217,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               prefixIcon: const Icon(Icons.person_outline),
               hintText: 'e.g. Abebe Tesfaye',
               errorText: _nameError ? 'Please enter your name' : null,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -273,11 +255,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: Text(
-                      'Grade $grade',
+                      'G$grade',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.normal,
+                            selected ? FontWeight.w800 : FontWeight.w600,
                         color: selected ? Colors.white : null,
                       ),
                     ),
@@ -285,10 +267,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     onSelected: (_) => setState(() => _selectedGrade = grade),
                     selectedColor: AppTheme.primaryGreen,
                     backgroundColor: Colors.transparent,
-                    side: BorderSide(
-                      color: selected
-                          ? AppTheme.primaryGreen
-                          : Colors.grey.shade400,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    showCheckmark: false,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: selected
+                            ? AppTheme.primaryGreen
+                            : Colors.grey.shade400,
+                        width: selected ? 2 : 1.5,
+                      ),
                     ),
                   ),
                 );
@@ -310,15 +301,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             textInputAction: TextInputAction.done,
             onSubmitted: _addSubjectChip,
             decoration: InputDecoration(
-              labelText: 'Subject (default)',
+              labelText: 'Subject',
               prefixIcon: const Icon(Icons.menu_book_outlined),
               hintText: 'e.g. Mathematics',
-              suffixIcon: IconButton(
-                tooltip: 'Add subject',
-                icon: const Icon(Icons.add_circle_outline),
-                onPressed: () => _addSubjectChip(_subjectController.text),
+              suffixIcon: Container(
+                margin: const EdgeInsets.only(right: 8),
+                decoration: const BoxDecoration(
+                  color: AppTheme.primaryGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  tooltip: 'Add subject',
+                  icon: const Icon(
+                    Icons.add,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPressed: () => _addSubjectChip(_subjectController.text),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
               ),
             ),
+            style: const TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 8),
           if (settings.subjects.isNotEmpty) ...[
@@ -328,19 +336,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   for (final subject in settings.subjects)
                     Padding(
-                      padding: const EdgeInsets.only(right: 6, bottom: 6),
+                      padding: const EdgeInsets.only(right: 8),
                       child: FilterChip(
                         label: Text(
                           subject,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: _selectedSubjects.any(
                                   (s) =>
                                       s.toLowerCase() ==
                                       subject.toLowerCase(),
                                 )
                                 ? FontWeight.w700
-                                : FontWeight.normal,
+                                : FontWeight.w600,
+                            color: _selectedSubjects.any(
+                                  (s) =>
+                                      s.toLowerCase() ==
+                                      subject.toLowerCase(),
+                                )
+                                ? Colors.white
+                                : Colors.black87,
                           ),
                         ),
                         selected: _selectedSubjects.any(
@@ -365,6 +380,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             }
                           });
                         },
+                        selectedColor: AppTheme.primaryGreen,
+                        backgroundColor: Colors.grey.shade100,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                 ],
