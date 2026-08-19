@@ -98,6 +98,7 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
+      await scrollToText(tester, 'Questions');
       expect(find.text('Questions'), findsOneWidget);
       expect(find.widgetWithText(TextField, '20'), findsOneWidget);
     });
@@ -106,20 +107,12 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
+      await scrollToText(tester, 'Questions');
       final countField = find.widgetWithText(TextField, '20');
       await tester.enterText(countField, '37');
       await tester.pumpAndSettle();
 
       expect(find.text('37'), findsOneWidget);
-    });
-
-    testWidgets('shows Quick Grading option', (tester) async {
-      await tester.pumpWidget(buildScreen());
-      await tester.pumpAndSettle();
-
-      await scrollToText(tester, 'Quick Grading');
-      expect(find.text('Quick Grading'), findsOneWidget);
-      expect(find.text('No Roster'), findsNothing);
     });
 
     testWidgets('shows Type Answers option', (tester) async {
@@ -128,6 +121,7 @@ void main() {
 
       await scrollToText(tester, 'Type Answers');
       expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Quick Grading'), findsNothing);
     });
 
     testWidgets('selecting Type Answers changes the primary action', (
@@ -151,6 +145,22 @@ void main() {
       expect(find.text('Continue to Scan'), findsOneWidget);
     });
 
+    testWidgets('requires a class before continuing', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'e.g. Grade 8 Biology midterm'),
+        'Biology Midterm',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continue to Scan'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Choose a class to grade'), findsOneWidget);
+    });
+
     testWidgets('initial manual-key mode changes the primary action', (
       tester,
     ) async {
@@ -163,16 +173,16 @@ void main() {
       expect(find.text('Continue to Scan'), findsNothing);
     });
 
-    testWidgets('shows summary line with question count and roster', (
+    testWidgets('shows summary line with question count and no class', (
       tester,
     ) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      expect(find.text('20 Qs · No roster'), findsOneWidget);
+      expect(find.text('20 Qs · No class selected'), findsOneWidget);
     });
 
-    testWidgets('auto-selects the single class and updates summary', (
+    testWidgets('auto-selects the single class and fills title/subject', (
       tester,
     ) async {
       final classProvider = ClassProvider();
@@ -213,6 +223,11 @@ void main() {
       await scrollToText(tester, 'Grade 5 A Math');
       expect(find.text('Grade 5 A Math'), findsWidgets);
       expect(find.text('20 Qs · Grade 5 A Math'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextField, 'Grade 5 A Math — Midterm'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(TextField, 'Math'), findsOneWidget);
     });
   });
 }

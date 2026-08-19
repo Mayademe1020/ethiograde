@@ -31,7 +31,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   final _subjectController = TextEditingController();
   final _customQuestionController = TextEditingController();
 
-  _StudentMode _studentMode = _StudentMode.noRoster;
+  _StudentMode _studentMode = _StudentMode.classList;
   _AnswerKeyMode _answerKeyMode = _AnswerKeyMode.scanMaster;
   String _selectedClassId = '';
   int _questionCount = 20;
@@ -39,7 +39,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   @override
   void initState() {
     super.initState();
-    _applyInitialMode(widget.initialMode ?? ExamDayStartMode.masterScan);
+    _applyInitialMode(widget.initialMode ?? ExamDayStartMode.classList);
     _customQuestionController.text = _questionCount.toString();
     // Auto-fill subject and default class from teacher profile (read after first frame)
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -50,12 +50,11 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
       }
       // If the teacher has exactly one class, preselect it for roster grading
       final classes = context.read<ClassProvider>().classes;
-      if (_studentMode == _StudentMode.noRoster &&
-          classes.length == 1 &&
-          widget.initialMode != ExamDayStartMode.noRoster) {
+      if (classes.length == 1 && _selectedClassId.isEmpty) {
         setState(() {
           _studentMode = _StudentMode.classList;
           _selectedClassId = classes.single.id;
+          _applyClassDefaults(classes.single);
         });
       }
     });
@@ -79,6 +78,43 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
+            // 1. Class — who gets these grades
+            _buildSectionHeader(context, 'CLASS — WHO GETS THESE GRADES?'),
+            const SizedBox(height: 10),
+            if (classes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'No classes yet — create one in Students tab',
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                ),
+              )
+            else
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.9,
+                children: [
+                  for (final classInfo in classes)
+                    _ClassTile(
+                      selected:
+                          _studentMode == _StudentMode.classList &&
+                          _effectiveSelectedClassId(classes) == classInfo.id,
+                      title: classInfo.displayName,
+                      subtitle: '${classInfo.studentIds.length} students',
+                      onTap: () => setState(() {
+                        _studentMode = _StudentMode.classList;
+                        _selectedClassId = classInfo.id;
+                        _applyClassDefaults(classInfo);
+                      }),
+                    ),
+                ],
+              ),
+            const SizedBox(height: 18),
+            // 2. Exam title
             TextField(
               controller: _titleController,
               textInputAction: TextInputAction.next,
@@ -89,16 +125,18 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            // 3. Subject — auto-filled, editable
             TextField(
               controller: _subjectController,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                labelText: 'Subject (optional)',
+                labelText: 'Subject',
                 hintText: 'e.g. Mathematics',
                 prefixIcon: Icon(Icons.menu_book_outlined),
               ),
             ),
             const SizedBox(height: 18),
+            // 4. Answer key method
             _buildSectionHeader(context, 'ANSWER KEY METHOD'),
             const SizedBox(height: 10),
             _ModeCard(
@@ -120,6 +158,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                   setState(() => _answerKeyMode = _AnswerKeyMode.manual),
             ),
             const SizedBox(height: 18),
+            // 5. Questions
             Text(
               'Questions',
               style: Theme.of(
@@ -145,57 +184,22 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 18),
-            _buildSectionHeader(context, 'CLASS — WHO GETS THESE GRADES?'),
-            const SizedBox(height: 10),
-            // Quick Grading card (no class)
-            _ModeCard(
-              selected: _studentMode == _StudentMode.noRoster,
-              icon: Icons.speed,
-              title: 'Quick Grading',
-              subtitle: 'Papers numbered automatically',
-              onTap: () => setState(() {
-                _studentMode = _StudentMode.noRoster;
-                _selectedClassId = '';
-              }),
-            ),
-            // Class tiles (2 per row)
-            if (classes.isNotEmpty)
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.9,
-                children: [
-                  for (final classInfo in classes)
-                    _ClassTile(
-                      selected:
-                          _studentMode == _StudentMode.classList &&
-                          _effectiveSelectedClassId(classes) == classInfo.id,
-                      title: classInfo.displayName,
-                      subtitle: '${classInfo.studentIds.length} students',
-                      onTap: () => setState(() {
-                        _studentMode = _StudentMode.classList;
-                        _selectedClassId = classInfo.id;
-                      }),
-                    ),
-                ],
-              ),
-            if (classes.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Text(
-                  'No classes yet — create one in Students tab',
-                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
-                ),
-              ),
           ],
         ),
       ),
       bottomNavigationBar: _buildStickyCTA(),
     );
+  }
+
+  void _applyClassDefaults(ClassInfo classInfo) {
+    // Auto-fill subject from the class; suggest a title if none typed yet.
+    if (_subjectController.text.trim().isEmpty &&
+        classInfo.subject.isNotEmpty) {
+      _subjectController.text = classInfo.subject;
+    }
+    if (_titleController.text.trim().isEmpty) {
+      _titleController.text = '${classInfo.displayName} — Midterm';
+    }
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
@@ -210,9 +214,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   }
 
   Widget _buildStickyCTA() {
-    final rosterText = _studentMode == _StudentMode.noRoster
-        ? 'No roster'
-        : (_selectedClassName ?? 'No roster');
+    final rosterText = _selectedClassName ?? 'No class selected';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
@@ -285,7 +287,9 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         _answerKeyMode = _AnswerKeyMode.scanMaster;
         break;
       case ExamDayStartMode.noRoster:
-        _studentMode = _StudentMode.noRoster;
+        // Quick grading lives on the separate Quick Grade flow; the
+        // exam creation page always grades against a class roster.
+        _studentMode = _StudentMode.classList;
         break;
       case ExamDayStartMode.classList:
         _studentMode = _StudentMode.classList;
@@ -316,10 +320,10 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     final classes = context.read<ClassProvider>().classes;
     final selectedClassId = _effectiveSelectedClassId(classes);
 
-    if (_studentMode == _StudentMode.classList && selectedClassId.isEmpty) {
+    if (selectedClassId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a class or use no-roster grading'),
+          content: Text('Choose a class to grade'),
         ),
       );
       return;
