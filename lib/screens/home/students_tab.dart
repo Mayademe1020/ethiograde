@@ -128,44 +128,15 @@ class _StudentsTabState extends State<StudentsTab> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 64,
-            color: Theme.of(context).colorScheme.outline,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No students yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add students to get started',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.addStudent),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add Students'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.importExcel),
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Import from Excel'),
-          ),
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.people_outline,
+      title: 'No students yet',
+      message: 'Add students to get started',
+      buttonLabel: 'Add Students',
+      onPressed: () => Navigator.pushNamed(context, AppRoutes.addStudent),
+      secondaryButtonLabel: 'Import from Excel',
+      secondaryOnPressed: () =>
+          Navigator.pushNamed(context, AppRoutes.importExcel),
     );
   }
 

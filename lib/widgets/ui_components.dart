@@ -208,6 +208,17 @@ class AppEmptyState extends StatelessWidget {
                   ),
                 ),
               ],
+              if (secondaryButtonLabel != null && secondaryOnPressed != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton.icon(
+                  onPressed: secondaryOnPressed,
+                  icon: const Icon(Icons.upload_file, size: 18),
+                  label: Text(secondaryButtonLabel!),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(200, 48),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

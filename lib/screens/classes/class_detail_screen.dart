@@ -9,6 +9,7 @@ import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../scanning/roster_scan_screen.dart';
 import '../students/transfer_dialog.dart';
+import '../../widgets/ui_components.dart';
 import 'create_class_sheet.dart';
 
 /// The hub screen for a single class.
@@ -781,33 +782,10 @@ class _EmptyClassState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.people_outline, size: 64, color: context.lightText),
-              const SizedBox(height: 16),
-              Text(
-                'No students yet',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: context.darkText,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Import Excel, add manually, or scan a roster',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.lightText),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return const AppEmptyState(
+      icon: Icons.people_outline,
+      title: 'No students yet',
+      message: 'Import Excel, add manually, or scan a roster',
     );
   }
 }

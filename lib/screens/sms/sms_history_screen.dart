@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
 import '../../services/hive_box_mixin.dart';
+import '../../widgets/ui_components.dart';
 
 /// Record of an SMS send attempt.
 class SmsLogEntry {
@@ -186,27 +187,10 @@ class _SmsHistoryScreenState extends State<SmsHistoryScreen> with HiveBoxMixin {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.sms_outlined, size: 64, color: context.outlineLight),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'No SMS history',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: context.lightText,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'SMS messages sent to parents will appear here',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: context.lightText,
-            ),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.sms_outlined,
+      title: 'No SMS history',
+      message: 'SMS messages sent to parents will appear here',
     );
   }
 
