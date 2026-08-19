@@ -5,10 +5,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../models/teacher.dart';
 import '../../services/demo_data_service.dart';
 import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/assessment_provider.dart';
+import '../../services/teacher_provider.dart';
+import '../../services/settings_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -22,6 +25,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   final _nameController = TextEditingController();
   final _schoolController = TextEditingController();
+  final _subjectController = TextEditingController();
+  final List<String> _selectedSubjects = [];
+  final List<String> _selectedClassIds = [];
   bool _nameError = false;
 
   final List<_OnboardingPage> _pages = [
@@ -198,6 +204,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildSetupPage() {
+    final settings = context.watch<SettingsProvider>();
+    final classes = context.watch<ClassProvider>().classes;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -243,9 +251,138 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               hintText: 'e.g. Bole Primary School',
             ),
           ),
+          const SizedBox(height: 24),
+
+          // Subject — default + multiple
+          Text(
+            'What do you teach?',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _subjectController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: _addSubjectChip,
+            decoration: const InputDecoration(
+              labelText: 'Subject (default)',
+              prefixIcon: Icon(Icons.menu_book_outlined),
+              hintText: 'e.g. Mathematics',
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (settings.subjects.isNotEmpty) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final subject in settings.subjects)
+                  FilterChip(
+                    label: Text(subject),
+                    selected: _selectedSubjects.any(
+                      (s) => s.toLowerCase() == subject.toLowerCase(),
+                    ),
+                    onSelected: (sel) {
+                      setState(() {
+                        if (sel) {
+                          if (!_selectedSubjects.any(
+                            (s) => s.toLowerCase() == subject.toLowerCase(),
+                          )) {
+                            _selectedSubjects.add(subject);
+                          }
+                        } else {
+                          _selectedSubjects.removeWhere(
+                            (s) => s.toLowerCase() == subject.toLowerCase(),
+                          );
+                        }
+                      });
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_selectedSubjects.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final subject in _selectedSubjects)
+                    Chip(
+                      label: Text(subject),
+                      deleteIcon: const Icon(Icons.close, size: 16),
+                      onDeleted: () => setState(() {
+                        _selectedSubjects.removeWhere(
+                          (s) => s.toLowerCase() == subject.toLowerCase(),
+                        );
+                      }),
+                    ),
+                ],
+              ),
+            ),
+          Text(
+            'You can add more subjects and classes later in Settings.',
+            style: TextStyle(color: context.lightText, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+
+          // Class selection
+          Text(
+            'Classes you teach',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (classes.isEmpty)
+            Text(
+              'No classes yet — you can create them later in the Students tab.',
+              style: TextStyle(color: context.lightText, fontSize: 12),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final cls in classes)
+                  FilterChip(
+                    label: Text(cls.displayName),
+                    selected: _selectedClassIds.contains(cls.id),
+                    onSelected: (sel) {
+                      setState(() {
+                        if (sel) {
+                          if (!_selectedClassIds.contains(cls.id)) {
+                            _selectedClassIds.add(cls.id);
+                          }
+                        } else {
+                          _selectedClassIds.remove(cls.id);
+                        }
+                      });
+                    },
+                  ),
+              ],
+            ),
         ],
       ),
     );
+  }
+
+  void _addSubjectChip(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    if (_selectedSubjects.any(
+      (s) => s.toLowerCase() == trimmed.toLowerCase(),
+    )) {
+      _subjectController.clear();
+      return;
+    }
+    setState(() {
+      _selectedSubjects.add(trimmed);
+      _subjectController.clear();
+    });
   }
 
   Future<void> _completeSetup() async {
@@ -256,6 +393,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
       return;
     }
+
+    // Capture providers before awaiting so BuildContext isn't used across async gaps.
+    final classProvider = context.read<ClassProvider>();
+    final studentProvider = context.read<StudentProvider>();
+    final assessmentProvider = context.read<AssessmentProvider>();
+    final teacherProvider = context.read<TeacherProvider>();
+    final navigator = Navigator.of(context);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('first_launch', false);
@@ -279,13 +423,44 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       debugPrint('Couldn\'t save onboarding details: $e');
     }
 
+    // Create teacher record (subject + classes, more can be added later in Settings)
+    try {
+      final teachers = teacherProvider;
+      final name = _nameController.text.trim();
+      final hasExisting = teachers.teachers.any(
+        (t) => t.name.toLowerCase() == name.toLowerCase(),
+      );
+      if (!hasExisting) {
+        final subject = _subjectController.text.trim();
+        final subjects = <String>[
+          if (subject.isNotEmpty) subject,
+          ..._selectedSubjects,
+        ];
+        final uniqueSubjects = <String>{};
+        for (final s in subjects) {
+          if (s.trim().isNotEmpty) uniqueSubjects.add(s.trim());
+        }
+        final teacher = Teacher(
+          id: 'teacher-${DateTime.now().millisecondsSinceEpoch}',
+          name: name,
+          role: 'teacher',
+          subject: uniqueSubjects.firstOrNull ?? '',
+          subjects: uniqueSubjects.isEmpty ? null : uniqueSubjects.toList(),
+          classIds: _selectedClassIds,
+        );
+        await teachers.addTeacher(teacher);
+      }
+    } catch (e) {
+      debugPrint('Couldn\'t create teacher record: $e');
+    }
+
     // Seed demo data in debug builds so the dashboard isn't empty on first launch
-    if (mounted && kDebugMode) {
+    if (kDebugMode) {
       try {
         await DemoDataService.seed(
-          classProvider: context.read<ClassProvider>(),
-          studentProvider: context.read<StudentProvider>(),
-          assessmentProvider: context.read<AssessmentProvider>(),
+          classProvider: classProvider,
+          studentProvider: studentProvider,
+          assessmentProvider: assessmentProvider,
         );
       } catch (e) {
         debugPrint('Demo data seeding failed: $e');
@@ -293,7 +468,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
 
     if (mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      navigator.pushReplacementNamed(AppRoutes.dashboard);
     }
   }
 
@@ -302,6 +477,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _pageController.dispose();
     _nameController.dispose();
     _schoolController.dispose();
+    _subjectController.dispose();
     super.dispose();
   }
 }

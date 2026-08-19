@@ -14,6 +14,7 @@ import '../../config/responsive.dart';
 import '../../config/constants.dart';
 import '../../services/settings_provider.dart';
 import '../../services/teacher_provider.dart';
+import '../../services/class_provider.dart';
 import '../../services/backup_service.dart';
 import '../../models/teacher.dart';
 
@@ -324,66 +325,155 @@ class SettingsTab extends StatelessWidget {
     TeacherProvider teachers, {
     Teacher? existing,
   }) async {
+    final classesProvider = context.read<ClassProvider>();
+    final settingsProvider = context.read<SettingsProvider>();
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
     final formKey = GlobalKey<FormState>();
     var role = existing?.role ?? 'teacher';
+    final selectedSubjects = List<String>.from(
+      existing == null
+          ? const []
+          : (existing.allSubjects.isNotEmpty
+                ? existing.allSubjects
+                : (existing.subject.isEmpty ? const [] : [existing.subject])),
+    );
+    final selectedClassIds = List<String>.from(existing?.classIds ?? const []);
 
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: ResponsiveLayout.horizontalPadding(ctx),
-          right: ResponsiveLayout.horizontalPadding(ctx),
-          top: 24,
-        ),
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                existing != null ? 'Edit Teacher' : 'Add Teacher',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                autofocus: true,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'teacher', label: Text('Teacher')),
-                  ButtonSegment(value: 'admin', label: Text('Admin')),
-                ],
-                selected: {role},
-                onSelectionChanged: (sel) {
-                  role = sel.first;
-                },
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    if (!formKey.currentState!.validate()) return;
-                    Navigator.pop(ctx, true);
-                  },
-                  child: Text(existing != null ? 'Update' : 'Add'),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: ResponsiveLayout.horizontalPadding(ctx),
+            right: ResponsiveLayout.horizontalPadding(ctx),
+            top: 24,
           ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    existing != null ? 'Edit Teacher' : 'Add Teacher',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  autofocus: true,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'teacher', label: Text('Teacher')),
+                    ButtonSegment(value: 'admin', label: Text('Admin')),
+                  ],
+                  selected: {role},
+                  onSelectionChanged: (sel) {
+                    role = sel.first;
+                  },
+                ),
+                const SizedBox(height: 20),
+                // Subjects taught (multi-select from configured subjects)
+                Text(
+                  'Subjects they teach',
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final subject in settingsProvider.subjects)
+                      FilterChip(
+                        label: Text(subject),
+                        selected: selectedSubjects.any(
+                          (s) => s.toLowerCase() == subject.toLowerCase(),
+                        ),
+                        onSelected: (sel) {
+                          setSheetState(() {
+                            if (sel) {
+                              selectedSubjects.add(subject);
+                            } else {
+                              selectedSubjects.removeWhere(
+                                (s) => s.toLowerCase() == subject.toLowerCase(),
+                              );
+                            }
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                if (settingsProvider.subjects.isEmpty)
+                  Text(
+                    'No subjects configured yet — add them in the Subjects section.',
+                    style: TextStyle(color: context.lightText, fontSize: 12),
+                  ),
+                const SizedBox(height: 12),
+                // Classes they teach (multi-select)
+                Text(
+                  'Classes they teach',
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (classesProvider.classes.isEmpty)
+                  Text(
+                    'No classes yet — create one in the Students tab.',
+                    style: TextStyle(color: context.lightText, fontSize: 12),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final cls in classesProvider.classes)
+                        FilterChip(
+                          label: Text(cls.displayName),
+                          selected: selectedClassIds.contains(cls.id),
+                          onSelected: (sel) {
+                            setSheetState(() {
+                              if (sel) {
+                                if (!selectedClassIds.contains(cls.id)) {
+                                  selectedClassIds.add(cls.id);
+                                }
+                              } else {
+                                selectedClassIds.remove(cls.id);
+                              }
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) return;
+                      Navigator.pop(ctx, true);
+                    },
+                    child: Text(existing != null ? 'Update' : 'Add'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
         ),
       ),
     );
@@ -391,10 +481,26 @@ class SettingsTab extends StatelessWidget {
     if (result == true) {
       final name = nameCtrl.text.trim();
       if (existing != null) {
-        final updated = existing.copyWith(name: name, role: role);
+        final primarySubject = selectedSubjects.isEmpty
+            ? ''
+            : selectedSubjects.first;
+        final updated = existing.copyWith(
+          name: name,
+          role: role,
+          subject: primarySubject,
+          subjects: selectedSubjects.isEmpty ? null : selectedSubjects,
+          classIds: selectedClassIds,
+        );
         await teachers.updateTeacher(updated);
       } else {
-        final teacher = Teacher(name: name, role: role);
+        final primarySubject = selectedSubjects.isEmpty ? '' : selectedSubjects.first;
+        final teacher = Teacher(
+          name: name,
+          role: role,
+          subject: primarySubject,
+          subjects: selectedSubjects,
+          classIds: selectedClassIds,
+        );
         await teachers.addTeacher(teacher);
       }
       if (context.mounted && teachers.lastAddErrors.isNotEmpty) {

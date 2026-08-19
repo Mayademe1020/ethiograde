@@ -2,23 +2,38 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ethiograde/config/routes.dart';
 import 'package:ethiograde/screens/onboarding/onboarding_screen.dart';
+import 'package:ethiograde/services/settings_provider.dart';
+import 'package:ethiograde/services/teacher_provider.dart';
+import 'package:ethiograde/services/class_provider.dart';
+import 'package:ethiograde/services/student_provider.dart';
+import 'package:ethiograde/services/assessment_provider.dart';
 
 void main() {
   Widget wrap(Widget child) {
-    return MaterialApp(
-      home: child,
-      onGenerateRoute: (settings) {
-        if (settings.name == AppRoutes.dashboard) {
-          return MaterialPageRoute<void>(
-            builder: (_) =>
-                const Scaffold(body: Center(child: Text('DASHBOARD'))),
-          );
-        }
-        return null;
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => TeacherProvider()),
+        ChangeNotifierProvider(create: (_) => ClassProvider()..loadClasses()),
+        ChangeNotifierProvider(create: (_) => StudentProvider()),
+        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+      ],
+      child: MaterialApp(
+        home: child,
+        onGenerateRoute: (settings) {
+          if (settings.name == AppRoutes.dashboard) {
+            return MaterialPageRoute<void>(
+              builder: (_) =>
+                  const Scaffold(body: Center(child: Text('DASHBOARD'))),
+            );
+          }
+          return null;
+        },
+      ),
     );
   }
 
@@ -37,6 +52,7 @@ void main() {
         'classes',
         'students',
         'assessments',
+        'teachers',
       ]) {
         if (!Hive.isBoxOpen(name)) {
           await Hive.openBox(name);
