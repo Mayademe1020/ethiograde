@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ethiograde/models/class_info.dart';
 import 'package:ethiograde/screens/assessment/exam_day_create_screen.dart';
 import 'package:ethiograde/services/assessment_provider.dart';
 import 'package:ethiograde/services/class_provider.dart';
@@ -160,6 +161,58 @@ void main() {
 
       expect(find.text('Continue to Answer Key'), findsOneWidget);
       expect(find.text('Continue to Scan'), findsNothing);
+    });
+
+    testWidgets('shows summary line with question count and roster', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      expect(find.text('20 Qs · No roster'), findsOneWidget);
+    });
+
+    testWidgets('auto-selects the single class and updates summary', (
+      tester,
+    ) async {
+      final classProvider = ClassProvider();
+      await tester.runAsync(() async {
+        await classProvider.addClass(
+          ClassInfo(
+            id: 'c1',
+            name: 'Grade 5A',
+            school: 'Test School',
+            grade: 5,
+            section: 'A',
+            subject: 'Math',
+            studentIds: const ['s1', 's2'],
+            ownerId: 't1',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        );
+      });
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => StudentProvider()),
+            ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+            ChangeNotifierProvider(create: (_) => SettingsProvider()),
+            ChangeNotifierProvider(create: (_) => classProvider),
+            ChangeNotifierProvider(create: (_) => TeacherProvider()),
+            ChangeNotifierProvider(create: (_) => WeightedGradeProvider()),
+          ],
+          child: const MaterialApp(
+            home: ExamDayCreateScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await scrollToText(tester, 'Grade 5 A Math');
+      expect(find.text('Grade 5 A Math'), findsWidgets);
+      expect(find.text('20 Qs · Grade 5 A Math'), findsOneWidget);
     });
   });
 }

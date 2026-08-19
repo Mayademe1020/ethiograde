@@ -41,12 +41,22 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     super.initState();
     _applyInitialMode(widget.initialMode ?? ExamDayStartMode.masterScan);
     _customQuestionController.text = _questionCount.toString();
-    // Auto-fill subject from teacher profile (read after first frame)
+    // Auto-fill subject and default class from teacher profile (read after first frame)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final teacher = context.read<TeacherProvider>().activeTeacher;
       if (teacher != null && teacher.subject.isNotEmpty && _subjectController.text.isEmpty) {
         _subjectController.text = teacher.subject;
+      }
+      // If the teacher has exactly one class, preselect it for roster grading
+      final classes = context.read<ClassProvider>().classes;
+      if (_studentMode == _StudentMode.noRoster &&
+          classes.length == 1 &&
+          widget.initialMode != ExamDayStartMode.noRoster) {
+        setState(() {
+          _studentMode = _StudentMode.classList;
+          _selectedClassId = classes.single.id;
+        });
       }
     });
   }
@@ -89,12 +99,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Text(
-              'Answer key',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            _buildSectionHeader(context, 'ANSWER KEY METHOD'),
             const SizedBox(height: 10),
             _ModeCard(
               selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
@@ -141,12 +146,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Text(
-              'Class',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
+            _buildSectionHeader(context, 'CLASS — WHO GETS THESE GRADES?'),
             const SizedBox(height: 10),
             // Quick Grading card (no class)
             _ModeCard(
@@ -159,18 +159,29 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 _selectedClassId = '';
               }),
             ),
-            // Class cards
-            for (final classInfo in classes)
-              _ModeCard(
-                selected: _studentMode == _StudentMode.classList &&
-                    _effectiveSelectedClassId(classes) == classInfo.id,
-                icon: Icons.class_outlined,
-                title: classInfo.displayName,
-                subtitle: '${classInfo.studentIds.length} students',
-                onTap: () => setState(() {
-                  _studentMode = _StudentMode.classList;
-                  _selectedClassId = classInfo.id;
-                }),
+            // Class tiles (2 per row)
+            if (classes.isNotEmpty)
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.9,
+                children: [
+                  for (final classInfo in classes)
+                    _ClassTile(
+                      selected:
+                          _studentMode == _StudentMode.classList &&
+                          _effectiveSelectedClassId(classes) == classInfo.id,
+                      title: classInfo.displayName,
+                      subtitle: '${classInfo.studentIds.length} students',
+                      onTap: () => setState(() {
+                        _studentMode = _StudentMode.classList;
+                        _selectedClassId = classInfo.id;
+                      }),
+                    ),
+                ],
               ),
             if (classes.isEmpty)
               const Padding(
@@ -183,21 +194,77 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-          child: FilledButton.icon(
-            onPressed: _createAssessment,
-            icon: Icon(_buttonIcon),
-            label: Text(_buttonLabel),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(54),
-              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      bottomNavigationBar: _buildStickyCTA(),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: AppTheme.lightText,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+
+  Widget _buildStickyCTA() {
+    final rosterText = _studentMode == _StudentMode.noRoster
+        ? 'No roster'
+        : (_selectedClassName ?? 'No roster');
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  size: 15,
+                  color: AppTheme.lightText,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '$_questionCount Qs · $rosterText',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppTheme.lightText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _createAssessment,
+              icon: Icon(_buttonIcon),
+              label: Text(_buttonLabel),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  String? get _selectedClassName {
+    final classes = context.read<ClassProvider>().classes;
+    final id = _effectiveSelectedClassId(classes);
+    if (id.isEmpty) return null;
+    for (final cls in classes) {
+      if (cls.id == id) return cls.displayName;
+    }
+    return null;
   }
 
   IconData get _buttonIcon {
@@ -397,6 +464,85 @@ class _ModeCard extends StatelessWidget {
                   const Icon(Icons.check_circle, color: AppTheme.primaryGreen),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClassTile extends StatelessWidget {
+  const _ClassTile({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppTheme.primaryGreen : Colors.grey.shade700;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppTheme.primaryGreen.withValues(alpha: 0.07)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? AppTheme.primaryGreen : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.class_ : Icons.class_outlined,
+                color: color,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.lightText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
