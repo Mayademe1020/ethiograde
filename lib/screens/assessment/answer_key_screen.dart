@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -52,6 +54,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   DateTime? _lastSavedAt;
   bool _showRecoveryBanner = false;
   int _recoveredCount = 0;
+  Timer? _autosaveTimer;
 
   // Flags and filtering
   final Set<int> _flaggedQuestions = {};
@@ -99,6 +102,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   @override
   void dispose() {
+    _autosaveTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -174,6 +178,19 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       QuestionType.essay => 'ESSAY',
       QuestionType.matching => 'MATCH',
       QuestionType.multiAnswer => 'MULTI',
+    };
+  }
+
+  /// Human-readable label used in the filter tabs (the short codes above are
+  /// kept for compact type badges).
+  String _readableTabLabel(String key) {
+    return switch (key) {
+      'ALL' => 'All',
+      'T/F' => 'True/False',
+      'SHORT' => 'Short Answer',
+      'MATCH' => 'Matching',
+      'MULTI' => 'Multi-Answer',
+      _ => key,
     };
   }
 
@@ -507,22 +524,29 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               _typeFilter = i == 0 ? -1 : i - 1;
             });
           },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isActive ? context.primaryGreen : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '${e.key} (${e.value})',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                color: isActive ? Colors.white : context.lightText,
-              ),
-            ),
-          ),
+         child: Container(
+           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+           decoration: BoxDecoration(
+             color: isActive
+                 ? context.primaryGreen.withValues(alpha: 0.08)
+                 : Colors.transparent,
+             border: Border(
+               bottom: BorderSide(
+                 color: isActive ? context.primaryGreen : Colors.transparent,
+                 width: 3,
+               ),
+             ),
+             borderRadius: BorderRadius.circular(6),
+           ),
+           child: Text(
+             '${_readableTabLabel(e.key)} (${e.value})',
+             style: TextStyle(
+               fontSize: 11,
+               fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+               color: isActive ? context.primaryGreen : context.lightText,
+             ),
+           ),
+         ),
         ),
       );
     }
@@ -932,6 +956,14 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   Future<void> _autoSave() async {
     if (_assessment == null) return;
+    // Debounce rapid edits (typing, type/points changes) to avoid a save per
+    // keystroke when building a large answer key.
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(milliseconds: 1000), _flushAutoSave);
+  }
+
+  Future<void> _flushAutoSave() async {
+    if (_assessment == null || !mounted) return;
     try {
       // Update draft timestamp in settings
       final settings = Map<String, dynamic>.from(_assessment!.settings);
@@ -1132,17 +1164,12 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       final currentAnswer = question.correctAnswer?.toString() ?? '';
       if (currentAnswer.isNotEmpty) return question;
 
-      // Auto-detect type from answer format
-      var type = question.type;
-      if (type == QuestionType.mcq) {
-        if (answer == 'True' || answer == 'False') {
-          type = QuestionType.trueFalse;
-        } else if (answer.contains(',')) {
-          type = QuestionType.multiAnswer;
-        }
-      }
-
-      return question.copyWith(correctAnswer: answer, type: type);
+      // Do NOT auto-rewrite question.type from OCR text. On Ethiopian bubble
+      // sheets OCR noise (e.g. a stray "True" token, or a comma in a number)
+      // would reclassify whole exams into True/False or multi-answer. Question
+      // types are authored separately and can be changed per-question via the
+      // type badge on the Answer Key screen.
+      return question.copyWith(correctAnswer: answer);
     }).toList();
 
     setState(() => _assessment = assessment.copyWith(questions: updated));
@@ -1278,7 +1305,19 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                     onChanged: (_) => setDialogState(() {}),
                   ),
                   const SizedBox(height: 12),
-                  if (parsed != null && parsed.isNotEmpty) ...[
+                  if (parsed != null &&
+                    parsed.isNotEmpty &&
+                    parsed.length != assessment.questionCount) ...[
+                  Text(
+                    'Count mismatch: ${parsed.length} pasted vs ${assessment.questionCount} questions.',
+                    style: TextStyle(
+                      color: context.primaryRed,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (parsed != null && parsed.isNotEmpty) ...[
                     Text(
                       'Preview (${parsed.length} answers):',
                       style: const TextStyle(
@@ -1805,7 +1844,7 @@ class _QuestionRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        _buildTypeBadge(),
+        _buildTypeBadge(context),
         const Spacer(),
         GestureDetector(
           onTap: onFlagToggled,
@@ -1825,24 +1864,68 @@ class _QuestionRow extends StatelessWidget {
     );
   }
 
-  Widget _buildTypeBadge() {
-    final label = _typeLabel(question.type);
+  Widget _buildTypeBadge(BuildContext context) {
+    final label = _readableTabLabel(_typeLabel(question.type));
     final bgColor = _typeBgColor(question.type);
     final textColor = _typeTextColor(question.type);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 8,
-          color: textColor,
-          letterSpacing: 0.04,
+    return GestureDetector(
+      onTap: () => _showTypePicker(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(4),
         ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Let the teacher change a single question's type in-place. Unlike the
+  /// global "All" dropdown (which clears every answer), this only clears the
+  /// current question's answer/options - so it is safe to use mid-key.
+  void _showTypePicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Q${question.number} type'),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: QuestionType.values.map((t) {
+            final selected = t == question.type;
+            final txt = _readableTabLabel(_typeLabel(t));
+            return ChoiceChip(
+              label: Text(txt, style: const TextStyle(fontSize: 12)),
+              selected: selected,
+              onSelected: (_) {
+                Navigator.pop(ctx);
+                onTypeChanged(t);
+              },
+              selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
+              labelStyle: TextStyle(
+                color: selected ? AppTheme.primaryGreen : const Color(0xFF555555),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+              side: BorderSide(
+                color: selected ? AppTheme.primaryGreen : Colors.grey.shade300,
+              ),
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }
@@ -1890,9 +1973,9 @@ class _QuestionRow extends StatelessWidget {
         return GestureDetector(
           onTap: () => onAnswerChanged(opt),
           child: Container(
-            width: 30,
-            height: 30,
-            margin: const EdgeInsets.only(right: 4),
+            width: 44,
+            height: 44,
+            margin: const EdgeInsets.only(right: 6),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: isSelected
@@ -1908,14 +1991,14 @@ class _QuestionRow extends StatelessWidget {
             ),
             child: Text(
               opt,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: isSelected
-                    ? const Color(0xFFA8D5BA)
-                    : const Color(0xFF555555),
-              ),
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: isSelected
+                  ? const Color(0xFFA8D5BA)
+                  : const Color(0xFF555555),
+            ),
             ),
           ),
         );
@@ -2525,6 +2608,17 @@ class _QuestionRow extends StatelessWidget {
       QuestionType.essay => const Color(0xFFC5A3E8),
       QuestionType.matching => const Color(0xFFE8A0B8),
       QuestionType.multiAnswer => const Color(0xFFC5A3E8),
+    };
+  }
+
+  String _readableTabLabel(String key) {
+    return switch (key) {
+      'ALL' => 'All',
+      'T/F' => 'True/False',
+      'SHORT' => 'Short Answer',
+      'MATCH' => 'Matching',
+      'MULTI' => 'Multi-Answer',
+      _ => key,
     };
   }
 }

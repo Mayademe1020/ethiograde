@@ -85,8 +85,10 @@ class _AnswerKeyPhotoScanScreenState extends State<AnswerKeyPhotoScanScreen> {
 
     try {
       // Check brightness — reject if too dark
+      // Only block when the photo is unrecoverably dark. The old 50/255
+      // threshold rejected usable shots in dim Ethiopian classrooms.
       final brightness = await _checkBrightness(imageFile);
-      if (brightness < 50) {
+      if (brightness < 30) {
         setState(() {
           _isProcessing = false;
           _errorMessage = 'Photo is too dark. Try again with more light.';

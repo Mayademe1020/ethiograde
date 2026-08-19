@@ -176,6 +176,25 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
                 style: TextStyle(fontSize: 12, color: context.lightText),
               ),
             ),
+            if (!_isValid())
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDA2A2A).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFDA2A2A).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Text(
+                  'Sections must cover 1 to N with no gaps or overlaps.',
+                  style: TextStyle(
+                    color: Color(0xFFDA2A2A),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
