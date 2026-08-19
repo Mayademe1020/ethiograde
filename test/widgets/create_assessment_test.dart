@@ -182,7 +182,7 @@ void main() {
       expect(find.text('20 Qs · No class selected'), findsOneWidget);
     });
 
-    testWidgets('auto-selects the single class and fills title/subject', (
+    testWidgets('auto-selects the single class and fills subject only', (
       tester,
     ) async {
       final classProvider = ClassProvider();
@@ -225,6 +225,10 @@ void main() {
       expect(find.text('20 Qs · Grade 5 A Math'), findsOneWidget);
       expect(
         find.widgetWithText(TextField, 'Grade 5 A Math — Midterm'),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(TextField, 'Exam title'),
         findsOneWidget,
       );
       expect(find.widgetWithText(TextField, 'Math'), findsOneWidget);

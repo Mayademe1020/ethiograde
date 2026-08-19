@@ -192,13 +192,11 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   }
 
   void _applyClassDefaults(ClassInfo classInfo) {
-    // Auto-fill subject from the class; suggest a title if none typed yet.
+    // Auto-fill subject from the class. The exam title is left empty for the
+    // teacher to type their own.
     if (_subjectController.text.trim().isEmpty &&
         classInfo.subject.isNotEmpty) {
       _subjectController.text = classInfo.subject;
-    }
-    if (_titleController.text.trim().isEmpty) {
-      _titleController.text = '${classInfo.displayName} — Midterm';
     }
   }
 
