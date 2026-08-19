@@ -226,6 +226,9 @@ class _CameraScreenState extends State<CameraScreen>
       setState(() {
         _isInitialized = true;
         _isCameraStarting = false;
+        // A fresh controller starts with flash off — sync the UI to reality.
+        _flashModeIndex = 0;
+        _isFlashOn = false;
       });
       // Start the frame-observation stream so the guide overlay gives live
       // detection feedback (bracket colors, countdown, low-light hints).
@@ -819,16 +822,22 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> _flipCamera() async {
     if (_cameras.length < 2) return;
-    final hadFront = _isFrontCamera;
+
+    _processor.stopFrameObservation(_cameraController);
+    _processor.cancelCountdown();
+    final oldController = _cameraController;
+    _cameraController = null;
+
     setState(() {
       _isFrontCamera = !_isFrontCamera;
       _isInitialized = false;
       _isCameraStarting = true;
     });
+
+    // Dispose the old controller after detaching it so the new one can grab
+    // the hardware camera without conflict.
+    await oldController?.dispose();
     await _initializeCamera();
-    if (mounted && hadFront == _isFrontCamera) {
-      setState(() {});
-    }
   }
 
   Future<void> _pickUploadedPapers() async {
