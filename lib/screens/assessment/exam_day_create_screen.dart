@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/responsive.dart';
 import '../../config/routes.dart';
 import '../../config/theme.dart';
 import '../../models/assessment.dart';
@@ -42,12 +41,11 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     super.initState();
     _applyInitialMode(widget.initialMode ?? ExamDayStartMode.masterScan);
     _customQuestionController.text = _questionCount.toString();
+    // Auto-fill subject from teacher profile (read after first frame)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final teacher = context.read<TeacherProvider>().activeTeacher;
-      if (teacher != null &&
-          teacher.subject.isNotEmpty &&
-          _subjectController.text.isEmpty) {
+      if (teacher != null && teacher.subject.isNotEmpty && _subjectController.text.isEmpty) {
         _subjectController.text = teacher.subject;
       }
     });
@@ -61,27 +59,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     super.dispose();
   }
 
-  void _applyInitialMode(ExamDayStartMode mode) {
-    switch (mode) {
-      case ExamDayStartMode.masterScan:
-        _answerKeyMode = _AnswerKeyMode.scanMaster;
-        _studentMode = _StudentMode.noRoster;
-        break;
-      case ExamDayStartMode.noRoster:
-        _answerKeyMode = _AnswerKeyMode.scanMaster;
-        _studentMode = _StudentMode.noRoster;
-        break;
-      case ExamDayStartMode.classList:
-        _answerKeyMode = _AnswerKeyMode.scanMaster;
-        _studentMode = _StudentMode.classList;
-        break;
-      case ExamDayStartMode.manualKey:
-        _answerKeyMode = _AnswerKeyMode.manual;
-        _studentMode = _StudentMode.noRoster;
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final classes = context.watch<ClassProvider>().classes;
@@ -92,91 +69,59 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
-            // 1. Exam title
-            _buildTitleField(),
-            const SizedBox(height: 12),
-            // 2. Answer key mode
-            _buildAnswerKeyModeCard(),
-            const SizedBox(height: 18),
-            // 3. Questions + Class
-            _buildQuestionCountAndClassCard(classes: classes),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildStickyCTA(),
-    );
-  }
-
-  Widget _buildTitleField() {
-    return TextField(
-      controller: _titleController,
-      textInputAction: TextInputAction.next,
-      decoration: const InputDecoration(
-        labelText: 'Exam title',
-        hintText: 'e.g. Grade 8 Biology midterm',
-        prefixIcon: Icon(Icons.assignment_outlined),
-      ),
-    );
-  }
-
-  Widget _buildAnswerKeyModeCard() {
-    return _ModeCard(
-      selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
-      icon: Icons.document_scanner_outlined,
-      title: 'Scan Answer Sheet',
-      subtitle: 'Camera reads answers from paper',
-      onTap: () => setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
-    );
-  }
-
-  Widget _buildQuestionCountAndClassCard({required List<ClassInfo> classes}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Questions',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 10,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ...[10, 20, 30, 50, 100].map((count) {
-              final isActive = count == _questionCount;
-              return FilledButton.icon(
-                onPressed: () => setState(() => _questionCount = count),
-                icon: Icon(
-                  isActive ? Icons.check_circle : Icons.circle_outlined,
-                  size: isActive ? 20 : 16,
-                  color: isActive ? AppTheme.primaryGreen : AppTheme.lightText,
-                ),
-                label: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isActive
-                        ? AppTheme.primaryGreen
-                        : AppTheme.lightText,
-                  ),
-                ),
-                style: FilledButton.styleFrom(minimumSize: const Size(50, 32)),
-              );
-            }),
-            const SizedBox(width: 8),
-            // No Roster toggle
-            _ModeCard(
-              selected: _studentMode == _StudentMode.noRoster,
-              icon: Icons.group_off,
-              title: 'No Roster',
-              subtitle: 'Grade without student list',
-              onTap: () => setState(() => _studentMode = _StudentMode.noRoster),
+            TextField(
+              controller: _titleController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Exam title',
+                hintText: 'e.g. Grade 8 Biology midterm',
+                prefixIcon: Icon(Icons.assignment_outlined),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _subjectController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Subject (optional)',
+                hintText: 'e.g. Mathematics',
+                prefixIcon: Icon(Icons.menu_book_outlined),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Answer key',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            _ModeCard(
+              selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
+              icon: Icons.document_scanner_outlined,
+              title: 'Scan Answer Sheet',
+              subtitle:
+                  'Camera reads answers from paper',
+              onTap: () =>
+                  setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
+            ),
+            _ModeCard(
+              selected: _answerKeyMode == _AnswerKeyMode.manual,
+              icon: Icons.edit_note,
+              title: 'Type Answers',
+              subtitle:
+                  'Tap correct answers directly',
+              onTap: () =>
+                  setState(() => _answerKeyMode = _AnswerKeyMode.manual),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Questions',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
             SizedBox(
               width: 120,
               child: TextField(
@@ -195,73 +140,56 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 },
               ),
             ),
-            if (classes.isNotEmpty) _buildClassSelector(classes: classes),
+            const SizedBox(height: 18),
+            Text(
+              'Class',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            // Quick Grading card (no class)
+            _ModeCard(
+              selected: _studentMode == _StudentMode.noRoster,
+              icon: Icons.speed,
+              title: 'Quick Grading',
+              subtitle: 'Papers numbered automatically',
+              onTap: () => setState(() {
+                _studentMode = _StudentMode.noRoster;
+                _selectedClassId = '';
+              }),
+            ),
+            // Class cards
+            for (final classInfo in classes)
+              _ModeCard(
+                selected: _studentMode == _StudentMode.classList &&
+                    _effectiveSelectedClassId(classes) == classInfo.id,
+                icon: Icons.class_outlined,
+                title: classInfo.displayName,
+                subtitle: '${classInfo.studentIds.length} students',
+                onTap: () => setState(() {
+                  _studentMode = _StudentMode.classList;
+                  _selectedClassId = classInfo.id;
+                }),
+              ),
+            if (classes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'No classes yet — create one in Students tab',
+                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+                ),
+              ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildClassSelector({required List<ClassInfo> classes}) {
-    return Row(
-      children: [
-        const Text(
-          'Class:',
-          style: TextStyle(fontSize: 12, color: AppTheme.lightText),
-        ),
-        const SizedBox(width: 8),
-        ...classes.take(3).map((cls) {
-          final isSelected = _selectedClassId == cls.id;
-          return Flexible(
-            fit: FlexFit.loose,
-            child: _ModeCard(
-              selected: isSelected,
-              icon: Icons.class_outlined,
-              title: cls.displayName,
-              subtitle: '${cls.studentIds.length} students',
-              onTap: () => setState(() => _selectedClassId = cls.id),
-            ),
-          );
-        }),
-        if (classes.length > 3)
-          Flexible(
-            fit: FlexFit.loose,
-            child: _ModeCard(
-              selected:
-                  _studentMode == _StudentMode.classList &&
-                  _effectiveSelectedClassId(classes) == classes.last.id,
-              icon: Icons.more,
-              title: 'Plus ${classes.length - 3}',
-              subtitle: 'View all ${classes.length} classes',
-              onTap: () =>
-                  setState(() => _studentMode = _StudentMode.classList),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildStickyCTA() {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: ResponsiveLayout.horizontalPadding(context),
-          vertical: 12,
-        ),
-        child: SizedBox(
-          height: 54,
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
           child: FilledButton.icon(
             onPressed: _createAssessment,
-            icon: Icon(
-              _answerKeyMode == _AnswerKeyMode.scanMaster
-                  ? Icons.document_scanner
-                  : Icons.edit_note,
-            ),
-            label: Text(
-              _answerKeyMode == _AnswerKeyMode.scanMaster
-                  ? 'Continue to Scan'
-                  : 'Continue to Answer Key',
-            ),
+            icon: Icon(_buttonIcon),
+            label: Text(_buttonLabel),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(54),
               textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -270,6 +198,35 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         ),
       ),
     );
+  }
+
+  IconData get _buttonIcon {
+    return _answerKeyMode == _AnswerKeyMode.scanMaster
+        ? Icons.document_scanner
+        : Icons.edit_note;
+  }
+
+  String get _buttonLabel {
+    return _answerKeyMode == _AnswerKeyMode.scanMaster
+        ? 'Continue to Scan'
+        : 'Continue to Answer Key';
+  }
+
+  void _applyInitialMode(ExamDayStartMode mode) {
+    switch (mode) {
+      case ExamDayStartMode.masterScan:
+        _answerKeyMode = _AnswerKeyMode.scanMaster;
+        break;
+      case ExamDayStartMode.noRoster:
+        _studentMode = _StudentMode.noRoster;
+        break;
+      case ExamDayStartMode.classList:
+        _studentMode = _StudentMode.classList;
+        break;
+      case ExamDayStartMode.manualKey:
+        _answerKeyMode = _AnswerKeyMode.manual;
+        break;
+    }
   }
 
   String _effectiveSelectedClassId(List<ClassInfo> classes) {
@@ -289,7 +246,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
       return;
     }
 
-    final classes = context.watch<ClassProvider>().classes;
+    final classes = context.read<ClassProvider>().classes;
     final selectedClassId = _effectiveSelectedClassId(classes);
 
     if (_studentMode == _StudentMode.classList && selectedClassId.isEmpty) {
@@ -308,7 +265,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             orElse: () => null,
           );
     final defaultRubric = context.read<SettingsProvider>().defaultRubric;
-
     final assessment = Assessment(
       title: title,
       subject: _subjectController.text.trim().isEmpty
@@ -333,14 +289,19 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     if (!mounted) return;
 
     if (_answerKeyMode == _AnswerKeyMode.scanMaster) {
+      // Navigate directly to camera in master key mode
       Navigator.pushReplacementNamed(
         context,
         AppRoutes.camera,
-        arguments: {'assessment': assessment, 'scanMode': 'masterKey'},
+        arguments: {
+          'assessment': assessment,
+          'scanMode': 'masterKey',
+        },
       );
       return;
     }
 
+    // Manual answer key — go to answer key screen, then confirmation
     Navigator.pushReplacementNamed(
       context,
       AppRoutes.answerKey,

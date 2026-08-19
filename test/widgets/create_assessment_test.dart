@@ -112,12 +112,35 @@ void main() {
       expect(find.text('37'), findsOneWidget);
     });
 
-    testWidgets('shows No Roster option', (tester) async {
+    testWidgets('shows Quick Grading option', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'No Roster');
-      expect(find.text('No Roster'), findsOneWidget);
+      await scrollToText(tester, 'Quick Grading');
+      expect(find.text('Quick Grading'), findsOneWidget);
+      expect(find.text('No Roster'), findsNothing);
+    });
+
+    testWidgets('shows Type Answers option', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Type Answers');
+      expect(find.text('Type Answers'), findsOneWidget);
+    });
+
+    testWidgets('selecting Type Answers changes the primary action', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Type Answers');
+      await tester.tap(find.text('Type Answers'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
+      expect(find.text('Continue to Scan'), findsNothing);
     });
 
     testWidgets('shows continue button for scan mode', (tester) async {
