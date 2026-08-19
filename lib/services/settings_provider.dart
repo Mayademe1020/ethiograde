@@ -126,18 +126,19 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
       if (_subjects.isEmpty) {
         _subjects = [
           'Mathematics',
-          'English',
-          'Science',
-          'Physics',
-          'Chemistry',
+          'Afan Oromo',
+          'Amharic',
           'Biology',
-          'History',
-          'Geography',
+          'Chemistry',
           'Civics',
           'Economics',
-          'Amharic',
+          'English',
+          'Geography',
+          'History',
           'ICT',
           'Physical Education',
+          'Physics',
+          'Science',
         ];
         await piiBox.put('subjects', _subjects);
       }

@@ -417,14 +417,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           Text(
-            'You can add more subjects and classes later in Settings.',
+            'Your profile will be saved automatically. You can add more subjects and classes later in Settings.',
             style: TextStyle(color: context.lightText, fontSize: 12),
           ),
           const SizedBox(height: 24),
 
           // Class selection
           Text(
-            'Classes you teach',
+            'Classes',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -432,17 +432,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 8),
           if (classes.isEmpty)
             Text(
-              'No classes yet — you can create them later in the Students tab.',
+              'No classes added yet. You can add classes later in the Students tab.',
+              style: TextStyle(color: context.lightText, fontSize: 13),
+            ),
+          if (_selectedGrade == null && classes.isEmpty)
+            Text(
+              'Optionally select a grade above to create your first class, or skip this step.',
               style: TextStyle(color: context.lightText, fontSize: 12),
-            )
-          else
+            ),
+          if (classes.isNotEmpty)
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 for (final cls in classes)
                   FilterChip(
-                    label: Text(cls.displayName),
+                    label: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Grade ${cls.grade}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _selectedClassIds.contains(cls.id)
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          cls.subject.isNotEmpty
+                              ? cls.subject
+                              : cls.section.isNotEmpty
+                                  ? cls.section
+                                  : 'No subject',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: _selectedClassIds.contains(cls.id)
+                                ? const Color(
+                                    0xFFE7F4EC,
+                                  )
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
                     selected: _selectedClassIds.contains(cls.id),
                     onSelected: (sel) {
                       setState(() {
@@ -455,6 +489,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         }
                       });
                     },
+                    selectedColor: AppTheme.primaryGreen,
+                    backgroundColor: Colors.grey.shade100,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
               ],
             ),
