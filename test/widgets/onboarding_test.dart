@@ -71,13 +71,6 @@ void main() {
       expect(find.text('Scan & Grade'), findsOneWidget);
     });
 
-    testWidgets('has Skip button', (tester) async {
-      await tester.pumpWidget(wrap(const OnboardingScreen()));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Skip'), findsOneWidget);
-    });
-
     testWidgets('has Next button', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
@@ -110,25 +103,29 @@ void main() {
       expect(find.text('Back'), findsOneWidget);
     });
 
-    testWidgets('Skip jumps to the setup page', (tester) async {
+    testWidgets('setup page has name and school fields', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      // Navigate to setup page via Next
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      }
 
-      // Skip takes the teacher to the setup page (name is still required).
-      expect(find.text('Welcome!'), findsOneWidget);
       expect(find.text('Your Name'), findsOneWidget);
+      expect(find.text('School Name (optional)'), findsOneWidget);
     });
 
     testWidgets('Get Started without a name shows an error', (tester) async {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
-      // Skip to setup page, leave name empty.
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      // Navigate to the setup page via Next so the name stays empty.
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      }
 
       await tester.tap(find.text('Get Started'));
       await tester.pumpAndSettle();
@@ -142,9 +139,11 @@ void main() {
       await tester.pumpWidget(wrap(const OnboardingScreen()));
       await tester.pumpAndSettle();
 
-      // Skip to setup page and enter a name.
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+      // Navigate to setup page and enter a name.
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+      }
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Your Name'),
@@ -163,20 +162,6 @@ void main() {
       expect(find.text('DASHBOARD'), findsOneWidget);
       expect(find.text('Please enter your name'), findsNothing);
       expect(find.text('Welcome!'), findsNothing);
-    });
-
-    testWidgets('setup page has name and school fields', (tester) async {
-      await tester.pumpWidget(wrap(const OnboardingScreen()));
-      await tester.pumpAndSettle();
-
-      // Navigate through all info pages to reach the setup page.
-      for (var i = 0; i < 4; i++) {
-        await tester.tap(find.text('Next'));
-        await tester.pumpAndSettle();
-      }
-
-      expect(find.text('Your Name'), findsOneWidget);
-      expect(find.text('School Name (optional)'), findsOneWidget);
     });
 
     testWidgets('setup page has Get Started button', (tester) async {

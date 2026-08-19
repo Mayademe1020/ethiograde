@@ -35,6 +35,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   _AnswerKeyMode _answerKeyMode = _AnswerKeyMode.scanMaster;
   String _selectedClassId = '';
   int _questionCount = 20;
+  bool _titleError = false;
 
   @override
   void initState() {
@@ -118,10 +119,12 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             TextField(
               controller: _titleController,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
+              onChanged: (_) => setState(() => _titleError = false),
+              decoration: InputDecoration(
                 labelText: 'Exam title',
                 hintText: 'e.g. Grade 8 Biology midterm',
-                prefixIcon: Icon(Icons.assignment_outlined),
+                prefixIcon: const Icon(Icons.assignment_outlined),
+                errorText: _titleError ? 'Enter a title for this exam' : null,
               ),
             ),
             const SizedBox(height: 12),
@@ -132,6 +135,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               decoration: const InputDecoration(
                 labelText: 'Subject',
                 hintText: 'e.g. Mathematics',
+                helperText: 'Auto-filled from class — editable',
                 prefixIcon: Icon(Icons.menu_book_outlined),
               ),
             ),
@@ -213,6 +217,13 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
 
   Widget _buildStickyCTA() {
     final rosterText = _selectedClassName ?? 'No class selected';
+    final classes = context.read<ClassProvider>().classes;
+    final hasTitle = _titleController.text.trim().isNotEmpty;
+    final hasClass = _effectiveSelectedClassId(classes).isNotEmpty;
+    final canProceed = hasTitle && hasClass;
+    final hint = !hasClass
+        ? 'Select a class first'
+        : (!hasTitle ? 'Enter an exam title' : null);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
@@ -241,9 +252,20 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 ),
               ],
             ),
+            if (hint != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                hint,
+                style: const TextStyle(
+                  color: AppTheme.lightText,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: _createAssessment,
+              onPressed: canProceed ? _createAssessment : null,
               icon: Icon(_buttonIcon),
               label: Text(_buttonLabel),
               style: FilledButton.styleFrom(
@@ -309,6 +331,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   Future<void> _createAssessment() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
+      setState(() => _titleError = true);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Exam title is required')));

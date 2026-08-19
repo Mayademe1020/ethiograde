@@ -154,11 +154,13 @@ void main() {
         'Biology Midterm',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue to Scan'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Choose a class to grade'), findsOneWidget);
+      // No class selected yet — the CTA is disabled and shows a hint.
+      expect(find.text('Select a class first'), findsOneWidget);
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Continue to Scan'),
+      );
+      expect(button.onPressed, isNull);
     });
 
     testWidgets('initial manual-key mode changes the primary action', (
