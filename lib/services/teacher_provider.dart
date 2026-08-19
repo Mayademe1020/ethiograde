@@ -3,6 +3,7 @@ import '../models/teacher.dart';
 import 'app_log.dart';
 import 'error_handler.dart';
 import 'hive_box_mixin.dart';
+import 'result.dart';
 import 'validation_service.dart';
 
 /// Manages teacher profiles with Hive persistence.
@@ -55,7 +56,7 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
   }
 
   /// Add a new teacher. Returns the created Teacher on success, null on failure.
-  Future<Teacher?> addTeacher(Teacher teacher) async {
+  Future<Result<Teacher>> addTeacher(Teacher teacher) async {
     final validation = _validator.validateTeacher(
       teacher,
       existingTeachers: _teachers,
@@ -64,7 +65,7 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
       AppLog.warn(this, 'addTeacher', 'validation failed: ${validation.errors}');
       _lastAddErrors = validation.errors;
       notifyListeners();
-      return null;
+      return Result.failure(validation.errors.join('; '));
     }
 
     try {
@@ -75,15 +76,15 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
       _lastAddErrors = [];
       notifyListeners();
       AppLog.info(this, 'addTeacher', 'added ${teacher.name}');
-      return teacher;
+      return Result.success(teacher);
     } catch (e, st) {
       AppErrorHandler.catchError(this, 'addTeacher', e, st);
-      return null;
+      return const Result.failure('Failed to save teacher');
     }
   }
 
   /// Update an existing teacher. Returns true on success.
-  Future<bool> updateTeacher(Teacher updated) async {
+  Future<Result<Teacher>> updateTeacher(Teacher updated) async {
     final others = _teachers.where((t) => t.id != updated.id).toList();
     final validation = _validator.validateTeacher(
       updated,
@@ -93,7 +94,7 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
       AppLog.warn(this, 'updateTeacher', 'validation failed: ${validation.errors}');
       _lastAddErrors = validation.errors;
       notifyListeners();
-      return false;
+      return Result.failure(validation.errors.join('; '));
     }
 
     try {
@@ -106,32 +107,32 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
         _lastAddErrors = [];
         notifyListeners();
         AppLog.info(this, 'updateTeacher', 'updated ${updated.name}');
-        return true;
+        return Result.success(updated);
       }
-      return false;
+      return Result.failure('Teacher ${updated.id} not found');
     } catch (e, st) {
       AppErrorHandler.catchError(this, 'updateTeacher', e, st);
-      return false;
+      return const Result.failure('Failed to update teacher');
     }
   }
 
   /// Delete a teacher by ID. Returns true on success.
-  Future<bool> deleteTeacher(String id) async {
+  Future<Result<void>> deleteTeacher(String id) async {
     try {
       final box = await openBox(_boxName);
       await box.delete(id);
       _teachers.removeWhere((t) => t.id == id);
       notifyListeners();
       AppLog.info(this, 'deleteTeacher', 'deleted $id');
-      return true;
+      return const Result.success(null);
     } catch (e, st) {
       AppErrorHandler.catchError(this, 'deleteTeacher', e, st);
-      return false;
+      return const Result.failure('Failed to delete teacher');
     }
   }
 
   /// Set a teacher as the active one (deactivates others).
-  Future<void> setActive(String id) async {
+  Future<Result<void>> setActive(String id) async {
     for (final t in _teachers) {
       if (t.id == id && !t.isActive) {
         await updateTeacher(t.copyWith(isActive: true));
@@ -139,6 +140,7 @@ class TeacherProvider extends ChangeNotifier with HiveBoxMixin {
         await updateTeacher(t.copyWith(isActive: false));
       }
     }
+    return const Result.success(null);
   }
 
   /// Get a teacher by ID.
