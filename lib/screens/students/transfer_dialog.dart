@@ -163,7 +163,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: context.warmGray,
                       borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       children: [

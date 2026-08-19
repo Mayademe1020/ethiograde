@@ -110,7 +110,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 24),
             Icon(Icons.calendar_today_outlined, size: 48, color: context.primaryGreen),
@@ -120,7 +120,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
             const SizedBox(height: 8),
             Text('Please set your academic year before creating a class.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600)),
+              style: TextStyle(color: context.lightText)),
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: () {
@@ -157,7 +157,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                 child: Container(
                   width: 40, height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
 
@@ -235,7 +235,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.1),
@@ -253,7 +253,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
                               dense: true,
                               leading: isExactMatch
                                   ? Icon(Icons.check, size: 18, color: context.primaryGreen)
-                                  : Icon(Icons.search, size: 18, color: Colors.grey.shade400),
+                                  : Icon(Icons.search, size: 18, color: Theme.of(context).colorScheme.outline),
                               title: Text(s, style: TextStyle(
                                 fontWeight: isExactMatch ? FontWeight.w600 : FontWeight.normal)),
                               onTap: () {

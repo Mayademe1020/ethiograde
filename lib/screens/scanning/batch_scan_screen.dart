@@ -320,7 +320,9 @@ class _BatchScanScreenState extends State<BatchScanScreen> {
                               ? _processedCount / _totalCount
                               : 0,
                           minHeight: 8,
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             context.primaryGreen,
                           ),

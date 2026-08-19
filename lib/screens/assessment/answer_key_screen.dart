@@ -331,7 +331,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       ),
       decoration: BoxDecoration(
         color: const Color(0xFF242424),
-        border: Border(top: BorderSide(color: Colors.grey.shade800)),
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
       ),
       child: SafeArea(
         child: Row(
@@ -360,7 +364,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               value: _autoAdvanceEnabled,
               onChanged: (v) => setState(() => _autoAdvanceEnabled = v),
               activeThumbColor: const Color(0xFF7EB8DA),
-              inactiveTrackColor: Colors.grey.shade700,
+              inactiveTrackColor: Theme.of(context).colorScheme.outline,
             ),
           ],
         ),
@@ -439,7 +443,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             child: LinearProgressIndicator(
               value: completeness,
               color: context.primaryGreen,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
           ),
           const SizedBox(height: 6),
@@ -532,7 +536,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: context.warmGray,
         borderRadius: BorderRadius.circular(6),
       ),
       child: SingleChildScrollView(
@@ -546,7 +550,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               onTap: () => _showBulkPasteDialog(assessment),
             ),
             const SizedBox(width: 5),
-            Container(width: 1, height: 12, color: Colors.grey.shade300),
+            Container(
+              width: 1,
+              height: 12,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             const SizedBox(width: 5),
             _toolbarButton(
               'Sections',
@@ -554,7 +562,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
               onTap: _openSectionSetup,
             ),
             const SizedBox(width: 5),
-            Container(width: 1, height: 12, color: Colors.grey.shade300),
+            Container(
+              width: 1,
+              height: 12,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             const SizedBox(width: 5),
             Text(
               'All:',
@@ -610,7 +622,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF0B6E4F) : Colors.grey.shade200,
+          color: isActive
+              ? const Color(0xFF0B6E4F)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -773,7 +787,9 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
           color: isPrimary ? const Color(0xFF3D6B4F) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: isPrimary ? const Color(0xFF3D6B4F) : Colors.grey.shade300,
+            color: isPrimary
+                ? const Color(0xFF3D6B4F)
+                : Theme.of(context).colorScheme.outlineVariant,
           ),
         ),
         child: Row(
@@ -1275,7 +1291,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
+                          color: context.warmGray,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Wrap(
@@ -1751,7 +1767,9 @@ class _QuestionRow extends StatelessWidget {
               ? const Color(0xFFF0C674)
               : isActive
               ? const Color(0xFF7EB8DA)
-              : Colors.grey.shade200.withValues(alpha: 0.5),
+              : Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.5),
           width: (isFlagged || isActive) ? 3 : 1,
         ),
       ),
@@ -1796,7 +1814,9 @@ class _QuestionRow extends StatelessWidget {
             child: Icon(
               isFlagged ? Icons.star : Icons.star_border,
               size: 16,
-              color: isFlagged ? const Color(0xFFF0C674) : Colors.grey.shade400,
+              color: isFlagged
+                  ? const Color(0xFFF0C674)
+                  : Theme.of(context).colorScheme.outline,
             ),
           ),
         ),
@@ -1834,7 +1854,9 @@ class _QuestionRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Text(
           '${question.points.toInt()}pt',
@@ -1918,7 +1940,9 @@ class _QuestionRow extends StatelessWidget {
               color: isSelected ? selectedColor : const Color(0xFF242424),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: isSelected ? selectedColor : Colors.grey.shade300,
+                color: isSelected
+                    ? selectedColor
+                    : Colors.grey.shade300,
                 width: isSelected ? 2 : 1.5,
               ),
             ),
@@ -1949,7 +1973,9 @@ class _QuestionRow extends StatelessWidget {
           color: isSet ? const Color(0xFF3A2650) : const Color(0xFF242424),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isSet ? const Color(0xFFC5A3E8) : Colors.grey.shade300,
+            color: isSet
+                ? const Color(0xFFC5A3E8)
+                : Theme.of(context).colorScheme.outlineVariant,
             width: isSet ? 2 : 1.5,
           ),
         ),
@@ -1988,7 +2014,7 @@ class _QuestionRow extends StatelessWidget {
               border: Border.all(
                 color: answer.isNotEmpty
                     ? const Color(0xFFE8B07A)
-                    : Colors.grey.shade300,
+                    : Theme.of(context).colorScheme.outlineVariant,
                 width: answer.isNotEmpty ? 2 : 1.5,
                 style: answer.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
               ),
@@ -2093,7 +2119,7 @@ class _QuestionRow extends StatelessWidget {
           border: Border.all(
             color: pairs.isNotEmpty
                 ? const Color(0xFFE8A0B8)
-                : Colors.grey.shade300,
+                : Theme.of(context).colorScheme.outlineVariant,
             width: pairs.isNotEmpty ? 2 : 1.5,
             style: pairs.isNotEmpty ? BorderStyle.solid : BorderStyle.none,
           ),
@@ -2174,7 +2200,7 @@ class _QuestionRow extends StatelessWidget {
                       border: Border.all(
                         color: isSelected
                             ? const Color(0xFFC5A3E8)
-                            : Colors.grey.shade300,
+                            : Theme.of(context).colorScheme.outlineVariant,
                         width: isSelected ? 2.5 : 1.5,
                       ),
                     ),

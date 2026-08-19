@@ -385,7 +385,9 @@ class _QuestionRow extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: stats.difficulty,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           _difficultyColor,
                         ),
@@ -459,7 +461,7 @@ class _QuestionDetailSheet extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -540,7 +542,7 @@ class _DetailStat extends StatelessWidget {
         decoration: BoxDecoration(
           color: isWarning
               ? Colors.orange.withValues(alpha: 0.1)
-              : Colors.grey.shade100,
+              : context.warmGray,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -600,7 +602,9 @@ class _AnswerBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: percentage / 100,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   isCorrect ? context.primaryGreen : AppTheme.info,
                 ),

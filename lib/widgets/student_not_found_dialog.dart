@@ -112,7 +112,7 @@ class _StudentNotFoundDialogState extends State<StudentNotFoundDialog> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: context.warmGray,
                 borderRadius: BorderRadius.circular(8)),
               child: Row(
                 children: [

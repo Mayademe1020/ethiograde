@@ -193,7 +193,7 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
                   Icon(
                     Icons.people_outline,
                     size: 64,
-                    color: Colors.grey.shade400),
+                    color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'No students found',
@@ -263,7 +263,10 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
   Widget _buildScoreTable(List<Question> questions) {
     return Table(
       defaultColumnWidth: const FixedColumnWidth(60),
-      border: TableBorder.all(color: Colors.grey.shade200, width: 0.5),
+      border: TableBorder.all(
+        color: Theme.of(context).colorScheme.outlineVariant,
+        width: 0.5,
+      ),
       children: [
         // Header row
         TableRow(
@@ -398,10 +401,12 @@ class _ScoreCell extends StatelessWidget {
                         : currentScore! > 0
                         ? context.primaryYellow.withValues(alpha: 0.15)
                         : context.primaryRed.withValues(alpha: 0.15))
-                  : Colors.grey.shade50,
+                  : context.warmGray,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: hasScore ? Colors.transparent : Colors.grey.shade300,
+                color: hasScore
+                    ? Colors.transparent
+                    : Theme.of(context).colorScheme.outlineVariant,
                 width: 0.5)),
             child: Text(
               hasScore ? currentScore!.toStringAsFixed(0) : '—',
@@ -414,7 +419,7 @@ class _ScoreCell extends StatelessWidget {
                           : currentScore! > 0
                           ? Colors.orange.shade700
                           : context.primaryRed)
-                    : Colors.grey.shade400))))));
+                    : context.lightText))))));
   }
 
   void _showScorePad(BuildContext context) {
@@ -526,7 +531,7 @@ class _AssessmentPicker extends StatelessWidget {
                   Icon(
                     Icons.assignment_outlined,
                     size: 64,
-                    color: Colors.grey.shade400),
+                    color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'No assessments yet',

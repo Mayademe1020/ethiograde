@@ -63,7 +63,7 @@ Future<bool?> showBatchCompletionReview({
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: Theme.of(context).colorScheme.outlineVariant,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -264,7 +264,7 @@ class MissingStudentActions extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             ),
             child: Padding(
               padding: const EdgeInsets.all(10),
@@ -345,7 +345,7 @@ class DuplicateActions extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             ),
             child: Padding(
               padding: const EdgeInsets.all(10),

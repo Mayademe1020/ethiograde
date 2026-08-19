@@ -411,7 +411,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                               border: Border.all(
                                 color: gender == 'M'
                                     ? context.primaryGreen
-                                    : Colors.grey.shade300,
+                                    : Theme.of(context).colorScheme.outlineVariant,
                                 width: 1.5,
                               ),
                             ),
@@ -455,7 +455,7 @@ class _ImportCsvScreenState extends State<ImportCsvScreen> {
                               border: Border.all(
                                 color: gender == 'F'
                                     ? context.primaryGreen
-                                    : Colors.grey.shade300,
+                                    : Theme.of(context).colorScheme.outlineVariant,
                                 width: 1.5,
                               ),
                             ),

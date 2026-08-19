@@ -196,7 +196,7 @@ class _StudentEditCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -327,7 +327,9 @@ class _MiniGenderChip extends StatelessWidget {
           color: selected ? context.primaryGreen : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: selected ? context.primaryGreen : Colors.grey.shade300)),
+            color: selected
+                ? context.primaryGreen
+                : Theme.of(context).colorScheme.outlineVariant)),
         child: Text(
           label,
           style: TextStyle(

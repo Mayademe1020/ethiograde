@@ -49,7 +49,7 @@ class AuditTrailSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2))),
             // Header
             Padding(
@@ -97,7 +97,7 @@ class AuditTrailSheet extends StatelessWidget {
                           Icon(
                             Icons.check_circle_outline,
                             size: 48,
-                            color: Colors.grey.shade400),
+                            color: context.outlineLight),
                           const SizedBox(height: 12),
                           Text(
                             'No changes recorded',
@@ -212,7 +212,10 @@ class _TimelineEntry extends StatelessWidget {
             child: Column(
               children: [
                 if (!isFirst)
-                  Container(width: 2, height: 12, color: Colors.grey.shade300),
+                  Container(
+                    width: 2,
+                    height: 12,
+                    color: Theme.of(context).colorScheme.outlineVariant),
                 Container(
                   width: 32,
                   height: 32,
@@ -223,7 +226,9 @@ class _TimelineEntry extends StatelessWidget {
                   child: Icon(_actionIcon(entry.action), size: 16, color: color)),
                 if (!isLast)
                   Expanded(
-                    child: Container(width: 2, color: Colors.grey.shade300)),
+                    child: Container(
+                      width: 2,
+                      color: Theme.of(context).colorScheme.outlineVariant)),
               ])),
           const SizedBox(width: 12),
           // Content
@@ -232,9 +237,10 @@ class _TimelineEntry extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: context.warmGray,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200)),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

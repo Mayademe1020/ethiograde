@@ -507,7 +507,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -793,9 +793,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                               if (item.explanation != null)
                                 Text(
                                   item.explanation!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: context.lightText,
                                   ),
                                 ),
                             ],
@@ -837,9 +837,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                               if (item.explanation != null)
                                 Text(
                                   item.explanation!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: context.lightText,
                                   ),
                                 ),
                             ],
@@ -976,7 +976,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+                  Icon(Icons.inbox, size: 64, color: context.outlineLight),
                   const SizedBox(height: 16),
                   Text(
                     'No results to review',
@@ -1051,7 +1051,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                 decoration: BoxDecoration(
                   color: Theme.of(context).scaffoldBackgroundColor,
-                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1765,7 +1769,9 @@ class _ReviewSituationPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1997,8 +2003,8 @@ class _QueueActionTile extends StatelessWidget {
                 Icon(
                   Icons.chevron_right,
                   color: action.onTap == null
-                      ? Colors.grey.shade300
-                      : Colors.grey.shade500,
+                      ? Theme.of(context).colorScheme.outlineVariant
+                      : context.outlineLight,
                 ),
               ],
             ),
@@ -2357,14 +2363,14 @@ class _ResultCard extends StatelessWidget {
                   final bgColor = a.isCorrect
                       ? context.primaryGreen.withValues(alpha: 0.15)
                       : a.detectedAnswer == '[MISSING]'
-                      ? Colors.grey.shade200
+                      ? context.warmGray
                       : isLowConfidence
                       ? context.warning.withValues(alpha: 0.2)
                       : context.primaryRed.withValues(alpha: 0.15);
                   final borderColor = a.isCorrect
                       ? context.primaryGreen
                       : a.detectedAnswer == '[MISSING]'
-                      ? Colors.grey
+                      ? context.outlineLight
                       : isLowConfidence
                       ? context.warning
                       : context.primaryRed;
@@ -2392,7 +2398,7 @@ class _ResultCard extends StatelessWidget {
                             color: a.isCorrect
                                 ? context.primaryGreen
                                 : a.detectedAnswer == '[MISSING]'
-                                ? Colors.grey
+                                ? context.lightText
                                 : context.primaryRed,
                           ),
                         ),
@@ -2610,7 +2616,9 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                 height: 200,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -3099,7 +3107,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
         return _QuickEntryButton(
           label: opt,
           icon: isCorrectAnswer ? Icons.check : null,
-          color: isCorrectAnswer ? context.primaryGreen : Colors.grey.shade600,
+          color: isCorrectAnswer ? context.primaryGreen : context.lightText,
           onTap: () {
             _applyAnswerChange(
               answer.questionNumber,
@@ -3532,10 +3540,12 @@ class _TfAnswerPicker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isTrue
                     ? context.primaryGreen.withValues(alpha: 0.15)
-                    : Colors.grey.shade100,
+                    : context.warmGray,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isTrue ? context.primaryGreen : Colors.grey.shade300,
+                  color: isTrue
+                      ? context.primaryGreen
+                      : Theme.of(context).colorScheme.outlineVariant,
                   width: isTrue ? 2 : 1,
                 ),
               ),
@@ -3543,7 +3553,7 @@ class _TfAnswerPicker extends StatelessWidget {
                 children: [
                   Icon(
                     isTrue ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: isTrue ? context.primaryGreen : Colors.grey,
+                    color: isTrue ? context.primaryGreen : context.outlineLight,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -3552,7 +3562,7 @@ class _TfAnswerPicker extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: isTrue
                           ? context.primaryGreen
-                          : Colors.grey.shade700,
+                          : context.darkText,
                     ),
                   ),
                 ],
@@ -3569,10 +3579,12 @@ class _TfAnswerPicker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: !isTrue
                     ? context.primaryRed.withValues(alpha: 0.15)
-                    : Colors.grey.shade100,
+                    : context.warmGray,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: !isTrue ? context.primaryRed : Colors.grey.shade300,
+                  color: !isTrue
+                      ? context.primaryRed
+                      : Theme.of(context).colorScheme.outlineVariant,
                   width: !isTrue ? 2 : 1,
                 ),
               ),
@@ -3580,7 +3592,7 @@ class _TfAnswerPicker extends StatelessWidget {
                 children: [
                   Icon(
                     !isTrue ? Icons.cancel : Icons.radio_button_unchecked,
-                    color: !isTrue ? context.primaryRed : Colors.grey,
+                    color: !isTrue ? context.primaryRed : context.outlineLight,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -3589,7 +3601,7 @@ class _TfAnswerPicker extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: !isTrue
                           ? context.primaryRed
-                          : Colors.grey.shade700,
+                          : context.darkText,
                     ),
                   ),
                 ],
@@ -3967,7 +3979,7 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -4006,7 +4018,7 @@ class _StudentPickerSheetState extends State<_StudentPickerSheet> {
                           leading: CircleAvatar(
                             backgroundColor: isCurrent
                                 ? context.primaryGreen.withValues(alpha: 0.15)
-                                : Colors.grey.shade100,
+                                : context.warmGray,
                             child: Text(
                               s.studentId.isNotEmpty ? s.studentId : '${i + 1}',
                               style: TextStyle(

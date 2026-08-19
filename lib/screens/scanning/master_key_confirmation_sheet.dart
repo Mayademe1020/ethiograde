@@ -69,7 +69,7 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
+                                color: Theme.of(context).colorScheme.outlineVariant,
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -204,7 +204,9 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                       decoration: BoxDecoration(
                         color: Theme.of(context).scaffoldBackgroundColor,
                         border: Border(
-                          top: BorderSide(color: Colors.grey.shade200),
+                          top: BorderSide(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
                         ),
                       ),
                       child: Row(
@@ -402,7 +404,7 @@ class _MasterKeyAnswerRow extends StatelessWidget {
                 side: BorderSide(
                   color: isSelected
                       ? context.primaryGreen
-                      : Colors.grey.shade300,
+                      : Theme.of(context).colorScheme.outlineVariant,
                 ),
               );
             }).toList(),

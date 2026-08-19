@@ -317,7 +317,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             borderRadius: BorderRadius.circular(6),
           ),
           child: DropdownButton<int>(
@@ -352,7 +352,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             borderRadius: BorderRadius.circular(6),
           ),
           child: DropdownButton<String>(
@@ -409,7 +409,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             borderRadius: BorderRadius.circular(6),
           ),
           child: DropdownButton<double>(

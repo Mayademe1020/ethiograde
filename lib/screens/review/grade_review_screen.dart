@@ -355,7 +355,7 @@ class _StatsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey.shade50,
+      color: context.warmGray,
       child: Column(
         children: [
           Row(
