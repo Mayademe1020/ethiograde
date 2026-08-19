@@ -185,6 +185,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _buildSetupPage() {
     final settings = context.watch<SettingsProvider>();
     final classes = context.watch<ClassProvider>().classes;
+    final selectedSubjects = _selectedSubjects;
+
+    // Helper: is a subject currently selected?
+    bool isSelected(String s) => selectedSubjects.any(
+          (e) => e.toLowerCase() == s.toLowerCase(),
+        );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -193,16 +200,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 24),
           Text(
             'Welcome!',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             'Tell us about yourself',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: context.lightText),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: context.lightText,
+                ),
           ),
           const SizedBox(height: 32),
 
@@ -240,14 +247,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // grade so the teacher can scan/enter right away.
           Text(
             'Which grade do you teach?',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          // Grade row — scrollable, all chips visible
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
               children: List.generate(12, (i) {
                 final grade = i + 1;
                 final selected = _selectedGrade == grade;
@@ -258,15 +267,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       'G$grade',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight:
-                            selected ? FontWeight.w800 : FontWeight.w600,
-                        color: selected ? Colors.white : null,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: selected
+                            ? Colors.white
+                            : const Color(0xFF1F2823),
                       ),
                     ),
                     selected: selected,
-                    onSelected: (_) => setState(() => _selectedGrade = grade),
+                    onSelected: (_) =>
+                        setState(() => _selectedGrade = grade),
                     selectedColor: AppTheme.primaryGreen,
-                    backgroundColor: Colors.transparent,
+                    backgroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 8,
@@ -292,8 +305,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             'What do you teach?',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -317,7 +330,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     color: Colors.white,
                     size: 20,
                   ),
-                  onPressed: () => _addSubjectChip(_subjectController.text),
+                  onPressed: () =>
+                      _addSubjectChip(_subjectController.text),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
                     minWidth: 36,
@@ -329,10 +343,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: const TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 8),
-          if (settings.subjects.isNotEmpty) ...[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+          // Subject row — scrollable, all chips visible, big & clear
+          if (settings.subjects.isNotEmpty)
+            SizedBox(
+              height: 52,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
                 children: [
                   for (final subject in settings.subjects)
                     Padding(
@@ -342,37 +358,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           subject,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: _selectedSubjects.any(
-                                  (s) =>
-                                      s.toLowerCase() ==
-                                      subject.toLowerCase(),
-                                )
+                            fontWeight: isSelected(subject)
                                 ? FontWeight.w800
                                 : FontWeight.w700,
-                            color: _selectedSubjects.any(
-                                  (s) =>
-                                      s.toLowerCase() ==
-                                      subject.toLowerCase(),
-                                )
+                            color: isSelected(subject)
                                 ? Colors.white
-                                : Colors.black87,
+                                : const Color(0xFF1F2823),
                           ),
                         ),
-                        selected: _selectedSubjects.any(
-                          (s) => s.toLowerCase() == subject.toLowerCase(),
-                        ),
+                          selected: isSelected(subject),
                         onSelected: (sel) {
                           setState(() {
                             if (sel) {
-                              if (!_selectedSubjects.any(
-                                (s) =>
-                                    s.toLowerCase() ==
-                                    subject.toLowerCase(),
-                              )) {
-                                _selectedSubjects.add(subject);
+                              if (!isSelected(subject)) {
+                                selectedSubjects.add(subject);
                               }
                             } else {
-                              _selectedSubjects.removeWhere(
+                              selectedSubjects.removeWhere(
                                 (s) =>
                                     s.toLowerCase() ==
                                     subject.toLowerCase(),
@@ -381,7 +383,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           });
                         },
                         selectedColor: AppTheme.primaryGreen,
-                        backgroundColor: Colors.grey.shade100,
+                        backgroundColor: Colors.white,
+                        showCheckmark: false,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 10,
@@ -389,20 +392,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
-                            color: _selectedSubjects.any(
-                                  (s) =>
-                                      s.toLowerCase() ==
-                                      subject.toLowerCase(),
-                                )
+                            color: isSelected(subject)
                                 ? AppTheme.primaryGreen
                                 : Colors.grey.shade400,
-                            width: _selectedSubjects.any(
-                                  (s) =>
-                                      s.toLowerCase() ==
-                                      subject.toLowerCase(),
-                                )
-                                ? 2
-                                : 1.5,
+                            width: isSelected(subject) ? 2 : 1.5,
                           ),
                         ),
                       ),
@@ -410,40 +403,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-          ],
-          if (_selectedSubjects.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final subject in _selectedSubjects)
-                    Chip(
-                      label: Text(subject),
-                      deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: () => setState(() {
-                        _selectedSubjects.removeWhere(
-                          (s) => s.toLowerCase() == subject.toLowerCase(),
-                        );
-                      }),
-                    ),
-                ],
-              ),
-            ),
+          const SizedBox(height: 12),
           Text(
             'Your profile will be saved automatically. You can add more subjects and classes later in Settings.',
             style: TextStyle(color: context.lightText, fontSize: 12),
           ),
           const SizedBox(height: 24),
 
-          // Class selection
+          // Class selection — visually clear with grade + subject
           Text(
             'Classes',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           if (classes.isEmpty)
@@ -473,7 +445,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             fontWeight: FontWeight.w800,
                             color: _selectedClassIds.contains(cls.id)
                                 ? Colors.white
-                                : Colors.black87,
+                                : const Color(0xFF1F2823),
                           ),
                         ),
                         Text(
@@ -505,7 +477,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       });
                     },
                     selectedColor: AppTheme.primaryGreen,
-                    backgroundColor: Colors.grey.shade100,
+                    backgroundColor: Colors.white,
+                    showCheckmark: false,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 10,
