@@ -2,6 +2,8 @@ import 'package:hive/hive.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
+import 'phone_utils.dart';
+
 /// Result of an SMS send attempt.
 class SmsResult {
   final bool success;
@@ -184,21 +186,10 @@ class SmsService {
 
   /// Normalizes an Ethiopian phone number to E.164 (`+251...`) form.
   /// Strips spaces/dashes/parens, converts leading `0` or 9-digit numbers.
-  static String cleanPhoneNumber(String phone) {
-    var cleaned = phone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    if (cleaned.startsWith('0')) {
-      cleaned = '+251${cleaned.substring(1)}';
-    } else if (!cleaned.startsWith('+251') && cleaned.length == 9) {
-      cleaned = '+251$cleaned';
-    }
-    return cleaned;
-  }
+  static String cleanPhoneNumber(String phone) => PhoneUtils.normalize(phone);
 
   /// Whether [phone] is a valid Ethiopian mobile number (`+251XXXXXXXXX`).
-  static bool isValidPhone(String phone) {
-    final regex = RegExp(r'^\+251\d{9}$');
-    return regex.hasMatch(phone);
-  }
+  static bool isValidPhone(String phone) => PhoneUtils.isValid(phone);
 
   String _cleanPhoneNumber(String phone) => cleanPhoneNumber(phone);
 

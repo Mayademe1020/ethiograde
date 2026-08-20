@@ -262,6 +262,18 @@ void main() {
   // ─── Optional Fields ──────────────────────────────────────────────
 
   group('AddStudentScreen — Optional fields', () {
+    testWidgets('parent phone defaults to +251 prefix', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      final phoneIcon = find.byIcon(Icons.phone_outlined);
+      final phoneField = find.ancestor(
+        of: phoneIcon,
+        matching: find.byType(TextFormField));
+      expect(find.text('+251'), findsOneWidget);
+      expect(phoneField, findsOneWidget);
+    });
+
     testWidgets('parent phone field accepts input', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();

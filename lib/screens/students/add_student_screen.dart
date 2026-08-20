@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/student.dart';
 import '../../services/class_provider.dart';
+import '../../services/phone_utils.dart';
 import '../../services/student_provider.dart';
 import '../../services/teacher_provider.dart';
-import '../../services/sms_service.dart';
 
 /// Add or edit a single student. Optionally pre-select a class.
 ///
@@ -47,6 +47,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           : (widget.preselectedClassId ?? '');
     } else {
       _selectedClassId = widget.preselectedClassId ?? '';
+      // Default prefix so the teacher just types the 9 local digits.
+      _parentPhoneCtrl.text = PhoneUtils.countryCode;
     }
   }
 
@@ -204,18 +206,19 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
                   labelText: 'Parent Phone',
-                  hintText: '+251...',
+                  hintText: '+251 9XXXXXXXX',
                   prefixIcon: Icon(Icons.phone_outlined),
-                  helperText: 'Needed to send results by SMS',
-                  helperMaxLines: 1,
+                  helperText: '9 digits starting with 7 or 9 — e.g. 0912345678',
+                  helperMaxLines: 2,
                 ),
                 validator: (v) {
                   final value = v?.trim() ?? '';
-                  if (value.isEmpty) return null;
-                  if (!SmsService.isValidPhone(
-                    SmsService.cleanPhoneNumber(value),
-                  )) {
-                    return 'Enter a valid Ethiopian number (e.g. +251912345678)';
+                  // "+251" alone means no number entered yet.
+                  if (value.isEmpty || value == PhoneUtils.countryCode) {
+                    return null;
+                  }
+                  if (!PhoneUtils.isValidRaw(value)) {
+                    return 'Enter 9 digits starting with 7 or 9 (e.g. 0912345678)';
                   }
                   return null;
                 },
@@ -275,9 +278,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       className: _selectedClassId.isNotEmpty
           ? (classProv.getClassById(_selectedClassId)?.displayName ?? '')
           : (existing?.className ?? ''),
-      parentPhone: _parentPhoneCtrl.text.trim().isEmpty
+      parentPhone: _parentPhoneCtrl.text.trim().isEmpty ||
+          _parentPhoneCtrl.text.trim() == PhoneUtils.countryCode
           ? null
-          : SmsService.cleanPhoneNumber(_parentPhoneCtrl.text),
+          : PhoneUtils.normalize(_parentPhoneCtrl.text),
       createdBy: existing?.createdBy ?? teacherId,
       createdAt: existing?.createdAt,
     );
