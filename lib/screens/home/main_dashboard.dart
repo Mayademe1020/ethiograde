@@ -18,6 +18,7 @@ import '../../models/scan_result.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/error_handler.dart';
 import '../classes/create_class_sheet.dart';
+import 'classes_tab.dart';
 import 'dashboard_actions.dart';
 import 'settings_tab.dart';
 import 'students_tab.dart';
@@ -42,6 +43,11 @@ class _MainDashboardState extends State<MainDashboard> {
         icon: Icon(Icons.dashboard_outlined),
         selectedIcon: Icon(Icons.dashboard),
         label: 'Home',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.class_outlined),
+        selectedIcon: Icon(Icons.class_),
+        label: 'Classes',
       ),
       const NavigationDestination(
         icon: Icon(Icons.assignment_outlined),
@@ -74,9 +80,11 @@ class _MainDashboardState extends State<MainDashboard> {
       index: _currentIndex,
       children: [
         _DashboardHome(
-          onSeeAll: () => setState(() => _currentIndex = 1),
+          onSeeAll: () => setState(() => _currentIndex = 2),
+          onViewClasses: () => setState(() => _currentIndex = 1),
           isActive: _currentIndex == 0,
         ),
+        const ClassesTab(),
         const AssessmentsTab(),
         const StudentsTab(),
         const SettingsTab(),
@@ -115,8 +123,13 @@ class _MainDashboardState extends State<MainDashboard> {
 
 class _DashboardHome extends StatefulWidget {
   final VoidCallback onSeeAll;
+  final VoidCallback onViewClasses;
   final bool isActive;
-  const _DashboardHome({required this.onSeeAll, required this.isActive});
+  const _DashboardHome({
+    required this.onSeeAll,
+    required this.onViewClasses,
+    required this.isActive,
+  });
 
   @override
   State<_DashboardHome> createState() => _DashboardHomeState();
@@ -331,6 +344,10 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    TextButton(
+                      onPressed: widget.onViewClasses,
+                      child: const Text('See All'),
                     ),
                     TextButton.icon(
                       onPressed: () => _createClass(context),
