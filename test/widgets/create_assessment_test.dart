@@ -90,8 +90,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Create Exam'), findsOneWidget);
+      expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
+
+      await scrollToText(tester, 'Scan Answer Sheet');
       expect(find.text('Scan Answer Sheet'), findsOneWidget);
-      expect(find.text('Continue to Scan'), findsOneWidget);
     });
 
     testWidgets('shows questions count field', (tester) async {
@@ -142,6 +145,10 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
+      await scrollToText(tester, 'Scan Answer Sheet');
+      await tester.tap(find.text('Scan Answer Sheet'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Continue to Scan'), findsOneWidget);
     });
 
@@ -155,12 +162,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // No class selected yet — the CTA is disabled and shows a hint.
+      // No class selected yet — the CTA shows a hint and prompts on tap.
       expect(find.text('Select a class first'), findsOneWidget);
-      final button = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Continue to Scan'),
-      );
-      expect(button.onPressed, isNull);
+      await tester.tap(find.text('Continue to Answer Key'));
+      await tester.pumpAndSettle();
+
+      // The prompt asks for a title/class rather than proceeding.
+      expect(find.text('Exam title required'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
     });
 
     testWidgets('initial manual-key mode changes the primary action', (
@@ -184,7 +193,7 @@ void main() {
       expect(find.text('20 Qs · No class selected'), findsOneWidget);
     });
 
-    testWidgets('auto-selects the single class and fills subject only', (
+    testWidgets('selecting a class shows its subject and updates summary', (
       tester,
     ) async {
       final classProvider = ClassProvider();
@@ -222,18 +231,24 @@ void main() {
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 50));
 
+      // No class selected yet.
+      expect(find.text('20 Qs · No class selected'), findsOneWidget);
+
+      // Select the class — summary updates and subject defaults to the class.
       await scrollToText(tester, 'Grade 5 A Math');
-      expect(find.text('Grade 5 A Math'), findsWidgets);
+      await tester.tap(find.text('Grade 5 A Math'));
+      await tester.pumpAndSettle();
+
       expect(find.text('20 Qs · Grade 5 A Math'), findsOneWidget);
+      expect(find.text('Math'), findsOneWidget);
       expect(
         find.widgetWithText(TextField, 'Grade 5 A Math — Midterm'),
         findsNothing,
       );
       expect(
-        find.widgetWithText(TextField, 'Exam title'),
+        find.widgetWithText(TextField, 'Exam title *'),
         findsOneWidget,
       );
-      expect(find.widgetWithText(TextField, 'Math'), findsOneWidget);
     });
   });
 }

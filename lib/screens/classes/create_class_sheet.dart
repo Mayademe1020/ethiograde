@@ -52,8 +52,26 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
       _subjectCtrl.text = e.subject;
       _selectedYear = e.academicYear.isNotEmpty ? e.academicYear : null;
     } else {
-      // Default to Section A — the teacher can change it if they have another section.
+      // Smart defaults so busy teachers can create a class in one tap.
+      // Section A is the common case — changeable if they have another section.
       _selectedSection = 'A';
+      final teacher = context.read<TeacherProvider>().activeTeacher;
+      final teacherSubjects = teacher?.allSubjects ?? const <String>[];
+      // If the teacher teaches exactly one subject, pre-fill it.
+      // If they teach several, leave it empty so they pick per class.
+      if (teacherSubjects.length == 1) {
+        _subjectCtrl.text = teacherSubjects.first;
+      }
+      // If every class they already have is the same grade, default to it.
+      final grades = context
+          .read<ClassProvider>()
+          .classes
+          .where((c) => teacher?.classIds.contains(c.id) ?? false)
+          .map((c) => c.grade)
+          .toSet();
+      if (grades.length == 1) {
+        _selectedGrade = grades.first;
+      }
     }
     _subjectFocus.addListener(() {
       if (!_subjectFocus.hasFocus) {
