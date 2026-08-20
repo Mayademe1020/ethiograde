@@ -339,10 +339,25 @@ class _DashboardHomeState extends State<_DashboardHome> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'My Classes',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    GestureDetector(
+                      onTap: widget.onViewClasses,
+                      child: Row(
+                        children: [
+                          Text(
+                            'My Classes',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ],
                       ),
                     ),
                     TextButton(

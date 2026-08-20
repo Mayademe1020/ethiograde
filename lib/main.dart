@@ -18,6 +18,8 @@ import 'services/student_provider.dart';
 import 'services/settings_provider.dart';
 import 'services/teacher_provider.dart';
 import 'services/class_provider.dart';
+import 'services/attendance_provider.dart';
+import 'services/class_notes_provider.dart';
 import 'services/migration_service.dart';
 import 'services/hive_migration.dart';
 import 'services/scoring_service.dart';
@@ -292,6 +294,8 @@ class EthioGradeApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => ClassProvider()..loadClasses()),
         ChangeNotifierProvider(create: (_) => WeightedGradeProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()..load()),
+        ChangeNotifierProvider(create: (_) => ClassNotesProvider()..load()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, _) {

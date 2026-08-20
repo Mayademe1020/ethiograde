@@ -148,6 +148,45 @@ class ClassDetailScreen extends StatelessWidget {
               ),
             ),
 
+            // Teacher tools — attendance & class notes
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveLayout.horizontalPadding(context),
+                4,
+                ResponsiveLayout.horizontalPadding(context),
+                8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Attendance',
+                      color: Colors.teal,
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.classAttendance,
+                        arguments: currentClass,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.note_add_outlined,
+                      label: 'Notes',
+                      color: Colors.deepPurple,
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.classNotes,
+                        arguments: currentClass,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Student list
             Expanded(
               child: students.isEmpty

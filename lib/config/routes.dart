@@ -21,6 +21,8 @@ import '../screens/students/add_student_screen.dart';
 import '../screens/students/student_detail_screen.dart';
 import '../screens/settings/grading_scale_editor_screen.dart';
 import '../screens/classes/class_detail_screen.dart';
+import '../screens/classes/attendance_screen.dart';
+import '../screens/classes/class_notes_screen.dart';
 import '../models/student.dart';
 import '../models/class_info.dart';
 import '../models/grading_scale.dart';
@@ -61,6 +63,8 @@ class AppRoutes {
   static const String studentDetail = '/students/detail';
 
   // Classes
+  static const String classAttendance = '/class/attendance';
+  static const String classNotes = '/class/notes';
 
   // Settings
   static const String gradingScaleEditor = '/settings/grading-scale';
@@ -163,6 +167,12 @@ class AppRoutes {
       case classDetail:
         final classInfo = settings.arguments as ClassInfo;
         return _fade(ClassDetailScreen(classInfo: classInfo), settings);
+      case classAttendance:
+        final classInfo = settings.arguments as ClassInfo;
+        return _fade(AttendanceScreen(classInfo: classInfo), settings);
+      case classNotes:
+        final classInfo = settings.arguments as ClassInfo;
+        return _fade(ClassNotesScreen(classInfo: classInfo), settings);
 
       default:
         return _fade(const MainDashboard(), settings);

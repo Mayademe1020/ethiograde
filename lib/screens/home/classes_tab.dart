@@ -22,6 +22,8 @@ class ClassesTab extends StatefulWidget {
 class _ClassesTabState extends State<ClassesTab> {
   final _searchController = TextEditingController();
   String _query = '';
+  String _sortBy = 'name'; // 'name' | 'students' | 'grade'
+  String? _filterSubject; // null = all subjects
 
   @override
   void dispose() {
@@ -36,8 +38,15 @@ class _ClassesTabState extends State<ClassesTab> {
     final hp = ResponsiveLayout.horizontalPadding(context);
 
     final allClasses = classesProv.classes;
-    final filtered = _query.isEmpty
-        ? allClasses
+    final subjects = allClasses
+        .map((c) => c.subject.trim().toLowerCase())
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    var filtered = _query.isEmpty
+        ? List<ClassInfo>.of(allClasses)
         : allClasses.where((c) {
             final q = _query.toLowerCase();
             return c.displayName.toLowerCase().contains(q) ||
@@ -45,6 +54,35 @@ class _ClassesTabState extends State<ClassesTab> {
                 c.section.toLowerCase().contains(q) ||
                 c.academicYear.toLowerCase().contains(q);
           }).toList();
+
+    if (_filterSubject != null) {
+      filtered = filtered
+          .where(
+            (c) => c.subject.trim().toLowerCase() == _filterSubject,
+          )
+          .toList();
+    }
+
+    final counts = <String, int>{};
+    for (final c in allClasses) {
+      counts[c.id] = studentProv.students
+          .where((s) => s.classIds.contains(c.id))
+          .length;
+    }
+
+    filtered.sort((a, b) {
+      switch (_sortBy) {
+        case 'students':
+          return (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0);
+        case 'grade':
+          final g = a.grade.compareTo(b.grade);
+          if (g != 0) return g;
+          return a.section.compareTo(b.section);
+        case 'name':
+        default:
+          return a.displayName.compareTo(b.displayName);
+      }
+    });
 
     final totalStudents = studentProv.students
         .where((s) => s.classIds.any(
@@ -90,6 +128,11 @@ class _ClassesTabState extends State<ClassesTab> {
                 subjectCount: subjectsCount,
               ),
             ),
+            if (allClasses.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(hp, 12, hp, 0),
+                child: _buildControls(context, subjects),
+              ),
             Padding(
               padding: EdgeInsets.fromLTRB(hp, 14, hp, 0),
               child: TextField(
@@ -140,7 +183,7 @@ class _ClassesTabState extends State<ClassesTab> {
                           : _buildClassGrid(
                               context,
                               filtered,
-                              studentProv,
+                              counts,
                             ),
             ),
           ],
@@ -224,10 +267,72 @@ class _ClassesTabState extends State<ClassesTab> {
     );
   }
 
+  Widget _buildControls(BuildContext context, List<String> subjects) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.sort, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 8),
+            const Text('Sort:'),
+            const SizedBox(width: 6),
+            DropdownButton<String>(
+              value: _sortBy,
+              isDense: true,
+              underline: const SizedBox.shrink(),
+              items: const [
+                DropdownMenuItem(value: 'name', child: Text('Name')),
+                DropdownMenuItem(value: 'students', child: Text('Students')),
+                DropdownMenuItem(value: 'grade', child: Text('Grade')),
+              ],
+              onChanged: (v) => setState(() => _sortBy = v ?? 'name'),
+            ),
+            const Spacer(),
+            if (_filterSubject != null)
+              TextButton.icon(
+                onPressed: () => setState(() => _filterSubject = null),
+                icon: const Icon(Icons.close, size: 16),
+                label: const Text('Clear'),
+              ),
+          ],
+        ),
+        if (subjects.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _FilterChip(
+                  label: 'All',
+                  selected: _filterSubject == null,
+                  onTap: () => setState(() => _filterSubject = null),
+                ),
+                for (final s in subjects)
+                  _FilterChip(
+                    label: _titleCase(s),
+                    selected: _filterSubject == s,
+                    onTap: () => setState(
+                      () => _filterSubject = _filterSubject == s ? null : s,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _titleCase(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
   Widget _buildClassGrid(
     BuildContext context,
     List<ClassInfo> classes,
-    StudentProvider studentProv,
+    Map<String, int> counts,
   ) {
     final columns = ResponsiveLayout.gridColumns(context);
     return GridView.builder(
@@ -241,17 +346,24 @@ class _ClassesTabState extends State<ClassesTab> {
       itemCount: classes.length,
       itemBuilder: (context, index) {
         final cls = classes[index];
-        final studentCount = studentProv.students
-            .where((s) => s.classIds.contains(cls.id))
-            .length;
+        final studentCount = counts[cls.id] ?? 0;
         return _ClassGridCard(
           classInfo: cls,
           studentCount: studentCount,
           onTap: () => _openClass(context, cls),
           onEdit: () => _editClass(context, cls),
+          onAddStudent: () => _addStudentToClass(context, cls),
           onDelete: () => _confirmDelete(context, cls),
         );
       },
+    );
+  }
+
+  void _addStudentToClass(BuildContext context, ClassInfo cls) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.addStudent,
+      arguments: cls.id,
     );
   }
 
@@ -415,6 +527,7 @@ class _ClassGridCard extends StatelessWidget {
   final int studentCount;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onAddStudent;
   final VoidCallback onDelete;
 
   const _ClassGridCard({
@@ -422,6 +535,7 @@ class _ClassGridCard extends StatelessWidget {
     required this.studentCount,
     required this.onTap,
     required this.onEdit,
+    required this.onAddStudent,
     required this.onDelete,
   });
 
@@ -472,6 +586,7 @@ class _ClassGridCard extends StatelessWidget {
                   constraints: const BoxConstraints(),
                   onSelected: (v) {
                     if (v == 'edit') onEdit();
+                    if (v == 'addStudent') onAddStudent();
                     if (v == 'delete') onDelete();
                   },
                   itemBuilder: (_) => [
@@ -482,6 +597,16 @@ class _ClassGridCard extends StatelessWidget {
                           Icon(Icons.edit_outlined, size: 18),
                           SizedBox(width: 8),
                           Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'addStudent',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_add_outlined, size: 18),
+                          SizedBox(width: 8),
+                          Text('Add Student'),
                         ],
                       ),
                     ),
@@ -544,6 +669,46 @@ class _Chip extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: cs.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? cs.primary : cs.surface,
+            border: Border.all(
+              color: selected ? cs.primary : cs.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? cs.onPrimary : cs.onSurface,
+            ),
+          ),
         ),
       ),
     );
