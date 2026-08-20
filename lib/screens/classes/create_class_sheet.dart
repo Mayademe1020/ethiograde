@@ -51,6 +51,9 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
       _selectedSection = e.section.isNotEmpty ? e.section : null;
       _subjectCtrl.text = e.subject;
       _selectedYear = e.academicYear.isNotEmpty ? e.academicYear : null;
+    } else {
+      // Default to Section A — the teacher can change it if they have another section.
+      _selectedSection = 'A';
     }
     _subjectFocus.addListener(() {
       if (!_subjectFocus.hasFocus) {
