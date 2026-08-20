@@ -8,7 +8,6 @@ import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/settings_provider.dart';
-import '../../services/teacher_provider.dart';
 import 'answer_key_screen.dart';
 
 enum ExamDayStartMode { masterScan, noRoster, classList, manualKey }
@@ -28,35 +27,27 @@ class ExamDayCreateScreen extends StatefulWidget {
 
 class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   final _titleController = TextEditingController();
-  final _subjectController = TextEditingController();
+  final _titleFocus = FocusNode();
   final _customQuestionController = TextEditingController();
 
   _StudentMode _studentMode = _StudentMode.classList;
-  _AnswerKeyMode _answerKeyMode = _AnswerKeyMode.scanMaster;
+  _AnswerKeyMode _answerKeyMode = _AnswerKeyMode.manual;
   String _selectedClassId = '';
   int _questionCount = 20;
   bool _titleError = false;
+  String? _selectedSubject;
 
   @override
   void initState() {
     super.initState();
     _applyInitialMode(widget.initialMode ?? ExamDayStartMode.classList);
     _customQuestionController.text = _questionCount.toString();
-    // Auto-fill subject and default class from teacher profile (read after first frame)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final teacher = context.read<TeacherProvider>().activeTeacher;
-      if (teacher != null && teacher.subject.isNotEmpty && _subjectController.text.isEmpty) {
-        _subjectController.text = teacher.subject;
-      }
-      // If the teacher has exactly one class, preselect it for roster grading
-      final classes = context.read<ClassProvider>().classes;
-      if (classes.length == 1 && _selectedClassId.isEmpty) {
-        setState(() {
-          _studentMode = _StudentMode.classList;
-          _selectedClassId = classes.single.id;
-          _applyClassDefaults(classes.single);
-        });
+    // Flag the title as required if the teacher taps away with it empty.
+    _titleFocus.addListener(() {
+      if (!_titleFocus.hasFocus &&
+          _titleController.text.trim().isEmpty &&
+          mounted) {
+        setState(() => _titleError = true);
       }
     });
   }
@@ -64,14 +55,36 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _subjectController.dispose();
+    _titleFocus.dispose();
     _customQuestionController.dispose();
     super.dispose();
+  }
+
+  /// Subjects available for the currently selected class, plus the teacher's
+  /// global subject list. Selecting a class repopulates this list.
+  List<String> get _subjectOptions {
+    final settings = context.read<SettingsProvider>();
+    final classes = context.read<ClassProvider>().classes;
+    final selectedId = _effectiveSelectedClassId(classes);
+    final set = <String>{};
+    if (selectedId.isNotEmpty) {
+      final cls = classes
+          .cast<ClassInfo?>()
+          .firstWhere((c) => c?.id == selectedId, orElse: () => null);
+      if (cls != null && cls.subject.trim().isNotEmpty) {
+        set.add(cls.subject.trim());
+      }
+    }
+    for (final s in settings.subjects) {
+      if (s.trim().isNotEmpty) set.add(s.trim());
+    }
+    return set.toList()..sort();
   }
 
   @override
   Widget build(BuildContext context) {
     final classes = context.watch<ClassProvider>().classes;
+    final options = _subjectOptions;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create Exam')),
@@ -86,7 +99,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
               const Padding(
                 padding: EdgeInsets.only(bottom: 10),
                 child: Text(
-                  'No classes yet — create one in Students tab',
+                  'No classes yet — create one in the Classes tab',
                   style: TextStyle(color: AppTheme.lightText, fontSize: 13),
                 ),
               )
@@ -101,8 +114,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 children: [
                   for (final classInfo in classes)
                     _ClassTile(
-                      selected:
-                          _studentMode == _StudentMode.classList &&
+                      selected: _studentMode == _StudentMode.classList &&
                           _effectiveSelectedClassId(classes) == classInfo.id,
                       title: classInfo.displayName,
                       subtitle: '${classInfo.studentIds.length} students',
@@ -115,59 +127,87 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 ],
               ),
             const SizedBox(height: 18),
-            // 2. Exam title
-            TextField(
-              controller: _titleController,
-              textInputAction: TextInputAction.next,
-              onChanged: (_) => setState(() => _titleError = false),
+
+            // 2. Subject — depends on the selected class
+            _buildSectionHeader(context, 'SUBJECT'),
+            const SizedBox(height: 10),
+            InputDecorator(
               decoration: InputDecoration(
-                labelText: 'Exam title',
-                hintText: 'e.g. Grade 8 Biology midterm',
-                prefixIcon: const Icon(Icons.assignment_outlined),
-                errorText: _titleError ? 'Enter a title for this exam' : null,
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 3. Subject — auto-filled, editable
-            TextField(
-              controller: _subjectController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
                 labelText: 'Subject',
-                hintText: 'e.g. Mathematics',
-                helperText: 'Auto-filled from class — editable',
-                prefixIcon: Icon(Icons.menu_book_outlined),
+                prefixIcon: const Icon(Icons.menu_book_outlined),
+                helperText: _selectedClassId.isNotEmpty
+                    ? 'From the selected class'
+                    : 'Your subjects (add more in Settings)',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: options.contains(_selectedSubject)
+                      ? _selectedSubject
+                      : null,
+                  isExpanded: true,
+                  hint: const Text('Select a subject'),
+                  items: options
+                      .map(
+                        (s) => DropdownMenuItem(value: s, child: Text(s)),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedSubject = v),
+                ),
               ),
             ),
             const SizedBox(height: 18),
+
+            // 3. Exam title — directly below subject, required
+            TextField(
+              controller: _titleController,
+              focusNode: _titleFocus,
+              textInputAction: TextInputAction.next,
+              onChanged: (_) => setState(() => _titleError = false),
+              decoration: InputDecoration(
+                labelText: 'Exam title *',
+                hintText: 'e.g. Grade 8 Biology midterm',
+                prefixIcon: const Icon(Icons.assignment_outlined),
+                errorText: _titleError ? 'Enter a title for this exam' : null,
+                errorStyle: const TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+
             // 4. Answer key method
             _buildSectionHeader(context, 'ANSWER KEY METHOD'),
             const SizedBox(height: 10),
             _ModeCard(
-              selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
-              icon: Icons.document_scanner_outlined,
-              title: 'Scan Answer Sheet',
-              subtitle:
-                  'Camera reads answers from paper',
-              onTap: () =>
-                  setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
-            ),
-            _ModeCard(
               selected: _answerKeyMode == _AnswerKeyMode.manual,
               icon: Icons.edit_note,
               title: 'Type Answers',
-              subtitle:
-                  'Tap correct answers directly',
+              subtitle: 'Tap correct answers directly',
               onTap: () =>
                   setState(() => _answerKeyMode = _AnswerKeyMode.manual),
             ),
+            _ModeCard(
+              selected: _answerKeyMode == _AnswerKeyMode.scanMaster,
+              icon: Icons.document_scanner_outlined,
+              title: 'Scan Answer Sheet',
+              subtitle: 'Camera reads answers from paper',
+              onTap: () =>
+                  setState(() => _answerKeyMode = _AnswerKeyMode.scanMaster),
+            ),
             const SizedBox(height: 18),
+
             // 5. Questions
             Text(
               'Questions',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -196,11 +236,10 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
   }
 
   void _applyClassDefaults(ClassInfo classInfo) {
-    // Auto-fill subject from the class. The exam title is left empty for the
-    // teacher to type their own.
-    if (_subjectController.text.trim().isEmpty &&
-        classInfo.subject.isNotEmpty) {
-      _subjectController.text = classInfo.subject;
+    // Selecting a class repopulates the subject list; default the subject
+    // to the class's own subject when available.
+    if (classInfo.subject.trim().isNotEmpty) {
+      _selectedSubject = classInfo.subject.trim();
     }
   }
 
@@ -265,7 +304,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             ],
             const SizedBox(height: 10),
             FilledButton.icon(
-              onPressed: canProceed ? _createAssessment : null,
+              onPressed: canProceed ? _createAssessment : _promptTitle,
               icon: Icon(_buttonIcon),
               label: Text(_buttonLabel),
               style: FilledButton.styleFrom(
@@ -307,8 +346,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
         _answerKeyMode = _AnswerKeyMode.scanMaster;
         break;
       case ExamDayStartMode.noRoster:
-        // Quick grading lives on the separate Quick Grade flow; the
-        // exam creation page always grades against a class roster.
         _studentMode = _StudentMode.classList;
         break;
       case ExamDayStartMode.classList:
@@ -322,19 +359,34 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
 
   String _effectiveSelectedClassId(List<ClassInfo> classes) {
     if (_selectedClassId.isNotEmpty) return _selectedClassId;
-    if (_studentMode == _StudentMode.classList && classes.length == 1) {
-      return classes.single.id;
-    }
     return '';
+  }
+
+  /// Require a title before proceeding; show a red field + alert if missing.
+  void _promptTitle() {
+    setState(() => _titleError = true);
+    _titleFocus.requestFocus();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Exam title required'),
+        content: const Text(
+          'Please enter a title for this exam before continuing.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _createAssessment() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      setState(() => _titleError = true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Exam title is required')));
+      _promptTitle();
       return;
     }
 
@@ -343,25 +395,21 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
 
     if (selectedClassId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Choose a class to grade'),
-        ),
+        const SnackBar(content: Text('Choose a class to grade')),
       );
       return;
     }
 
-    final selectedClass = selectedClassId.isEmpty
-        ? null
-        : classes.cast<ClassInfo?>().firstWhere(
-            (classInfo) => classInfo?.id == selectedClassId,
-            orElse: () => null,
-          );
+    final selectedClass = classes
+        .cast<ClassInfo?>()
+        .firstWhere((c) => c?.id == selectedClassId, orElse: () => null);
+    final subjectText = _selectedSubject?.trim().isNotEmpty == true
+        ? _selectedSubject!.trim()
+        : (title.isNotEmpty ? 'Exam' : 'Exam');
     final defaultRubric = context.read<SettingsProvider>().defaultRubric;
     final assessment = Assessment(
       title: title,
-      subject: _subjectController.text.trim().isEmpty
-          ? 'Exam'
-          : _subjectController.text.trim(),
+      subject: subjectText,
       className: selectedClass?.displayName ?? '',
       rubricType: defaultRubric,
       questions: _buildQuestions(),
@@ -381,7 +429,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
     if (!mounted) return;
 
     if (_answerKeyMode == _AnswerKeyMode.scanMaster) {
-      // Navigate directly to camera in master key mode
       Navigator.pushReplacementNamed(
         context,
         AppRoutes.camera,
@@ -393,7 +440,6 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
       return;
     }
 
-    // Manual answer key — go to answer key screen, then confirmation
     Navigator.pushReplacementNamed(
       context,
       AppRoutes.answerKey,

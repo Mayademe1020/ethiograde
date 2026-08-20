@@ -335,13 +335,14 @@ class _ClassesTabState extends State<ClassesTab> {
     Map<String, int> counts,
   ) {
     final columns = ResponsiveLayout.gridColumns(context);
+    final ratio = columns == 1 ? 3.4 : (columns == 2 ? 2.1 : 1.7);
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 1.5,
+        childAspectRatio: ratio,
       ),
       itemCount: classes.length,
       itemBuilder: (context, index) {
@@ -542,6 +543,11 @@ class _ClassGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final subtitle = [
+      if (classInfo.grade > 0) 'Grade ${classInfo.grade}',
+      if (classInfo.subject.isNotEmpty) classInfo.subject,
+      if (classInfo.section.isNotEmpty) 'Sec ${classInfo.section}',
+    ].join('  ·  ');
     return Semantics(
       label:
           '${classInfo.displayName}, $studentCount student${studentCount == 1 ? '' : 's'}',
@@ -550,125 +556,117 @@ class _ClassGridCard extends StatelessWidget {
         onTap: onTap,
         color: cs.surface,
         borderColor: cs.outlineVariant,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(Icons.class_, color: cs.primary, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.class_, color: cs.primary, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
                     classInfo.displayName,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                PopupMenuButton<String>(
-                  icon: Icon(
-                    Icons.more_vert,
-                    size: 18,
-                    color: cs.onSurfaceVariant,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle.isNotEmpty ? subtitle : 'No details yet',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onSelected: (v) {
-                    if (v == 'edit') onEdit();
-                    if (v == 'addStudent') onAddStudent();
-                    if (v == 'delete') onDelete();
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 18),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.people,
+                        size: 14,
+                        color: cs.primary,
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'addStudent',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_add_outlined, size: 18),
-                          SizedBox(width: 8),
-                          Text('Add Student'),
-                        ],
+                      const SizedBox(width: 4),
+                      Text(
+                        '$studentCount student${studentCount == 1 ? '' : 's'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
                       ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            color: context.primaryRed,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Delete',
-                            style: TextStyle(color: context.primaryRed),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (classInfo.subject.isNotEmpty)
-                  _Chip(label: classInfo.subject),
-                if (classInfo.section.isNotEmpty)
-                  _Chip(label: 'Sec ${classInfo.section}'),
-                _Chip(label: '$studentCount students'),
+            PopupMenuButton<String>(
+              icon: Icon(
+                Icons.more_vert,
+                size: 18,
+                color: cs.onSurfaceVariant,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onSelected: (v) {
+                if (v == 'edit') onEdit();
+                if (v == 'addStudent') onAddStudent();
+                if (v == 'delete') onDelete();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Edit'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'addStudent',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Add Student'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        color: context.primaryRed,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Delete',
+                        style: TextStyle(color: context.primaryRed),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  const _Chip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: cs.primary,
         ),
       ),
     );
