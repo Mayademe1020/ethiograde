@@ -1564,9 +1564,10 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
         args is AnswerKeyRouteArgs && args.returnToConfirmation;
 
     if (returnToConfirmation) {
-      Navigator.pushReplacementNamed(
+      Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.camera,
+        (r) => r.isFirst,
         arguments: {'assessment': assessment, 'scanMode': 'batch'},
       );
       return;
@@ -1575,7 +1576,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       Navigator.pop(context, assessment);
       return;
     }
-    Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.dashboard,
+      (r) => r.isFirst,
+    );
   }
 
   Future<void> _showRecalculationDialog(
@@ -1728,7 +1733,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     if (returnToReview) {
       Navigator.pop(context, updatedAssessment);
     } else {
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.dashboard,
+        (r) => r.isFirst,
+      );
     }
   }
 
@@ -1750,7 +1759,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     if (returnToReview) {
       Navigator.pop(context, updatedAssessment);
     } else {
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.dashboard,
+        (r) => r.isFirst,
+      );
     }
   }
 }

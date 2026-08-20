@@ -440,7 +440,7 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
       return;
     }
 
-    Navigator.pushReplacementNamed(
+    Navigator.pushNamed(
       context,
       AppRoutes.answerKey,
       arguments: AnswerKeyRouteArgs(
