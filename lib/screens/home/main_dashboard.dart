@@ -1147,14 +1147,35 @@ class _AcademicYearChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final year = settings.currentAcademicYear;
-    return ActionChip(
-      avatar: const Icon(Icons.calendar_today_outlined, size: 16),
-      label: Text(year.isEmpty ? 'Set academic year' : 'Year: $year'),
-      backgroundColor: Theme.of(context)
-          .colorScheme
-          .primaryContainer
-          .withValues(alpha: 0.5),
-      onPressed: () => _showEditYear(context),
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => _showEditYear(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.primary, width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_today_outlined, size: 18, color: cs.primary),
+            const SizedBox(width: 8),
+            Text(
+              year.isEmpty ? 'Set Academic Year' : 'Academic Year: $year',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: cs.primary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.edit_outlined, size: 16, color: cs.primary),
+          ],
+        ),
+      ),
     );
   }
 
