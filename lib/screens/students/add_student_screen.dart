@@ -45,6 +45,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       _selectedClassId = existing.classIds.isNotEmpty
           ? existing.classIds.first
           : (widget.preselectedClassId ?? '');
+      // Editing a student with no phone on file — still default the prefix.
+      if ((existing.parentPhone ?? '').trim().isEmpty) {
+        _parentPhoneCtrl.text = PhoneUtils.countryCode;
+      }
     } else {
       _selectedClassId = widget.preselectedClassId ?? '';
       // Default prefix so the teacher just types the 9 local digits.
