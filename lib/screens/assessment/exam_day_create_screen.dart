@@ -8,6 +8,7 @@ import '../../models/class_info.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/settings_provider.dart';
+import '../../screens/classes/create_class_sheet.dart';
 import 'answer_key_screen.dart';
 
 enum ExamDayStartMode { masterScan, noRoster, classList, manualKey }
@@ -96,11 +97,59 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
             _buildSectionHeader(context, 'CLASS — WHO GETS THESE GRADES?'),
             const SizedBox(height: 10),
             if (classes.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Text(
-                  'No classes yet — create one in the Classes tab',
-                  style: TextStyle(color: AppTheme.lightText, fontSize: 13),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  onTap: () async {
+                    final created = await CreateClassSheet.show(context);
+                    if (created != null && mounted) setState(() {});
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'No classes yet — tap to create one before '
+                            'this exam.',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Create',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               )
             else

@@ -49,7 +49,7 @@ class SettingsTab extends StatelessWidget {
                 title: 'Teachers',
                 subtitle: teachers.activeTeacherName.isEmpty
                     ? ('Not set — tap to add')
-                    : '${teachers.activeTeacherName} (${teachers.teachers.length})',
+                    : _activeTeacherSummary(teachers),
                 onTap: () => _manageTeachers(context, teachers),
               ),
               SettingsTile(
@@ -272,11 +272,7 @@ class SettingsTab extends StatelessWidget {
                             child: Text(teacher.name[0].toUpperCase()),
                           ),
                           title: Text(teacher.name),
-                          subtitle: Text(
-                            _teacherSubtitle(ctx, teacher),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          subtitle: _teacherSubtitleWidget(ctx, teacher),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -571,27 +567,60 @@ class SettingsTab extends StatelessWidget {
     settingsProvider.addSubject(value);
   }
 
-  String _teacherSubtitle(BuildContext context, Teacher teacher) {
-    final parts = <String>[];
-    final subjects = teacher.allSubjects;
-    if (subjects.isNotEmpty) {
-      parts.add(subjects.join(', '));
-    }
+  Widget _teacherSubtitleWidget(BuildContext context, Teacher teacher) {
+    // Derive classes from the class's ownerId (the canonical link), not the
+    // teacher's classIds list — classes created outside onboarding never
+    // wrote back to classIds, so that list went stale.
     final classProvider = context.read<ClassProvider>();
-    final classNames = teacher.classIds
-        .map((id) {
-          for (final cls in classProvider.classes) {
-            if (cls.id == id) return cls.displayName;
-          }
-          return null;
-        })
-        .whereType<String>()
+    final ownedClasses = classProvider.classes
+        .where((c) => c.ownerId == teacher.id)
         .toList();
-    if (classNames.isNotEmpty) {
-      parts.add(classNames.join(', '));
-    }
-    if (parts.isEmpty) return teacher.role;
-    return '${teacher.role} · ${parts.join(' · ')}';
+    final subjects = <String>{
+      ...teacher.allSubjects,
+      for (final c in ownedClasses)
+        if (c.subject.isNotEmpty) c.subject,
+    }.toList()
+      ..sort();
+    final classNames = ownedClasses.map((c) => c.displayName).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (subjects.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final s in subjects)
+                  Chip(
+                    label: Text(s, style: const TextStyle(fontSize: 11)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+        Text(
+          '${teacher.role}'
+          '${classNames.isNotEmpty ? ' · ${classNames.join(', ')}' : ''}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  String _activeTeacherSummary(TeacherProvider teachers) {
+    final active = teachers.activeTeacher;
+    if (active == null) return '${teachers.teachers.length} teacher(s)';
+    final subjects = active.allSubjects;
+    final subjectText =
+        subjects.isEmpty ? '' : ' · ${subjects.join(', ')}';
+    return '${active.name}$subjectText';
   }
 
   Future<void> _confirmDelete(

@@ -234,6 +234,8 @@ class _DashboardHomeState extends State<_DashboardHome> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 10),
+                  _AcademicYearChip(settings: settings),
                 ],
               ),
             ),
@@ -1132,5 +1134,78 @@ class _StudentSearchBarState extends State<_StudentSearchBar> {
           ),
       ],
     );
+  }
+}
+
+/// Shows the current academic year on the dashboard and lets the teacher
+/// change it. The year is already auto-defaulted on first run; this just makes
+/// it visible and editable without digging into Settings.
+class _AcademicYearChip extends StatelessWidget {
+  final SettingsProvider settings;
+  const _AcademicYearChip({required this.settings});
+
+  @override
+  Widget build(BuildContext context) {
+    final year = settings.currentAcademicYear;
+    return ActionChip(
+      avatar: const Icon(Icons.calendar_today_outlined, size: 16),
+      label: Text(year.isEmpty ? 'Set academic year' : 'Year: $year'),
+      backgroundColor: Theme.of(context)
+          .colorScheme
+          .primaryContainer
+          .withValues(alpha: 0.5),
+      onPressed: () => _showEditYear(context),
+    );
+  }
+
+  Future<void> _showEditYear(BuildContext context) async {
+    final controller =
+        TextEditingController(text: settings.currentAcademicYear);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Academic Year'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (settings.academicYears.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final y in settings.academicYears)
+                      if (y != settings.currentAcademicYear)
+                        InputChip(
+                          label: Text(y),
+                          onPressed: () => Navigator.pop(ctx, y),
+                        ),
+                  ],
+                ),
+              ),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'e.g. 2026-2027',
+                hintText: 'YYYY-YYYY',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      await settings.setAcademicYear(result);
+    }
   }
 }

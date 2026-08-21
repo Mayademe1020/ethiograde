@@ -66,7 +66,7 @@ class _CreateClassSheetState extends State<CreateClassSheet> {
       final grades = context
           .read<ClassProvider>()
           .classes
-          .where((c) => teacher?.classIds.contains(c.id) ?? false)
+          .where((c) => c.ownerId == teacher?.id)
           .map((c) => c.grade)
           .toSet();
       if (grades.length == 1) {
