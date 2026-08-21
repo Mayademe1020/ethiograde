@@ -198,5 +198,51 @@ void main() {
       final ex = tester.takeException();
       expect(ex, isNull, reason: 'Onboarding overflowed at 360x360: $ex');
     });
+
+    testWidgets(
+      'academic year selector renders with a selectable chip',
+      timeout: const Timeout(Duration(seconds: 30)),
+      (tester) async {
+        final settings = SettingsProvider();
+        // Seed a current year so the chip is visible & preselected.
+        // Hive I/O must run inside runAsync or it never resolves under the
+        // test's virtual clock (same as _completeSetup does).
+        await tester.runAsync(() async {
+          await settings.setAcademicYear('2026-2027');
+        });
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SettingsProvider>.value(value: settings),
+              ChangeNotifierProvider(create: (_) => TeacherProvider()),
+              ChangeNotifierProvider(create: (_) => ClassProvider()..loadClasses()),
+              ChangeNotifierProvider(create: (_) => StudentProvider()),
+              ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+            ],
+            child: MaterialApp(
+              home: const OnboardingScreen(),
+              onGenerateRoute: (s) {
+                if (s.name == AppRoutes.dashboard) {
+                  return MaterialPageRoute<void>(
+                    builder: (_) => const Scaffold(body: Center(child: Text('DASHBOARD'))),
+                  );
+                }
+                return null;
+              },
+            ),
+          ),
+        );
+        // The Academic Year section lives on the final setup page.
+        for (var i = 0; i < 4; i++) {
+          await tester.tap(find.text('Next'));
+          await tester.pumpAndSettle();
+        }
+
+        expect(find.text('Academic Year'), findsOneWidget);
+        // The seeded year is shown as a selectable chip.
+        expect(find.text('2026-2027'), findsOneWidget);
+      },
+    );
   });
 }

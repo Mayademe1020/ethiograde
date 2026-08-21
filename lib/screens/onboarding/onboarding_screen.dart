@@ -22,10 +22,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _schoolController = TextEditingController();
   final _subjectController = TextEditingController();
+  final _academicYearController = TextEditingController();
   final List<String> _selectedSubjects = [];
+  String? _selectedAcademicYear;
   final List<String> _selectedClassIds = [];
   int? _selectedGrade;
   bool _nameError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default the selection to the already-set (auto-defaulted) year so the
+    // user sees a preselected chip and can just confirm or change it.
+    final settings = context.read<SettingsProvider>();
+    _selectedAcademicYear = settings.currentAcademicYear;
+  }
 
   final List<_OnboardingPage> _pages = [
     _OnboardingPage(
@@ -240,6 +251,83 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               prefixIcon: Icon(Icons.school_outlined),
               hintText: 'e.g. Bole Primary School',
             ),
+          ),
+          const SizedBox(height: 24),
+
+          // Academic Year — visible & selectable (like subjects/classes),
+          // supports multiple years; the chosen one becomes the default.
+          Text(
+            'Academic Year',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final year in settings.academicYears)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        year,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: _selectedAcademicYear == year
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: _selectedAcademicYear == year
+                              ? Colors.white
+                              : const Color(0xFF1F2823),
+                        ),
+                      ),
+                      selected: _selectedAcademicYear == year,
+                      onSelected: (_) =>
+                          setState(() => _selectedAcademicYear = year),
+                      selectedColor: AppTheme.primaryGreen,
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      showCheckmark: false,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: _selectedAcademicYear == year
+                              ? AppTheme.primaryGreen
+                              : Colors.grey.shade400,
+                          width: _selectedAcademicYear == year ? 2 : 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _academicYearController,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _addAcademicYear(context, settings),
+                  decoration: const InputDecoration(
+                    labelText: 'Add another year',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    hintText: 'e.g. 2027-2028',
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _addAcademicYear(context, settings),
+                icon: const Icon(Icons.add),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
 
@@ -519,6 +607,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _subjectController.clear();
   }
 
+  void _addAcademicYear(BuildContext context, SettingsProvider settings) {
+    final value = _academicYearController.text.trim();
+    if (value.isEmpty) return;
+    // setAcademicYear updates the current year AND adds it to the list,
+    // so it shows up immediately and becomes the default for new classes.
+    settings.setAcademicYear(value);
+    setState(() {
+      _selectedAcademicYear = value;
+      _academicYearController.clear();
+    });
+  }
+
   Future<void> _completeSetup() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -547,10 +647,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       teacher: name,
     );
 
-    // Ensure academic year is set so starter class has one.
-    final academicYear = settings.currentAcademicYear.isEmpty
-        ? ''
-        : settings.currentAcademicYear;
+    // Use the academic year the user selected on this screen (falls back to
+    // the already-defaulted one). This becomes the default for new classes.
+    final academicYear = _selectedAcademicYear ??
+        settings.currentAcademicYear;
+    if (academicYear.isNotEmpty) {
+      await settings.setAcademicYear(academicYear);
+    }
 
     // Collect all unique subjects (controller + selected chips).
     final subjectInput = _subjectController.text.trim();
