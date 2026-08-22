@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 /// Shared Ethiopian phone number utilities.
 ///
 /// Standard across the platform:
@@ -9,6 +11,9 @@ class PhoneUtils {
 
   /// The country prefix prepended by default.
   static const String countryCode = '+251';
+
+  /// Maximum characters a phone field may hold: `+251` + 9 digits = 13.
+  static const int maxLength = 13;
 
   /// Matches the 9 local digits: must start with 7 or 9.
   static final RegExp _localRegex = RegExp(r'^[79]\d{8}$');
@@ -54,5 +59,44 @@ class PhoneUtils {
     final normalized = normalize(phone);
     if (!isValid(normalized)) return '';
     return normalized.substring(countryCode.length);
+  }
+}
+
+/// Live input filter for Ethiopian phone fields.
+///
+/// Enforces the platform standard as the user types:
+/// - only digits, plus an optional leading `+` (no other characters)
+/// - at most [PhoneUtils.maxLength] characters (`+251` + 9 digits)
+///
+/// Semantic correctness (must start with 7 or 9, exactly 9 digits) is still
+/// validated on submit via [PhoneUtils.isValidRaw].
+class PhoneDigitsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final buffer = StringBuffer();
+    var plusSeen = false;
+    for (final ch in newValue.text.split('')) {
+      if (ch == '+') {
+        if (!plusSeen && buffer.isEmpty) {
+          buffer.write('+');
+          plusSeen = true;
+        }
+        continue;
+      }
+      if (ch.compareTo('0') >= 0 && ch.compareTo('9') <= 0) {
+        buffer.write(ch);
+      }
+    }
+    var text = buffer.toString();
+    if (text.length > PhoneUtils.maxLength) {
+      text = text.substring(0, PhoneUtils.maxLength);
+    }
+    return newValue.copyWith(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 }

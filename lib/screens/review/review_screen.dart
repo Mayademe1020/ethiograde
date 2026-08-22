@@ -23,6 +23,7 @@ import '../../services/correction_learner.dart';
 import '../../services/answer_key_fingerprint_service.dart';
 import '../../services/answer_key_recalculation_service.dart';
 import '../../services/integrity_state_resolver.dart';
+import '../../services/phone_utils.dart';
 import '../../services/assessment_completion_gate.dart';
 import '../../models/audit_entry.dart';
 import '../../services/audit_service.dart';
@@ -351,7 +352,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       );
 
       messages.add({
-        'phone': student.parentPhone!,
+        'phone': PhoneUtils.normalize(student.parentPhone!),
         'message': message,
         'student': student.fullName,
       });

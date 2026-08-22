@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/sms_service.dart';
+import '../../services/phone_utils.dart';
 import '../../services/student_provider.dart';
 
 class SmsComposeScreen extends StatefulWidget {
@@ -92,7 +93,7 @@ class _SmsComposeScreenState extends State<SmsComposeScreen> {
         );
 
         messages.add({
-          'phone': student.parentPhone!,
+          'phone': PhoneUtils.normalize(student.parentPhone!),
           'message': message,
           'student': student.fullName,
         });

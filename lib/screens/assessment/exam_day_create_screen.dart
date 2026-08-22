@@ -102,7 +102,32 @@ class _ExamDayCreateScreenState extends State<ExamDayCreateScreen> {
                 child: InkWell(
                   onTap: () async {
                     final created = await CreateClassSheet.show(context);
-                    if (created != null && mounted) setState(() {});
+                    if (created != null && mounted) {
+                      final classProv = context.read<ClassProvider>();
+                      final result = await classProv.addClass(created);
+                      if (result.success && mounted) {
+                        classProv.selectClass(created.id);
+                        setState(() {
+                          _studentMode = _StudentMode.classList;
+                          _selectedClassId = created.id;
+                          _applyClassDefaults(created);
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${created.displayName} created'),
+                          ),
+                        );
+                      } else if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result.error ?? 'Could not create class',
+                            ),
+                            backgroundColor: context.primaryRed,
+                          ),
+                        );
+                      }
+                    }
                   },
                   borderRadius: BorderRadius.circular(10),
                   child: Container(

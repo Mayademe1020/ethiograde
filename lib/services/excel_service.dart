@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/student.dart';
-import 'sms_service.dart';
+import 'phone_utils.dart';
 
 /// CSV import and export for students and assessment results.
 ///
@@ -125,6 +125,7 @@ class ImportService {
 
     final students = <Student>[];
     final errors = <String>[];
+    final warnings = <String>[];
 
     for (int i = headerRow + 1; i < rows.length; i++) {
       final row = rows[i];
@@ -157,9 +158,17 @@ class ImportService {
             className: className,
             section: section,
             grade: int.tryParse(gradeStr) ?? 1,
-            parentPhone: parentPhone.isEmpty
-                ? null
-                : SmsService.cleanPhoneNumber(parentPhone),
+            parentPhone: () {
+              if (parentPhone.trim().isEmpty) return null;
+              final normalized = PhoneUtils.normalize(parentPhone);
+              if (!PhoneUtils.isValid(normalized)) {
+                warnings.add(
+                  'Row ${i + 1}: invalid parent phone "$parentPhone" — skipped',
+                );
+                return null;
+              }
+              return normalized;
+            }(),
           ),
         );
       } catch (e) {
@@ -175,6 +184,7 @@ class ImportService {
             ? 'Found $dataRows rows but none had valid names'
             : 'No data rows found after header',
         errors: errors,
+        warnings: warnings,
       );
     }
 
@@ -183,6 +193,7 @@ class ImportService {
       students: students,
       message: 'Found ${students.length} students',
       errors: errors,
+      warnings: warnings,
     );
   }
 
@@ -400,11 +411,13 @@ class ImportResult {
   final String message;
   final List<Student> students;
   final List<String> errors;
+  final List<String> warnings;
 
   ImportResult({
     required this.success,
     required this.message,
     this.students = const [],
     this.errors = const [],
+    this.warnings = const [],
   });
 }

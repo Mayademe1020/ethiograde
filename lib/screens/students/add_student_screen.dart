@@ -208,6 +208,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 controller: _parentPhoneCtrl,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.done,
+                inputFormatters: [PhoneDigitsFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Parent Phone',
                   hintText: '+251 9XXXXXXXX',
