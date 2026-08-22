@@ -157,6 +157,52 @@ class MockCameraPlatform extends CameraPlatform {
   @override
   Future<void> setDescriptionWhileRecording(CameraDescription description) async {}
 
+  Future<void> startImageStream(
+    int cameraId,
+    Function(CameraImageData) onAvailable,
+  ) async {
+    // Emit a few synthetic frames so the auto-scan pipeline has input.
+    // Frames are generated from the synthetic answer-sheet image bytes.
+    Future<void>.delayed(Duration.zero, () async {
+      final bytes = nextImageBytes ?? generateSyntheticAnswerSheet();
+      for (var i = 0; i < 10; i++) {
+        final image = _toCameraImage(bytes, cameraId);
+        onAvailable(image);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+  }
+
+  Future<void> stopImageStream(int cameraId) async {}
+
+  /// Convert synthetic JPEG bytes into a minimal [CameraImageData] the
+  /// auto-scan analyzer can consume. The analyzer reads luma from the first
+  /// plane; we synthesize a bright (paper) plane so detection proceeds.
+  CameraImageData _toCameraImage(Uint8List bytes, int cameraId) {
+    // A small grayscale plane representing a bright sheet (paper visible).
+    const w = 120, h = 160;
+    final luma = Uint8List(w * h);
+    for (var i = 0; i < luma.length; i++) {
+      luma[i] = 220; // bright -> paper visible
+    }
+    final plane = CameraImagePlane(
+      bytes: luma,
+      width: w,
+      height: h,
+      bytesPerRow: w,
+    );
+    return CameraImageData(
+      format: const CameraImageFormat(
+        ImageFormatGroup.yuv420,
+        raw: null,
+      ),
+      planes: [plane],
+      width: w,
+      height: h,
+    );
+  }
+
+
   @override
   Future<void> startVideoRecording(int cameraId, {Duration? maxVideoDuration}) async {}
 

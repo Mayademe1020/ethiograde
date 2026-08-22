@@ -88,10 +88,15 @@ class CameraProcessor {
 
     _isStreamStopping = false;
     debugPrint('AUTO_CAPTURE: Starting image stream');
-    controller.startImageStream((CameraImage image) {
-      _observeCameraFrame(image, controller);
-    });
-    _isImageStreamActive = true;
+    try {
+      controller.startImageStream((CameraImage image) {
+        _observeCameraFrame(image, controller);
+      });
+      _isImageStreamActive = true;
+    } catch (e) {
+      debugPrint('AUTO_CAPTURE: startImageStream failed: $e');
+      _isImageStreamActive = false;
+    }
   }
 
   void stopFrameObservation(CameraController? controller) {
