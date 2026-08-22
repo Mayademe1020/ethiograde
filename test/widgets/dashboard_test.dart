@@ -139,9 +139,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Students'), findsWidgets);
 
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Settings'));
       await tester.pumpAndSettle();
-      expect(find.text('PROFILE'), findsOneWidget);
+      expect(find.text('PREFERENCES'), findsOneWidget);
     });
 
     testWidgets('Quick Grade is accessible from Assessments tab', (

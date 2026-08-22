@@ -124,14 +124,20 @@ void main() {
       expect(find.byType(ClassDetailScreen), findsOneWidget);
     });
 
-    testWidgets('shows Add, Import, Scan action buttons', (tester) async {
+    testWidgets('shows roster guidance + teacher tools for empty class', (
+      tester,
+    ) async {
       final cls = makeClass();
       await tester.pumpWidget(wrapClassDetail(cls));
       await tester.pumpAndSettle();
 
-      expect(find.text('Add'), findsOneWidget);
-      expect(find.text('Import'), findsOneWidget);
-      expect(find.text('Scan'), findsOneWidget);
+      // Empty roster → situation panel guides Import / Scan (the big Add /
+      // Import / Scan tiles were removed in favour of this contextual panel).
+      expect(find.text('Import list'), findsOneWidget);
+      expect(find.text('Scan roster'), findsOneWidget);
+      // Compact teacher-tools row is always present.
+      expect(find.text('Attendance'), findsOneWidget);
+      expect(find.text('Notes'), findsOneWidget);
     });
 
     testWidgets('shows empty state when no students', (tester) async {

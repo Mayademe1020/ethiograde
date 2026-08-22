@@ -113,42 +113,9 @@ class ClassDetailScreen extends StatelessWidget {
               onScanRoster: () => _scanRoster(context, currentClass),
             ),
 
-            // Action buttons
-            Padding(
-              padding: EdgeInsets.all(ResponsiveLayout.horizontalPadding(context)),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.person_add_outlined,
-                      label: 'Add',
-                      color: context.primaryGreen,
-                      onTap: () => _addStudentManually(context, currentClass),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.upload_file,
-                      label: 'Import',
-                      color: AppTheme.info,
-                      onTap: () => _importExcel(context, currentClass),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionButton(
-                      icon: Icons.document_scanner_outlined,
-                      label: 'Scan',
-                      color: context.primaryYellow,
-                      onTap: () => _scanRoster(context, currentClass),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Teacher tools — attendance & class notes
+            // Teacher tools — compact row (attendance & class notes).
+            // Add / Import / Scan live in the situation panel above so the
+            // student list stays the visual focus.
             Padding(
               padding: EdgeInsets.fromLTRB(
                 ResponsiveLayout.horizontalPadding(context),
@@ -159,27 +126,31 @@ class ClassDetailScreen extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: _ActionButton(
-                      icon: Icons.fact_check_outlined,
-                      label: 'Attendance',
-                      color: Colors.teal,
-                      onTap: () => Navigator.pushNamed(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(
                         context,
                         AppRoutes.classAttendance,
                         arguments: currentClass,
+                      ),
+                      icon: const Icon(Icons.fact_check_outlined, size: 18),
+                      label: const Text('Attendance'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _ActionButton(
-                      icon: Icons.note_add_outlined,
-                      label: 'Notes',
-                      color: Colors.deepPurple,
-                      onTap: () => Navigator.pushNamed(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(
                         context,
                         AppRoutes.classNotes,
                         arguments: currentClass,
+                      ),
+                      icon: const Icon(Icons.note_add_outlined, size: 18),
+                      label: const Text('Notes'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -574,29 +545,41 @@ class _ClassSituationPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: students.isEmpty ? onImport : onAddStudent,
-                  icon: Icon(
-                    students.isEmpty
-                        ? Icons.upload_file
-                        : Icons.person_add_outlined,
+          if (students.isEmpty || rosterHealth.hasIssues)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: students.isEmpty ? onImport : onAddStudent,
+                    icon: Icon(
+                      students.isEmpty
+                          ? Icons.upload_file
+                          : Icons.person_add_outlined,
+                    ),
+                    label: Text(
+                      students.isEmpty ? 'Import list' : 'Add student',
+                    ),
                   ),
-                  label: Text(students.isEmpty ? 'Import list' : 'Add student'),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onScanRoster,
-                  icon: const Icon(Icons.document_scanner_outlined),
-                  label: const Text('Scan roster'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onScanRoster,
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    label: const Text('Scan roster'),
+                  ),
                 ),
+              ],
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onAddStudent,
+                icon: const Icon(Icons.person_add_outlined),
+                label: const Text('Add student'),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -767,50 +750,6 @@ class _InfoChip extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

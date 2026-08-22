@@ -1159,16 +1159,18 @@ class _AcademicYearChip extends StatelessWidget {
           border: Border.all(color: cs.primary, width: 1.5),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.calendar_today_outlined, size: 18, color: cs.primary),
             const SizedBox(width: 8),
-            Text(
-              year.isEmpty ? 'Set Academic Year' : 'Academic Year: $year',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: cs.primary,
-                fontSize: 14,
+            Flexible(
+              child: Text(
+                year.isEmpty ? 'Set Academic Year' : 'Academic Year: $year',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: cs.primary,
+                  fontSize: 14,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 4),

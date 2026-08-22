@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/grading_scale.dart';
 import 'error_handler.dart';
+import 'phone_utils.dart';
 import 'hive_box_mixin.dart';
 
 enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
@@ -19,6 +20,7 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
 
   String _schoolName = '';
   String _teacherName = '';
+  String _teacherPhone = '';
   String _schoolLogoPath = '';
   String _defaultRubric = 'moe_national';
   bool _autoEnhanceImages = true;
@@ -51,6 +53,7 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
 
   String get schoolName => _schoolName;
   String get teacherName => _teacherName;
+  String get teacherPhone => _teacherPhone;
   String get schoolLogoPath => _schoolLogoPath;
   String get defaultRubric => _defaultRubric;
   bool get autoEnhanceImages => _autoEnhanceImages;
@@ -95,6 +98,7 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
       final piiBox = Hive.box(_piiBoxName);
       _schoolName = (piiBox.get('school_name') as String?) ?? '';
       _teacherName = (piiBox.get('teacher_name') as String?) ?? '';
+      _teacherPhone = (piiBox.get('teacher_phone') as String?) ?? '';
       _telegramHandle = (piiBox.get('telegram_handle') as String?) ?? '';
       _whatsappNumber = (piiBox.get('whatsapp_number') as String?) ?? '';
 
@@ -188,6 +192,16 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
       _schoolLogoPath = logoPath;
       await prefs.setString('school_logo', logoPath);
     }
+    notifyListeners();
+  }
+
+  /// Persists the teacher's phone (normalized to E.164) for reuse across the
+  /// app (e.g. SMS, identification). Mirrors the teacher PII pattern.
+  Future<void> updateTeacherPhone(String phone) async {
+    final piiBox = await _getPiiBox();
+    final normalized = phone.trim().isEmpty ? '' : PhoneUtils.normalize(phone);
+    _teacherPhone = normalized;
+    await piiBox.put('teacher_phone', normalized);
     notifyListeners();
   }
 
@@ -377,6 +391,7 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
 
     _schoolName = '';
     _teacherName = '';
+    _teacherPhone = '';
     _telegramHandle = '';
     _whatsappNumber = '';
     _defaultRubric = 'moe_national';

@@ -23,6 +23,8 @@ class Teacher {
   final List<String> subjects;
   @HiveField(8)
   final List<String> classIds;
+  @HiveField(9)
+  final String phone;
 
   Teacher({
     String? id,
@@ -34,6 +36,7 @@ class Teacher {
     DateTime? createdAt,
     List<String>? subjects,
     List<String>? classIds,
+    this.phone = '',
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        subjects = subjects ?? (subject.isEmpty ? const [] : [subject]),
@@ -59,6 +62,7 @@ class Teacher {
     'createdAt': createdAt.toIso8601String(),
     'subjects': subjects,
     'classIds': classIds,
+    'phone': phone,
   };
 
   factory Teacher.fromMap(Map<String, dynamic> map) => Teacher(
@@ -72,6 +76,7 @@ class Teacher {
         DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
     subjects: (map['subjects'] as List?)?.cast<String>() ?? const [],
     classIds: (map['classIds'] as List?)?.cast<String>() ?? const [],
+    phone: map['phone'] as String? ?? '',
   );
 
   Teacher copyWith({
@@ -82,6 +87,7 @@ class Teacher {
     bool? isActive,
     List<String>? subjects,
     List<String>? classIds,
+    String? phone,
   }) => Teacher(
     id: id,
     name: name ?? this.name,
@@ -92,6 +98,7 @@ class Teacher {
     createdAt: createdAt,
     subjects: subjects ?? this.subjects,
     classIds: classIds ?? this.classIds,
+    phone: phone ?? this.phone,
   );
 
   @override
