@@ -159,6 +159,32 @@ class StandardTemplates {
     bubbleRadius: 6,
     fillThreshold: 0.45);
 
+  /// 100 questions, 5 options (A–E), two columns.
+  /// Common for teacher-made comprehensive exams.
+  static const BubbleTemplate moe100x5 = BubbleTemplate(
+    name: 'MoE 100×5',
+    questionCount: 100,
+    options: ['A', 'B', 'C', 'D', 'E'],
+    startX: 180,
+    startY: 180,
+    columnSpacing: 110,
+    rowSpacing: 26,
+    bubbleRadius: 7,
+    fillThreshold: 0.45);
+
+  /// 120 questions, 5 options (A–E), three columns.
+  /// Matches Ethiopian National Exam format.
+  static const BubbleTemplate moe120x5 = BubbleTemplate(
+    name: 'MoE 120×5 (National Exam)',
+    questionCount: 120,
+    options: ['A', 'B', 'C', 'D', 'E'],
+    startX: 120,
+    startY: 150,
+    columnSpacing: 130,
+    rowSpacing: 24,
+    bubbleRadius: 6,
+    fillThreshold: 0.45);
+
   /// Get a template by name (case-insensitive).
   static BubbleTemplate? byName(String name) {
     final lower = name.toLowerCase();
@@ -180,7 +206,9 @@ class StandardTemplates {
 
     if (questionCount <= 20) return moe20x5;
     if (questionCount <= 30) return moe30x5;
-    return uni50x4;
+    if (questionCount <= 50) return uni50x4;
+    if (questionCount <= 100) return moe100x5;
+    return moe120x5;
   }
 
   /// All available standard templates.
@@ -190,5 +218,7 @@ class StandardTemplates {
     tf10,
     tf20,
     uni50x4,
+    moe100x5,
+    moe120x5,
   ];
 }

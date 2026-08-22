@@ -1,0 +1,271 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../config/theme.dart';
+import '../../config/routes.dart';
+import '../../config/responsive.dart';
+import '../../services/assessment_provider.dart';
+import '../../services/hybrid_grading_service.dart';
+import '../../services/error_handler.dart';
+import '../../models/assessment.dart';
+import '../../models/scan_result.dart';
+import '../../widgets/assessment_card.dart';
+import '../../widgets/ui_components.dart';
+
+class AssessmentsTab extends StatefulWidget {
+  const AssessmentsTab({super.key});
+
+  @override
+  State<AssessmentsTab> createState() => _AssessmentsTabState();
+}
+
+class _AssessmentsTabState extends State<AssessmentsTab> {
+  bool _showCompleted = false;
+  Map<String, List<ScanResult>> _resultsByAssessment = {};
+  bool _loadFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadResults();
+  }
+
+  Future<void> _loadResults() async {
+    try {
+      final results = await HybridGradingService().loadAllScanResults(
+        throwOnError: true,
+      );
+      final grouped = <String, List<ScanResult>>{};
+      for (final r in results) {
+        grouped.putIfAbsent(r.assessmentId, () => []).add(r);
+      }
+      if (mounted) {
+        setState(() {
+          _resultsByAssessment = grouped;
+          _loadFailed = false;
+        });
+      }
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_loadResults', e, st);
+      if (mounted) {
+        setState(() => _loadFailed = true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final assessments = context.watch<AssessmentProvider>();
+    final activeAssessments = assessments.activeAssessments;
+    final completedAssessments = assessments.completedAssessments;
+    final hp = ResponsiveLayout.horizontalPadding(context);
+
+    final readyAssessments = activeAssessments
+        .where((assessment) => assessment.isAnswerKeyComplete)
+        .toList(growable: false);
+    final setupAssessments = activeAssessments
+        .where((assessment) => !assessment.isAnswerKeyComplete)
+        .toList(growable: false);
+
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(hp, 20, hp, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Assessments',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.createAssessment,
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Grade papers'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.quickGrade),
+                    icon: const Icon(Icons.flash_on),
+                    label: const Text('Quick Grade'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('Active'),
+                      icon: Icon(Icons.play_circle_outline, size: 18),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Completed'),
+                      icon: Icon(Icons.check_circle_outline, size: 18),
+                    ),
+                  ],
+                  selected: {_showCompleted},
+                  onSelectionChanged: (selected) =>
+                      setState(() => _showCompleted = selected.first),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _loadFailed
+                ? AppErrorState(
+                    title: 'Couldn\'t load assessments',
+                    message:
+                        'Something went wrong while reading your saved data. Try again.',
+                    onRetry: _loadResults,
+                  )
+                : _showCompleted
+                ? _buildCompletedList(context, completedAssessments)
+                : _buildActiveList(context, readyAssessments, setupAssessments),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveList(
+    BuildContext context,
+    List<Assessment> ready,
+    List<Assessment> setup,
+  ) {
+    final hp = ResponsiveLayout.horizontalPadding(context);
+    if (ready.isEmpty && setup.isEmpty) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.assignment_outlined,
+          title: 'No active exams',
+          message: 'Create one or check your completed exams.',
+          buttonLabel: 'Grade Papers',
+          onPressed: () =>
+              Navigator.pushNamed(context, AppRoutes.createAssessment),
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        if (setup.isNotEmpty) ...[
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(hp, 8, hp, 4),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                'Needs Setup (${setup.length})',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: context.warning,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
+            sliver: SliverList.builder(
+              itemCount: setup.length,
+              itemBuilder: (_, index) {
+                final a = setup[index];
+                return AssessmentCard(
+                  assessment: a,
+                  results: _resultsByAssessment[a.id],
+                );
+              },
+            ),
+          ),
+        ],
+        if (ready.isNotEmpty) ...[
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(hp, 16, hp, 4),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                'Ready to Scan (${ready.length})',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: context.primaryGreen,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
+            sliver: SliverList.builder(
+              itemCount: ready.length,
+              itemBuilder: (_, index) {
+                final a = ready[index];
+                return AssessmentCard(
+                  assessment: a,
+                  results: _resultsByAssessment[a.id],
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompletedList(BuildContext context, List<Assessment> completed) {
+    final hp = ResponsiveLayout.horizontalPadding(context);
+    if (completed.isEmpty) {
+      return const Center(
+        child: AppEmptyState(
+          icon: Icons.check_circle_outline,
+          title: 'No completed exams yet',
+          message: 'Grade your first exam to see results here.',
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(hp, 8, hp, 4),
+          sliver: SliverToBoxAdapter(
+            child: Text(
+              'Completed (${completed.length})',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: context.primaryGreen,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: hp, vertical: 4),
+          sliver: SliverList.builder(
+            itemCount: completed.length,
+            itemBuilder: (_, index) {
+              final a = completed[index];
+              return AssessmentCard(
+                assessment: a,
+                results: _resultsByAssessment[a.id],
+              );
+            },
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      ],
+    );
+  }
+}

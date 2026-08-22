@@ -3,13 +3,9 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
-import 'package:ethiograde/models/assessment.dart';
-import 'package:ethiograde/models/coordinate_map.dart';
 import 'package:ethiograde/models/scan_result.dart';
 import 'package:ethiograde/services/omr_service.dart';
-import 'package:ethiograde/services/coordinate_map_omr_service.dart';
 import 'package:ethiograde/services/bubble_template.dart';
-import 'package:ethiograde/services/answer_sheet_generator.dart';
 import 'package:ethiograde/services/scoring_service.dart';
 
 import 'mock_camera_platform.dart';
@@ -95,19 +91,20 @@ void main() {
         await File(imagePath).writeAsBytes(jpegBytes);
 
         // Create a basic MCQ template
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'test10',
           questionCount: 10,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         // Process with OmrService — must not crash
         final omr = OmrService();
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: imagePath,
           template: template,
         );
@@ -129,18 +126,19 @@ void main() {
         final imagePath = '${tempDir.path}/empty_sheet.jpg';
         await File(imagePath).writeAsBytes(jpegBytes);
 
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'test_empty',
           questionCount: 0,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         final omr = OmrService();
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: imagePath,
           template: template,
         );
@@ -150,19 +148,20 @@ void main() {
       });
 
       test('OmrService handles missing image file gracefully', () async {
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'test5',
           questionCount: 5,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         final omr = OmrService();
         // Should not throw — returns empty result
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: '/tmp/nonexistent_image_xyz.jpg',
           template: template,
         );
@@ -298,18 +297,19 @@ void main() {
         await File(imagePath).writeAsBytes(jpegBytes);
 
         // OMR scan
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'e2e_test',
           questionCount: 10,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         final omr = OmrService();
-        final omrResult = await omr.processImage(
+        final omrResult = await omr.detectBubbles(
           enhancedImagePath: imagePath,
           template: template,
         );
@@ -320,7 +320,7 @@ void main() {
 
         for (int i = 0; i < 10; i++) {
           final detected = i < omrResult.answers.length
-              ? omrResult.answers[i].selectedOption
+              ? omrResult.answers[i].answer
               : '[MISSING]';
           final correct = correctAnswers[i];
           scoredAnswers.add(AnswerMatch(
@@ -357,19 +357,20 @@ void main() {
         await File(corruptPath).writeAsBytes(
           Uint8List.fromList(List.generate(100, (i) => i % 256)));
 
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'corrupt_test',
           questionCount: 5,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         final omr = OmrService();
         // Must not throw — returns empty result
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: corruptPath,
           template: template,
         );
@@ -381,18 +382,19 @@ void main() {
         final emptyPath = '${tempDir.path}/empty.jpg';
         await File(emptyPath).writeAsBytes(Uint8List(0));
 
-        final template = BubbleTemplate.mcq(
+        const template = BubbleTemplate(
+          name: 'empty_test',
           questionCount: 5,
-          optionCount: 5,
-          startRow: 120,
+          options: ['A', 'B', 'C', 'D', 'E'],
+          startY: 120,
           rowSpacing: 45,
-          startCol: 100,
-          colSpacing: 50,
+          startX: 100,
+          columnSpacing: 50,
           bubbleRadius: 8,
         );
 
         final omr = OmrService();
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: emptyPath,
           template: template,
         );

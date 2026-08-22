@@ -104,8 +104,8 @@ void main() {
   });
 
   group('StandardTemplates', () {
-    test('all returns 5 templates', () {
-      expect(StandardTemplates.all.length, 5);
+    test('all returns 7 templates', () {
+      expect(StandardTemplates.all.length, 7);
     });
 
     test('byName finds templates case-insensitively', () {

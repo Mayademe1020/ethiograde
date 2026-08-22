@@ -9,9 +9,9 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: null),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: null),
         ]);
       expect(a.answeredQuestionCount, 2);
     });
@@ -22,8 +22,8 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: ''),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: ''),
         ]);
       expect(a.answeredQuestionCount, 1);
     });
@@ -39,10 +39,10 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: null),
-          const Question(number: 4, type: QuestionType.mcq, correctAnswer: ''),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: 'B'),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: null),
+          Question(number: 4, type: QuestionType.mcq, correctAnswer: ''),
         ]);
       expect(a.answerKeyCompleteness, 0.5);
     });
@@ -58,8 +58,8 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
         ]);
       expect(a.isAnswerKeyComplete, isTrue);
     });
@@ -70,8 +70,8 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
         ]);
       expect(a.isAnswerKeyComplete, isFalse);
     });
@@ -87,9 +87,9 @@ void main() {
         title: 'Test',
         subject: 'Math',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.mcq, correctAnswer: null),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
         ]);
       expect(a.answerKeyStatus, '2/3 answers set');
     });
@@ -100,9 +100,9 @@ void main() {
         title: 'Test',
         subject: 'Science',
         questions: [
-          const Question(number: 1, type: QuestionType.trueFalse, correctAnswer: 'True'),
-          const Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'False'),
-          const Question(number: 3, type: QuestionType.trueFalse, correctAnswer: null),
+          Question(number: 1, type: QuestionType.trueFalse, correctAnswer: 'True'),
+          Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'False'),
+          Question(number: 3, type: QuestionType.trueFalse, correctAnswer: null),
         ]);
       expect(a.answeredQuestionCount, 2);
       expect(a.isAnswerKeyComplete, isFalse);
@@ -114,10 +114,10 @@ void main() {
         title: 'Test',
         subject: 'Mixed',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
-          const Question(number: 4, type: QuestionType.trueFalse, correctAnswer: 'False'),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
+          Question(number: 4, type: QuestionType.trueFalse, correctAnswer: 'False'),
         ]);
       expect(a.answeredQuestionCount, 4);
       expect(a.isAnswerKeyComplete, isTrue);

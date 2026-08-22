@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
-import 'package:camera/camera.dart';
+import 'dart:math';
 import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -159,6 +157,52 @@ class MockCameraPlatform extends CameraPlatform {
   @override
   Future<void> setDescriptionWhileRecording(CameraDescription description) async {}
 
+  Future<void> startImageStream(
+    int cameraId,
+    Function(CameraImageData) onAvailable,
+  ) async {
+    // Emit a few synthetic frames so the auto-scan pipeline has input.
+    // Frames are generated from the synthetic answer-sheet image bytes.
+    Future<void>.delayed(Duration.zero, () async {
+      final bytes = nextImageBytes ?? generateSyntheticAnswerSheet();
+      for (var i = 0; i < 10; i++) {
+        final image = _toCameraImage(bytes, cameraId);
+        onAvailable(image);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+  }
+
+  Future<void> stopImageStream(int cameraId) async {}
+
+  /// Convert synthetic JPEG bytes into a minimal [CameraImageData] the
+  /// auto-scan analyzer can consume. The analyzer reads luma from the first
+  /// plane; we synthesize a bright (paper) plane so detection proceeds.
+  CameraImageData _toCameraImage(Uint8List bytes, int cameraId) {
+    // A small grayscale plane representing a bright sheet (paper visible).
+    const w = 120, h = 160;
+    final luma = Uint8List(w * h);
+    for (var i = 0; i < luma.length; i++) {
+      luma[i] = 220; // bright -> paper visible
+    }
+    final plane = CameraImagePlane(
+      bytes: luma,
+      width: w,
+      height: h,
+      bytesPerRow: w,
+    );
+    return CameraImageData(
+      format: const CameraImageFormat(
+        ImageFormatGroup.yuv420,
+        raw: null,
+      ),
+      planes: [plane],
+      width: w,
+      height: h,
+    );
+  }
+
+
   @override
   Future<void> startVideoRecording(int cameraId, {Duration? maxVideoDuration}) async {}
 
@@ -179,7 +223,7 @@ class MockCameraPlatform extends CameraPlatform {
   }
 
   @override
-  Stream<VideoRecordingEvent> onVideoRecordingEvent(int cameraId) {
+  Stream<VideoRecordedEvent> onVideoRecordedEvent(int cameraId) {
     return const Stream.empty();
   }
 
@@ -220,11 +264,11 @@ class MockCameraPlatform extends CameraPlatform {
     }
 
     // Draw answer bubbles grid
-    final startX = 100;
-    final startY = 120;
-    final bubbleRadius = 8;
-    final rowHeight = 45;
-    final colWidth = 50;
+    const startX = 100;
+    const startY = 120;
+    const bubbleRadius = 8;
+    const rowHeight = 45;
+    const colWidth = 50;
 
     final answerList = answers ?? List.generate(questions, (i) {
       // Alternate between A-E for test answers
@@ -242,16 +286,15 @@ class MockCameraPlatform extends CameraPlatform {
         if (isFilled) {
           // Filled bubble — dark circle
           img.fillCircle(image,
-            cx: x, cy: y,
+            x: x, y: y,
             radius: bubbleRadius,
             color: img.ColorRgb8(30, 30, 30));
         } else {
           // Empty bubble — thin outline
           img.drawCircle(image,
-            cx: x, cy: y,
+            x: x, y: y,
             radius: bubbleRadius,
-            color: img.ColorRgb8(180, 180, 180),
-            thickness: 1);
+            color: img.ColorRgb8(180, 180, 180));
         }
       }
 

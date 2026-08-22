@@ -103,28 +103,118 @@ class ScoringService {
   }) {
     if (detected == null || correct == null) return false;
 
+    final detectedStr = detected.toString().trim();
+
+    // Handle BLANK and UNREADABLE — always wrong
+    if (detectedStr.toUpperCase() == 'BLANK' || detectedStr.toUpperCase() == 'UNREADABLE') {
+      return false;
+    }
+
     if (type == QuestionType.mcq || type == QuestionType.trueFalse) {
-      return _normalizeWhitespace(detected.toString()).toUpperCase() ==
-          _normalizeWhitespace(correct.toString()).toUpperCase();
+      final detectedNorm = _normalizeWhitespace(detectedStr).toUpperCase();
+      final correctStr = correct.toString();
+
+      // T/F aliases: T=True, F=False
+      final expandedDetected = _expandTfAlias(detectedNorm);
+      final expandedCorrect = _expandTfAlias(_normalizeWhitespace(correctStr).toUpperCase());
+
+      // Support multiple correct answers: "A,C" or List ["A", "C"]
+      if (correct is List) {
+        return correct.any((c) {
+          final cExpanded = _expandTfAlias(_normalizeWhitespace(c.toString()).toUpperCase());
+          return cExpanded == expandedDetected;
+        });
+      }
+
+      // Support comma-separated answers: "A,C" matches "A" or "C" or "A,C"
+      if (correctStr.contains(',')) {
+        final correctOptions = correctStr.split(',').map((s) =>
+            _expandTfAlias(s.trim().toUpperCase())).toList();
+        return correctOptions.contains(expandedDetected);
+      }
+
+      return expandedDetected == expandedCorrect;
     }
 
     if (type == QuestionType.matching) {
-      return _checkMatchingAnswer(
-        detected.toString(),
-        correct.toString());
+      return _checkMatchingAnswer(detectedStr, correct.toString());
+    }
+
+    if (type == QuestionType.multiAnswer) {
+      // Multi-answer: correct is "A,C" — student must select ALL correct letters
+      final detectedNorm = detectedStr.toUpperCase().replaceAll(RegExp(r'\s+'), '');
+      final correctStr = correct.toString();
+      final correctLetters = correctStr.split(',').map((s) => s.trim().toUpperCase()).toSet();
+      // Student answer could be "A,C" or "AC" or individual detected letters
+      final studentLetters = detectedNorm.split(RegExp(r'[,+]+')).map((s) => s.trim().toUpperCase()).where((s) => s.isNotEmpty).toSet();
+      return correctLetters.isNotEmpty && studentLetters.containsAll(correctLetters);
     }
 
     if (type == QuestionType.shortAnswer) {
       // Normalize whitespace: OCR often inserts extra spaces
-      final detectedNorm = _normalizeWhitespace(detected.toString());
+      final detectedNorm = _normalizeWhitespace(detectedStr);
       if (correct is List) {
-        return correct.any(
+        // Exact match first
+        final exactMatch = correct.any(
           (c) => _normalizeWhitespace(c.toString()) == detectedNorm);
+        if (exactMatch) return true;
+        // Fuzzy match for each option
+        return correct.any(
+          (c) => _fuzzyMatch(detectedNorm, _normalizeWhitespace(c.toString())));
       }
-      return _normalizeWhitespace(correct.toString()) == detectedNorm;
+      final correctNorm = _normalizeWhitespace(correct.toString());
+      // Exact match first
+      if (detectedNorm == correctNorm) return true;
+      // Fuzzy match with Levenshtein distance ≤ 2
+      return _fuzzyMatch(detectedNorm, correctNorm);
     }
 
     return false;
+  }
+
+  /// Expand T/F aliases: T → TRUE, F → FALSE.
+  static String _expandTfAlias(String normalized) {
+    if (normalized == 'T') return 'TRUE';
+    if (normalized == 'F') return 'FALSE';
+    return normalized;
+  }
+
+  /// Fuzzy match with Levenshtein distance tolerance.
+  /// Returns true if the distance is ≤ [tolerance] (default 2).
+  static bool _fuzzyMatch(String a, String b, {int tolerance = 2}) {
+    if (a == b) return true;
+    if (a.isEmpty || b.isEmpty) return false;
+    // Only fuzzy match if lengths are within tolerance
+    if ((a.length - b.length).abs() > tolerance) return false;
+    return _levenshteinDistance(a, b) <= tolerance;
+  }
+
+  /// Compute Levenshtein edit distance between two strings.
+  static int _levenshteinDistance(String a, String b) {
+    final aLen = a.length;
+    final bLen = b.length;
+    if (aLen == 0) return bLen;
+    if (bLen == 0) return aLen;
+
+    // Use single-row DP for memory efficiency
+    var prev = List<int>.generate(bLen + 1, (i) => i);
+    var curr = List<int>.filled(bLen + 1, 0);
+
+    for (int i = 1; i <= aLen; i++) {
+      curr[0] = i;
+      for (int j = 1; j <= bLen; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        curr[j] = [
+          prev[j] + 1,      // deletion
+          curr[j - 1] + 1,  // insertion
+          prev[j - 1] + cost, // substitution
+        ].reduce((a, b) => a < b ? a : b);
+      }
+      final temp = prev;
+      prev = curr;
+      curr = temp;
+    }
+    return prev[bLen];
   }
 
   /// Check if a matching answer matches the correct sequence.
@@ -478,13 +568,35 @@ class DetectedAnswer {
   final String answer;
   final double confidence;
   final String rawText;
+  final bool needsReview;
+  final String source;
 
   const DetectedAnswer({
     required this.questionNumber,
     required this.answer,
     required this.confidence,
     required this.rawText,
+    this.needsReview = false,
+    this.source = 'unknown',
   });
+
+  DetectedAnswer copyWith({
+    int? questionNumber,
+    String? answer,
+    double? confidence,
+    String? rawText,
+    bool? needsReview,
+    String? source,
+  }) {
+    return DetectedAnswer(
+      questionNumber: questionNumber ?? this.questionNumber,
+      answer: answer ?? this.answer,
+      confidence: confidence ?? this.confidence,
+      rawText: rawText ?? this.rawText,
+      needsReview: needsReview ?? this.needsReview,
+      source: source ?? this.source,
+    );
+  }
 }
 
 /// Represents a pair of scans whose answer patterns match above threshold.

@@ -20,21 +20,25 @@ void main() {
       studentId: '001',
       firstName: 'Abebe',
       lastName: 'Kebede',
+    ),
     makeStudent(
       id: 's2',
       studentId: '002',
       firstName: 'Habte',
       lastName: 'Woldemariam',
+    ),
     makeStudent(
       id: 's3',
       studentId: '003',
       firstName: 'Gebre',
       lastName: 'Hailu',
+    ),
     makeStudent(
       id: 's4',
       studentId: '004',
       firstName: 'Abebe',
-      lastName: 'Tadesse'), // duplicate first name
+      lastName: 'Tadesse',
+    ),
   ];
 
   group('StudentMatcher — exact match', () {
@@ -53,7 +57,7 @@ void main() {
 
   group('StudentMatcher — first name match', () {
     test('matches on first name when unique', () {
-      final result = StudentMatcher.matchName('ገብረ', classList);
+      final result = StudentMatcher.matchName('Gebre', classList);
       expect(result.hasMatch, isTrue);
       expect(result.matchedStudent!.id, 's3');
       expect(result.confidence, lessThan(1.0)); // lower confidence
@@ -119,7 +123,7 @@ void main() {
 
   group('StudentMatcher — matchFromOcr', () {
     test('parses OCR text and matches', () {
-      final ocrText = '1. አበበ ከበደ ወንድ\n2. ሀብተ ወልደማርያም ሴት';
+      const ocrText = '1. Abebe Kebede Male\n2. Habte Woldemariam Female';
       final result = StudentMatcher.matchFromOcr(ocrText, classList);
       expect(result.hasMatch, isTrue);
       expect(result.matchedStudent!.firstName, 'Abebe');
@@ -132,7 +136,7 @@ void main() {
 
     test('returns first parsed name when no class match', () {
       // Use input the roster parser won't parse as a valid name (too short/single char)
-      final ocrText = '---';
+      const ocrText = '---';
       final result = StudentMatcher.matchFromOcr(ocrText, classList);
       expect(result.hasMatch, isFalse);
     });

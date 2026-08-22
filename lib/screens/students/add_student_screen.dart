@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/student.dart';
 import '../../services/class_provider.dart';
+import '../../services/phone_utils.dart';
 import '../../services/student_provider.dart';
 import '../../services/teacher_provider.dart';
 
@@ -44,8 +45,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       _selectedClassId = existing.classIds.isNotEmpty
           ? existing.classIds.first
           : (widget.preselectedClassId ?? '');
+      // Editing a student with no phone on file — still default the prefix.
+      if ((existing.parentPhone ?? '').trim().isEmpty) {
+        _parentPhoneCtrl.text = PhoneUtils.countryCode;
+      }
     } else {
       _selectedClassId = widget.preselectedClassId ?? '';
+      // Default prefix so the teacher just types the 9 local digits.
+      _parentPhoneCtrl.text = PhoneUtils.countryCode;
     }
   }
 
@@ -60,8 +67,20 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   @override
   Widget build(BuildContext context) {
     final classProv = context.watch<ClassProvider>();
-    if (_selectedClassId.isEmpty && classProv.classes.length == 1) {
-      _selectedClassId = classProv.classes.single.id;
+    // Deduplicate classes by ID (prevents dropdown assertion on duplicates)
+    final uniqueClasses = <String, dynamic>{};
+    for (final c in classProv.classes) {
+      uniqueClasses.putIfAbsent(c.id, () => c);
+    }
+    final classes = uniqueClasses.values.toList();
+
+    if (_selectedClassId.isEmpty && classes.length == 1) {
+      _selectedClassId = (classes.first as dynamic).id as String;
+    }
+    // Validate _selectedClassId still exists in available classes
+    if (_selectedClassId.isNotEmpty &&
+        !classes.any((c) => (c as dynamic).id == _selectedClassId)) {
+      _selectedClassId = '';
     }
 
     return Scaffold(
@@ -70,152 +89,169 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           widget.existingStudent != null ? ('Edit Student') : ('Add Student'),
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              'Only name and roll number are required.',
-              style: TextStyle(color: AppTheme.lightText),
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _fullNameCtrl,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText: 'Full Name *',
-                hintText: 'e.g. Abebe Kebede',
-                prefixIcon: const Icon(Icons.person_outline),
-              ),
-              validator: (v) {
-                final value = v?.trim() ?? '';
-                if (value.isEmpty) return 'Full name is required';
-                if (value.length > 120) return 'Name is too long';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _studentIdCtrl,
-              decoration: InputDecoration(
-                labelText: 'Student ID / Roll No. *',
-                hintText: 'e.g. 001',
-                prefixIcon: const Icon(Icons.badge_outlined),
-              ),
-              keyboardType: TextInputType.text,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Student ID is required';
-                }
-                if (v.trim().length > 20) {
-                  return 'Max 20 characters';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            Text(
-              'Gender (optional)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.lightText,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _GenderChip(
-                    label: 'Male',
-                    value: 'M',
-                    selected: _gender == 'M',
-                    onTap: () => setState(() => _gender = 'M'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _GenderChip(
-                    label: 'Female',
-                    value: 'F',
-                    selected: _gender == 'F',
-                    onTap: () => setState(() => _gender = 'F'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _GenderChip(
-                    label: 'Skip',
-                    value: '',
-                    selected: _gender.isEmpty,
-                    onTap: () => setState(() => _gender = ''),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // ── Class ───────────────────────────────────────────────
-            if (classProv.classes.isNotEmpty) ...[
-              DropdownButtonFormField<String>(
-                value: _selectedClassId.isEmpty ? null : _selectedClassId,
-                decoration: InputDecoration(
-                  labelText: 'Class',
-                  helperText: classProv.classes.length == 1
-                      ? 'Selected automatically'
-                      : null,
-                  prefixIcon: const Icon(Icons.class_outlined),
-                ),
-                items: classProv.classes
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.displayName),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedClassId = v ?? ''),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Text(
+                'Only name and roll number are required.',
+                style: TextStyle(color: context.lightText),
               ),
               const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _fullNameCtrl,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name *',
+                  hintText: 'e.g. Abebe Kebede',
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  if (value.isEmpty) return 'Full name is required';
+                  if (value.length > 120) return 'Name is too long';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _studentIdCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Student ID / Roll No. *',
+                  hintText: 'e.g. 001',
+                  prefixIcon: Icon(Icons.badge_outlined),
+                ),
+                keyboardType: TextInputType.text,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Student ID is required';
+                  }
+                  if (v.trim().length > 20) {
+                    return 'Max 20 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                'Gender (optional)',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.lightText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _GenderChip(
+                      label: 'Male',
+                      value: 'M',
+                      selected: _gender == 'M',
+                      onTap: () => setState(() => _gender = 'M'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _GenderChip(
+                      label: 'Female',
+                      value: 'F',
+                      selected: _gender == 'F',
+                      onTap: () => setState(() => _gender = 'F'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _GenderChip(
+                      label: 'Skip',
+                      value: '',
+                      selected: _gender.isEmpty,
+                      onTap: () => setState(() => _gender = ''),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // ── Class ───────────────────────────────────────────────
+              if (classes.isNotEmpty) ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedClassId.isEmpty ? null : _selectedClassId,
+                  decoration: InputDecoration(
+                    labelText: 'Class',
+                    helperText: classes.length == 1
+                        ? 'Selected automatically'
+                        : null,
+                    prefixIcon: const Icon(Icons.class_outlined),
+                  ),
+                  items: classes
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: (c as dynamic).id as String,
+                          child: Text((c as dynamic).displayName as String),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedClassId = v ?? ''),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Parent phone (recommended for SMS results) ──────────
+              TextFormField(
+                controller: _parentPhoneCtrl,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.done,
+                inputFormatters: [PhoneDigitsFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Parent Phone',
+                  hintText: '+251 9XXXXXXXX',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                  helperText: '9 digits starting with 7 or 9 — e.g. 0912345678',
+                  helperMaxLines: 2,
+                ),
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  // "+251" alone means no number entered yet.
+                  if (value.isEmpty || value == PhoneUtils.countryCode) {
+                    return null;
+                  }
+                  if (!PhoneUtils.isValidRaw(value)) {
+                    return 'Enter 9 digits starting with 7 or 9 (e.g. 0912345678)';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // ── Save button ─────────────────────────────────────────
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
+                label: Text(
+                  widget.existingStudent != null
+                      ? ('Update Student')
+                      : ('Save Student'),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.primaryGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
             ],
-
-            // ── Parent phone (optional) ─────────────────────────────
-            TextFormField(
-              controller: _parentPhoneCtrl,
-              decoration: InputDecoration(
-                labelText: 'Parent Phone',
-                hintText: '+251...',
-                prefixIcon: const Icon(Icons.phone_outlined),
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 32),
-
-            // ── Save button ─────────────────────────────────────────
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check),
-              label: Text(
-                widget.existingStudent != null
-                    ? ('Update Student')
-                    : ('Save Student'),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -247,9 +283,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       className: _selectedClassId.isNotEmpty
           ? (classProv.getClassById(_selectedClassId)?.displayName ?? '')
           : (existing?.className ?? ''),
-      parentPhone: _parentPhoneCtrl.text.trim().isEmpty
+      parentPhone: _parentPhoneCtrl.text.trim().isEmpty ||
+          _parentPhoneCtrl.text.trim() == PhoneUtils.countryCode
           ? null
-          : _parentPhoneCtrl.text.trim(),
+          : PhoneUtils.normalize(_parentPhoneCtrl.text),
       createdBy: existing?.createdBy ?? teacherId,
       createdAt: existing?.createdAt,
     );
@@ -265,7 +302,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.error ?? ('Error')),
-            backgroundColor: AppTheme.primaryRed,
+            backgroundColor: context.primaryRed,
           ),
         );
       }
@@ -281,7 +318,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${student.fullName} saved'),
-          backgroundColor: AppTheme.primaryGreen,
+          backgroundColor: context.primaryGreen,
         ),
       );
       Navigator.pop(context);
@@ -316,10 +353,10 @@ class _GenderChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.primaryGreen : Colors.white,
+          color: selected ? context.primaryGreen : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppTheme.primaryGreen : Colors.grey.shade300,
+            color: selected ? context.primaryGreen : context.outlineLight,
             width: 1.5,
           ),
         ),
@@ -333,14 +370,14 @@ class _GenderChip extends StatelessWidget {
                   ? Icons.female
                   : Icons.remove_circle_outline,
               size: 18,
-              color: selected ? Colors.white : AppTheme.lightText,
+              color: selected ? Theme.of(context).colorScheme.surface : context.lightText,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppTheme.darkText,
+                color: selected ? Theme.of(context).colorScheme.surface : context.darkText,
               ),
             ),
           ],

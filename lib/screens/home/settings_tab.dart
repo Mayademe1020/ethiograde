@@ -1,0 +1,1821 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../config/theme.dart';
+import '../../config/routes.dart';
+import '../../config/responsive.dart';
+import '../../config/constants.dart';
+import '../../services/settings_provider.dart';
+import '../../services/teacher_provider.dart';
+import '../../services/class_provider.dart';
+import '../../services/backup_service.dart';
+import '../../services/phone_utils.dart';
+import '../classes/create_class_sheet.dart';
+import '../../models/teacher.dart';
+
+class SettingsTab extends StatelessWidget {
+  const SettingsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+
+    final hp = ResponsiveLayout.horizontalPadding(context);
+
+    return SafeArea(
+      child: ListView(
+        padding: EdgeInsets.all(hp),
+        children: [
+          Text(
+            'Settings',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 24),
+
+          // Profile hub — single glanceable place for the teacher's identity,
+          // phone, academic year, subjects and classes.
+          _buildProfileHub(context),
+          const SizedBox(height: 20),
+
+          // Preferences section
+          SettingsSection(
+            title: 'Preferences',
+            children: [
+              SettingsTile(
+                icon: Icons.grading_outlined,
+                title: 'Default Grading Scale',
+                subtitle: settings.defaultRubric,
+                onTap: () => _selectRubric(context, settings),
+              ),
+              SettingsTile(
+                icon: Icons.record_voice_over_outlined,
+                title: 'Voice Feedback',
+                subtitle: settings.voiceFeedbackModeLabel,
+                onTap: () => _selectVoiceFeedback(context, settings),
+              ),
+              SettingsTile(
+                icon: Icons.dark_mode_outlined,
+                title: 'Dark Mode',
+                trailing: Switch(
+                  value: settings.darkMode,
+                  onChanged: (_) => settings.toggleDarkMode(),
+                ),
+              ),
+              SettingsTile(
+                icon: Icons.camera_alt_outlined,
+                title: 'Auto-Enhance Photos',
+                trailing: Switch(
+                  value: settings.autoEnhanceImages,
+                  onChanged: (_) => settings.toggleAutoEnhance(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Academic Year section
+          SettingsSection(
+            title: 'Academic Year',
+            children: [
+              SettingsTile(
+                icon: Icons.calendar_today_outlined,
+                title: 'Current Year',
+                subtitle: settings.currentAcademicYear.isEmpty
+                    ? 'Not set'
+                    : settings.currentAcademicYear,
+                onTap: () => _editAcademicYear(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // SMS section
+          SettingsSection(
+            title: 'SMS & Notifications',
+            children: [
+              SettingsTile(
+                icon: Icons.sms_outlined,
+                title: 'SMS History',
+                subtitle: 'View sent messages to parents',
+                onTap: () => Navigator.pushNamed(context, AppRoutes.smsHistory),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Subjects section
+          SettingsSection(
+            title: 'Subjects',
+            children: [
+              SettingsTile(
+                icon: Icons.book_outlined,
+                title: 'Manage Subjects',
+                subtitle: '${settings.subjects.length} subjects configured',
+                onTap: () => _manageSubjects(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Cloud OCR section
+          SettingsSection(
+            title: 'Cloud OCR',
+            children: [
+              SettingsTile(
+                icon: Icons.cloud_outlined,
+                title: 'Enable Cloud OCR',
+                subtitle: settings.cloudOcrEnabled
+                    ? 'Active — uses ${settings.cloudOcrModel}'
+                    : 'Off — using local ML Kit',
+                trailing: Switch(
+                  value: settings.cloudOcrEnabled,
+                  onChanged: (value) => settings.updateCloudOcr(enabled: value),
+                ),
+              ),
+              SettingsTile(
+                icon: Icons.key_outlined,
+                title: 'API Key',
+                subtitle: settings.cloudOcrApiKey.isEmpty
+                    ? 'Not set — tap to add'
+                    : '••••${settings.cloudOcrApiKey.length > 4 ? settings.cloudOcrApiKey.substring(settings.cloudOcrApiKey.length - 4) : settings.cloudOcrApiKey}',
+                onTap: () => _editCloudOcrApiKey(context, settings),
+              ),
+              SettingsTile(
+                icon: Icons.link_outlined,
+                title: 'Endpoint',
+                subtitle: settings.cloudOcrEndpoint,
+                onTap: () => _editCloudOcrEndpoint(context, settings),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Data & Privacy section
+          SettingsSection(
+            title: 'Data & Privacy',
+            children: [
+              const StorageInfoTile(),
+              SettingsTile(
+                icon: Icons.upload_file_outlined,
+                title: 'Export Backup',
+                subtitle: 'Save encrypted data to file',
+                onTap: () => _exportBackup(context),
+              ),
+              SettingsTile(
+                icon: Icons.download_outlined,
+                title: 'Import Backup',
+                subtitle: 'Restore from backup file',
+                onTap: () => _importBackup(context),
+              ),
+              SettingsTile(
+                icon: Icons.lock_outline,
+                title: 'Privacy Policy',
+                onTap: () => _showPrivacyPolicy(context),
+              ),
+              SettingsTile(
+                icon: Icons.delete_forever_outlined,
+                title: 'Clear All Data',
+                subtitle: 'Cannot be undone',
+                onTap: () => _confirmClearData(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // About section
+          const SettingsSection(
+            title: 'About',
+            children: [
+              SettingsTile(
+                icon: Icons.info_outline,
+                title: 'Version',
+                subtitle: 'v${AppConstants.appVersion}',
+              ),
+            ],
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileHub(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final teachers = context.watch<TeacherProvider>();
+    final classProv = context.watch<ClassProvider>();
+    final cs = Theme.of(context).colorScheme;
+
+    final teacher = teachers.activeTeacher;
+    final teacherName =
+        (teacher?.name.isNotEmpty ?? false)
+            ? teacher!.name
+            : (settings.teacherName.isNotEmpty
+                  ? settings.teacherName
+                  : 'Teacher');
+    final school = settings.schoolName;
+    final phone =
+        (teacher?.phone.isNotEmpty ?? false)
+            ? teacher!.phone
+            : settings.teacherPhone;
+
+    // Derive subjects from the teacher record + classes they teach/own.
+    final teacherClassIds = teacher?.classIds ?? const <String>[];
+    final ownedClasses =
+        teacher == null
+            ? classProv.classes
+            : classProv.classes
+                .where(
+                  (c) =>
+                      c.ownerId == teacher.id ||
+                      c.ownerId.isEmpty ||
+                      teacherClassIds.contains(c.id),
+                )
+                .toList();
+    final subjects = <String>{
+      ...?teacher?.allSubjects,
+      for (final c in ownedClasses)
+        if (c.subject.isNotEmpty) c.subject,
+      // Fall back to the global subject list so this section is never blank
+      // when subjects have been configured elsewhere.
+      if (teacher?.allSubjects.isEmpty ?? true && ownedClasses.isEmpty)
+        for (final s in settings.subjects) s,
+    }.toList()
+      ..sort();
+
+    final initials =
+        teacherName.isNotEmpty ? teacherName.trim()[0].toUpperCase() : 'T';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: cs.primaryContainer,
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    color: cs.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      teacherName,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    if (school.isNotEmpty)
+                      Text(
+                        school,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
+                    if (teacher != null && teacher.role.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          teacher.role == 'admin' ? 'Admin' : 'Teacher',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => _showTeacherForm(context, teachers, existing: teacher),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit profile',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          _hubRow(
+            context,
+            Icons.phone_outlined,
+            'Phone',
+            phone.isEmpty ? 'Not set' : phone,
+            onTap: () => _editTeacherPhone(context, teachers, settings, teacher),
+          ),
+          _hubRow(
+            context,
+            Icons.calendar_today_outlined,
+            'Academic Year',
+            settings.currentAcademicYear.isEmpty
+                ? 'Not set'
+                : settings.currentAcademicYear,
+            onTap: () => _editAcademicYear(context, settings),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Text(
+            'Subjects you teach',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          if (subjects.isEmpty)
+            TextButton.icon(
+              onPressed: () => _manageSubjects(context, settings),
+              icon: const Icon(Icons.add),
+              label: const Text('Add subjects'),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in subjects)
+                  Chip(
+                    label: Text(s, style: const TextStyle(fontSize: 12)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Your classes',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              if (ownedClasses.isNotEmpty)
+                TextButton(
+                  onPressed: () => _createClass(context),
+                  child: const Text('Add'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (ownedClasses.isEmpty)
+            TextButton.icon(
+              onPressed: () => _createClass(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Add class'),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final c in ownedClasses)
+                  ActionChip(
+                    onPressed:
+                        () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.classDetail,
+                                  arguments: c,
+                                ),
+                        avatar: const Icon(Icons.class_, size: 16),
+                        label: Text(c.displayName),
+                      ),
+                  ],
+                ),
+          if (teachers.teachers.length > 1) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => _manageTeachers(context, teachers),
+                child: const Text('Manage teachers'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _hubRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    required VoidCallback onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: cs.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editTeacherPhone(
+    BuildContext context,
+    TeacherProvider teachers,
+    SettingsProvider settings,
+    Teacher? teacher,
+  ) async {
+    final current =
+        (teacher?.phone.isNotEmpty ?? false)
+            ? teacher!.phone
+            : settings.teacherPhone;
+    final ctrl = TextEditingController(text: current.isEmpty ? '+251' : current);
+    final formKey = GlobalKey<FormState>();
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
+          top: 24,
+        ),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Teacher Phone',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [PhoneDigitsFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Phone',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                  hintText: '+251912345678',
+                ),
+                validator:
+                    (v) =>
+                        v != null &&
+                            v.trim().isNotEmpty &&
+                            !PhoneUtils.isValidRaw(v)
+                        ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
+                        : null,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    if (formKey.currentState!.validate()) {
+                      Navigator.pop(ctx, true);
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result == true) {
+      final normalized = PhoneUtils.normalize(ctrl.text.trim());
+      await settings.updateTeacherPhone(normalized);
+      if (teacher != null) {
+        await teachers.updateTeacher(teacher.copyWith(phone: normalized));
+      }
+    }
+  }
+
+  Future<void> _createClass(BuildContext context) async {
+    final cls = await CreateClassSheet.show(context);
+    if (cls != null && context.mounted) {
+      final result = await context.read<ClassProvider>().addClass(cls);
+      if (!result.success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.error ?? 'Could not create class'),
+            backgroundColor: context.primaryRed,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _manageTeachers(
+    BuildContext context,
+    TeacherProvider teachers,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (ctx, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Manage Teachers',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: teachers.teachers.isEmpty
+                  ? const Center(
+                      child: Text('No teachers yet. Tap + to add one.'),
+                    )
+                  : ListView.builder(
+                      itemCount: teachers.teachers.length,
+                      itemBuilder: (ctx, index) {
+                        final teacher = teachers.teachers[index];
+                        final isActive =
+                            teacher.id == teachers.activeTeacher?.id;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(teacher.name[0].toUpperCase()),
+                          ),
+                          title: Text(teacher.name),
+                          subtitle: _teacherSubtitleWidget(ctx, teacher),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!isActive)
+                                IconButton(
+                                  onPressed: () async {
+                                    await teachers.setActive(teacher.id);
+                                    if (ctx.mounted) Navigator.pop(ctx);
+                                  },
+                                  icon: const Icon(Icons.star_border),
+                                  tooltip: 'Set as active',
+                                ),
+                              if (isActive)
+                                Icon(Icons.star, color: context.warning),
+                              IconButton(
+                                onPressed: () =>
+                                    _confirmDelete(context, teachers, teacher),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                          onTap: () => _showTeacherForm(
+                            context,
+                            teachers,
+                            existing: teacher,
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _showTeacherForm(context, teachers),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Teacher'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTeacherForm(
+    BuildContext context,
+    TeacherProvider teachers, {
+    Teacher? existing,
+  }) async {
+    final classesProvider = context.read<ClassProvider>();
+    final settingsProvider = context.read<SettingsProvider>();
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final phoneCtrl = TextEditingController(
+      text: existing?.phone.isNotEmpty == true ? existing!.phone : '+251',
+    );
+    final formKey = GlobalKey<FormState>();
+    var role = existing?.role ?? 'teacher';
+    final newSubjectCtrl = TextEditingController();
+    final selectedSubjects = List<String>.from(
+      existing == null
+          ? const []
+          : (existing.allSubjects.isNotEmpty
+                ? existing.allSubjects
+                : (existing.subject.isEmpty ? const [] : [existing.subject])),
+    );
+    final selectedClassIds = List<String>.from(existing?.classIds ?? const []);
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: ResponsiveLayout.horizontalPadding(ctx),
+            right: ResponsiveLayout.horizontalPadding(ctx),
+            top: 24,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    existing != null ? 'Edit Teacher' : 'Add Teacher',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                  ),
+                  autofocus: true,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [PhoneDigitsFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'Phone',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                    hintText: '+251912345678',
+                  ),
+                  validator:
+                      (v) =>
+                          v != null &&
+                                  v.trim().isNotEmpty &&
+                                  !PhoneUtils.isValidRaw(v)
+                              ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
+                              : null,
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'teacher', label: Text('Teacher')),
+                    ButtonSegment(value: 'admin', label: Text('Admin')),
+                  ],
+                  selected: {role},
+                  onSelectionChanged: (sel) {
+                    role = sel.first;
+                  },
+                ),
+                const SizedBox(height: 20),
+                // Subjects taught (multi-select from configured subjects)
+                Text(
+                  'Subjects they teach',
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final subject in settingsProvider.subjects)
+                      FilterChip(
+                        label: Text(subject),
+                        selected: selectedSubjects.any(
+                          (s) => s.toLowerCase() == subject.toLowerCase(),
+                        ),
+                        onSelected: (sel) {
+                          setSheetState(() {
+                            if (sel) {
+                              selectedSubjects.add(subject);
+                            } else {
+                              selectedSubjects.removeWhere(
+                                (s) => s.toLowerCase() == subject.toLowerCase(),
+                              );
+                            }
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                if (settingsProvider.subjects.isEmpty)
+                  Text(
+                    'No subjects configured yet — add them in the Subjects section, or type one below.',
+                    style: TextStyle(color: context.lightText, fontSize: 12),
+                  ),
+                const SizedBox(height: 8),
+                // Add a brand-new subject not in the configured list
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: newSubjectCtrl,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _addNewSubject(
+                          setSheetState,
+                          newSubjectCtrl,
+                          selectedSubjects,
+                          settingsProvider,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: 'Add a new subject',
+                          hintText: 'e.g. Biology',
+                          prefixIcon: Icon(Icons.add),
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: () => _addNewSubject(
+                        setSheetState,
+                        newSubjectCtrl,
+                        selectedSubjects,
+                        settingsProvider,
+                      ),
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Add subject',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Classes they teach (multi-select)
+                Text(
+                  'Classes they teach',
+                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (classesProvider.classes.isEmpty)
+                  Text(
+                    'No classes yet — create one in the Students tab.',
+                    style: TextStyle(color: context.lightText, fontSize: 12),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final cls in classesProvider.classes)
+                        FilterChip(
+                          label: Text(cls.displayName),
+                          selected: selectedClassIds.contains(cls.id),
+                          onSelected: (sel) {
+                            setSheetState(() {
+                              if (sel) {
+                                if (!selectedClassIds.contains(cls.id)) {
+                                  selectedClassIds.add(cls.id);
+                                }
+                              } else {
+                                selectedClassIds.remove(cls.id);
+                              }
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) return;
+                      Navigator.pop(ctx, true);
+                    },
+                    child: Text(existing != null ? 'Update' : 'Add'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+        ),
+      ),
+    );
+
+    if (result == true) {
+      final name = nameCtrl.text.trim();
+      final phone = PhoneUtils.normalize(phoneCtrl.text.trim());
+      if (existing != null) {
+        final primarySubject = selectedSubjects.isEmpty
+            ? ''
+            : selectedSubjects.first;
+        final updated = existing.copyWith(
+          name: name,
+          role: role,
+          subject: primarySubject,
+          subjects: selectedSubjects.isEmpty ? null : selectedSubjects,
+          classIds: selectedClassIds,
+          phone: phone,
+        );
+        await teachers.updateTeacher(updated);
+        await settingsProvider.updateTeacherPhone(phone);
+      } else {
+        final primarySubject = selectedSubjects.isEmpty ? '' : selectedSubjects.first;
+        final teacher = Teacher(
+          name: name,
+          role: role,
+          subject: primarySubject,
+          subjects: selectedSubjects,
+          classIds: selectedClassIds,
+          phone: phone,
+        );
+        await teachers.addTeacher(teacher);
+        await settingsProvider.updateTeacherPhone(phone);
+      }
+      if (context.mounted && teachers.lastAddErrors.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(teachers.lastAddErrors.first)));
+      }
+    }
+  }
+
+  void _addNewSubject(
+    StateSetter setSheetState,
+    TextEditingController controller,
+    List<String> selectedSubjects,
+    SettingsProvider settingsProvider,
+  ) {
+    final value = controller.text.trim();
+    if (value.isEmpty) return;
+    setSheetState(() {
+      if (!selectedSubjects.any(
+        (s) => s.toLowerCase() == value.toLowerCase(),
+      )) {
+        selectedSubjects.add(value);
+      }
+      controller.clear();
+    });
+    settingsProvider.addSubject(value);
+  }
+
+  Widget _teacherSubtitleWidget(BuildContext context, Teacher teacher) {
+    // Derive classes from the class's ownerId (the canonical link), not the
+    // teacher's classIds list — classes created outside onboarding never
+    // wrote back to classIds, so that list went stale.
+    final classProvider = context.read<ClassProvider>();
+    final ownedClasses = classProvider.classes
+        .where((c) => c.ownerId == teacher.id)
+        .toList();
+    final subjects = <String>{
+      ...teacher.allSubjects,
+      for (final c in ownedClasses)
+        if (c.subject.isNotEmpty) c.subject,
+    }.toList()
+      ..sort();
+    final classNames = ownedClasses.map((c) => c.displayName).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (subjects.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final s in subjects)
+                  Chip(
+                    label: Text(s, style: const TextStyle(fontSize: 11)),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                  ),
+              ],
+            ),
+          ),
+        Text(
+          '${teacher.role}'
+          '${classNames.isNotEmpty ? ' · ${classNames.join(', ')}' : ''}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    TeacherProvider teachers,
+    Teacher teacher,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Teacher?'),
+        content: Text('Remove "${teacher.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await teachers.deleteTeacher(teacher.id);
+    }
+  }
+
+  Future<void> _editCloudOcrApiKey(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final ctrl = TextEditingController(text: settings.cloudOcrApiKey);
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cloud OCR API Key',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your key is stored encrypted on this device only.',
+              style: TextStyle(color: context.lightText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'API Key',
+                prefixIcon: Icon(Icons.key_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      settings.updateCloudOcr(apiKey: ctrl.text.trim());
+    }
+  }
+
+  Future<void> _editCloudOcrEndpoint(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final ctrl = TextEditingController(text: settings.cloudOcrEndpoint);
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cloud OCR Endpoint',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'API Endpoint URL',
+                prefixIcon: Icon(Icons.link_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      settings.updateCloudOcr(endpoint: ctrl.text.trim());
+    }
+  }
+
+  Future<void> _selectRubric(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final rubrics = [
+      ('moe_national', 'MoE National'),
+      ('private_international', 'Private / International'),
+      ('university', 'University'),
+    ];
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            'Default Grading Scale',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          RadioGroup<String>(
+            groupValue: settings.defaultRubric,
+            onChanged: (v) => Navigator.pop(ctx, v),
+            child: Column(
+              children: [
+                for (final (id, label) in rubrics)
+                  RadioListTile<String>(
+                    title: Text(label),
+                    value: id,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+    if (result != null) {
+      settings.setDefaultRubric(result);
+    }
+  }
+
+  Future<void> _selectVoiceFeedback(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final modes = [
+      (VoiceFeedbackMode.off, 'Off'),
+      (VoiceFeedbackMode.scoreOnly, 'Score Only'),
+      (VoiceFeedbackMode.scoreAndGrade, 'Score + Grade (Privacy Safe)'),
+    ];
+    final result = await showModalBottomSheet<VoiceFeedbackMode>(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            'Voice Feedback Mode',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          RadioGroup<VoiceFeedbackMode>(
+            groupValue: settings.voiceFeedbackMode,
+            onChanged: (v) => Navigator.pop(ctx, v),
+            child: Column(
+              children: [
+                for (final (mode, label) in modes)
+                  RadioListTile<VoiceFeedbackMode>(
+                    title: Text(label),
+                    value: mode,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+    if (result != null) {
+      settings.setVoiceFeedbackMode(result);
+    }
+  }
+
+  Future<void> _editAcademicYear(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final controller = TextEditingController(
+      text: settings.currentAcademicYear,
+    );
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Academic Year'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'e.g. 2026-2027',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (settings.academicYears.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Previous years:',
+                  style: TextStyle(fontSize: 12, color: context.lightText),
+                ),
+              ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: settings.academicYears
+                  .where((y) => y != settings.currentAcademicYear)
+                  .map(
+                    (y) => ActionChip(
+                      label: Text(y, style: const TextStyle(fontSize: 12)),
+                      onPressed: () => Navigator.pop(ctx, y),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      settings.setAcademicYear(result);
+    }
+  }
+
+  Future<void> _manageSubjects(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (ctx, scrollController) => _SubjectsManager(
+          settings: settings,
+          scrollController: scrollController,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportBackup(BuildContext context) async {
+    try {
+      final path = await BackupService.instance.exportAllData();
+      if (path != null && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Backup saved to: $path')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: context.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importBackup(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json', 'enc'],
+      );
+      if (result == null || result.files.isEmpty) return;
+      final filePath = result.files.first.path;
+      if (filePath == null) return;
+
+      final importResult = await BackupService.instance.importData(filePath);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Imported ${importResult.imported}, skipped ${importResult.skipped}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: context.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showPrivacyPolicy(BuildContext context) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Privacy'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'EthioGrade stores all data locally on your device. '
+            'No data is sent to any server. '
+            'Backups are encrypted with AES-256. '
+            'You can clear all data at any time from Settings.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmClearData(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear All Data?'),
+        content: const Text(
+          'This will permanently delete all students, assessments, '
+          'scan results, and settings. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: context.error),
+            child: const Text('Delete Everything'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await _clearAllData(context);
+    }
+  }
+
+  Future<void> _clearAllData(BuildContext context) async {
+    try {
+      final boxes = [
+        'students',
+        'assessments',
+        'classes',
+        'teachers',
+        'settings_pii',
+        'scan_results',
+        'weighted_scales',
+        'audit_trail',
+        'grading_drafts',
+      ];
+      for (final name in boxes) {
+        if (Hive.isBoxOpen(name)) {
+          await Hive.box(name).clear();
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('All data cleared')));
+        SystemNavigator.pop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: context.error),
+        );
+      }
+    }
+  }
+}
+
+// ──── Reusable Settings Components ────
+
+class SettingsSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const SettingsSection({
+    super.key,
+    required this.title,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            title.toUpperCase(),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i < children.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: AppSpacing.md + 44 + AppSpacing.md,
+                    endIndent: 0,
+                    color: cs.outlineVariant,
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  const SettingsTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+        ),
+        child: Icon(icon, size: 18, color: cs.onSurface),
+      ),
+      title: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            )
+          : null,
+      trailing:
+          trailing ??
+          (onTap != null
+              ? Icon(Icons.chevron_right, color: cs.onSurfaceVariant, size: 18)
+              : null),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Manager widget for adding/editing/deleting subjects.
+class _SubjectsManager extends StatefulWidget {
+  final SettingsProvider settings;
+  final ScrollController scrollController;
+  const _SubjectsManager({
+    required this.settings,
+    required this.scrollController,
+  });
+
+  @override
+  State<_SubjectsManager> createState() => _SubjectsManagerState();
+}
+
+class _SubjectsManagerState extends State<_SubjectsManager> {
+  late List<String> _subjects;
+
+  @override
+  void initState() {
+    super.initState();
+    _subjects = List<String>.from(widget.settings.subjects);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Manage Subjects',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: _addSubject,
+                tooltip: 'Add Subject',
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.builder(
+            controller: widget.scrollController,
+            itemCount: _subjects.length,
+            itemBuilder: (ctx, i) {
+              final subject = _subjects[i];
+              return ListTile(
+                title: Text(subject),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: () => _editSubject(subject),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: context.error,
+                      ),
+                      onPressed: () => _deleteSubject(subject),
+                    ),
+                  ],
+                ),
+                onTap: () => _editSubject(subject),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _addSubject() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Subject'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Subject name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      await widget.settings.addSubject(result);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
+  }
+
+  void _editSubject(String oldSubject) async {
+    final controller = TextEditingController(text: oldSubject);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Subject'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Subject name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && result != oldSubject) {
+      await widget.settings.updateSubject(oldSubject, result);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
+  }
+
+  void _deleteSubject(String subject) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Subject'),
+        content: Text('Remove "$subject" from the list?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: context.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.settings.removeSubject(subject);
+      setState(() => _subjects = List<String>.from(widget.settings.subjects));
+    }
+  }
+}
+
+/// Storage usage tile — shows total disk used by Hive + scanned images.
+class StorageInfoTile extends StatelessWidget {
+  const StorageInfoTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<StorageInfo>(
+      future: _calculateStorage(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        final subtitle = info == null
+            ? 'Calculating...'
+            : '${info.totalFormatted} used'
+                  '${info.imageCount > 0 ? ' · ${info.imageCount} scanned images' : ''}';
+
+        return ListTile(
+           leading: Icon(Icons.storage_outlined, color: context.lightText),
+          title: const Text('Storage Usage'),
+          subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: info != null && info.totalBytes > 0
+              ? SizedBox(
+                  width: 48,
+                  height: 4,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: (info.totalBytes / (500 * 1024 * 1024)).clamp(
+                        0.0,
+                        1.0,
+                      ),
+                      backgroundColor: context.outlineLight.withValues(alpha: 0.5),
+                      valueColor: AlwaysStoppedAnimation(
+                        info.totalBytes > 200 * 1024 * 1024
+                            ? context.primaryRed
+                            : context.primaryGreen,
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+
+  static Future<StorageInfo> _calculateStorage() async {
+    int hiveBytes = 0;
+    int imageBytes = 0;
+    int imageCount = 0;
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+
+      for (final entity in dir.listSync(recursive: false)) {
+        if (entity is File && entity.path.endsWith('.hive')) {
+          hiveBytes += await entity.length();
+        }
+      }
+
+      final imageDirs = ['${dir.path}/images', '${dir.path}/Pictures'];
+      for (final imageDirPath in imageDirs) {
+        final imageDir = Directory(imageDirPath);
+        if (await imageDir.exists()) {
+          await for (final entity in imageDir.list(recursive: true)) {
+            if (entity is File &&
+                (entity.path.endsWith('.jpg') ||
+                    entity.path.endsWith('.jpeg') ||
+                    entity.path.endsWith('.png'))) {
+              imageBytes += await entity.length();
+              imageCount++;
+            }
+          }
+        }
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await for (final entity in tempDir.list(recursive: false)) {
+          if (entity is File &&
+              (entity.path.endsWith('.jpg') ||
+                  entity.path.endsWith('.jpeg') ||
+                  entity.path.contains('enhanced_'))) {
+            imageBytes += await entity.length();
+            imageCount++;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[Storage] Failed to calculate: $e');
+    }
+
+    return StorageInfo(
+      hiveBytes: hiveBytes,
+      imageBytes: imageBytes,
+      imageCount: imageCount,
+    );
+  }
+}
+
+class StorageInfo {
+  final int hiveBytes;
+  final int imageBytes;
+  final int imageCount;
+
+  const StorageInfo({
+    required this.hiveBytes,
+    required this.imageBytes,
+    required this.imageCount,
+  });
+
+  int get totalBytes => hiveBytes + imageBytes;
+
+  String get totalFormatted {
+    if (totalBytes < 1024) return '$totalBytes B';
+    if (totalBytes < 1024 * 1024) {
+      return '${(totalBytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}

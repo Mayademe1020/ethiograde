@@ -39,6 +39,10 @@ class Assessment {
   final String? weightedScaleId;
   @HiveField(17)
   final String? coordinateMapPath; // Path to .coordmap.json from Phase 1
+  @HiveField(18)
+  final int answerKeyRevision;
+  @HiveField(19)
+  final String answerKeyFingerprint;
 
   Assessment({
     String? id,
@@ -58,6 +62,8 @@ class Assessment {
     this.settings = const {},
     this.weightedScaleId,
     this.coordinateMapPath,
+    this.answerKeyRevision = 0,
+    this.answerKeyFingerprint = '',
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now();
 
@@ -69,12 +75,16 @@ class Assessment {
       questions.where((q) => q.type == QuestionType.shortAnswer).length;
   int get essayCount =>
       questions.where((q) => q.type == QuestionType.essay).length;
+  int get multiAnswerCount =>
+      questions.where((q) => q.type == QuestionType.multiAnswer).length;
 
   double get maxScore => questions.fold(0.0, (sum, q) => sum + q.points);
 
   /// Number of questions with a non-null, non-empty correct answer.
   int get answeredQuestionCount => questions
-      .where((q) => q.correctAnswer != null && q.correctAnswer.toString().isNotEmpty)
+      .where(
+        (q) => q.correctAnswer != null && q.correctAnswer.toString().isNotEmpty,
+      )
       .length;
 
   /// 0.0–1.0 ratio of answered questions.
@@ -90,7 +100,8 @@ class Assessment {
       '$answeredQuestionCount/${questions.length} answers set';
 
   /// True if a coordinate map file has been generated for this assessment.
-  bool get hasCoordinateMap => coordinateMapPath != null && coordinateMapPath!.isNotEmpty;
+  bool get hasCoordinateMap =>
+      coordinateMapPath != null && coordinateMapPath!.isNotEmpty;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -110,6 +121,8 @@ class Assessment {
     'settings': settings,
     'weightedScaleId': weightedScaleId,
     'coordinateMapPath': coordinateMapPath,
+    'answerKeyRevision': answerKeyRevision,
+    'answerKeyFingerprint': answerKeyFingerprint,
   };
 
   factory Assessment.fromMap(Map<String, dynamic> map) => Assessment(
@@ -120,7 +133,7 @@ class Assessment {
     grade: map['grade'] ?? 1,
     rubricType: map['rubricType'] ?? 'moe_national',
     questions: (map['questions'] as List? ?? [])
-        .map((q) => Question.fromMap(q))
+        .map((q) => Question.fromMap(Map<String, dynamic>.from(q)))
         .toList(),
     createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
     completedAt: map['completedAt'] != null
@@ -133,7 +146,10 @@ class Assessment {
     isQuickGrade: map['isQuickGrade'] ?? false,
     settings: Map<String, dynamic>.from(map['settings'] ?? {}),
     weightedScaleId: map['weightedScaleId'],
-    coordinateMapPath: map['coordinateMapPath']);
+    coordinateMapPath: map['coordinateMapPath'],
+    answerKeyRevision: map['answerKeyRevision'] ?? 0,
+    answerKeyFingerprint: map['answerKeyFingerprint'] ?? '',
+  );
 
   Assessment copyWith({
     String? title,
@@ -145,6 +161,9 @@ class Assessment {
     AssessmentStatus? status,
     String? weightedScaleId,
     String? coordinateMapPath,
+    int? answerKeyRevision,
+    String? answerKeyFingerprint,
+    Map<String, dynamic>? settings,
   }) => Assessment(
     id: id,
     title: title ?? this.title,
@@ -156,11 +175,24 @@ class Assessment {
     createdAt: createdAt,
     status: status ?? this.status,
     weightedScaleId: weightedScaleId ?? this.weightedScaleId,
-    coordinateMapPath: coordinateMapPath ?? this.coordinateMapPath);
+    coordinateMapPath: coordinateMapPath ?? this.coordinateMapPath,
+    answerKeyRevision: answerKeyRevision ?? this.answerKeyRevision,
+    answerKeyFingerprint: answerKeyFingerprint ?? this.answerKeyFingerprint,
+    settings: settings ?? this.settings,
+  );
 }
 
 @HiveType(typeId: 5)
-enum AssessmentStatus { @HiveField(0) draft, @HiveField(1) active, @HiveField(2) grading, @HiveField(3) completed }
+enum AssessmentStatus {
+  @HiveField(0)
+  draft,
+  @HiveField(1)
+  active,
+  @HiveField(2)
+  grading,
+  @HiveField(3)
+  completed,
+}
 
 @HiveType(typeId: 3)
 class Question {
@@ -177,8 +209,7 @@ class Question {
   @HiveField(6)
   final List<String> options; // For MCQ: ['A', 'B', 'C', 'D', 'E']
   @HiveField(7)
-  final dynamic
-  correctAnswer; // String for MCQ/TF, List<String> for short answer
+  final dynamic correctAnswer; // String for MCQ/TF, List<String> for short answer
   @HiveField(8)
   final String? explanation;
   @HiveField(9)
@@ -203,7 +234,10 @@ class Question {
   }) : id = id ?? const Uuid().v4();
 
   bool get isObjective =>
-      type == QuestionType.mcq || type == QuestionType.trueFalse || type == QuestionType.matching;
+      type == QuestionType.mcq ||
+      type == QuestionType.trueFalse ||
+      type == QuestionType.matching ||
+      type == QuestionType.multiAnswer;
   bool get isSubjective =>
       type == QuestionType.shortAnswer || type == QuestionType.essay;
 
@@ -236,9 +270,12 @@ class Question {
           ? List<String>.from(map['keywords'])
           : null,
       essayRubric: map['essayRubric'] != null
-          ? EssayRubric.fromMap(map['essayRubric'])
-          : null);
+          ? EssayRubric.fromMap(Map<String, dynamic>.from(map['essayRubric']))
+          : null,
+    );
   }
+
+  static const _sentinel = Object();
 
   Question copyWith({
     String? id,
@@ -247,11 +284,11 @@ class Question {
     String? text,
     double? points,
     List<String>? options,
-    dynamic correctAnswer,
-    String? explanation,
-    String? topicTag,
-    List<String>? keywords,
-    EssayRubric? essayRubric,
+    dynamic correctAnswer = _sentinel,
+    dynamic explanation = _sentinel,
+    dynamic topicTag = _sentinel,
+    dynamic keywords = _sentinel,
+    dynamic essayRubric = _sentinel,
   }) => Question(
     id: id ?? this.id,
     number: number ?? this.number,
@@ -259,16 +296,31 @@ class Question {
     text: text ?? this.text,
     points: points ?? this.points,
     options: options ?? this.options,
-    correctAnswer: correctAnswer ?? this.correctAnswer,
-    explanation: explanation ?? this.explanation,
-    topicTag: topicTag ?? this.topicTag,
-    keywords: keywords ?? this.keywords,
-    essayRubric: essayRubric ?? this.essayRubric,
+    correctAnswer: correctAnswer == _sentinel
+        ? this.correctAnswer
+        : correctAnswer,
+    explanation: explanation == _sentinel ? this.explanation : explanation,
+    topicTag: topicTag == _sentinel ? this.topicTag : topicTag,
+    keywords: keywords == _sentinel ? this.keywords : keywords,
+    essayRubric: essayRubric == _sentinel ? this.essayRubric : essayRubric,
   );
 }
 
 @HiveType(typeId: 6)
-enum QuestionType { @HiveField(0) mcq, @HiveField(1) trueFalse, @HiveField(2) shortAnswer, @HiveField(3) essay, @HiveField(4) matching }
+enum QuestionType {
+  @HiveField(0)
+  mcq,
+  @HiveField(1)
+  trueFalse,
+  @HiveField(2)
+  shortAnswer,
+  @HiveField(3)
+  essay,
+  @HiveField(4)
+  matching,
+  @HiveField(5)
+  multiAnswer,
+}
 
 @HiveType(typeId: 4)
 class EssayRubric {
@@ -305,5 +357,7 @@ class EssayRubric {
     grammarWeight: (map['grammarWeight'] ?? 0.20).toDouble(),
     analysisWeight: (map['analysisWeight'] ?? 0.25).toDouble(),
     criteriaDescriptions: Map<String, String>.from(
-      map['criteriaDescriptions'] ?? {}));
+      map['criteriaDescriptions'] ?? {},
+    ),
+  );
 }

@@ -5,6 +5,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/grading_scale.dart';
+import 'error_handler.dart';
+import 'phone_utils.dart';
+import 'hive_box_mixin.dart';
 
 enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
 
@@ -12,11 +15,12 @@ enum VoiceFeedbackMode { off, statusOnly, scoreOnly, gradeOnly, scoreAndGrade }
 ///
 /// Non-sensitive settings (rubric, language, auto-enhance) → SharedPreferences.
 /// PII (names, phone numbers, handles) → encrypted Hive box.
-class SettingsProvider extends ChangeNotifier {
+class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
   static const String _piiBoxName = 'settings_pii';
 
   String _schoolName = '';
   String _teacherName = '';
+  String _teacherPhone = '';
   String _schoolLogoPath = '';
   String _defaultRubric = 'moe_national';
   bool _autoEnhanceImages = true;
@@ -26,12 +30,30 @@ class SettingsProvider extends ChangeNotifier {
   String _whatsappNumber = '';
   bool _loaded = false;
 
+  // Cloud OCR settings
+  bool _cloudOcrEnabled = false;
+  String _cloudOcrEndpoint =
+      'https://models.github.ai/inference/chat/completions';
+  String _cloudOcrApiKey = '';
+  String _cloudOcrModel = 'gpt-4o';
+
   // Custom grading scales
   List<GradingScale> _customScales = [];
   List<GradingScale> get customScales => _customScales;
 
+  // Configurable subjects
+  List<String> _subjects = [];
+  List<String> get subjects => List.unmodifiable(_subjects);
+
+  // Academic year
+  String _currentAcademicYear = '';
+  String get currentAcademicYear => _currentAcademicYear;
+  List<String> _academicYears = [];
+  List<String> get academicYears => List.unmodifiable(_academicYears);
+
   String get schoolName => _schoolName;
   String get teacherName => _teacherName;
+  String get teacherPhone => _teacherPhone;
   String get schoolLogoPath => _schoolLogoPath;
   String get defaultRubric => _defaultRubric;
   bool get autoEnhanceImages => _autoEnhanceImages;
@@ -44,6 +66,12 @@ class SettingsProvider extends ChangeNotifier {
   String get telegramHandle => _telegramHandle;
   String get whatsappNumber => _whatsappNumber;
   bool get isLoaded => _loaded;
+
+  // Cloud OCR getters
+  bool get cloudOcrEnabled => _cloudOcrEnabled;
+  String get cloudOcrEndpoint => _cloudOcrEndpoint;
+  String get cloudOcrApiKey => _cloudOcrApiKey;
+  String get cloudOcrModel => _cloudOcrModel;
 
   /// Explicit load — call from widget tree, not constructor.
   Future<void> loadSettings() async {
@@ -60,18 +88,27 @@ class SettingsProvider extends ChangeNotifier {
       _darkMode = prefs.getBool('dark_mode') ?? false;
       _schoolLogoPath = prefs.getString('school_logo') ?? '';
 
-      // PII: encrypted Hive box
-      Box piiBox;
-      if (Hive.isBoxOpen(_piiBoxName)) {
-        piiBox = Hive.box(_piiBoxName);
-      } else {
-        // Reuse the cipher from the main encryption setup
-        piiBox = await Hive.openBox(_piiBoxName);
+      // PII: encrypted Hive box — must already be opened by main.dart with cipher
+      if (!Hive.isBoxOpen(_piiBoxName)) {
+        throw StateError(
+          'PII box "$_piiBoxName" must be opened by main.dart with '
+          'HiveAesCipher before SettingsProvider.loadSettings() is called.',
+        );
       }
+      final piiBox = Hive.box(_piiBoxName);
       _schoolName = (piiBox.get('school_name') as String?) ?? '';
       _teacherName = (piiBox.get('teacher_name') as String?) ?? '';
+      _teacherPhone = (piiBox.get('teacher_phone') as String?) ?? '';
       _telegramHandle = (piiBox.get('telegram_handle') as String?) ?? '';
       _whatsappNumber = (piiBox.get('whatsapp_number') as String?) ?? '';
+
+      // Cloud OCR settings (encrypted — API key is sensitive)
+      _cloudOcrEnabled = piiBox.get('cloud_ocr_enabled') == true;
+      _cloudOcrEndpoint =
+          (piiBox.get('cloud_ocr_endpoint') as String?) ??
+          'https://models.github.ai/inference/chat/completions';
+      _cloudOcrApiKey = (piiBox.get('cloud_ocr_api_key') as String?) ?? '';
+      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'gpt-4o';
 
       // Custom grading scales
       final scalesJson = prefs.getString('custom_grading_scales');
@@ -79,15 +116,58 @@ class SettingsProvider extends ChangeNotifier {
         try {
           final List<dynamic> decoded = jsonDecode(scalesJson);
           _customScales = decoded.map((m) => GradingScale.fromMap(m)).toList();
-        } catch (e) {
-          debugPrint('[Settings] Failed to parse custom scales: $e');
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'loadSettings/scales', e, st);
           _customScales = [];
         }
       }
 
+      // Subjects (configurable list)
+      final subjectsJson = piiBox.get('subjects');
+      if (subjectsJson != null && subjectsJson is List) {
+        _subjects = List<String>.from(subjectsJson);
+      }
+      if (_subjects.isEmpty) {
+        _subjects = [
+          'Mathematics',
+          'Afan Oromo',
+          'Amharic',
+          'Biology',
+          'Chemistry',
+          'Civics',
+          'Economics',
+          'English',
+          'Geography',
+          'History',
+          'ICT',
+          'Physical Education',
+          'Physics',
+          'Science',
+        ];
+        await piiBox.put('subjects', _subjects);
+      }
+
+      // Academic year
+      _currentAcademicYear =
+          (piiBox.get('current_academic_year') as String?) ?? '';
+      final yearsJson = piiBox.get('academic_years');
+      if (yearsJson != null && yearsJson is List) {
+        _academicYears = List<String>.from(yearsJson);
+      }
+      if (_currentAcademicYear.isEmpty) {
+        final now = DateTime.now();
+        final sep = now.month >= 9 ? now.year : now.year - 1;
+        _currentAcademicYear = '$sep-${sep + 1}';
+        if (!_academicYears.contains(_currentAcademicYear)) {
+          _academicYears.insert(0, _currentAcademicYear);
+        }
+        await piiBox.put('current_academic_year', _currentAcademicYear);
+        await piiBox.put('academic_years', _academicYears);
+      }
+
       _loaded = true;
-    } catch (e) {
-      debugPrint('[Settings] loadSettings failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'loadSettings', e, st);
       _loaded = true; // Don't retry-loop on failure
     }
     notifyListeners();
@@ -112,6 +192,16 @@ class SettingsProvider extends ChangeNotifier {
       _schoolLogoPath = logoPath;
       await prefs.setString('school_logo', logoPath);
     }
+    notifyListeners();
+  }
+
+  /// Persists the teacher's phone (normalized to E.164) for reuse across the
+  /// app (e.g. SMS, identification). Mirrors the teacher PII pattern.
+  Future<void> updateTeacherPhone(String phone) async {
+    final piiBox = await _getPiiBox();
+    final normalized = phone.trim().isEmpty ? '' : PhoneUtils.normalize(phone);
+    _teacherPhone = normalized;
+    await piiBox.put('teacher_phone', normalized);
     notifyListeners();
   }
 
@@ -167,6 +257,90 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Cloud OCR Settings ──
+
+  Future<void> updateCloudOcr({
+    bool? enabled,
+    String? endpoint,
+    String? apiKey,
+    String? model,
+  }) async {
+    final piiBox = await _getPiiBox();
+    if (enabled != null) {
+      _cloudOcrEnabled = enabled;
+      await piiBox.put('cloud_ocr_enabled', enabled);
+    }
+    if (endpoint != null) {
+      _cloudOcrEndpoint = endpoint;
+      await piiBox.put('cloud_ocr_endpoint', endpoint);
+    }
+    if (apiKey != null) {
+      _cloudOcrApiKey = apiKey;
+      await piiBox.put('cloud_ocr_api_key', apiKey);
+    }
+    if (model != null) {
+      _cloudOcrModel = model;
+      await piiBox.put('cloud_ocr_model', model);
+    }
+    notifyListeners();
+  }
+
+  // ── Configurable Subjects ──
+
+  Future<void> addSubject(String subject) async {
+    final trimmed = subject.trim();
+    if (trimmed.isEmpty) return;
+    if (_subjects.any((s) => s.toLowerCase() == trimmed.toLowerCase())) return;
+    _subjects.add(trimmed);
+    _subjects.sort();
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  Future<void> removeSubject(String subject) async {
+    _subjects.removeWhere((s) => s.toLowerCase() == subject.toLowerCase());
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  Future<void> updateSubject(String oldSubject, String newSubject) async {
+    final trimmed = newSubject.trim();
+    if (trimmed.isEmpty) return;
+    final idx = _subjects.indexWhere(
+      (s) => s.toLowerCase() == oldSubject.toLowerCase(),
+    );
+    if (idx < 0) return;
+    if (_subjects.any(
+      (s) =>
+          s.toLowerCase() == trimmed.toLowerCase() &&
+          s.toLowerCase() != oldSubject.toLowerCase(),
+    )) {
+      return;
+    }
+    _subjects[idx] = trimmed;
+    _subjects.sort();
+    final piiBox = await _getPiiBox();
+    await piiBox.put('subjects', _subjects);
+    notifyListeners();
+  }
+
+  // ── Academic Year ──
+
+  Future<void> setAcademicYear(String year) async {
+    final trimmed = year.trim();
+    if (trimmed.isEmpty) return;
+    _currentAcademicYear = trimmed;
+    if (!_academicYears.contains(trimmed)) {
+      _academicYears.insert(0, trimmed);
+    }
+    final piiBox = await _getPiiBox();
+    await piiBox.put('current_academic_year', _currentAcademicYear);
+    await piiBox.put('academic_years', _academicYears);
+    notifyListeners();
+  }
+
   // ── Custom Grading Scales ──
 
   Future<void> saveCustomScale(GradingScale scale) async {
@@ -217,6 +391,7 @@ class SettingsProvider extends ChangeNotifier {
 
     _schoolName = '';
     _teacherName = '';
+    _teacherPhone = '';
     _telegramHandle = '';
     _whatsappNumber = '';
     _defaultRubric = 'moe_national';
@@ -225,13 +400,13 @@ class SettingsProvider extends ChangeNotifier {
     _darkMode = false;
     _schoolLogoPath = '';
     _customScales = [];
+    _subjects = [];
+    _currentAcademicYear = '';
+    _academicYears = [];
     notifyListeners();
   }
 
-  Future<Box> _getPiiBox() async {
-    if (Hive.isBoxOpen(_piiBoxName)) return Hive.box(_piiBoxName);
-    return await Hive.openBox(_piiBoxName);
-  }
+  Future<Box> _getPiiBox() async => await openBox(_piiBoxName);
 
   static VoiceFeedbackMode _parseVoiceFeedbackMode(
     String? value, {

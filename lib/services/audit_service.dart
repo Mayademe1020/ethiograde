@@ -1,8 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/audit_entry.dart';
 import '../models/scan_result.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 
 /// Audit trail service — records every grade change with who/when/what/why.
 ///
@@ -14,7 +16,7 @@ import '../models/scan_result.dart';
 /// - What it was changed to and why
 ///
 /// All entries stored in the encrypted Hive `audit_trail` box.
-class AuditService {
+class AuditService with HiveBoxMixin {
   static final AuditService _instance = AuditService._();
   factory AuditService() => _instance;
   AuditService._();
@@ -24,11 +26,11 @@ class AuditService {
   /// Record a new audit entry.
   Future<void> record(AuditEntry entry) async {
     try {
-      final box = Hive.box(_boxName);
+      final box = await openBox(_boxName);
       await box.put(entry.id, entry.toMap());
-      debugPrint('[Audit] ${entry.action} on ${entry.scanResultId}');
-    } catch (e) {
-      debugPrint('[Audit] Failed to record: $e');
+      AppLog.info(this, 'record', '${entry.action} on ${entry.scanResultId}');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'record', e, st);
       // Never crash on audit failure — grading must continue
     }
   }
@@ -39,16 +41,19 @@ class AuditService {
     required String teacherId,
     required String teacherName,
   }) async {
-    await record(AuditEntry(
-      scanResultId: result.id,
-      action: 'created',
-      teacherId: teacherId,
-      teacherName: teacherName,
-      newValues: {
-        'totalScore': result.totalScore,
-        'percentage': result.percentage,
-        'grade': result.grade,
-      }));
+    await record(
+      AuditEntry(
+        scanResultId: result.id,
+        action: 'created',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        newValues: {
+          'totalScore': result.totalScore,
+          'percentage': result.percentage,
+          'grade': result.grade,
+        },
+      ),
+    );
   }
 
   /// Record a score override (teacher manually changes a score).
@@ -64,22 +69,25 @@ class AuditService {
     required String newGrade,
     String? reason,
   }) async {
-    await record(AuditEntry(
-      scanResultId: scanResultId,
-      action: 'score_override',
-      teacherId: teacherId,
-      teacherName: teacherName,
-      previousValues: {
-        'totalScore': oldScore,
-        'percentage': oldPercentage,
-        'grade': oldGrade,
-      },
-      newValues: {
-        'totalScore': newScore,
-        'percentage': newPercentage,
-        'grade': newGrade,
-      },
-      reason: reason));
+    await record(
+      AuditEntry(
+        scanResultId: scanResultId,
+        action: 'score_override',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        previousValues: {
+          'totalScore': oldScore,
+          'percentage': oldPercentage,
+          'grade': oldGrade,
+        },
+        newValues: {
+          'totalScore': newScore,
+          'percentage': newPercentage,
+          'grade': newGrade,
+        },
+        reason: reason,
+      ),
+    );
   }
 
   /// Record a student reassignment.
@@ -92,13 +100,19 @@ class AuditService {
     required String newStudentId,
     required String newStudentName,
   }) async {
-    await record(AuditEntry(
-      scanResultId: scanResultId,
-      action: 'reassigned',
-      teacherId: teacherId,
-      teacherName: teacherName,
-      previousValues: {'studentId': oldStudentId, 'studentName': oldStudentName},
-      newValues: {'studentId': newStudentId, 'studentName': newStudentName}));
+    await record(
+      AuditEntry(
+        scanResultId: scanResultId,
+        action: 'reassigned',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        previousValues: {
+          'studentId': oldStudentId,
+          'studentName': oldStudentName,
+        },
+        newValues: {'studentId': newStudentId, 'studentName': newStudentName},
+      ),
+    );
   }
 
   /// Record a comment addition.
@@ -108,12 +122,15 @@ class AuditService {
     required String teacherName,
     required String comment,
   }) async {
-    await record(AuditEntry(
-      scanResultId: scanResultId,
-      action: 'comment_added',
-      teacherId: teacherId,
-      teacherName: teacherName,
-      newValues: {'comment': comment}));
+    await record(
+      AuditEntry(
+        scanResultId: scanResultId,
+        action: 'comment_added',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        newValues: {'comment': comment},
+      ),
+    );
   }
 
   /// Record a grading scale change.
@@ -129,28 +146,36 @@ class AuditService {
     required List<Map<String, dynamic>> newRanges,
     String? reason,
   }) async {
-    await record(AuditEntry(
-      scanResultId: 'scale:$scaleId',
-      action: 'scale_change',
-      teacherId: teacherId,
-      teacherName: teacherName,
-      previousValues: {'name': scaleName, 'ranges': previousRanges},
-      newValues: {'name': scaleName, 'ranges': newRanges},
-      reason: reason));
+    await record(
+      AuditEntry(
+        scanResultId: 'scale:$scaleId',
+        action: 'scale_change',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        previousValues: {'name': scaleName, 'ranges': previousRanges},
+        newValues: {'name': scaleName, 'ranges': newRanges},
+        reason: reason,
+      ),
+    );
   }
 
   /// Get the full audit trail for a scan result, oldest first.
   List<AuditEntry> getTrail(String scanResultId) {
     try {
+      // Note: openBox is async but this method is sync for API compatibility.
+      // The box is expected to be pre-opened at startup.
       final box = Hive.box(_boxName);
-      final entries = box.values
-          .map((v) => AuditEntry.fromMap(Map<String, dynamic>.from(v as Map)))
-          .where((e) => e.scanResultId == scanResultId)
-          .toList()
-        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      final entries =
+          box.values
+              .map(
+                (v) => AuditEntry.fromMap(Map<String, dynamic>.from(v as Map)),
+              )
+              .where((e) => e.scanResultId == scanResultId)
+              .toList()
+            ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
       return entries;
-    } catch (e) {
-      debugPrint('[Audit] getTrail failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getTrail', e, st);
       return [];
     }
   }
@@ -182,13 +207,15 @@ class AuditService {
       final box = Hive.box(_boxName);
       return box.values
           .map((v) => AuditEntry.fromMap(Map<String, dynamic>.from(v as Map)))
-          .where((e) =>
-              e.newValues['studentId'] == studentId ||
-              e.previousValues['studentId'] == studentId)
+          .where(
+            (e) =>
+                e.newValues['studentId'] == studentId ||
+                e.previousValues['studentId'] == studentId,
+          )
           .toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    } catch (e) {
-      debugPrint('[Audit] getStudentTrail failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getStudentTrail', e, st);
       return [];
     }
   }
@@ -196,10 +223,10 @@ class AuditService {
   /// Clear all audit entries (used in clear-all-data).
   Future<void> clearAll() async {
     try {
-      final box = Hive.box(_boxName);
+      final box = await openBox(_boxName);
       await box.clear();
-    } catch (e) {
-      debugPrint('[Audit] clearAll failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'clearAll', e, st);
     }
   }
 }

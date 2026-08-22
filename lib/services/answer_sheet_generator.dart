@@ -89,14 +89,30 @@ class AnswerSheetGenerator {
       return _generateHalfSheet(
         assessment: assessment,
         outputDir: outputDir,
-        schoolName: schoolName,students: students,
-        prefillNames: prefillNames);
+        schoolName: schoolName,
+        students: students,
+        prefillNames: prefillNames,
+      );
     }
+
+    // Check if questions exceed single page capacity
+    if (assessment.questions.length > _maxQuestionsPerPage) {
+      return _generateMultiPage(
+        assessment: assessment,
+        outputDir: outputDir,
+        schoolName: schoolName,
+        students: students,
+        prefillNames: prefillNames,
+      );
+    }
+
     return _generateFullA4(
       assessment: assessment,
       outputDir: outputDir,
-      schoolName: schoolName,students: students,
-      prefillNames: prefillNames);
+      schoolName: schoolName,
+      students: students,
+      prefillNames: prefillNames,
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -120,12 +136,14 @@ class AnswerSheetGenerator {
       assessmentId: assessment.id,
       questions: topQuestions,
       halfSheetIndex: 0,
-      offsetYMm: 0);
+      offsetYMm: 0,
+    );
     final bottomMap = _buildHalfSheetCoordMap(
       assessmentId: assessment.id,
       questions: bottomQuestions,
       halfSheetIndex: 1,
-      offsetYMm: _halfSheetHeightMm + _cutLineGapMm);
+      offsetYMm: _halfSheetHeightMm + _cutLineGapMm,
+    );
 
     // Build PDF — one A4 page per pair of students (or per pair of generic sheets)
     final pdf = pw.Document();
@@ -155,8 +173,12 @@ class AnswerSheetGenerator {
             assessment: assessment,
             topQuestions: topQuestions,
             bottomQuestions: bottomQuestions,
-            schoolName: schoolName,topStudent: topStudent,
-            bottomStudent: bottomStudent)));
+            schoolName: schoolName,
+            topStudent: topStudent,
+            bottomStudent: bottomStudent,
+          ),
+        ),
+      );
     }
 
     // Save files
@@ -195,53 +217,63 @@ class AnswerSheetGenerator {
   }) {
     final anchors = <AnchorPoint>[];
     final questionBubbles = <QuestionBubble>[];
-    final inset = _hsAnchorInsetMm;
-    final size = _hsAnchorSizeMm;
+    const inset = _hsAnchorInsetMm;
+    const size = _hsAnchorSizeMm;
 
     // Anchors (relative to the half-sheet origin)
     anchors.addAll([
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topLeft',
         position: BubblePosition(
           xMm: inset,
           yMm: inset,
           widthMm: size,
           heightMm: size,
-          option: '')),
-      AnchorPoint(
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'topRight',
         position: BubblePosition(
           xMm: _halfSheetWidthMm - inset - size,
           yMm: inset,
           widthMm: size,
           heightMm: size,
-          option: '')),
-      AnchorPoint(
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'bottomLeft',
         position: BubblePosition(
           xMm: inset,
           yMm: _halfSheetHeightMm - inset - size,
           widthMm: size,
           heightMm: size,
-          option: '')),
-      AnchorPoint(
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'bottomRight',
         position: BubblePosition(
           xMm: _halfSheetWidthMm - inset - size,
           yMm: _halfSheetHeightMm - inset - size,
           widthMm: size,
           heightMm: size,
-          option: '')),
+          option: '',
+        ),
+      ),
     ]);
 
     // Table start position
-    final tableStartX = _hsMarginMm;
-    final tableStartY = _hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm;
+    const tableStartX = _hsMarginMm;
+    const tableStartY =
+        _hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm;
 
     // Question rows
     for (int i = 0; i < questions.length; i++) {
       final q = questions[i];
-      final rowY = tableStartY +
+      final rowY =
+          tableStartY +
           _hsHeaderRowHeightMm + // skip header row
           i * _hsRowHeightMm;
 
@@ -251,27 +283,35 @@ class AnswerSheetGenerator {
       // Bubble X positions: after Q# column, centered in each option column
       final bubbles = <BubblePosition>[];
       for (int j = 0; j < options.length; j++) {
-        final cellX = tableStartX +
+        final cellX =
+            tableStartX +
             _hsQNumColWidthMm +
             j * _hsOptionColWidthMm +
             _hsOptionColWidthMm / 2;
-        bubbles.add(BubblePosition(
-          xMm: cellX,
-          yMm: rowY + _hsRowHeightMm / 2,
-          widthMm: _hsBubbleDiameterMm,
-          heightMm: _hsBubbleDiameterMm,
-          option: options[j]));
+        bubbles.add(
+          BubblePosition(
+            xMm: cellX,
+            yMm: rowY + _hsRowHeightMm / 2,
+            widthMm: _hsBubbleDiameterMm,
+            heightMm: _hsBubbleDiameterMm,
+            option: options[j],
+          ),
+        );
       }
 
-      questionBubbles.add(QuestionBubble(
-        number: q.number,
-        type: isTf ? SheetQuestionType.trueFalse : SheetQuestionType.mcq,
-        bubbles: bubbles,
-        column: 'left'));
+      questionBubbles.add(
+        QuestionBubble(
+          number: q.number,
+          type: isTf ? SheetQuestionType.trueFalse : SheetQuestionType.mcq,
+          bubbles: bubbles,
+          column: 'left',
+        ),
+      );
     }
 
     // Answer key checkbox position
-    final checkboxY = _halfSheetHeightMm -
+    const checkboxY =
+        _halfSheetHeightMm -
         _hsAnchorInsetMm -
         _hsAnchorSizeMm -
         _checkboxBottomOffsetMm;
@@ -294,12 +334,14 @@ class AnswerSheetGenerator {
 
     return CoordinateMap(
       assessmentId: assessmentId,
-      page: PageDimensions(
+      page: const PageDimensions(
         widthMm: _halfSheetWidthMm,
-        heightMm: _halfSheetHeightMm),
+        heightMm: _halfSheetHeightMm,
+      ),
       anchors: anchors,
       questions: questionBubbles,
-      metadata: metadata);
+      metadata: metadata,
+    );
   }
 
   /// Build an A4 page with two half-sheets stacked vertically.
@@ -307,7 +349,8 @@ class AnswerSheetGenerator {
     required Assessment assessment,
     required List<Question> topQuestions,
     required List<Question> bottomQuestions,
-    required String schoolName,Student? topStudent,
+    required String schoolName,
+    Student? topStudent,
     Student? bottomStudent,
   }) {
     return pw.Stack(
@@ -319,8 +362,11 @@ class AnswerSheetGenerator {
           child: _buildHalfSheet(
             assessment: assessment,
             questions: topQuestions,
-            schoolName: schoolName,student: topStudent,
-            offsetYMm: 0)),
+            schoolName: schoolName,
+            student: topStudent,
+            offsetYMm: 0,
+          ),
+        ),
 
         // ── Cut line ─────────────────────────────────────────────
         pw.Positioned(
@@ -333,16 +379,20 @@ class AnswerSheetGenerator {
                 width: 3 * _mmToPt,
                 height: 0.3,
                 color: PdfColors.grey400,
-                margin: const pw.EdgeInsets.symmetric(horizontal: 1))))),
+                margin: const pw.EdgeInsets.symmetric(horizontal: 1),
+              ),
+            ),
+          ),
+        ),
         // Cut label
         pw.Positioned(
           left: (_halfSheetWidthMm / 2 - 12) * _mmToPt,
           top: (_halfSheetHeightMm + 1) * _mmToPt,
           child: pw.Text(
             '── CUT HERE ──',
-            style: pw.TextStyle(
-              fontSize: 6,
-              color: PdfColors.grey500))),
+            style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500),
+          ),
+        ),
 
         // ── Bottom half-sheet ────────────────────────────────────
         pw.Positioned(
@@ -351,16 +401,21 @@ class AnswerSheetGenerator {
           child: _buildHalfSheet(
             assessment: assessment,
             questions: bottomQuestions,
-            schoolName: schoolName,student: bottomStudent,
-            offsetYMm: _halfSheetHeightMm + _cutLineGapMm)),
-      ]);
+            schoolName: schoolName,
+            student: bottomStudent,
+            offsetYMm: _halfSheetHeightMm + _cutLineGapMm,
+          ),
+        ),
+      ],
+    );
   }
 
   /// Build one half-sheet widget (fits in ~143mm × 210mm).
   pw.Widget _buildHalfSheet({
     required Assessment assessment,
     required List<Question> questions,
-    required String schoolName,Student? student,
+    required String schoolName,
+    Student? student,
     required double offsetYMm,
   }) {
     return pw.Container(
@@ -377,38 +432,46 @@ class AnswerSheetGenerator {
             top: (_hsAnchorInsetMm + _hsAnchorSizeMm + 3) * _mmToPt,
             right: _hsMarginMm * _mmToPt,
             child: _buildHalfSheetHeader(
-              assessment, schoolName, student: student)),
+              assessment,
+              schoolName,
+              student: student,
+            ),
+          ),
 
           // Question table
           pw.Positioned(
             left: _hsMarginMm * _mmToPt,
-            top: (_hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm) *
+            top:
+                (_hsAnchorInsetMm + _hsAnchorSizeMm + 5 + _hsHeaderHeightMm) *
                 _mmToPt,
-            child: _buildQuestionTable(questions)),
+            child: _buildQuestionTable(questions),
+          ),
 
           // Answer key checkbox
           pw.Positioned(
             left: _hsMarginMm * _mmToPt,
-            bottom: (_hsAnchorInsetMm + _hsAnchorSizeMm + _checkboxBottomOffsetMm) *
+            bottom:
+                (_hsAnchorInsetMm + _hsAnchorSizeMm + _checkboxBottomOffsetMm) *
                 _mmToPt,
-            child: _buildAnswerKeyCheckbox()),
-        ]));
+            child: _buildAnswerKeyCheckbox(),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Build 4 corner anchors for a half-sheet.
   List<pw.Widget> _buildHalfSheetAnchors(double offsetYMm) {
-    final size = _hsAnchorSizeMm * _mmToPt;
-    final inset = _hsAnchorInsetMm * _mmToPt;
-    final w = _halfSheetWidthMm * _mmToPt;
-    final h = _halfSheetHeightMm * _mmToPt;
+    const size = _hsAnchorSizeMm * _mmToPt;
+    const inset = _hsAnchorInsetMm * _mmToPt;
+    const w = _halfSheetWidthMm * _mmToPt;
+    const h = _halfSheetHeightMm * _mmToPt;
 
     pw.Widget anchor(double left, double top) => pw.Positioned(
-          left: left,
-          top: top,
-          child: pw.Container(
-            width: size,
-            height: size,
-            color: PdfColors.black));
+      left: left,
+      top: top,
+      child: pw.Container(width: size, height: size, color: PdfColors.black),
+    );
 
     return [
       anchor(inset, inset),
@@ -425,25 +488,20 @@ class AnswerSheetGenerator {
     Student? student,
   }) {
     final hasStudent = student != null;
-    final displayName = hasStudent ? student.fullName : '________________________';
+    final displayName = hasStudent
+        ? student.fullName
+        : '________________________';
     final displayId = hasStudent
         ? (student.studentId.isNotEmpty ? student.studentId : '______')
         : '__________';
-    final displayClass = hasStudent
-        ? (student.className.isNotEmpty
-            ? student.className
-            : (assessment.className.isNotEmpty ? assessment.className : '______'))
-        : '________';
-
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         // Title line
         pw.Text(
           assessment.title,
-          style: pw.TextStyle(
-            fontSize: 8,
-            fontWeight: pw.FontWeight.bold)),
+          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+        ),
         pw.SizedBox(height: 1 * _mmToPt),
 
         // Name + ID on one line
@@ -454,14 +512,22 @@ class AnswerSheetGenerator {
                 text: '${"NAME"}: ',
                 style: pw.TextStyle(
                   fontSize: 8,
-                  fontWeight: pw.FontWeight.bold)),
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
               pw.TextSpan(
                 text: displayName,
                 style: pw.TextStyle(
                   fontSize: hasStudent ? 9 : 7.5,
-                  fontWeight: hasStudent ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: hasStudent ? PdfColors.black : PdfColors.grey500)),
-            ])),
+                  fontWeight: hasStudent
+                      ? pw.FontWeight.bold
+                      : pw.FontWeight.normal,
+                  color: hasStudent ? PdfColors.black : PdfColors.grey500,
+                ),
+              ),
+            ],
+          ),
+        ),
         pw.SizedBox(height: 1 * _mmToPt),
 
         // ID + Date
@@ -475,21 +541,32 @@ class AnswerSheetGenerator {
                     text: '${"ID"}: ',
                     style: pw.TextStyle(
                       fontSize: 8,
-                      fontWeight: pw.FontWeight.bold)),
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
                   pw.TextSpan(
                     text: displayId,
                     style: pw.TextStyle(
                       fontSize: hasStudent ? 9 : 7.5,
-                      fontWeight: hasStudent ? pw.FontWeight.bold : pw.FontWeight.normal,
-                      color: hasStudent ? PdfColors.black : PdfColors.grey500)),
-                ])),
+                      fontWeight: hasStudent
+                          ? pw.FontWeight.bold
+                          : pw.FontWeight.normal,
+                      color: hasStudent ? PdfColors.black : PdfColors.grey500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             pw.Text(
               '${"Date"}: ____/____/____',
-              style: pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
-          ]),
+              style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
+            ),
+          ],
+        ),
         pw.SizedBox(height: 1.5 * _mmToPt),
         pw.Divider(color: PdfColors.grey300, height: 0.5),
-      ]);
+      ],
+    );
   }
 
   /// Build the table-style question grid.
@@ -500,9 +577,10 @@ class AnswerSheetGenerator {
   /// │ 1 │ ○ │ ○ │ ○ │ ○ │ ○ │
   /// │ 2 │ ○ │ ○ │ ○ │ ○ │ ○ │
   pw.Widget _buildQuestionTable(List<Question> questions) {
-    final totalWidth = _hsQNumColWidthMm + _defaultMcqOptions.length * _hsOptionColWidthMm;
-    final border = pw.BorderSide(color: PdfColors.black, width: _hsTableBorderWidth);
-    final cellBorder = pw.Border(left: border, right: border, top: border, bottom: border);
+    const border = pw.BorderSide(
+      color: PdfColors.black,
+      width: _hsTableBorderWidth,
+    );
 
     pw.Widget cell({
       required double width,
@@ -519,9 +597,12 @@ class AnswerSheetGenerator {
             left: border,
             right: border,
             top: topBorder ?? border,
-            bottom: bottomBorder ?? border)),
+            bottom: bottomBorder ?? border,
+          ),
+        ),
         alignment: pw.Alignment.center,
-        child: child);
+        child: child,
+      );
     }
 
     // Header row: │   │ A │ B │ C │ D │ E │
@@ -529,9 +610,11 @@ class AnswerSheetGenerator {
       cell(
         width: _hsQNumColWidthMm,
         height: _hsHeaderRowHeightMm,
-        child: pw.Text('')),
+        child: pw.Text(''),
+      ),
     ];
-    final isTfQuestion = questions.isNotEmpty &&
+    final isTfQuestion =
+        questions.isNotEmpty &&
         questions.every((q) => q.type == QuestionType.trueFalse);
     final options = isTfQuestion ? _tfOptions : _defaultMcqOptions;
 
@@ -542,9 +625,10 @@ class AnswerSheetGenerator {
           height: _hsHeaderRowHeightMm,
           child: pw.Text(
             opt,
-            style: pw.TextStyle(
-              fontSize: 7,
-              fontWeight: pw.FontWeight.bold))));
+            style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+      );
     }
 
     // Question rows
@@ -552,7 +636,7 @@ class AnswerSheetGenerator {
     for (final q in questions) {
       final qIsTf = q.type == QuestionType.trueFalse;
       final qOptions = qIsTf ? _tfOptions : _defaultMcqOptions;
-      final bubbleSize = _hsBubbleDiameterMm * _mmToPt;
+      const bubbleSize = _hsBubbleDiameterMm * _mmToPt;
 
       final rowCells = <pw.Widget>[
         // Question number
@@ -561,9 +645,9 @@ class AnswerSheetGenerator {
           height: _hsRowHeightMm,
           child: pw.Text(
             '${q.number}',
-            style: pw.TextStyle(
-              fontSize: 7,
-              fontWeight: pw.FontWeight.bold))),
+            style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
       ];
 
       for (int j = 0; j < qOptions.length; j++) {
@@ -575,47 +659,155 @@ class AnswerSheetGenerator {
               width: bubbleSize,
               height: bubbleSize,
               decoration: pw.BoxDecoration(
-                border: pw.Border.all(
-                  color: PdfColors.black,
-                  width: 0.6),
-                borderRadius: pw.BorderRadius.circular(bubbleSize / 2)))));
+                border: pw.Border.all(color: PdfColors.black, width: 0.6),
+                borderRadius: pw.BorderRadius.circular(bubbleSize / 2),
+              ),
+            ),
+          ),
+        );
       }
 
-      rows.add(
-        pw.Row(
-          mainAxisSize: pw.MainAxisSize.min,
-          children: rowCells));
+      rows.add(pw.Row(mainAxisSize: pw.MainAxisSize.min, children: rowCells));
     }
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisSize: pw.MainAxisSize.min,
       children: [
-        pw.Row(
-          mainAxisSize: pw.MainAxisSize.min,
-          children: headerCells),
+        pw.Row(mainAxisSize: pw.MainAxisSize.min, children: headerCells),
         ...rows,
-      ]);
+      ],
+    );
   }
 
   /// Build the answer key checkbox at the bottom of the sheet.
   pw.Widget _buildAnswerKeyCheckbox() {
-    final size = _checkboxSizeMm * _mmToPt;
+    const size = _checkboxSizeMm * _mmToPt;
     return pw.Row(
       children: [
         pw.Container(
           width: size,
           height: size,
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 0.8))),
+            border: pw.Border.all(color: PdfColors.black, width: 0.8),
+          ),
+        ),
         pw.SizedBox(width: 2 * _mmToPt),
         pw.Text(
           'This is the answer key',
           style: pw.TextStyle(
             fontSize: 7,
             fontStyle: pw.FontStyle.italic,
-            color: PdfColors.grey700)),
-      ]);
+            color: PdfColors.grey700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  MULTI-PAGE LAYOUT (when questions exceed single page capacity)
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Maximum questions that fit on a single A4 page (two columns).
+  static const int _maxQuestionsPerPage = _maxQuestionsPerColumn * 2; // 120
+
+  /// Generate multi-page answer sheets when questions exceed single page capacity.
+  ///
+  /// Returns multiple A4 pages, each with its own coordinate map.
+  /// Used when assessment has >120 questions (or >60 for single-column layout).
+  Future<(File, File, String)> _generateMultiPage({
+    required Assessment assessment,
+    String? outputDir,
+    String schoolName = '',
+    List<Student> students = const [],
+    bool prefillNames = false,
+  }) async {
+    final questions = assessment.questions;
+    const questionsPerPage = _maxQuestionsPerPage;
+    final totalPages = (questions.length / questionsPerPage).ceil();
+
+    // Split questions into pages
+    final pages = <List<Question>>[];
+    for (int i = 0; i < totalPages; i++) {
+      final start = i * questionsPerPage;
+      final end = (start + questionsPerPage).clamp(0, questions.length);
+      pages.add(questions.sublist(start, end));
+    }
+
+    // Build coordinate maps for each page
+    final coordMaps = <CoordinateMap>[];
+    for (int i = 0; i < totalPages; i++) {
+      final pageQuestions = pages[i];
+      final hasRightColumn = pageQuestions.length > _maxQuestionsPerColumn;
+      final leftQuestions = hasRightColumn
+          ? pageQuestions.sublist(0, _maxQuestionsPerColumn)
+          : pageQuestions;
+      final rightQuestions = hasRightColumn
+          ? pageQuestions.sublist(_maxQuestionsPerColumn)
+          : <Question>[];
+
+      final coordMap = _buildFullA4CoordinateMap(
+        assessmentId: assessment.id,
+        leftQuestions: leftQuestions,
+        rightQuestions: rightQuestions,
+      );
+      coordMaps.add(coordMap);
+    }
+
+    // Build PDF
+    final pdf = pw.Document();
+
+    for (final pageQuestions in pages) {
+      final hasRightColumn = pageQuestions.length > _maxQuestionsPerColumn;
+      final leftQuestions = hasRightColumn
+          ? pageQuestions.sublist(0, _maxQuestionsPerColumn)
+          : pageQuestions;
+      final rightQuestions = hasRightColumn
+          ? pageQuestions.sublist(_maxQuestionsPerColumn)
+          : <Question>[];
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (context) => _buildFullA4Page(
+            assessment: assessment,
+            leftQuestions: leftQuestions,
+            rightQuestions: rightQuestions,
+            hasRightColumn: hasRightColumn,
+            schoolName: schoolName,
+            student: null,
+          ),
+        ),
+      );
+    }
+
+    // Save files
+    final dir = outputDir ?? (await getApplicationDocumentsDirectory()).path;
+    final baseName = _safeName(assessment.title);
+
+    final pdfFile = File('$dir/answer_sheet_$baseName.pdf');
+    await pdfFile.writeAsBytes(await pdf.save());
+
+    // Save coordinate maps as multi-page structure
+    final combinedMap = {
+      'layout': 'multiPage',
+      'assessmentId': assessment.id,
+      'totalPages': totalPages,
+      'pages': coordMaps.map((m) => m.toMap()).toList(),
+      'metadata': {
+        'generatedAt': DateTime.now().toIso8601String(),
+        'totalQuestions': questions.length,
+        'questionsPerPage': questionsPerPage,
+      },
+    };
+
+    final mapFile = File('$dir/answer_sheet_$baseName.coordmap.json');
+    await mapFile.writeAsString(jsonEncode(combinedMap));
+
+    final relativeName = 'answer_sheet_$baseName.coordmap.json';
+    return (pdfFile, mapFile, relativeName);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -641,7 +833,8 @@ class AnswerSheetGenerator {
     final coordMap = _buildFullA4CoordinateMap(
       assessmentId: assessment.id,
       leftQuestions: leftQuestions,
-      rightQuestions: rightQuestions);
+      rightQuestions: rightQuestions,
+    );
 
     final pdf = pw.Document();
     final usePrefill = prefillNames && students.isNotEmpty;
@@ -657,7 +850,11 @@ class AnswerSheetGenerator {
             leftQuestions: leftQuestions,
             rightQuestions: rightQuestions,
             hasRightColumn: hasRightColumn,
-            schoolName: schoolName,student: student)));
+            schoolName: schoolName,
+            student: student,
+          ),
+        ),
+      );
     }
 
     final dir = outputDir ?? (await getApplicationDocumentsDirectory()).path;
@@ -681,63 +878,95 @@ class AnswerSheetGenerator {
     final anchors = <AnchorPoint>[];
     final questionBubbles = <QuestionBubble>[];
 
-    final anchorInset = _anchorInsetMm;
-    final anchorSize = _anchorSizeMm;
+    const anchorInset = _anchorInsetMm;
+    const anchorSize = _anchorSizeMm;
     anchors.addAll([
-      AnchorPoint(
+      const AnchorPoint(
         corner: 'topLeft',
         position: BubblePosition(
-          xMm: anchorInset, yMm: anchorInset,
-          widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+          xMm: anchorInset,
+          yMm: anchorInset,
+          widthMm: anchorSize,
+          heightMm: anchorSize,
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'topRight',
         position: BubblePosition(
-          xMm: _a4WidthMm - anchorInset - anchorSize, yMm: anchorInset,
-          widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+          xMm: _a4WidthMm - anchorInset - anchorSize,
+          yMm: anchorInset,
+          widthMm: anchorSize,
+          heightMm: anchorSize,
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'bottomLeft',
         position: BubblePosition(
-          xMm: anchorInset, yMm: _a4HeightMm - anchorInset - anchorSize,
-          widthMm: anchorSize, heightMm: anchorSize, option: '')),
-      AnchorPoint(
+          xMm: anchorInset,
+          yMm: _a4HeightMm - anchorInset - anchorSize,
+          widthMm: anchorSize,
+          heightMm: anchorSize,
+          option: '',
+        ),
+      ),
+      const AnchorPoint(
         corner: 'bottomRight',
         position: BubblePosition(
           xMm: _a4WidthMm - anchorInset - anchorSize,
           yMm: _a4HeightMm - anchorInset - anchorSize,
-          widthMm: anchorSize, heightMm: anchorSize, option: '')),
+          widthMm: anchorSize,
+          heightMm: anchorSize,
+          option: '',
+        ),
+      ),
     ]);
 
-    final leftStartX = _marginMm + _questionNumberWidthMm;
-    final startY = _anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm;
+    const leftStartX = _marginMm + _questionNumberWidthMm;
+    const startY = _anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm;
 
     for (int i = 0; i < leftQuestions.length; i++) {
       final q = leftQuestions[i];
       final yMm = startY + i * _rowHeightMm;
       final bubbles = _buildBubblesForQuestionFullA4(
-        question: q, startX: leftStartX, yMm: yMm);
-      questionBubbles.add(QuestionBubble(
-        number: q.number,
-        type: q.type == QuestionType.trueFalse
-            ? SheetQuestionType.trueFalse
-            : SheetQuestionType.mcq,
-        bubbles: bubbles,
-        column: 'left'));
-    }
-
-    if (rightQuestions.isNotEmpty) {
-      final rightStartX = _a4WidthMm / 2 + _columnGapMm + _questionNumberWidthMm;
-      for (int i = 0; i < rightQuestions.length; i++) {
-        final q = rightQuestions[i];
-        final yMm = startY + i * _rowHeightMm;
-        final bubbles = _buildBubblesForQuestionFullA4(
-          question: q, startX: rightStartX, yMm: yMm);
-        questionBubbles.add(QuestionBubble(
+        question: q,
+        startX: leftStartX,
+        yMm: yMm,
+      );
+      questionBubbles.add(
+        QuestionBubble(
           number: q.number,
           type: q.type == QuestionType.trueFalse
               ? SheetQuestionType.trueFalse
               : SheetQuestionType.mcq,
           bubbles: bubbles,
-          column: 'right'));
+          column: 'left',
+        ),
+      );
+    }
+
+    if (rightQuestions.isNotEmpty) {
+      const rightStartX =
+          _a4WidthMm / 2 + _columnGapMm + _questionNumberWidthMm;
+      for (int i = 0; i < rightQuestions.length; i++) {
+        final q = rightQuestions[i];
+        final yMm = startY + i * _rowHeightMm;
+        final bubbles = _buildBubblesForQuestionFullA4(
+          question: q,
+          startX: rightStartX,
+          yMm: yMm,
+        );
+        questionBubbles.add(
+          QuestionBubble(
+            number: q.number,
+            type: q.type == QuestionType.trueFalse
+                ? SheetQuestionType.trueFalse
+                : SheetQuestionType.mcq,
+            bubbles: bubbles,
+            column: 'right',
+          ),
+        );
       }
     }
 
@@ -755,7 +984,8 @@ class AnswerSheetGenerator {
         'mcqSpacingMm': _mcqSpacingMm,
         'tfSpacingMm': _tfSpacingMm,
         'rowHeightMm': _rowHeightMm,
-      });
+      },
+    );
   }
 
   List<BubblePosition> _buildBubblesForQuestionFullA4({
@@ -773,7 +1003,8 @@ class AnswerSheetGenerator {
         yMm: yMm,
         widthMm: _bubbleDiameterMm,
         heightMm: _bubbleDiameterMm,
-        option: options[i]);
+        option: options[i],
+      );
     });
   }
 
@@ -782,7 +1013,8 @@ class AnswerSheetGenerator {
     required List<Question> leftQuestions,
     required List<Question> rightQuestions,
     required bool hasRightColumn,
-    required String schoolName,Student? student,
+    required String schoolName,
+    Student? student,
   }) {
     return pw.Stack(
       children: [
@@ -791,39 +1023,53 @@ class AnswerSheetGenerator {
           left: _marginMm * _mmToPt,
           top: (_anchorInsetMm + _anchorSizeMm + 5) * _mmToPt,
           right: _marginMm * _mmToPt,
-          child: _buildFullA4Header(assessment, schoolName, student: student)),
+          child: _buildFullA4Header(assessment, schoolName, student: student),
+        ),
         pw.Positioned(
           left: _marginMm * _mmToPt,
           top: (_anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm) * _mmToPt,
-          child: _buildFullA4QuestionColumn(questions: leftQuestions)),
+          child: _buildFullA4QuestionColumn(questions: leftQuestions),
+        ),
         if (hasRightColumn)
           pw.Positioned(
             left: (_a4WidthMm / 2 + _columnGapMm / 2) * _mmToPt,
-            top: (_anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm) * _mmToPt,
-            child: _buildFullA4QuestionColumn(questions: rightQuestions)),
+            top:
+                (_anchorInsetMm + _anchorSizeMm + 5 + _headerHeightMm) *
+                _mmToPt,
+            child: _buildFullA4QuestionColumn(questions: rightQuestions),
+          ),
         if (hasRightColumn)
           pw.Positioned(
             left: (_a4WidthMm / 2) * _mmToPt,
             top: (_anchorInsetMm + _anchorSizeMm + 5) * _mmToPt,
             child: pw.Container(
               width: 0.5,
-              height: (_a4HeightMm - 2 * (_anchorInsetMm + _anchorSizeMm + 5)) * _mmToPt,
-              color: PdfColors.grey400)),
-      ]);
+              height:
+                  (_a4HeightMm - 2 * (_anchorInsetMm + _anchorSizeMm + 5)) *
+                  _mmToPt,
+              color: PdfColors.grey400,
+            ),
+          ),
+      ],
+    );
   }
 
   List<pw.Widget> _buildFullA4Anchors() {
-    final size = _anchorSizeMm * _mmToPt;
-    final inset = _anchorInsetMm * _mmToPt;
+    const size = _anchorSizeMm * _mmToPt;
+    const inset = _anchorInsetMm * _mmToPt;
     pw.Widget anchor(double left, double top) => pw.Positioned(
-          left: left,
-          top: top,
-          child: pw.Container(width: size, height: size, color: PdfColors.black));
+      left: left,
+      top: top,
+      child: pw.Container(width: size, height: size, color: PdfColors.black),
+    );
     return [
       anchor(inset, inset),
       anchor(_a4WidthMm * _mmToPt - inset - size, inset),
       anchor(inset, _a4HeightMm * _mmToPt - inset - size),
-      anchor(_a4WidthMm * _mmToPt - inset - size, _a4HeightMm * _mmToPt - inset - size),
+      anchor(
+        _a4WidthMm * _mmToPt - inset - size,
+        _a4HeightMm * _mmToPt - inset - size,
+      ),
     ];
   }
 
@@ -833,14 +1079,18 @@ class AnswerSheetGenerator {
     Student? student,
   }) {
     final hasStudent = student != null;
-    final displayName = hasStudent ? student.fullName : '________________________________';
+    final displayName = hasStudent
+        ? student.fullName
+        : '________________________________';
     final displayId = hasStudent
         ? (student.studentId.isNotEmpty ? student.studentId : '________')
         : '________________';
     final displayClass = hasStudent
         ? (student.className.isNotEmpty
-            ? student.className
-            : (assessment.className.isNotEmpty ? assessment.className : '________'))
+              ? student.className
+              : (assessment.className.isNotEmpty
+                    ? assessment.className
+                    : '________'))
         : '________';
 
     return pw.Column(
@@ -851,78 +1101,123 @@ class AnswerSheetGenerator {
           children: [
             pw.Text(
               schoolName.isNotEmpty ? schoolName : ('School'),
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+            ),
             pw.Text(
               assessment.title,
-              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          ]),
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
+          ],
+        ),
         pw.SizedBox(height: 1.5 * _mmToPt),
         pw.Text(
           '${"Date"}: ___/___/______',
-          style: const pw.TextStyle(fontSize: 9)),
+          style: const pw.TextStyle(fontSize: 9),
+        ),
         pw.SizedBox(height: 2.5 * _mmToPt),
         pw.RichText(
-          text: pw.TextSpan(children: [
-            pw.TextSpan(
-              text: '${"NAME"}: ',
-              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.TextSpan(
-              text: displayName,
-              style: pw.TextStyle(
-                fontSize: hasStudent ? 11 : 9,
-                fontWeight: hasStudent ? pw.FontWeight.bold : pw.FontWeight.normal,
-                color: hasStudent ? PdfColors.black : PdfColors.grey500)),
-          ])),
+          text: pw.TextSpan(
+            children: [
+              pw.TextSpan(
+                text: '${"NAME"}: ',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.TextSpan(
+                text: displayName,
+                style: pw.TextStyle(
+                  fontSize: hasStudent ? 11 : 9,
+                  fontWeight: hasStudent
+                      ? pw.FontWeight.bold
+                      : pw.FontWeight.normal,
+                  color: hasStudent ? PdfColors.black : PdfColors.grey500,
+                ),
+              ),
+            ],
+          ),
+        ),
         pw.SizedBox(height: 1.5 * _mmToPt),
-        pw.Row(children: [
-          pw.RichText(
-            text: pw.TextSpan(children: [
-              pw.TextSpan(
-                text: '${"ID"}: ',
-                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.TextSpan(
-                text: displayId,
-                style: pw.TextStyle(
-                  fontSize: hasStudent ? 11 : 9,
-                  fontWeight: hasStudent ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: hasStudent ? PdfColors.black : PdfColors.grey500)),
-            ])),
-          pw.SizedBox(width: 10 * _mmToPt),
-          pw.RichText(
-            text: pw.TextSpan(children: [
-              pw.TextSpan(
-                text: '${"Class"}: ',
-                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.TextSpan(
-                text: displayClass,
-                style: pw.TextStyle(
-                  fontSize: hasStudent ? 11 : 9,
-                  fontWeight: hasStudent ? pw.FontWeight.bold : pw.FontWeight.normal,
-                  color: hasStudent ? PdfColors.black : PdfColors.grey500)),
-            ])),
-        ]),
+        pw.Row(
+          children: [
+            pw.RichText(
+              text: pw.TextSpan(
+                children: [
+                  pw.TextSpan(
+                    text: '${"ID"}: ',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.TextSpan(
+                    text: displayId,
+                    style: pw.TextStyle(
+                      fontSize: hasStudent ? 11 : 9,
+                      fontWeight: hasStudent
+                          ? pw.FontWeight.bold
+                          : pw.FontWeight.normal,
+                      color: hasStudent ? PdfColors.black : PdfColors.grey500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 10 * _mmToPt),
+            pw.RichText(
+              text: pw.TextSpan(
+                children: [
+                  pw.TextSpan(
+                    text: '${"Class"}: ',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.TextSpan(
+                    text: displayClass,
+                    style: pw.TextStyle(
+                      fontSize: hasStudent ? 11 : 9,
+                      fontWeight: hasStudent
+                          ? pw.FontWeight.bold
+                          : pw.FontWeight.normal,
+                      color: hasStudent ? PdfColors.black : PdfColors.grey500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         pw.SizedBox(height: 2 * _mmToPt),
         pw.Text(
           'Fill ONE bubble per question. Use pencil.',
-          style: pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic, color: PdfColors.grey600)),
+          style: pw.TextStyle(
+            fontSize: 7,
+            fontStyle: pw.FontStyle.italic,
+            color: PdfColors.grey600,
+          ),
+        ),
         pw.SizedBox(height: 1 * _mmToPt),
         pw.Divider(color: PdfColors.grey300, height: 1),
-      ]);
+      ],
+    );
   }
 
-  pw.Widget _buildFullA4QuestionColumn({
-    required List<Question> questions,}) {
+  pw.Widget _buildFullA4QuestionColumn({required List<Question> questions}) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: questions.map((q) => _buildFullA4QuestionRow(q)).toList());
+      children: questions.map(_buildFullA4QuestionRow).toList(),
+    );
   }
 
   pw.Widget _buildFullA4QuestionRow(Question question) {
     final isTf = question.type == QuestionType.trueFalse;
     final options = isTf ? _tfOptions : question.options;
     final spacing = (isTf ? _tfSpacingMm : _mcqSpacingMm) * _mmToPt;
-    final bubbleSize = _bubbleDiameterMm * _mmToPt;
-    final rowH = _rowHeightMm * _mmToPt;
+    const bubbleSize = _bubbleDiameterMm * _mmToPt;
+    const rowH = _rowHeightMm * _mmToPt;
 
     return pw.Container(
       height: rowH,
@@ -935,22 +1230,37 @@ class AnswerSheetGenerator {
             alignment: pw.Alignment.centerLeft,
             child: pw.Text(
               '${question.number}.',
-              style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-          ...options.map((opt) => pw.Container(
-                width: spacing,
-                child: pw.Row(children: [
+              style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          ...options.map(
+            (opt) => pw.Container(
+              width: spacing,
+              child: pw.Row(
+                children: [
                   pw.Container(
                     width: bubbleSize,
                     height: bubbleSize,
                     decoration: pw.BoxDecoration(
                       border: pw.Border.all(color: PdfColors.black, width: 0.8),
-                      borderRadius: pw.BorderRadius.circular(bubbleSize / 2))),
+                      borderRadius: pw.BorderRadius.circular(bubbleSize / 2),
+                    ),
+                  ),
                   pw.SizedBox(width: 1.5),
                   pw.Text(
                     opt,
-                    style: pw.TextStyle(fontSize: isTf ? 6 : 5.5, color: PdfColors.grey700)),
-                ]))),
-        ]));
+                    style: pw.TextStyle(
+                      fontSize: isTf ? 6 : 5.5,
+                      color: PdfColors.grey700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -968,9 +1278,10 @@ class AnswerSheetGenerator {
   static Future<File?> regenerateCoordinateMap(Assessment assessment) async {
     try {
       final gen = AnswerSheetGenerator();
-      final (_, mapFile, __) = await gen.generate(
+      final (_, mapFile, _) = await gen.generate(
         assessment: assessment,
-        schoolName: '');
+        schoolName: '',
+      );
       return mapFile;
     } catch (_) {
       return null;

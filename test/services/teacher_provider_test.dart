@@ -72,8 +72,8 @@ void main() {
       final teacher = makeTeacher(name: 'Almaz');
       final result = await provider.addTeacher(teacher);
 
-      expect(result, isNotNull);
-      expect(result!.name, 'Almaz');
+      expect(result.success, isTrue);
+      expect(result.data!.name, 'Almaz');
       expect(provider.teachers.length, 1);
 
       // Verify persisted
@@ -87,7 +87,8 @@ void main() {
 
       final result = await provider.addTeacher(makeTeacher(name: ''));
 
-      expect(result, isNull);
+      expect(result.success, isFalse);
+      expect(result.error, isNotNull);
       expect(provider.teachers, isEmpty);
       expect(provider.lastAddErrors, isNotEmpty);
       expect(provider.lastAddErrors.first, contains('empty'));
@@ -99,7 +100,7 @@ void main() {
 
       final result = await provider.addTeacher(makeTeacher(name: '   '));
 
-      expect(result, isNull);
+      expect(result.success, isFalse);
       expect(provider.lastAddErrors.first, contains('empty'));
     });
 
@@ -110,7 +111,7 @@ void main() {
       final longName = 'A' * 101;
       final result = await provider.addTeacher(makeTeacher(name: longName));
 
-      expect(result, isNull);
+      expect(result.success, isFalse);
       expect(provider.lastAddErrors.first, contains('100'));
     });
 
@@ -122,7 +123,7 @@ void main() {
       final result = await provider.addTeacher(
         makeTeacher(id: '2', name: 'ABEBE'));
 
-      expect(result, isNull);
+      expect(result.success, isFalse);
       expect(provider.teachers.length, 1);
       expect(provider.lastAddErrors.first, contains('already exists'));
     });
@@ -134,7 +135,7 @@ void main() {
       final teacher = Teacher(name: 'Test', role: 'superadmin');
       final result = await provider.addTeacher(teacher);
 
-      expect(result, isNull);
+      expect(result.success, isFalse);
       expect(provider.lastAddErrors.first, contains('Invalid role'));
     });
 
@@ -163,7 +164,7 @@ void main() {
         subject: 'Physics');
       final result = await provider.updateTeacher(updated);
 
-      expect(result, isTrue);
+      expect(result.success, isTrue);
       expect(provider.getById('1')!.name, 'Abebe Updated');
       expect(provider.getById('1')!.subject, 'Physics');
     });
@@ -178,7 +179,7 @@ void main() {
       final updated = teacher.copyWith(name: '');
       final result = await provider.updateTeacher(updated);
 
-      expect(result, isFalse);
+      expect(result.success, isFalse);
       // Original unchanged
       expect(provider.getById('1')!.name, 'Abebe');
     });
@@ -194,7 +195,7 @@ void main() {
       final updated = provider.getById('2')!.copyWith(name: 'Abebe');
       final result = await provider.updateTeacher(updated);
 
-      expect(result, isFalse);
+      expect(result.success, isFalse);
       expect(provider.getById('2')!.name, 'Zeleke');
     });
 
@@ -209,7 +210,7 @@ void main() {
       final updated = teacher.copyWith(subject: 'Science');
       final result = await provider.updateTeacher(updated);
 
-      expect(result, isTrue);
+      expect(result.success, isTrue);
       expect(provider.getById('1')!.subject, 'Science');
     });
   });
@@ -224,7 +225,7 @@ void main() {
 
       final result = await provider.deleteTeacher('1');
 
-      expect(result, isTrue);
+      expect(result.success, isTrue);
       expect(provider.teachers, isEmpty);
 
       // Verify removed from Hive
@@ -237,7 +238,7 @@ void main() {
       await provider.loadTeachers();
 
       final result = await provider.deleteTeacher('nonexistent');
-      expect(result, isTrue);
+      expect(result.success, isTrue);
     });
   });
 

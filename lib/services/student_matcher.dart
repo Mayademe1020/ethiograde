@@ -28,8 +28,12 @@ int _levenshtein(String a, String b) {
   final matrix = List.generate(
     a.length + 1,
     (i) => List.filled(b.length + 1, 0));
-  for (var i = 0; i <= a.length; i++) matrix[i][0] = i;
-  for (var j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (var i = 0; i <= a.length; i++) {
+    matrix[i][0] = i;
+  }
+  for (var j = 0; j <= b.length; j++) {
+    matrix[0][j] = j;
+  }
   for (var i = 1; i <= a.length; i++) {
     for (var j = 1; j <= b.length; j++) {
       final cost = a[i - 1] == b[j - 1] ? 0 : 1;
@@ -147,7 +151,7 @@ class StudentMatcher {
   /// Match by student ID (exact, faster than name matching).
   static MatchResult matchById(String studentId, List<Student> classStudents) {
     if (studentId.trim().isEmpty || classStudents.isEmpty) {
-      return MatchResult(scannedName: '');
+      return const MatchResult(scannedName: '');
     }
 
     final matches = classStudents
@@ -165,23 +169,27 @@ class StudentMatcher {
   }
 
   /// Parse OCR text and try to match to class list.
-  static MatchResult matchFromOcr(String ocrText, List<Student> classStudents) {
+  ///
+  /// Precedence:
+  /// 1. Exact student ID match (highest trust)
+  /// 2. Exact full-name match within class
+  /// 3. Unique normalized-name match within class
+  /// 4. Fuzzy-name match only when confident and unambiguous
+  /// 5. Manual teacher assignment (returned as needsReview)
+  static MatchResult matchFromOcr(
+    String ocrText,
+    List<Student> classStudents, {
+    String? assessmentClassId,
+  }) {
     const parser = RosterParser();
     final parsed = parser.parse(ocrText);
 
     if (parsed.isEmpty) {
-      return MatchResult(scannedName: '');
+      return const MatchResult(scannedName: '');
     }
 
+    // ── Priority 1: Exact student ID match (highest trust) ──
     for (final p in parsed) {
-      final fullName = '${p.firstName} ${p.lastName}'.trim();
-      if (fullName.isEmpty) continue;
-
-      final result = matchName(fullName, classStudents);
-      if (result.hasMatch && result.confidence >= 0.7) {
-        return result;
-      }
-
       if (p.studentId.isNotEmpty) {
         final idResult = matchById(p.studentId, classStudents);
         if (idResult.hasMatch) {
@@ -190,9 +198,112 @@ class StudentMatcher {
       }
     }
 
+    // ── Priority 2: Exact full-name match ──
+    for (final p in parsed) {
+      final fullName = '${p.firstName} ${p.lastName}'.trim();
+      if (fullName.isEmpty) continue;
+
+      final exactMatches = classStudents
+          .where((s) => _normalizeName(fullName) == _normalizeName(s.fullName))
+          .toList();
+
+      if (exactMatches.length == 1) {
+        return MatchResult(
+          matchedStudent: exactMatches.first,
+          scannedName: fullName,
+          confidence: 1.0,
+        );
+      }
+
+      if (exactMatches.length > 1) {
+        // Duplicate exact names — ambiguous, needs teacher
+        return MatchResult(
+          scannedName: fullName,
+          confidence: 1.0,
+          similarStudents: exactMatches,
+          isAmbiguous: true,
+        );
+      }
+    }
+
+    // ── Priority 3: Unique normalized-name match ──
+    for (final p in parsed) {
+      final fullName = '${p.firstName} ${p.lastName}'.trim();
+      if (fullName.isEmpty) continue;
+
+      final normalizedName = _normalizeName(fullName);
+      final nameMatches = classStudents
+          .where((s) => _normalizeName(s.fullName) == normalizedName)
+          .toList();
+
+      if (nameMatches.length == 1) {
+        return MatchResult(
+          matchedStudent: nameMatches.first,
+          scannedName: fullName,
+          confidence: 0.95,
+        );
+      }
+
+      if (nameMatches.length > 1) {
+        // Duplicate normalized names — ambiguous
+        return MatchResult(
+          scannedName: fullName,
+          confidence: 0.95,
+          similarStudents: nameMatches,
+          isAmbiguous: true,
+        );
+      }
+    }
+
+    // ── Priority 4: First-name-only match (unique within class) ──
+    for (final p in parsed) {
+      final scannedFirst = p.firstName.toLowerCase().trim();
+      if (scannedFirst.isEmpty) continue;
+
+      final firstNameMatches = classStudents
+          .where((s) => s.firstName.toLowerCase().trim() == scannedFirst)
+          .toList();
+
+      if (firstNameMatches.length == 1) {
+        return MatchResult(
+          matchedStudent: firstNameMatches.first,
+          scannedName: '${p.firstName} ${p.lastName}'.trim(),
+          confidence: 0.85,
+        );
+      }
+
+      if (firstNameMatches.length > 1) {
+        // Multiple students with same first name — ambiguous
+        return MatchResult(
+          scannedName: '${p.firstName} ${p.lastName}'.trim(),
+          confidence: 0.85,
+          similarStudents: firstNameMatches,
+          isAmbiguous: true,
+        );
+      }
+    }
+
+    // ── Priority 5: Fuzzy match (confidence >= 0.7, unambiguous) ──
+    for (final p in parsed) {
+      final fullName = '${p.firstName} ${p.lastName}'.trim();
+      if (fullName.isEmpty) continue;
+
+      final result = matchName(fullName, classStudents);
+      if (result.hasMatch && result.confidence >= 0.7 && !result.isAmbiguous) {
+        return result;
+      }
+    }
+
+    // ── No match found — needs teacher assignment ──
     final first = parsed.first;
     return MatchResult(
-      scannedName: '${first.firstName} ${first.lastName}'.trim());
+      scannedName: '${first.firstName} ${first.lastName}'.trim(),
+    );
+  }
+
+  /// Normalize a name for comparison: lowercase, trim, collapse whitespace.
+  static String _normalizeName(String name) {
+    return name.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
   }
 
   /// Expose similarity for external use (e.g., StudentNotFoundDialog).

@@ -25,7 +25,8 @@ void main() {
     section: section,
     subject: subject,
     ownerId: ownerId,
-    studentIds: studentIds);
+    studentIds: studentIds,
+  );
 
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('ethiograde_class_test_');
@@ -74,6 +75,23 @@ void main() {
       await provider.loadClasses(); // second call should be no-op
       expect(provider.isLoaded, isTrue);
     });
+
+    test('flags loadFailed on read failure, reload recovers', () async {
+      final box = Hive.box(boxName);
+      await box.put('broken', {'name': 123, 'grade': 'not-an-int'});
+
+      final provider = ClassProvider();
+      await provider.loadClasses();
+
+      expect(provider.loadFailed, isTrue);
+      expect(provider.classes, isEmpty);
+
+      // Repair storage then reload — clears the failure flag.
+      await box.delete('broken');
+      await provider.reload();
+      expect(provider.loadFailed, isFalse);
+      expect(provider.classes, isEmpty);
+    });
   });
 
   group('ClassProvider — add', () {
@@ -84,8 +102,8 @@ void main() {
       final cls = makeClass();
       final result = await provider.addClass(cls);
 
-      expect(result, isNotNull);
-      expect(result!.id, cls.id);
+      expect(result.success, isTrue);
+      expect(result.data!.id, cls.id);
       expect(provider.classes, hasLength(1));
 
       // Verify persisted
@@ -98,7 +116,7 @@ void main() {
       await provider.loadClasses();
 
       final result = await provider.addClass(makeClass(name: ''));
-      expect(result, isNull);
+      expect(result.success, isFalse);
       expect(provider.classes, isEmpty);
     });
   });
@@ -114,16 +132,16 @@ void main() {
       final updated = cls.copyWith(name: 'Grade 5B');
       final ok = await provider.updateClass(updated);
 
-      expect(ok, isTrue);
+      expect(ok.success, isTrue);
       expect(provider.classes.first.name, 'Grade 5B');
     });
 
-    test('returns false for missing class', () async {
+    test('returns failure for missing class', () async {
       final provider = ClassProvider();
       await provider.loadClasses();
 
       final ok = await provider.updateClass(makeClass(id: 'no-such-id'));
-      expect(ok, isFalse);
+      expect(ok.success, isFalse);
     });
   });
 
@@ -137,7 +155,7 @@ void main() {
       expect(provider.classes, hasLength(1));
 
       final ok = await provider.deleteClass(cls.id);
-      expect(ok, isTrue);
+      expect(ok.success, isTrue);
       expect(provider.classes, isEmpty);
     });
 
@@ -164,7 +182,7 @@ void main() {
       await provider.addClass(cls);
 
       final ok = await provider.addStudentToClass(cls.id, 'student-1');
-      expect(ok, isTrue);
+      expect(ok.success, isTrue);
       expect(provider.classes.first.studentIds, contains('student-1'));
     });
 
@@ -176,7 +194,7 @@ void main() {
       await provider.addClass(cls);
 
       final ok = await provider.addStudentToClass(cls.id, 'student-1');
-      expect(ok, isTrue);
+      expect(ok.success, isTrue);
       expect(provider.classes.first.studentIds, hasLength(1));
     });
 
@@ -188,7 +206,7 @@ void main() {
       await provider.addClass(cls);
 
       final ok = await provider.removeStudentFromClass(cls.id, 's2');
-      expect(ok, isTrue);
+      expect(ok.success, isTrue);
       expect(provider.classes.first.studentIds, ['s1', 's3']);
     });
 
@@ -204,7 +222,8 @@ void main() {
         's3',
         's1',
       ]);
-      expect(added, 2); // s1 already existed
+      expect(added.success, isTrue);
+      expect(added.data, 2); // s1 already existed
       expect(provider.classes.first.studentIds, hasLength(3));
     });
   });
