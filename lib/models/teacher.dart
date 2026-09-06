@@ -25,6 +25,8 @@ class Teacher {
   final List<String> classIds;
   @HiveField(9)
   final String phone;
+  @HiveField(10)
+  final List<String> grades;
 
   Teacher({
     String? id,
@@ -37,13 +39,16 @@ class Teacher {
     List<String>? subjects,
     List<String>? classIds,
     this.phone = '',
+    List<String>? grades,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        subjects = subjects ?? (subject.isEmpty ? const [] : [subject]),
-       classIds = classIds ?? const [];
+       classIds = classIds ?? const [],
+       grades = grades ?? const [];
 
   /// Convenience accessor: the primary subject the teacher teaches.
-  String get primarySubject => subject.isNotEmpty ? subject : (subjects.isEmpty ? '' : subjects.first);
+  String get primarySubject =>
+      subject.isNotEmpty ? subject : (subjects.isEmpty ? '' : subjects.first);
 
   /// All subjects taught, always including the legacy single subject.
   List<String> get allSubjects {
@@ -63,6 +68,7 @@ class Teacher {
     'subjects': subjects,
     'classIds': classIds,
     'phone': phone,
+    'grades': grades,
   };
 
   factory Teacher.fromMap(Map<String, dynamic> map) => Teacher(
@@ -77,6 +83,7 @@ class Teacher {
     subjects: (map['subjects'] as List?)?.cast<String>() ?? const [],
     classIds: (map['classIds'] as List?)?.cast<String>() ?? const [],
     phone: map['phone'] as String? ?? '',
+    grades: (map['grades'] as List?)?.cast<String>() ?? const [],
   );
 
   Teacher copyWith({
@@ -88,6 +95,7 @@ class Teacher {
     List<String>? subjects,
     List<String>? classIds,
     String? phone,
+    List<String>? grades,
   }) => Teacher(
     id: id,
     name: name ?? this.name,
@@ -99,6 +107,7 @@ class Teacher {
     subjects: subjects ?? this.subjects,
     classIds: classIds ?? this.classIds,
     phone: phone ?? this.phone,
+    grades: grades ?? this.grades,
   );
 
   @override

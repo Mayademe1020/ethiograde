@@ -69,6 +69,17 @@ class ScanResult {
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
 
+  /// Question numbers whose recognition or question-association the
+  /// grading pipeline flagged as uncertain (spatial association or
+  /// retained low-confidence subjective reads).
+  ///
+  /// Stored in metadata — no Hive schema change. Empty for legacy results.
+  Set<int> get uncertainQuestions {
+    final value = metadata['uncertainQuestions'];
+    if (value is! List) return const {};
+    return value.map((e) => int.tryParse('$e')).whereType<int>().toSet();
+  }
+
   /// Whether this result has been resolved by the teacher.
   ///
   /// A result is resolved when any of these conditions hold:
@@ -99,13 +110,18 @@ class ScanResult {
     if (isResolved) return false;
 
     // Unresolved low-confidence overall
-    if (confidence < 0.7) return true;
+    // Lowered from 0.7 to 0.5 for handwriting support
+    if (confidence < 0.5) return true;
 
     // Unresolved low-confidence on individual answers
-    if (answers.any((a) => a.confidence < 0.6)) return true;
+    // Lowered from 0.6 to 0.4 for handwriting support
+    if (answers.any((a) => a.confidence < 0.4)) return true;
 
     // Multiple-mark responses detected (confidence 0 from OMR)
     if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
+
+    // Uncertain subjective recognition/association flagged by the pipeline
+    if (uncertainQuestions.isNotEmpty) return true;
 
     // Unresolved unmatched student
     if (studentId.isEmpty || studentName.trim().isEmpty) return true;
@@ -122,15 +138,44 @@ class ScanResult {
     if (isResolved) return false;
 
     // Unresolved low-confidence overall
-    if (confidence < 0.7) return true;
+    // Lowered from 0.7 to 0.5 for handwriting support
+    if (confidence < 0.5) return true;
 
     // Unresolved low-confidence on individual answers
-    if (answers.any((a) => a.confidence < 0.6)) return true;
+    // Lowered from 0.6 to 0.4 for handwriting support
+    if (answers.any((a) => a.confidence < 0.4)) return true;
 
     // Multiple-mark responses detected (confidence 0 from OMR)
     if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
 
+    // Uncertain subjective recognition/association flagged by the pipeline
+    if (uncertainQuestions.isNotEmpty) return true;
+
     return false;
+  }
+
+  /// Preserve the ORIGINAL machine reading when a teacher manually corrects
+  /// an answer, without touching the Hive schema.
+  ///
+  /// The first correction wins: later edits never overwrite the earliest
+  /// recorded reading, so the audit trail always retains what the scanner
+  /// originally detected. Stored under metadata['originalOcrReads'] as
+  /// {questionNumber: originalRead}.
+  ///
+  /// Returns a new metadata map; the input map is not mutated.
+  static Map<String, dynamic> preserveOriginalOcrRead(
+    Map<String, dynamic> metadata,
+    int questionNumber,
+    String originalRead,
+  ) {
+    final existing = Map<String, dynamic>.from(
+      (metadata['originalOcrReads'] as Map?) ?? const {},
+    );
+    final key = '$questionNumber';
+    if (originalRead.isNotEmpty && !existing.containsKey(key)) {
+      existing[key] = originalRead;
+    }
+    return <String, dynamic>{...metadata, 'originalOcrReads': existing};
   }
 
   /// Whether this result has an unmatched student.

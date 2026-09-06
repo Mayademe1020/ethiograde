@@ -43,7 +43,7 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
             final scanned = answerByQuestion[question.number];
             return scanned != null &&
                 scanned.detectedAnswer.isNotEmpty &&
-                scanned.confidence < 0.6;
+                scanned.confidence < 0.4;
           }).length;
           final ready = objectiveQuestions.isNotEmpty && missing == 0;
 
@@ -169,12 +169,12 @@ Future<Map<int, String>?> showMasterKeyConfirmation({
                         itemBuilder: (context, index) {
                           final question = objectiveQuestions[index];
                           final scanned = answerByQuestion[question.number];
-                          final selected = draft[question.number] ?? '';
-                          final isMissing = selected.isEmpty;
-                          final isWeak =
-                              !isMissing &&
-                              scanned != null &&
-                              scanned.confidence < 0.6;
+                           final selected = draft[question.number] ?? '';
+                           final isMissing = selected.isEmpty;
+                           final isWeak =
+                               !isMissing &&
+                               scanned != null &&
+                               scanned.confidence < 0.4;
                           final choices =
                               question.type == QuestionType.trueFalse
                               ? const ['True', 'False']

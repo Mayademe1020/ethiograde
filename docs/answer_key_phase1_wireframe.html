@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Answer Key — Phase 1 Wireframe (Actual Behavior)</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#1b1e24; --ink:#e8eaed; --sub:#9aa0a6;
+    --green:#3D6B4F; --green2:#18A558; --red:#DA2A2A; --amber:#F0C674;
+    --mcq:#7EB8DA; --tf:#F0C674; --sa:#E8B07A; --multi:#C5A3E8; --match:#E8A0B8;
+    --line:#2a2e36;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;}
+  h1{font-size:20px;padding:18px 22px 0}
+  p.lead{color:var(--sub);padding:0 22px 12px;max-width:900px}
+  .grid{display:flex;flex-wrap:wrap;gap:18px;padding:14px 22px 60px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;width:320px}
+  .card h2{font-size:13px;margin:0 0 8px;color:#fff;letter-spacing:.02em}
+  .card .note{font-size:11px;color:var(--sub);margin-top:8px}
+  .phone{background:#0b0d10;border:1px solid var(--line);border-radius:22px;padding:10px;height:560px;display:flex;flex-direction:column;overflow:hidden}
+  .stagebar{display:flex;gap:6px;padding:6px;border-bottom:1px solid var(--line)}
+  .chip{flex:1;text-align:center;font-size:11px;padding:6px;border-radius:8px;color:var(--sub)}
+  .chip.on{background:var(--green);color:#fff;font-weight:600}
+  .scroll{flex:1;overflow:auto;padding:8px}
+  .info{background:rgba(24,165,88,.08);border:1px solid rgba(24,165,88,.3);border-radius:10px;padding:10px;font-size:12px;color:#cfe;margin-bottom:8px}
+  .err{background:rgba(218,42,42,.1);border:1px solid rgba(218,42,42,.3);border-radius:10px;padding:10px;font-size:12px;color:#fbb;margin-bottom:8px}
+  .sect{display:flex;align-items:center;gap:8px;background:#15181d;border-left:3px solid var(--mcq);border-radius:8px;padding:8px;margin-bottom:6px}
+  .sect.tf{border-left-color:var(--tf)} .sect.sa{border-left-color:var(--sa)} .sect.multi{border-left-color:var(--multi)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--mcq)}
+  .badge{font:10px monospace;padding:2px 5px;border-radius:3px;background:rgba(126,184,218,.15);color:var(--mcq)}
+  .badge.tf{background:rgba(240,198,116,.15);color:var(--tf)} .badge.sa{background:rgba(232,176,122,.15);color:var(--sa)}
+  .qr{font:11px monospace;color:var(--sub)}
+  .paste{margin-left:auto;color:var(--green2);font-size:13px}
+  .answered{font:11px monospace;color:var(--sub)}
+  .btn{display:block;width:100%;text-align:center;padding:10px;border-radius:9px;font-size:13px;font-weight:600;margin-top:8px}
+  .btn.p{background:var(--green);color:#fff} .btn.o{border:1px solid var(--line);color:var(--ink)}
+  .btn:disabled{opacity:.4}
+  .q{background:#11141a;border:1px solid var(--line);border-radius:10px;padding:9px;margin-bottom:8px}
+  .qtop{display:flex;align-items:center;gap:8px;font-size:12px}
+  .qnum{font:11px monospace;color:var(--sub)}
+  .opts{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:7px}
+  .opt{text-align:center;padding:6px;border-radius:7px;background:#1a1e25;border:1px solid var(--line);font:11px monospace}
+  .opt.on{background:var(--green);color:#fff;border-color:var(--green)}
+  .tfrow{display:flex;gap:8px;margin-top:8px}
+  .tfbtn{flex:1;text-align:center;padding:8px;border-radius:8px;background:#1a1e25;border:1px solid var(--line)}
+  .tfbtn.on{background:var(--amber);color:#111}
+  .sa{margin-top:8px;padding:8px;border-radius:8px;background:#111;border:1px solid var(--line);color:#cfcfcf;font-size:12px}
+  .dist{display:flex;gap:4px;margin:8px 0}
+  .dbar{flex:1;height:6px;border-radius:3px;background:#222}
+  .toolbar{display:flex;gap:8px;padding:8px;border-top:1px solid var(--line);align-items:center}
+  .tbtn{font-size:11px;padding:5px 8px;border-radius:7px;border:1px solid var(--line);color:var(--ink)}
+  .dialog{position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:14px}
+  .dbox{background:#15181d;border:1px solid var(--line);border-radius:12px;padding:12px;width:100%}
+  .dbox h3{margin:0 0 8px;font-size:13px}
+  .preview{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0;max-height:120px;overflow:auto}
+  .pc{font:10px monospace;padding:3px 5px;border-radius:4px;background:rgba(24,165,88,.12);color:#bdf}
+  .mismatch{color:#fbb;font-size:11px;margin:6px 0}
+  .field{width:100%;background:#0c0e12;border:1px solid var(--line);border-radius:8px;color:#ddd;padding:8px;font-size:12px}
+  .review{display:flex;flex-wrap:wrap;gap:6px}
+  .cell{width:34px;height:34px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;border:1px solid}
+  .cell.ans{background:rgba(46,125,50,.12);border-color:#2E7D32;color:#9f9}
+  .cell.empty{background:rgba(218,42,42,.1);border-color:#DA2A2A;color:#f99}
+  .cell.flag{background:rgba(244,166,35,.25);border-color:#F4A623}
+  .legend{font-size:11px;color:var(--sub);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+  .lg{display:flex;align-items:center;gap:4px}
+  .sw{width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+<h1>Answer Key — Phase 1 Wireframe (Actual Implemented Behavior)</h1>
+<p class="lead">These phone states reflect the shipped Phase 1 flow: a 3-stage Structure → Enter → Review model with a canonical <code>AnswerKeySection</code> persisted per assessment. Uniform exams get a fast path; mixed exams are edited as typed sections. Section-aware bulk input and global Paste-All both show a typed preview before applying. Legacy assessments (no stored sections) derive their structure from existing question types.</p>
+
+<div class="grid">
+
+  <!-- 1. Uniform quick path -->
+  <div class="card">
+    <h2>1 · Uniform exam — Structure stage (fast path)</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip on">Structure</div><div class="chip">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="info">Tell us how your exam is organized. Each section can have a different question type.</div>
+        <div class="info" style="border-color:#A5D6A7;background:#E8F5E9;color:#1b5e20">All 20 questions are multiple choice. You can jump straight to answering.</div>
+        <div class="btn o">Add / edit sections</div>
+        <div class="btn p">Continue to answers</div>
+      </div>
+    </div>
+    <div class="note">Legacy/uniform assessments skip section editing. Continue is enabled because a uniform structure is always valid.</div>
+  </div>
+
+  <!-- 2. Mixed structure -->
+  <div class="card">
+    <h2>2 · Mixed sections — Structure stage</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip on">Structure</div><div class="chip">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="info">Tell us how your exam is organized. Each section can have a different question type.</div>
+        <div class="sect"><span class="dot"></span><b>Section A</b><span class="badge">MCQ</span><span class="qr">Q1–10</span><span class="answered">7/10</span><span class="paste">⧉</span></div>
+        <div class="sect tf"><span class="dot" style="background:var(--tf)"></span><b>Section B</b><span class="badge tf">T/F</span><span class="qr">Q11–15</span><span class="answered">3/5</span><span class="paste">⧉</span></div>
+        <div class="sect sa"><span class="dot" style="background:var(--sa)"></span><b>Section C</b><span class="badge sa">SHORT</span><span class="qr">Q16–20</span><span class="answered">0/5</span><span class="paste">⧉</span></div>
+        <div class="btn o">Add / edit sections</div>
+        <div class="btn p">Continue to answers</div>
+      </div>
+    </div>
+    <div class="note">Each section header has a type badge, Q range, answered count, and a paste (⧉) shortcut for section-aware bulk entry.</div>
+  </div>
+
+  <!-- 3. Validation error -->
+  <div class="card">
+    <h2>3 · Invalid structure — overlap / gap blocks Continue</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip on">Structure</div><div class="chip">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="err"><b>Fix these before continuing:</b><br>• Sections Q1–Q12 and Q10–Q20 overlap.<br>• Questions 13–19 are not covered by any section.</div>
+        <div class="sect"><span class="dot"></span><b>Section A</b><span class="badge">MCQ</span><span class="qr">Q1–12</span></div>
+        <div class="sect tf"><span class="dot" style="background:var(--tf)"></span><b>Section B</b><span class="badge tf">T/F</span><span class="qr">Q10–20</span></div>
+        <div class="btn p" style="opacity:.4">Continue to answers</div>
+      </div>
+    </div>
+    <div class="note">Overlaps and gaps surface inline; the Continue button is disabled until the structure is contiguous and in-range.</div>
+  </div>
+
+  <!-- 4. MCQ entry -->
+  <div class="card">
+    <h2>4 · Enter stage — MCQ tap entry</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip on">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="dist"><div class="dbar" style="background:var(--mcq)"></div><div class="dbar" style="background:var(--tf)"></div></div>
+        <div class="sect"><span class="dot"></span><b>Section A</b><span class="badge">MCQ</span><span class="qr">Q1–10</span><span class="answered">7/10</span><span class="paste">⧉</span></div>
+        <div class="q"><div class="qtop"><span class="qnum">07</span><span class="badge">MCQ</span><span class="answered">★</span></div>
+          <div class="opts"><div class="opt">A</div><div class="opt on">B</div><div class="opt">C</div><div class="opt">D</div><div class="opt">E</div></div>
+        </div>
+        <div class="q"><div class="qtop"><span class="qnum">08</span><span class="badge">MCQ</span></div>
+          <div class="opts"><div class="opt">A</div><div class="opt">B</div><div class="opt">C</div><div class="opt">D</div><div class="opt">E</div></div>
+        </div>
+      </div>
+      <div class="toolbar"><span class="tbtn">Review</span><span class="tbtn">Done</span></div>
+    </div>
+    <div class="note">Tapping an option selects it; the per-question type badge can be changed per question. Scroll position and active question are preserved.</div>
+  </div>
+
+  <!-- 5. True/False entry -->
+  <div class="card">
+    <h2>5 · Enter stage — True/False entry</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip on">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="sect tf"><span class="dot" style="background:var(--tf)"></span><b>Section B</b><span class="badge tf">T/F</span><span class="qr">Q11–15</span><span class="answered">3/5</span><span class="paste">⧉</span></div>
+        <div class="q"><div class="qtop"><span class="qnum">12</span><span class="badge tf">T/F</span></div>
+          <div class="tfrow"><div class="tfbtn on">True</div><div class="tfbtn">False</div></div>
+        </div>
+        <div class="q"><div class="qtop"><span class="qnum">13</span><span class="badge tf">T/F</span></div>
+          <div class="tfrow"><div class="tfbtn">True</div><div class="tfbtn">False</div></div>
+        </div>
+      </div>
+      <div class="toolbar"><span class="tbtn">Review</span><span class="tbtn">Done</span></div>
+    </div>
+    <div class="note">True/False uses large True/False toggles. Changing a type that invalidates an existing answer prompts a confirm-clear dialog first.</div>
+  </div>
+
+  <!-- 6. Short answer entry -->
+  <div class="card">
+    <h2>6 · Enter stage — Short Answer entry</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip on">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll">
+        <div class="sect sa"><span class="dot" style="background:var(--sa)"></span><b>Section C</b><span class="badge sa">SHORT</span><span class="qr">Q16–20</span><span class="answered">0/5</span><span class="paste">⧉</span></div>
+        <div class="q"><div class="qtop"><span class="qnum">16</span><span class="badge sa">SHORT</span></div>
+          <div class="sa">Addis Ababa</div>
+        </div>
+        <div class="q"><div class="qtop"><span class="qnum">17</span><span class="badge sa">SHORT</span></div>
+          <div class="sa" style="color:#777">tap to type…</div>
+        </div>
+      </div>
+      <div class="toolbar"><span class="tbtn">Review</span><span class="tbtn">Done</span></div>
+    </div>
+    <div class="note">Short answer is a free-text field. Points remain per-question (sections do not own points).</div>
+  </div>
+
+  <!-- 7. Section-aware bulk -->
+  <div class="card" style="position:relative">
+    <h2>7 · Section-aware Bulk Input + Review &amp; Apply</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip on">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll"><div class="sect"><span class="dot"></span><b>Section A</b><span class="badge">MCQ</span><span class="qr">Q1–10</span></div></div>
+      <div class="dialog"><div class="dbox">
+        <h3>Paste Answer Key — Section A (MCQ)</h3>
+        <input class="field" value="A, B, C, D, A+B, E, C, D, A, B" />
+        <div class="preview">
+          <span class="pc">Q1:A MCQ</span><span class="pc">Q2:B MCQ</span><span class="pc">Q3:C MCQ</span><span class="pc">Q4:D MCQ</span><span class="pc">Q5:A+B MCQ</span><span class="pc">Q6:E MCQ</span><span class="pc">Q7:C MCQ</span><span class="pc">Q8:D MCQ</span><span class="pc">Q9:A MCQ</span><span class="pc">Q10:B MCQ</span>
+        </div>
+        <div class="btn p">Apply</div><div class="btn o">Cancel</div>
+      </div></div>
+    </div>
+    <div class="note">Section-aware parse maps input in order to the section's range and types every answer with the section's known type (no guessing). The typed preview is shown before Apply.</div>
+  </div>
+
+  <!-- 8. Global Paste All mixed -->
+  <div class="card" style="position:relative">
+    <h2>8 · Global Paste All (mixed types)</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip on">Enter</div><div class="chip">Review</div></div>
+      <div class="scroll"><div class="sect"><span class="dot"></span><b>Section A</b><span class="badge">MCQ</span><span class="qr">Q1–10</span></div></div>
+      <div class="dialog"><div class="dbox">
+        <h3>Paste Answer Key</h3>
+        <input class="field" value='A, B, T, F, "mitochondria", 1C, 2A, A+C' />
+        <div class="preview">
+          <span class="pc">Q1:A MCQ</span><span class="pc">Q2:B MCQ</span><span class="pc">Q3:T T/F</span><span class="pc">Q4:F T/F</span><span class="pc">Q5:mitochondria SHORT</span><span class="pc">Q6:1C MATCH</span><span class="pc">Q7:2A MATCH</span><span class="pc">Q8:A+C MULTI</span>
+        </div>
+        <div class="mismatch">Count mismatch: 8 pasted vs 20 questions.</div>
+        <div class="btn p">Apply</div><div class="btn o">Cancel</div>
+      </div></div>
+    </div>
+    <div class="note">Global Paste-All infers each answer's type (MCQ / T/F / SHORT / MATCH / MULTI) so a mixed exam pastes in one go. Count mismatches are flagged; nothing is applied until the teacher taps Apply.</div>
+  </div>
+
+  <!-- 9. Review grid -->
+  <div class="card">
+    <h2>9 · Final Review grid</h2>
+    <div class="phone">
+      <div class="stagebar"><div class="chip">Structure</div><div class="chip">Enter</div><div class="chip on">Review</div></div>
+      <div class="scroll">
+        <div class="review">
+          <div class="cell ans">1</div><div class="cell ans">2</div><div class="cell ans">3</div><div class="cell ans">4</div><div class="cell ans">5</div>
+          <div class="cell flag">6</div><div class="cell ans">7</div><div class="cell ans">8</div><div class="cell empty">9</div><div class="cell ans">10</div>
+          <div class="cell ans">11</div><div class="cell ans">12</div><div class="cell empty">13</div><div class="cell ans">14</div><div class="cell ans">15</div>
+          <div class="cell ans">16</div><div class="cell ans">17</div><div class="cell ans">18</div><div class="cell ans">19</div><div class="cell flag">20</div>
+        </div>
+        <div class="legend">
+          <span class="lg"><span class="sw" style="background:#2E7D32"></span>answered</span>
+          <span class="lg"><span class="sw" style="background:#DA2A2A"></span>empty</span>
+          <span class="lg"><span class="sw" style="background:#F4A623"></span>flagged</span>
+        </div>
+        <div class="btn p">Done</div>
+      </div>
+    </div>
+    <div class="note">The review grid summarizes every question by status. Tapping any cell jumps back to that question in the Enter stage (scrolls into view).</div>
+  </div>
+
+</div>
+</body>
+</html>

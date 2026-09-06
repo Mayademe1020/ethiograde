@@ -12,6 +12,7 @@ import '../../services/assessment_provider.dart';
 import '../../services/hybrid_grading_service.dart';
 import '../../services/answer_key_recalculation_service.dart';
 import '../../services/answer_key_fingerprint_service.dart';
+import '../../services/answer_key_parser.dart';
 import 'answer_key_photo_scan.dart';
 import 'answer_key_section_setup.dart';
 import '../../widgets/assessment/section_header.dart';
@@ -42,6 +43,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
   String? _preEditFingerprint;
   Map<int, String> _originalAnswers = {};
   int _typeFilter = -1;
+  int _stage = 0; // 0 = Structure, 1 = Enter answers, 2 = Review
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _rowKeys = {};
 
@@ -62,6 +64,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   // Sections
   List<ExamSection> _sections = [];
+  final Set<int> _expandedSections = {};
 
   @override
   void didChangeDependencies() {
@@ -250,6 +253,11 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
             tooltip: 'Scan answer key from photo',
             color: const Color(0xFFF4A623),
           ),
+          if (_stage != 2)
+            TextButton(
+              onPressed: () => setState(() => _stage = 2),
+              child: const Text('Review'),
+            ),
           TextButton.icon(
             onPressed: () => _handleDone(context, assessment, returnToReview),
             icon: const Icon(Icons.check),
@@ -259,93 +267,408 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       ),
       body: Column(
         children: [
-          // Recovery banner
-          if (_showRecoveryBanner)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(
-                horizontal: ResponsiveLayout.horizontalPadding(context),
-                vertical: 10,
-              ),
-              color: const Color(0xFF1A6FD4).withValues(alpha: 0.15),
-              child: Row(
-                children: [
-                  const Icon(Icons.restore, color: Color(0xFF1A6FD4), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Recovered: $_recoveredCount answers restored from draft',
-                      style: const TextStyle(
-                        color: Color(0xFF1A6FD4),
-                        fontSize: 13,
+          _buildStageHeader(),
+          Expanded(
+            child: _stage == 0
+                ? _buildStructureStage(assessment)
+                : _stage == 2
+                    ? _buildReviewStage(assessment)
+                    : _buildEnterBody(
+                        assessment,
+                        answered,
+                        total,
+                        completeness,
+                        dist,
+                        typeCounts,
                       ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => setState(() => _showRecoveryBanner = false),
-                    child: const Icon(
-                      Icons.close,
-                      color: Color(0xFF1A6FD4),
-                      size: 16,
-                    ),
-                  ),
-                ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStageHeader() {
+    const labels = ['Structure', 'Enter', 'Review'];
+    final valid = _assessment?.canProceedToAnswers ?? true;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: context.warmGray,
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++) ...[
+            if (i > 0)
+              const Expanded(
+                child: Divider(thickness: 1, indent: 4, endIndent: 4),
+              ),
+            _stageChip(i, labels[i], i == 1 && !valid),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stageChip(int index, String label, bool warnBlocked) {
+    final active = _stage == index;
+    final done = _stage > index;
+    return GestureDetector(
+      onTap: () {
+        if (index == 1 && !(_assessment?.canProceedToAnswers ?? true)) return;
+        setState(() => _stage = index);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? context.primaryGreen : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: warnBlocked && index == 1
+                ? const Color(0xFFDA2A2A)
+                : active
+                    ? context.primaryGreen
+                    : Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              done
+                  ? Icons.check_circle
+                  : (warnBlocked && index == 1
+                      ? Icons.warning
+                      : Icons.circle_outlined),
+              size: 14,
+              color: active
+                  ? Colors.white
+                  : (warnBlocked && index == 1
+                      ? const Color(0xFFDA2A2A)
+                      : context.lightText),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: active
+                    ? Colors.white
+                    : (warnBlocked && index == 1
+                        ? const Color(0xFFDA2A2A)
+                        : context.darkText),
               ),
             ),
-          Expanded(
-            child: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      ResponsiveLayout.horizontalPadding(context),
-                      12,
-                      ResponsiveLayout.horizontalPadding(context),
-                      0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildExamInfo(assessment),
-                        const SizedBox(height: 12),
-                        _buildProgressSection(answered, total, completeness),
-                        if (dist.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          _buildDistributionBar(dist),
-                        ],
-                        const SizedBox(height: 10),
-                        _buildTypeFilterTabs(typeCounts),
-                        const SizedBox(height: 8),
-                        _buildToolbar(assessment),
-                        const SizedBox(height: 8),
-                        _buildFlagFilterBar(),
-                        const SizedBox(height: 4),
-                      ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnterBody(
+    Assessment assessment,
+    int answered,
+    int total,
+    double completeness,
+    Map<String, int> dist,
+    Map<String, int> typeCounts,
+  ) {
+    return Column(
+      children: [
+        // Recovery banner
+        if (_showRecoveryBanner)
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveLayout.horizontalPadding(context),
+              vertical: 10,
+            ),
+            color: const Color(0xFF1A6FD4).withValues(alpha: 0.15),
+            child: Row(
+              children: [
+                const Icon(Icons.restore, color: Color(0xFF1A6FD4), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Recovered: $_recoveredCount answers restored from draft',
+                    style: const TextStyle(
+                      color: Color(0xFF1A6FD4),
+                      fontSize: 13,
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: _sections.isNotEmpty
-                      ? _buildSectionedList()
-                      : _buildPlainList(),
+                GestureDetector(
+                  onTap: () => setState(() => _showRecoveryBanner = false),
+                  child: const Icon(
+                    Icons.close,
+                    color: Color(0xFF1A6FD4),
+                    size: 16,
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: _buildAutoAdvanceBar(),
+        Expanded(
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    ResponsiveLayout.horizontalPadding(context),
+                    12,
+                    ResponsiveLayout.horizontalPadding(context),
+                    0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildExamInfo(assessment),
+                      const SizedBox(height: 12),
+                      _buildProgressSection(answered, total, completeness),
+                      if (dist.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        _buildDistributionBar(dist),
+                      ],
+                      const SizedBox(height: 10),
+                      _buildToolbar(assessment),
+                      const SizedBox(height: 8),
+                      _buildTypeFilterTabs(typeCounts),
+                      const SizedBox(height: 8),
+                      _buildFlagFilterBar(),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                sliver: _sections.isNotEmpty
+                    ? _buildSectionEntryList(assessment)
+                    : _buildPlainEntryList(assessment),
+              ),
+            ],
+          ),
+        ),
+        _buildEnterFooter(),
+      ],
     );
   }
 
-  Widget _buildAutoAdvanceBar() {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveLayout.horizontalPadding(context),
-        vertical: 8,
+  Widget _buildSectionEntryList(Assessment assessment) {
+    final questions = assessment.questions;
+    final cards = <Widget>[];
+    for (final section in _sections) {
+      final secQs = questions
+          .where((q) => q.number >= section.startQ && q.number <= section.endQ)
+          .toList();
+      if (secQs.isEmpty) continue;
+      cards.add(_buildSectionEntryCard(assessment, section, secQs));
+    }
+    final unsorted = questions.where((q) {
+      return !_sections.any(
+        (s) => q.number >= s.startQ && q.number <= s.endQ,
+      );
+    }).toList();
+    if (unsorted.isNotEmpty) {
+      cards.add(_buildUnsortedCard(assessment, unsorted));
+    }
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => cards[index],
+        childCount: cards.length,
       ),
+    );
+  }
+
+  Widget _buildPlainEntryList(Assessment assessment) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) =>
+            _buildUnsortedCard(assessment, assessment.questions),
+        childCount: 1,
+      ),
+    );
+  }
+
+  Widget _buildSectionEntryCard(
+    Assessment assessment,
+    ExamSection section,
+    List<Question> secQs,
+  ) {
+    final expanded = _expandedSections.contains(section.startQ);
+    final answeredCount = secQs.where((q) {
+      final a = q.correctAnswer?.toString() ?? '';
+      return a.isNotEmpty;
+    }).length;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              section: section,
+              answeredCount: answeredCount,
+              onTap: () => _toggleSectionExpand(section.startQ),
+              onBulk: () =>
+                  _showBulkPasteDialog(assessment, section: _fromExamSection(section)),
+            ),
+            const SizedBox(height: 8),
+            _buildAnswersPreview(section, secQs),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                onPressed: () =>
+                    _showBulkPasteDialog(assessment, section: _fromExamSection(section)),
+                    icon: const Icon(Icons.edit_note),
+                    label: const Text('Enter answers'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => _toggleSectionExpand(section.startQ),
+                  child: Text(expanded ? 'Hide individual' : 'Edit individually'),
+                ),
+              ],
+            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  children: secQs
+                      .map(
+                        (q) => _QuestionRow(
+                          key: _rowKeys[q.number],
+                          question: q,
+                          assessment: assessment,
+                          isActive: false,
+                          isFlagged: _flaggedQuestions.contains(q.number),
+                          onFlagToggled: () => _toggleFlag(q.number),
+                          onAnswerChanged: (a) => _updateAnswer(q, a),
+                          onTypeChanged: (t) => _updateType(q, t),
+                          onPointsChanged: (p) => _updatePoints(q, p),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnsortedCard(Assessment assessment, List<Question> questions) {
+    final expanded = _expandedSections.contains(0);
+    final answeredCount = questions.where((q) {
+      final a = q.correctAnswer?.toString() ?? '';
+      return a.isNotEmpty;
+    }).length;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'All ${questions.length} questions',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$answeredCount/${questions.length} answered',
+                  style: TextStyle(fontSize: 12, color: context.lightText),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildAnswersPreview(null, questions),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _showBulkPasteDialog(assessment),
+                    icon: const Icon(Icons.edit_note),
+                    label: const Text('Enter answers'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => _toggleSectionExpand(0),
+                  child: Text(expanded ? 'Hide individual' : 'Edit individually'),
+                ),
+              ],
+            ),
+            if (expanded)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  children: questions
+                      .map(
+                        (q) => _QuestionRow(
+                          key: _rowKeys[q.number],
+                          question: q,
+                          assessment: assessment,
+                          isActive: false,
+                          isFlagged: _flaggedQuestions.contains(q.number),
+                          onFlagToggled: () => _toggleFlag(q.number),
+                          onAnswerChanged: (a) => _updateAnswer(q, a),
+                          onTypeChanged: (t) => _updateType(q, t),
+                          onPointsChanged: (p) => _updatePoints(q, p),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswersPreview(ExamSection? section, List<Question> questions) {
+    final parts = questions.map((q) {
+      final a = q.correctAnswer?.toString() ?? '';
+      return a.isEmpty ? '—' : a;
+    }).toList();
+    final range = section != null ? 'Q${section.startQ}–${section.endQ}: ' : '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: context.warmGray,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$range${parts.join('  ')}',
+        style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+      ),
+    );
+  }
+
+  void _toggleSectionExpand(int key) {
+    setState(() {
+      if (_expandedSections.contains(key)) {
+        _expandedSections.remove(key);
+      } else {
+        _expandedSections.add(key);
+      }
+    });
+  }
+
+  Widget _buildEnterFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF242424),
         border: Border(
@@ -357,36 +680,374 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            Icon(
-              _autoAdvanceEnabled ? Icons.skip_next : Icons.touch_app,
-              color: _autoAdvanceEnabled
-                  ? const Color(0xFF7EB8DA)
-                  : Colors.white54,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                _autoAdvanceEnabled ? 'Auto-advance' : 'Manual',
-                style: TextStyle(
+              child: FilledButton.icon(
+                onPressed: () => setState(() => _stage = 2),
+                icon: const Icon(Icons.visibility),
+                label: const Text('Continue to Review'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _autoAdvanceEnabled ? Icons.skip_next : Icons.touch_app,
+                  size: 18,
                   color: _autoAdvanceEnabled
                       ? const Color(0xFF7EB8DA)
                       : Colors.white54,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
                 ),
-              ),
-            ),
-            Switch(
-              value: _autoAdvanceEnabled,
-              onChanged: (v) => setState(() => _autoAdvanceEnabled = v),
-              activeThumbColor: const Color(0xFF7EB8DA),
-              inactiveTrackColor: Theme.of(context).colorScheme.outline,
+                const SizedBox(width: 4),
+                Text(
+                  _autoAdvanceEnabled ? 'Auto' : 'Manual',
+                  style: TextStyle(
+                    color: _autoAdvanceEnabled
+                        ? const Color(0xFF7EB8DA)
+                        : Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+                Switch(
+                  value: _autoAdvanceEnabled,
+                  onChanged: (v) => setState(() => _autoAdvanceEnabled = v),
+                  activeThumbColor: const Color(0xFF7EB8DA),
+                  inactiveTrackColor: Theme.of(context).colorScheme.outline,
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildStructureStage(Assessment assessment) {
+    final errors = assessment.validateStructure();
+    final explicit = assessment.hasExplicitSections;
+    final uniform = assessment.isUniformStructure;
+    final canProceed = assessment.canProceedToAnswers;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _buildExamInfo(assessment),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: context.primaryGreen.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text(
+            'Tell us how your exam is organized. Each section can have a '
+            'different question type.',
+            style: TextStyle(fontSize: 12),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (!explicit && uniform)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFA5D6A7)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Color(0xFF2E7D32)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'All ${assessment.questionCount} questions are '
+                    '${_typeLabel(assessment.effectiveSections.first.type)}. '
+                    'You can continue or change the structure.',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF2E7D32)),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _openSectionSetup,
+                  child: const Text('Change'),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 12),
+        if (errors.isNotEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDA2A2A).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFDA2A2A).withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Fix these before continuing:',
+                  style: TextStyle(
+                    color: Color(0xFFDA2A2A),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                for (final e in errors)
+                  Text(
+                    '• $e',
+                    style: const TextStyle(color: Color(0xFFDA2A2A), fontSize: 12),
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _autoFixStructure,
+                    icon: const Icon(Icons.auto_fix_high, size: 16),
+                    label: const Text('Fix automatically'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_sections.isNotEmpty)
+          ..._sections.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SectionHeader(
+                section: s,
+                answeredCount: _answeredInSection(s),
+                onTap: _openSectionSetup,
+                onBulk: () => _showBulkPasteDialog(
+                  assessment,
+                  section: _fromExamSection(s),
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _openSectionSetup,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add / edit sections'),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: canProceed
+                ? () => setState(() => _stage = 1)
+                : null,
+            child: const Text('Continue to answers'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _answeredInSection(ExamSection s) {
+    return _assessment!
+        .questions
+        .where(
+          (q) =>
+              q.number >= s.startQ &&
+              q.number <= s.endQ &&
+              (q.correctAnswer?.toString().isNotEmpty ?? false),
+        )
+        .length;
+  }
+
+  Widget _buildReviewStage(Assessment assessment) {
+    final total = assessment.questionCount;
+    final answered = assessment.answeredQuestionCount;
+    final sections = _assessment!.effectiveSections;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _buildExamInfo(assessment),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: answered == total
+                ? const Color(0xFFE8F5E9)
+                : const Color(0xFFDA2A2A).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: answered == total
+                  ? const Color(0xFFA5D6A7)
+                  : const Color(0xFFDA2A2A).withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            children: [
+              Text(
+                '$answered / $total',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: answered == total
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFFDA2A2A),
+                ),
+              ),
+              Text(
+                answered == total
+                    ? 'Answers complete'
+                    : '${total - answered} question(s) still need answers',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final sec in sections) ...[
+          _sectionReviewCard(assessment, sec),
+          const SizedBox(height: 8),
+        ],
+        const SizedBox(height: 12),
+        const Text(
+          'Question grid',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        _buildReviewGrid(assessment),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: () => setState(() => _stage = 1),
+            child: const Text('Back to answers'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionReviewCard(Assessment assessment, AnswerKeySection sec) {
+    final count = sec.count;
+    final answered = assessment.questions
+        .where(
+          (q) =>
+              q.number >= sec.start &&
+              q.number <= sec.end &&
+              (q.correctAnswer?.toString().isNotEmpty ?? false),
+        )
+        .length;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: SectionHeader.typeColor(sec.type.name),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${sec.label} · ${_typeLabel(sec.type)}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            '$answered / $count',
+            style: TextStyle(
+              fontSize: 12,
+              color: answered == count
+                  ? const Color(0xFF2E7D32)
+                  : context.lightText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewGrid(Assessment assessment) {
+    final questions = assessment.questions;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: questions.map((q) {
+        final answered = q.correctAnswer?.toString().isNotEmpty ?? false;
+        final flagged = _flaggedQuestions.contains(q.number);
+        return GestureDetector(
+          onTap: () {
+            setState(() => _stage = 1);
+            _scrollToQuestion(q.number);
+          },
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: flagged
+                  ? const Color(0xFFF4A623).withValues(alpha: 0.25)
+                  : answered
+                      ? const Color(0xFF2E7D32).withValues(alpha: 0.12)
+                      : const Color(0xFFDA2A2A).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: flagged
+                    ? const Color(0xFFF4A623)
+                    : answered
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFDA2A2A),
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                flagged
+                    ? Icons.flag
+                    : answered
+                        ? Icons.check
+                        : Icons.circle_outlined,
+                size: 14,
+                color: flagged
+                    ? const Color(0xFFB5760A)
+                    : answered
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFDA2A2A),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  void _scrollToQuestion(int number) {
+    final key = _rowKeys[number];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.3,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
   }
 
   Widget _buildExamInfo(Assessment assessment) {
@@ -663,140 +1324,6 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     );
   }
 
-  Widget _buildSectionedList() {
-    final questions = _filteredQuestions;
-    final items = <_ListItem>[];
-
-    for (final section in _sections) {
-      final sectionQuestions = questions
-          .where((q) => q.number >= section.startQ && q.number <= section.endQ)
-          .toList();
-      if (sectionQuestions.isEmpty) continue;
-
-      final answeredCount = sectionQuestions.where((q) {
-        final answer = q.correctAnswer?.toString() ?? '';
-        return answer.isNotEmpty;
-      }).length;
-
-      items.add(_ListItem.section(section, answeredCount));
-      for (final q in sectionQuestions) {
-        items.add(_ListItem.question(q));
-      }
-    }
-
-    // Questions not in any section
-    for (final q in questions) {
-      final inSection = _sections.any(
-        (s) => q.number >= s.startQ && q.number <= s.endQ,
-      );
-      if (!inSection) {
-        items.add(_ListItem.question(q));
-      }
-    }
-
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) => _buildListItem(items[index], index),
-        childCount: items.length,
-      ),
-    );
-  }
-
-  Widget _buildPlainList() {
-    final questions = _filteredQuestions;
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) =>
-            _buildListItem(_ListItem.question(questions[index]), index),
-        childCount: questions.length,
-      ),
-    );
-  }
-
-  Widget _buildListItem(_ListItem item, int flatIndex) {
-    if (item.isSection) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: SectionHeader(
-          section: item.section!,
-          answeredCount: item.answeredCount,
-          onTap: () => _editSection(item.section!),
-        ),
-      );
-    }
-
-    final q = item.question!;
-    final isAnswered = q.correctAnswer?.toString().isNotEmpty ?? false;
-    // Find the question's index in _filteredQuestions for active highlighting
-    final filteredIndex = _filteredQuestions.indexWhere(
-      (fq) => fq.number == q.number,
-    );
-
-    return Dismissible(
-      key: ValueKey('q_${q.number}'),
-      direction: isAnswered && !_isLocked
-          ? DismissDirection.startToEnd
-          : DismissDirection.none,
-      background: Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFDA2A2A).withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.clear, color: Color(0xFFDA2A2A), size: 18),
-            SizedBox(width: 6),
-            Text(
-              'Clear',
-              style: TextStyle(color: Color(0xFFDA2A2A), fontSize: 12),
-            ),
-          ],
-        ),
-      ),
-      onDismissed: (_) {
-        _updateAnswer(q, '');
-        _flaggedQuestions.remove(q.number);
-      },
-      child: _QuestionRow(
-        key: _rowKeys[q.number],
-        question: q,
-        assessment: _assessment!,
-        isActive: filteredIndex == _activeQuestionIndex,
-        isFlagged: _flaggedQuestions.contains(q.number),
-        onFlagToggled: () => _toggleFlag(q.number),
-        onAnswerChanged: (answer) => _updateAnswer(q, answer),
-        onTypeChanged: (type) => _updateType(q, type),
-        onPointsChanged: (pts) => _updatePoints(q, pts),
-      ),
-    );
-  }
-
-  void _editSection(ExamSection section) {
-    final assessment = _assessment!;
-    final updated = assessment.questions.map((q) {
-      if (q.number >= section.startQ && q.number <= section.endQ) {
-        final sectionType = _parseQuestionType(section.type);
-        if (q.type != sectionType || q.points != section.points) {
-          return q.copyWith(
-            type: sectionType,
-            points: section.points,
-            options: sectionType == QuestionType.trueFalse
-                ? ['True', 'False']
-                : (sectionType == QuestionType.multiAnswer
-                      ? const ['A', 'B', 'C', 'D', 'E']
-                      : q.options),
-          );
-        }
-      }
-      return q;
-    }).toList();
-
-    setState(() => _assessment = assessment.copyWith(questions: updated));
-    _autoSave();
-  }
-
   Widget _toolbarButton(
     String label,
     IconData icon, {
@@ -1024,16 +1551,53 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     }
   }
 
+  AnswerKeySection _fromExamSection(ExamSection e) =>
+      AnswerKeySection(start: e.startQ, end: e.endQ, type: _parseQuestionType(e.type));
+
+  ExamSection _toExamSection(AnswerKeySection s, int index) => ExamSection(
+        name: _letterLabel(index),
+        startQ: s.start,
+        endQ: s.end,
+        type: s.type.name,
+      );
+
+  String _letterLabel(int index) =>
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.substring(index, index + 1);
+
   void _loadSections() {
     if (_assessment == null) return;
-    final stored = _assessment!.settings['sections'];
-    if (stored is List && stored.isNotEmpty) {
-      _sections = stored
-          .map((s) => ExamSection.fromMap(s as Map<String, dynamic>))
+    if (_assessment!.hasExplicitSections) {
+      _sections = _assessment!.sections!
+          .asMap()
+          .entries
+          .map((e) => _toExamSection(e.value, e.key))
           .toList();
-    } else {
-      _sections = [];
+      return;
     }
+    // Legacy migration: move settings['sections'] into the typed field.
+    final legacy = _assessment!.settings['sections'];
+    if (legacy is List && legacy.isNotEmpty) {
+      final secs = legacy
+          .map((s) => ExamSection.fromMap(s as Map<String, dynamic>))
+          .map(_fromExamSection)
+          .toList();
+      _assessment = _assessment!.copyWith(sections: secs);
+      final settings = Map<String, dynamic>.from(_assessment!.settings)
+        ..remove('sections');
+      _assessment = _assessment!.copyWith(settings: settings);
+      _sections = secs
+          .asMap()
+          .entries
+          .map((e) => _toExamSection(e.value, e.key))
+          .toList();
+      _autoSave();
+      return;
+    }
+    _sections = _assessment!.effectiveSections
+        .asMap()
+        .entries
+        .map((e) => _toExamSection(e.value, e.key))
+        .toList();
   }
 
   Future<void> _openSectionSetup() async {
@@ -1049,39 +1613,120 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     }
   }
 
+  void _autoFixStructure() {
+    final assessment = _assessment;
+    if (assessment == null) return;
+    final total = assessment.questionCount;
+    final fixed = autoFixSections(_sections, total);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Fix sections automatically?'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Your sections overlap or leave gaps. We’ll adjust them into '
+                'a clean split that keeps each section’s type:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                describeSections(fixed),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _applySections(fixed);
+            },
+            child: const Text('Fix & apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _applySections(List<ExamSection> sections) {
-    // Apply section type and points to questions in each section
+    // Persist explicit structure and sync question types from it.
+    // Per-question points are intentionally NOT overwritten (the section
+    // model no longer owns points). Type changes that would invalidate an
+    // existing answer are flagged and require explicit confirmation.
     final assessment = _assessment!;
-    final updated = assessment.questions.map((q) {
-      for (final section in sections) {
-        if (q.number >= section.startQ && q.number <= section.endQ) {
-          final sectionType = _parseQuestionType(section.type);
-          if (q.type != sectionType || q.points != section.points) {
-            return q.copyWith(
-              type: sectionType,
-              points: section.points,
-              options: sectionType == QuestionType.trueFalse
-                  ? ['True', 'False']
-                  : (sectionType == QuestionType.multiAnswer
-                        ? const ['A', 'B', 'C', 'D', 'E']
-                        : q.options),
-            );
-          }
-        }
-      }
-      return q;
-    }).toList();
+    final typed = sections.map(_fromExamSection).toList();
+    final result = applySectionsToQuestions(assessment.questions, typed);
 
-    setState(() {
-      _assessment = assessment.copyWith(questions: updated);
-      _sections = sections;
-    });
+    void commit(List<Question> updatedQuestions, List<AnswerKeySection> secs) {
+      setState(() {
+        _assessment = assessment.copyWith(
+          questions: updatedQuestions,
+          sections: secs,
+        );
+        _sections = sections;
+      });
+      // Migrate off the legacy settings['sections'] store.
+      final settings = Map<String, dynamic>.from(_assessment!.settings)
+        ..remove('sections');
+      _assessment = _assessment!.copyWith(settings: settings);
+      _autoSave();
+    }
 
-    // Persist sections to settings
-    final settings = Map<String, dynamic>.from(_assessment!.settings);
-    settings['sections'] = sections.map((s) => s.toMap()).toList();
-    _assessment = _assessment!.copyWith(settings: settings);
-    _autoSave();
+    if (result.incompatibleQuestionNumbers.isEmpty) {
+      commit(result.questions, typed);
+    } else {
+      _showTypeChangeConfirmDialog(result.incompatibleQuestionNumbers, () {
+        final cleared = applySectionsToQuestions(
+          assessment.questions,
+          typed,
+          clearIncompatible: true,
+        ).questions;
+        commit(cleared, typed);
+      });
+    }
+  }
+
+  void _showTypeChangeConfirmDialog(
+    List<int> questionNumbers,
+    VoidCallback onConfirm,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Answers will be cleared'),
+        content: Text(
+          'Changing the type of ${questionNumbers.length} question(s) '
+          '(${questionNumbers.take(5).join(', ')}${questionNumbers.length > 5 ? '…' : ''}) '
+          'invalidates their current answer. Continue and clear those answers?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onConfirm();
+            },
+            child: const Text('Clear & apply'),
+          ),
+        ],
+      ),
+    );
   }
 
   QuestionType _parseQuestionType(String type) {
@@ -1098,24 +1743,34 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
 
   void _updateType(Question q, QuestionType type) {
     if (_isLocked) return;
+    if (q.type == type) return;
     final assessment = _assessment!;
-    final updated = assessment.questions.map((question) {
-      if (question.number == q.number) {
-        return question.copyWith(
-          type: type,
-          correctAnswer: '',
-          options:
-              type == QuestionType.trueFalse || type == QuestionType.multiAnswer
-              ? (type == QuestionType.trueFalse
-                    ? ['True', 'False']
-                    : const ['A', 'B', 'C', 'D', 'E'])
-              : question.options,
-        );
-      }
-      return question;
-    }).toList();
-    setState(() => _assessment = assessment.copyWith(questions: updated));
-    _autoSave();
+    // Reflect the single-question override in the canonical section structure
+    // (collapsing contiguous same-type questions) and sync question types.
+    final overrides = <int, QuestionType>{q.number: type};
+    final newSections = collapseSections(assessment.questions, overrides);
+    final result = applySectionsToQuestions(assessment.questions, newSections);
+
+    void commit(List<Question> qs, List<AnswerKeySection> secs) {
+      setState(() => _assessment = assessment.copyWith(
+            questions: qs,
+            sections: secs,
+          ));
+      _autoSave();
+    }
+
+    if (result.incompatibleQuestionNumbers.isEmpty) {
+      commit(result.questions, newSections);
+    } else {
+      _showTypeChangeConfirmDialog(result.incompatibleQuestionNumbers, () {
+        final cleared = applySectionsToQuestions(
+          assessment.questions,
+          newSections,
+          clearIncompatible: true,
+        ).questions;
+        commit(cleared, newSections);
+      });
+    }
   }
 
   void _updatePoints(Question q, double points) {
@@ -1276,16 +1931,22 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     );
   }
 
-  void _showBulkPasteDialog(Assessment assessment) {
+  void _showBulkPasteDialog(
+    Assessment assessment, {
+    AnswerKeySection? section,
+  }) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-          final parsed = _parseBulkPaste(
-            controller.text,
-            assessment.questionCount,
-          );
+          final parsed = section != null
+              ? _parseSectionBulkPaste(controller.text, section)
+              : _parseBulkPaste(
+                  controller.text,
+                  assessment.questionCount,
+                );
+          final expectedCount = section?.count ?? assessment.questionCount;
           return AlertDialog(
             title: const Text('Paste Answer Key'),
             content: SizedBox(
@@ -1307,7 +1968,7 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
                   const SizedBox(height: 12),
                   if (parsed != null &&
                     parsed.isNotEmpty &&
-                    parsed.length != assessment.questionCount) ...[
+                    parsed.length != expectedCount) ...[
                   Text(
                     'Count mismatch: ${parsed.length} pasted vs ${assessment.questionCount} questions.',
                     style: TextStyle(
@@ -1395,79 +2056,16 @@ class _AnswerKeyScreenState extends State<AnswerKeyScreen> {
     );
   }
 
-  List<Map<String, dynamic>>? _parseBulkPaste(String raw, int expectedCount) {
-    if (raw.trim().isEmpty) return null;
-    final parts = raw
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) return null;
+  /// Section-aware parse: answers are mapped in order to the section's
+  /// question range and typed with the section's known type (no inference).
+  List<Map<String, dynamic>>? _parseSectionBulkPaste(
+    String raw,
+    AnswerKeySection section,
+  ) =>
+      parseSectionBulkPaste(raw, section);
 
-    final results = <Map<String, dynamic>>[];
-    for (var i = 0; i < parts.length; i++) {
-      final part = parts[i];
-      final qNum = i + 1;
-
-      if (part == '—' || part == '-' || part.isEmpty) {
-        continue;
-      }
-
-      // Quoted text → short answer
-      if (part.startsWith('"') && part.endsWith('"')) {
-        results.add({
-          'num': qNum,
-          'answer': part.substring(1, part.length - 1),
-          'type': 'SHORT',
-        });
-        continue;
-      }
-      if (part.startsWith('"')) {
-        results.add({
-          'num': qNum,
-          'answer': part.replaceAll('"', ''),
-          'type': 'SHORT',
-        });
-        continue;
-      }
-
-      // Number+letter pairs → matching (e.g., "1C,2A,3D")
-      if (RegExp(r'^\d+[A-E]').hasMatch(part)) {
-        results.add({'num': qNum, 'answer': part, 'type': 'MATCH'});
-        continue;
-      }
-
-      // Letters with + → multi-answer (e.g., "A+C")
-      if (part.contains('+') &&
-          RegExp(r'^[A-Ea-e]+(\+[A-Ea-e]+)+$').hasMatch(part)) {
-        results.add({
-          'num': qNum,
-          'answer': part.toUpperCase(),
-          'type': 'MULTI',
-        });
-        continue;
-      }
-
-      // T or F → true/false
-      final upper = part.toUpperCase();
-      if (upper == 'T' || upper == 'TRUE' || upper == 'F' || upper == 'FALSE') {
-        final tfVal = upper.startsWith('T') ? 'True' : 'False';
-        results.add({'num': qNum, 'answer': tfVal, 'type': 'T/F'});
-        continue;
-      }
-
-      // Single letter A-E → MCQ
-      if (RegExp(r'^[A-Ea-e]$').hasMatch(part)) {
-        results.add({'num': qNum, 'answer': upper, 'type': 'MCQ'});
-        continue;
-      }
-
-      // Anything else → short answer
-      results.add({'num': qNum, 'answer': part, 'type': 'SHORT'});
-    }
-
-    return results.isEmpty ? null : results;
-  }
+  List<Map<String, dynamic>>? _parseBulkPaste(String raw, int expectedCount) =>
+      parseBulkPaste(raw, expectedCount);
 
   void _applyBulkPaste(
     Assessment assessment,
@@ -2634,15 +3232,4 @@ class _QuestionRow extends StatelessWidget {
       _ => key,
     };
   }
-}
-
-class _ListItem {
-  final ExamSection? section;
-  final Question? question;
-  final int answeredCount;
-
-  const _ListItem.section(this.section, this.answeredCount) : question = null;
-  const _ListItem.question(this.question) : section = null, answeredCount = 0;
-
-  bool get isSection => section != null;
 }

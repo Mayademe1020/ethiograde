@@ -202,8 +202,11 @@ class CoordinateMapOmrService {
         }
 
         // Determine if a bubble is filled (threshold-based)
-        const fillThreshold = 0.35;
-        const pencilThreshold = 0.20;
+        // Lowered thresholds for pencil detection:
+        // - fillThreshold: 0.35 → 0.25 (pencil marks fill ~0.20-0.35)
+        // - pencilThreshold: 0.20 → 0.12 (very light pencil marks)
+        const fillThreshold = 0.25;
+        const pencilThreshold = 0.12;
 
         String? answer;
         double confidence = 0;
@@ -288,7 +291,8 @@ class CoordinateMapOmrService {
           anchor.position.yMm + anchor.position.heightMm / 2, image.height);
 
       // Search in a region around the approximate position
-      final searchRadius = _mmToPixelRaw(15, image.width); // 15mm search radius
+      // Increased from 15mm to 25mm for more forgiving anchor detection
+      final searchRadius = _mmToPixelRaw(25, image.width); // 25mm search radius
       final anchorSizePx =
           _mmToPixelRaw(anchor.position.widthMm, image.width).toInt();
 
@@ -368,7 +372,8 @@ class CoordinateMapOmrService {
         }
 
         final brightness = image.getPixel(px, py).r / 255.0;
-        if (brightness < 0.3) darkCount++;
+        // Lowered from 0.3 to 0.4 for anchor detection on lower-contrast images
+        if (brightness < 0.4) darkCount++;
         total++;
       }
     }
@@ -544,7 +549,8 @@ class CoordinateMapOmrService {
         }
 
         final brightness = image.getPixel(px, py).r / 255.0;
-        if (brightness < 0.4) darkCount++;
+        // Lowered from 0.4 to 0.6 to detect pencil marks
+        if (brightness < 0.6) darkCount++;
         total++;
       }
     }
@@ -652,7 +658,7 @@ class CoordinateMapOmrResult {
       answers.where((a) => a.isEmpty).length;
 
   int get lowConfidenceAnswers =>
-      answers.where((a) => a.confidence < 0.6 && !a.isEmpty).length;
+      answers.where((a) => a.confidence < 0.4 && !a.isEmpty).length;
 
   /// Extract answer key as a map of questionNumber → answer.
   /// Used when isAnswerKey is true.

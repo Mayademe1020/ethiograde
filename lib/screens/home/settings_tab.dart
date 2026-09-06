@@ -17,6 +17,7 @@ import '../../services/teacher_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/backup_service.dart';
 import '../../services/phone_utils.dart';
+import '../../services/smart_ocr_service.dart';
 import '../classes/create_class_sheet.dart';
 import '../../models/teacher.dart';
 
@@ -141,14 +142,28 @@ class SettingsTab extends StatelessWidget {
                   onChanged: (value) => settings.updateCloudOcr(enabled: value),
                 ),
               ),
-              SettingsTile(
-                icon: Icons.key_outlined,
-                title: 'API Key',
-                subtitle: settings.cloudOcrApiKey.isEmpty
-                    ? 'Not set — tap to add'
-                    : '••••${settings.cloudOcrApiKey.length > 4 ? settings.cloudOcrApiKey.substring(settings.cloudOcrApiKey.length - 4) : settings.cloudOcrApiKey}',
-                onTap: () => _editCloudOcrApiKey(context, settings),
-              ),
+              if (settings.cloudOcrEnabled) ...[
+                SettingsTile(
+                  icon: Icons.smart_toy_outlined,
+                  title: 'AI Model',
+                  subtitle: _getModelDisplayName(settings.cloudOcrModel),
+                  onTap: () => _selectModel(context, settings),
+                ),
+                SettingsTile(
+                  icon: Icons.speed_outlined,
+                  title: 'Model Info',
+                  subtitle: _getModelInfo(settings.cloudOcrModel),
+                ),
+                SettingsTile(
+                  icon: Icons.key_outlined,
+                  title: 'App API Key',
+                  subtitle: settings.cloudOcrApiKey.isEmpty
+                      ? 'Not set — required for cloud grading'
+                      : '••••${settings.cloudOcrApiKey.length > 4 ? settings.cloudOcrApiKey.substring(settings.cloudOcrApiKey.length - 4) : settings.cloudOcrApiKey}',
+                  onTap: () => _editCloudOcrApiKey(context, settings),
+                ),
+                const _CostInfoTile(),
+              ],
               SettingsTile(
                 icon: Icons.link_outlined,
                 title: 'Endpoint',
@@ -215,31 +230,26 @@ class SettingsTab extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     final teacher = teachers.activeTeacher;
-    final teacherName =
-        (teacher?.name.isNotEmpty ?? false)
-            ? teacher!.name
-            : (settings.teacherName.isNotEmpty
-                  ? settings.teacherName
-                  : 'Teacher');
+    final teacherName = (teacher?.name.isNotEmpty ?? false)
+        ? teacher!.name
+        : (settings.teacherName.isNotEmpty ? settings.teacherName : 'Teacher');
     final school = settings.schoolName;
-    final phone =
-        (teacher?.phone.isNotEmpty ?? false)
-            ? teacher!.phone
-            : settings.teacherPhone;
+    final phone = (teacher?.phone.isNotEmpty ?? false)
+        ? teacher!.phone
+        : settings.teacherPhone;
 
     // Derive subjects from the teacher record + classes they teach/own.
     final teacherClassIds = teacher?.classIds ?? const <String>[];
-    final ownedClasses =
-        teacher == null
-            ? classProv.classes
-            : classProv.classes
-                .where(
-                  (c) =>
-                      c.ownerId == teacher.id ||
-                      c.ownerId.isEmpty ||
-                      teacherClassIds.contains(c.id),
-                )
-                .toList();
+    final ownedClasses = teacher == null
+        ? classProv.classes
+        : classProv.classes
+              .where(
+                (c) =>
+                    c.ownerId == teacher.id ||
+                    c.ownerId.isEmpty ||
+                    teacherClassIds.contains(c.id),
+              )
+              .toList();
     final subjects = <String>{
       ...?teacher?.allSubjects,
       for (final c in ownedClasses)
@@ -248,11 +258,11 @@ class SettingsTab extends StatelessWidget {
       // when subjects have been configured elsewhere.
       if (teacher?.allSubjects.isEmpty ?? true && ownedClasses.isEmpty)
         for (final s in settings.subjects) s,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
 
-    final initials =
-        teacherName.isNotEmpty ? teacherName.trim()[0].toUpperCase() : 'T';
+    final initials = teacherName.isNotEmpty
+        ? teacherName.trim()[0].toUpperCase()
+        : 'T';
 
     return Container(
       decoration: BoxDecoration(
@@ -285,9 +295,9 @@ class SettingsTab extends StatelessWidget {
                   children: [
                     Text(
                       teacherName,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     if (school.isNotEmpty)
                       Text(
@@ -322,7 +332,8 @@ class SettingsTab extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => _showTeacherForm(context, teachers, existing: teacher),
+                onPressed: () =>
+                    _showTeacherForm(context, teachers, existing: teacher),
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'Edit profile',
               ),
@@ -336,7 +347,8 @@ class SettingsTab extends StatelessWidget {
             Icons.phone_outlined,
             'Phone',
             phone.isEmpty ? 'Not set' : phone,
-            onTap: () => _editTeacherPhone(context, teachers, settings, teacher),
+            onTap: () =>
+                _editTeacherPhone(context, teachers, settings, teacher),
           ),
           _hubRow(
             context,
@@ -410,17 +422,16 @@ class SettingsTab extends StatelessWidget {
               children: [
                 for (final c in ownedClasses)
                   ActionChip(
-                    onPressed:
-                        () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.classDetail,
-                                  arguments: c,
-                                ),
-                        avatar: const Icon(Icons.class_, size: 16),
-                        label: Text(c.displayName),
-                      ),
-                  ],
-                ),
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.classDetail,
+                      arguments: c,
+                    ),
+                    avatar: const Icon(Icons.class_, size: 16),
+                    label: Text(c.displayName),
+                  ),
+              ],
+            ),
           if (teachers.teachers.length > 1) ...[
             const SizedBox(height: 12),
             Align(
@@ -459,13 +470,13 @@ class SettingsTab extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurfaceVariant,
-                    ),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 2),
-                  Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    value,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
             ),
@@ -482,11 +493,12 @@ class SettingsTab extends StatelessWidget {
     SettingsProvider settings,
     Teacher? teacher,
   ) async {
-    final current =
-        (teacher?.phone.isNotEmpty ?? false)
-            ? teacher!.phone
-            : settings.teacherPhone;
-    final ctrl = TextEditingController(text: current.isEmpty ? '+251' : current);
+    final current = (teacher?.phone.isNotEmpty ?? false)
+        ? teacher!.phone
+        : settings.teacherPhone;
+    final ctrl = TextEditingController(
+      text: current.isEmpty ? '+251' : current,
+    );
     final formKey = GlobalKey<FormState>();
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -519,13 +531,12 @@ class SettingsTab extends StatelessWidget {
                   prefixIcon: Icon(Icons.phone_outlined),
                   hintText: '+251912345678',
                 ),
-                validator:
-                    (v) =>
-                        v != null &&
-                            v.trim().isNotEmpty &&
-                            !PhoneUtils.isValidRaw(v)
-                        ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
-                        : null,
+                validator: (v) =>
+                    v != null &&
+                        v.trim().isNotEmpty &&
+                        !PhoneUtils.isValidRaw(v)
+                    ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
+                    : null,
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -685,6 +696,8 @@ class SettingsTab extends StatelessWidget {
                 : (existing.subject.isEmpty ? const [] : [existing.subject])),
     );
     final selectedClassIds = List<String>.from(existing?.classIds ?? const []);
+    final selectedGrades = List<String>.from(existing?.grades ?? const []);
+    var selectedYear = settingsProvider.currentAcademicYear;
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -706,175 +719,369 @@ class SettingsTab extends StatelessWidget {
                 children: [
                   Text(
                     existing != null ? 'Edit Teacher' : 'Add Teacher',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Name
+                  TextFormField(
+                    controller: nameCtrl,
+                    cursorColor: context.primaryGreen,
+                    cursorRadius: const Radius.circular(1),
+                    decoration: InputDecoration(
+                      labelText: 'Name',
+                      prefixIcon: Icon(
+                        Icons.person_outline,
+                        color: context.primaryGreen,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: context.primaryGreen),
+                      ),
+                    ),
+                    autofocus: true,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
                   const SizedBox(height: 16),
-                TextFormField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  autofocus: true,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: phoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [PhoneDigitsFormatter()],
-                  decoration: const InputDecoration(
-                    labelText: 'Phone',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                    hintText: '+251912345678',
-                  ),
-                  validator:
-                      (v) =>
-                          v != null &&
-                                  v.trim().isNotEmpty &&
-                                  !PhoneUtils.isValidRaw(v)
-                              ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
-                              : null,
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'teacher', label: Text('Teacher')),
-                    ButtonSegment(value: 'admin', label: Text('Admin')),
-                  ],
-                  selected: {role},
-                  onSelectionChanged: (sel) {
-                    role = sel.first;
-                  },
-                ),
-                const SizedBox(height: 20),
-                // Subjects taught (multi-select from configured subjects)
-                Text(
-                  'Subjects they teach',
-                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final subject in settingsProvider.subjects)
-                      FilterChip(
-                        label: Text(subject),
-                        selected: selectedSubjects.any(
-                          (s) => s.toLowerCase() == subject.toLowerCase(),
-                        ),
-                        onSelected: (sel) {
-                          setSheetState(() {
-                            if (sel) {
-                              selectedSubjects.add(subject);
-                            } else {
-                              selectedSubjects.removeWhere(
-                                (s) => s.toLowerCase() == subject.toLowerCase(),
-                              );
-                            }
-                          });
-                        },
+
+                  // Phone
+                  TextFormField(
+                    controller: phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [PhoneDigitsFormatter()],
+                    cursorColor: context.primaryGreen,
+                    cursorRadius: const Radius.circular(1),
+                    decoration: InputDecoration(
+                      labelText: 'Phone',
+                      prefixIcon: Icon(
+                        Icons.phone_outlined,
+                        color: context.primaryGreen,
                       ),
-                  ],
-                ),
-                if (settingsProvider.subjects.isEmpty)
-                  Text(
-                    'No subjects configured yet — add them in the Subjects section, or type one below.',
-                    style: TextStyle(color: context.lightText, fontSize: 12),
+                      hintText: '+251912345678',
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: context.primaryGreen),
+                      ),
+                    ),
+                    validator: (v) =>
+                        v != null &&
+                            v.trim().isNotEmpty &&
+                            !PhoneUtils.isValidRaw(v)
+                        ? 'Enter 9 digits starting with 7 or 9 (e.g. +251912345678)'
+                        : null,
                   ),
-                const SizedBox(height: 8),
-                // Add a brand-new subject not in the configured list
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: newSubjectCtrl,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _addNewSubject(
+                  const SizedBox(height: 20),
+
+                  // Role
+                  _sectionTitle(ctx, 'Role'),
+                  const SizedBox(height: 8),
+                  SegmentedButton<String>(
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith(
+                        (states) => states.contains(WidgetState.selected)
+                            ? context.primaryGreen
+                            : Colors.white,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith(
+                        (states) => states.contains(WidgetState.selected)
+                            ? Colors.white
+                            : context.primaryGreen,
+                      ),
+                      side: WidgetStateProperty.all(
+                        BorderSide(
+                          color: context.primaryGreen.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                    segments: const [
+                      ButtonSegment(value: 'teacher', label: Text('Teacher')),
+                      ButtonSegment(value: 'admin', label: Text('Admin')),
+                    ],
+                    selected: {role},
+                    onSelectionChanged: (sel) =>
+                        setSheetState(() => role = sel.first),
+                  ),
+                  const SizedBox(height: 24),
+                  // What do you teach? (subjects)
+                  _sectionTitle(ctx, 'What do you teach?'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final subject in settingsProvider.subjects)
+                        Builder(
+                          builder: (context) {
+                            final isSel = selectedSubjects.any(
+                              (s) => s.toLowerCase() == subject.toLowerCase(),
+                            );
+                            return FilterChip(
+                              label: Text(
+                                subject,
+                                style: TextStyle(
+                                  color: isSel
+                                      ? Colors.white
+                                      : AppTheme.onSurfaceLight,
+                                ),
+                              ),
+                              selected: isSel,
+                              backgroundColor: Colors.white,
+                              selectedColor: context.primaryGreen,
+                              checkmarkColor: Colors.white,
+                              side: BorderSide(
+                                color: context.primaryGreen.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                              onSelected: (sel) {
+                                setSheetState(() {
+                                  if (sel) {
+                                    selectedSubjects.add(subject);
+                                  } else {
+                                    selectedSubjects.removeWhere(
+                                      (s) =>
+                                          s.toLowerCase() ==
+                                          subject.toLowerCase(),
+                                    );
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                  if (settingsProvider.subjects.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'No subjects configured yet — add them below or in Settings.',
+                        style: TextStyle(
+                          color: context.lightText,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  // Add subject row (book icon + green + button)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: newSubjectCtrl,
+                          cursorColor: context.primaryGreen,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _addNewSubject(
+                            setSheetState,
+                            newSubjectCtrl,
+                            selectedSubjects,
+                            settingsProvider,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Add a subject',
+                            hintText: 'e.g. Biology',
+                            prefixIcon: Icon(
+                              Icons.menu_book_outlined,
+                              color: context.primaryGreen,
+                            ),
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: context.primaryGreen,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        onPressed: () => _addNewSubject(
                           setSheetState,
                           newSubjectCtrl,
                           selectedSubjects,
                           settingsProvider,
                         ),
-                        decoration: const InputDecoration(
-                          labelText: 'Add a new subject',
-                          hintText: 'e.g. Biology',
-                          prefixIcon: Icon(Icons.add),
-                          isDense: true,
-                          border: OutlineInputBorder(),
+                        icon: const Icon(Icons.add),
+                        style: IconButton.styleFrom(
+                          backgroundColor: context.primaryGreen,
                         ),
+                        tooltip: 'Add subject',
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      onPressed: () => _addNewSubject(
-                        setSheetState,
-                        newSubjectCtrl,
-                        selectedSubjects,
-                        settingsProvider,
-                      ),
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Add subject',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Classes they teach (multi-select)
-                Text(
-                  'Classes they teach',
-                  style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-                if (classesProvider.classes.isEmpty)
-                  Text(
-                    'No classes yet — create one in the Students tab.',
-                    style: TextStyle(color: context.lightText, fontSize: 12),
-                  )
-                else
+                  const SizedBox(height: 24),
+
+                  // Which grade do you teach?
+                  _sectionTitle(ctx, 'Which grade do you teach?'),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final cls in classesProvider.classes)
+                      for (final g in const ['1', '2', '3', '4', '5', '6'])
                         FilterChip(
-                          label: Text(cls.displayName),
-                          selected: selectedClassIds.contains(cls.id),
+                          label: Text(
+                            'G$g',
+                            style: TextStyle(
+                              color: selectedGrades.contains(g)
+                                  ? Colors.white
+                                  : AppTheme.onSurfaceLight,
+                            ),
+                          ),
+                          selected: selectedGrades.contains(g),
+                          backgroundColor: Colors.white,
+                          selectedColor: context.primaryGreen,
+                          checkmarkColor: Colors.white,
+                          side: BorderSide(
+                            color: context.primaryGreen.withValues(alpha: 0.4),
+                          ),
                           onSelected: (sel) {
                             setSheetState(() {
                               if (sel) {
-                                if (!selectedClassIds.contains(cls.id)) {
-                                  selectedClassIds.add(cls.id);
+                                if (!selectedGrades.contains(g)) {
+                                  selectedGrades.add(g);
                                 }
                               } else {
-                                selectedClassIds.remove(cls.id);
+                                selectedGrades.remove(g);
                               }
                             });
                           },
                         ),
                     ],
                   ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      if (!formKey.currentState!.validate()) return;
-                      Navigator.pop(ctx, true);
-                    },
-                    child: Text(existing != null ? 'Update' : 'Add'),
+                  const SizedBox(height: 24),
+
+                  // Academic Year
+                  _sectionTitle(ctx, 'Academic Year'),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedYear.isNotEmpty ? selectedYear : null,
+                    decoration: InputDecoration(
+                      prefixIcon: Icon(
+                        Icons.calendar_today_outlined,
+                        color: context.primaryGreen,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: context.primaryGreen),
+                      ),
+                    ),
+                    hint: const Text('Select academic year'),
+                    items: settingsProvider.academicYears
+                        .map((y) => DropdownMenuItem(value: y, child: Text(y)))
+                        .toList()
+                        .cast<DropdownMenuItem<String>>(),
+                    onChanged: (v) =>
+                        setSheetState(() => selectedYear = v ?? ''),
                   ),
-                ),
-                const SizedBox(height: 24),
-              ],
+                  const SizedBox(height: 24),
+                  // Classes they teach
+                  _sectionTitle(ctx, 'Classes they teach'),
+                  const SizedBox(height: 8),
+                  if (classesProvider.classes.isEmpty)
+                    Text(
+                      'No classes yet — create one in the Students tab.',
+                      style: TextStyle(color: context.lightText, fontSize: 12),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final cls in classesProvider.classes)
+                          FilterChip(
+                            label: Text(
+                              cls.displayName,
+                              style: TextStyle(
+                                color: selectedClassIds.contains(cls.id)
+                                    ? Colors.white
+                                    : AppTheme.onSurfaceLight,
+                              ),
+                            ),
+                            selected: selectedClassIds.contains(cls.id),
+                            backgroundColor: Colors.white,
+                            selectedColor: context.primaryGreen,
+                            checkmarkColor: Colors.white,
+                            side: BorderSide(
+                              color: context.primaryGreen.withValues(
+                                alpha: 0.4,
+                              ),
+                            ),
+                            onSelected: (sel) {
+                              setSheetState(() {
+                                if (sel) {
+                                  if (!selectedClassIds.contains(cls.id)) {
+                                    selectedClassIds.add(cls.id);
+                                  }
+                                } else {
+                                  selectedClassIds.remove(cls.id);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Auto-save note
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 14,
+                        color: context.primaryGreen,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Your profile saves automatically.',
+                        style: TextStyle(
+                          color: context.lightText,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Back + Update
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: context.primaryGreen),
+                            foregroundColor: context.primaryGreen,
+                          ),
+                          child: const Text('Back'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            if (!formKey.currentState!.validate()) return;
+                            Navigator.pop(ctx, true);
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: context.primaryGreen,
+                          ),
+                          child: Text(existing != null ? 'Update' : 'Add'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -893,11 +1100,14 @@ class SettingsTab extends StatelessWidget {
           subjects: selectedSubjects.isEmpty ? null : selectedSubjects,
           classIds: selectedClassIds,
           phone: phone,
+          grades: selectedGrades,
         );
         await teachers.updateTeacher(updated);
         await settingsProvider.updateTeacherPhone(phone);
       } else {
-        final primarySubject = selectedSubjects.isEmpty ? '' : selectedSubjects.first;
+        final primarySubject = selectedSubjects.isEmpty
+            ? ''
+            : selectedSubjects.first;
         final teacher = Teacher(
           name: name,
           role: role,
@@ -905,9 +1115,13 @@ class SettingsTab extends StatelessWidget {
           subjects: selectedSubjects,
           classIds: selectedClassIds,
           phone: phone,
+          grades: selectedGrades,
         );
         await teachers.addTeacher(teacher);
         await settingsProvider.updateTeacherPhone(phone);
+      }
+      if (selectedYear.isNotEmpty) {
+        await settingsProvider.setAcademicYear(selectedYear);
       }
       if (context.mounted && teachers.lastAddErrors.isNotEmpty) {
         ScaffoldMessenger.of(
@@ -916,6 +1130,14 @@ class SettingsTab extends StatelessWidget {
       }
     }
   }
+
+  Widget _sectionTitle(BuildContext context, String text) => Text(
+    text,
+    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.bold,
+      color: AppTheme.onSurfaceLight,
+    ),
+  );
 
   void _addNewSubject(
     StateSetter setSheetState,
@@ -948,8 +1170,7 @@ class SettingsTab extends StatelessWidget {
       ...teacher.allSubjects,
       for (final c in ownedClasses)
         if (c.subject.isNotEmpty) c.subject,
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     final classNames = ownedClasses.map((c) => c.displayName).toList();
 
     return Column(
@@ -1030,12 +1251,13 @@ class SettingsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Cloud OCR API Key',
+              'App API Key',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Your key is stored encrypted on this device only.',
+              'This key authenticates with the grading server. '
+              'Your administrator provides this key — teachers do not need to change it.',
               style: TextStyle(color: context.lightText, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1046,6 +1268,7 @@ class SettingsTab extends StatelessWidget {
               decoration: const InputDecoration(
                 labelText: 'API Key',
                 prefixIcon: Icon(Icons.key_outlined),
+                hintText: 'Paste your API key here',
               ),
             ),
             const SizedBox(height: 20),
@@ -1142,10 +1365,7 @@ class SettingsTab extends StatelessWidget {
             child: Column(
               children: [
                 for (final (id, label) in rubrics)
-                  RadioListTile<String>(
-                    title: Text(label),
-                    value: id,
-                  ),
+                  RadioListTile<String>(title: Text(label), value: id),
               ],
             ),
           ),
@@ -1359,6 +1579,81 @@ class SettingsTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getModelDisplayName(String model) {
+    switch (model) {
+      case 'gemini':
+        return 'Gemini 2.0 Flash';
+      case 'gemini-flash-lite':
+        return 'Gemini 2.0 Flash Lite';
+      case 'openai':
+        return 'GPT-4o';
+      case 'openai-mini':
+        return 'GPT-4o-mini';
+      default:
+        return model;
+    }
+  }
+
+  String _getModelInfo(String model) {
+    switch (model) {
+      case 'gemini':
+        return 'Best accuracy (98%) · ~\$0.15/1000 scans · ~3s latency';
+      case 'gemini-flash-lite':
+        return 'Good accuracy (95%) · ~\$0.05/1000 scans · ~2s latency';
+      case 'openai':
+        return 'High accuracy (98%) · ~\$1.25/1000 scans · ~4s latency';
+      case 'openai-mini':
+        return 'Good accuracy (95%) · ~\$0.05/1000 scans · ~2s latency';
+      default:
+        return '';
+    }
+  }
+
+  Future<void> _selectModel(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final models = [
+      ('gemini', 'Gemini 2.0 Flash', 'Best accuracy, recommended'),
+      ('gemini-flash-lite', 'Gemini 2.0 Flash Lite', 'Cheaper, slightly lower accuracy'),
+      ('openai', 'GPT-4o', 'High accuracy, more expensive'),
+      ('openai-mini', 'GPT-4o-mini', 'Cheap alternative'),
+    ];
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            'Select AI Model',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          RadioGroup<String>(
+            groupValue: settings.cloudOcrModel,
+            onChanged: (v) => Navigator.pop(ctx, v),
+            child: Column(
+              children: [
+                for (final (id, name, desc) in models)
+                  RadioListTile<String>(
+                    title: Text(name),
+                    subtitle: Text(desc, style: const TextStyle(fontSize: 12)),
+                    value: id,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+    if (result != null) {
+      settings.updateCloudOcr(model: result);
+    }
   }
 
   Future<void> _confirmClearData(BuildContext context) async {
@@ -1715,7 +2010,7 @@ class StorageInfoTile extends StatelessWidget {
                   '${info.imageCount > 0 ? ' · ${info.imageCount} scanned images' : ''}';
 
         return ListTile(
-           leading: Icon(Icons.storage_outlined, color: context.lightText),
+          leading: Icon(Icons.storage_outlined, color: context.lightText),
           title: const Text('Storage Usage'),
           subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
           trailing: info != null && info.totalBytes > 0
@@ -1729,7 +2024,9 @@ class StorageInfoTile extends StatelessWidget {
                         0.0,
                         1.0,
                       ),
-                      backgroundColor: context.outlineLight.withValues(alpha: 0.5),
+                      backgroundColor: context.outlineLight.withValues(
+                        alpha: 0.5,
+                      ),
                       valueColor: AlwaysStoppedAnimation(
                         info.totalBytes > 200 * 1024 * 1024
                             ? context.primaryRed
@@ -1817,5 +2114,73 @@ class StorageInfo {
       return '${(totalBytes / 1024).toStringAsFixed(1)} KB';
     }
     return '${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+/// Cost tracking tile — fetches cost summary from server.
+class _CostInfoTile extends StatefulWidget {
+  const _CostInfoTile();
+
+  @override
+  State<_CostInfoTile> createState() => _CostInfoTileState();
+}
+
+class _CostInfoTileState extends State<_CostInfoTile> {
+  Future<CostSummary?>? _future;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _load();
+  }
+
+  void _load() {
+    final settings = context.read<SettingsProvider>();
+    if (settings.cloudOcrEnabled && settings.cloudOcrApiKey.isNotEmpty) {
+      final socr = SmartOcrService.instance;
+      socr.setApiKey(settings.cloudOcrApiKey);
+      socr.setServerUrl(settings.cloudOcrEndpoint);
+      setState(() {
+        _future = socr.getCosts();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<CostSummary?>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const ListTile(
+            leading: Icon(Icons.account_balance_outlined),
+            title: Text('Usage & Cost'),
+            subtitle: Text('Loading...'),
+          );
+        }
+
+        final costs = snapshot.data;
+        if (costs == null) {
+          return const ListTile(
+            leading: Icon(Icons.account_balance_outlined),
+            title: Text('Usage & Cost'),
+            subtitle: Text('No data yet'),
+          );
+        }
+
+        final subtitle =
+            '${costs.totalRequests} scans · '
+            '\$${costs.totalCost.toStringAsFixed(4)} total';
+
+        return ListTile(
+          leading: const Icon(Icons.account_balance_outlined),
+          title: const Text('Usage & Cost'),
+          subtitle: Text(subtitle),
+          trailing: costs.isOverBudget
+              ? const Icon(Icons.warning, color: Colors.orange, size: 20)
+              : null,
+        );
+      },
+    );
   }
 }

@@ -1574,10 +1574,7 @@ class _ReviewQueueHeader extends StatelessWidget {
                 ),
                 Text(
                   section.subtitle,
-                  style: TextStyle(
-                    color: context.lightText,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: context.lightText, fontSize: 12),
                 ),
               ],
             ),
@@ -1770,9 +1767,7 @@ class _ReviewSituationPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1817,9 +1812,7 @@ class _ReviewSituationPanel extends StatelessWidget {
                     : paperNumberCount > 0
                     ? '$paperNumberCount paper labels'
                     : 'Roster not used',
-                color: rosterCount > 0
-                    ? context.primaryGreen
-                    : context.warning,
+                color: rosterCount > 0 ? context.primaryGreen : context.warning,
               ),
               _ReviewChip(
                 icon: needsReviewCount > 0
@@ -2296,7 +2289,7 @@ class _ResultCard extends StatelessWidget {
                                     .where(
                                       (a) =>
                                           a.confidence > 0 &&
-                                          a.confidence < 0.6,
+                                          a.confidence < 0.4,
                                     )
                                     .length;
                                 const base = 'Needs Review';
@@ -2360,7 +2353,7 @@ class _ResultCard extends StatelessWidget {
                 runSpacing: 4,
                 children: result.answers.map((a) {
                   final isLowConfidence =
-                      a.confidence > 0 && a.confidence < 0.6;
+                      a.confidence > 0 && a.confidence < 0.4;
                   final bgColor = a.isCorrect
                       ? context.primaryGreen.withValues(alpha: 0.15)
                       : a.detectedAnswer == '[MISSING]'
@@ -2413,18 +2406,12 @@ class _ResultCard extends StatelessWidget {
                 children: [
                   Text(
                     '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-                    style: TextStyle(
-                      color: context.lightText,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.lightText, fontSize: 12),
                   ),
                   const Spacer(),
                   Text(
                     '${'Confidence'}: ${(result.confidence * 100).toStringAsFixed(0)}%',
-                    style: TextStyle(
-                      color: context.lightText,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.lightText, fontSize: 12),
                   ),
                   const SizedBox(width: 8),
                   // View audit history button
@@ -2824,11 +2811,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
           ),
           child: Row(
             children: [
-              Icon(
-                Icons.warning_amber,
-                size: 16,
-                color: context.warning,
-              ),
+              Icon(Icons.warning_amber, size: 16, color: context.warning),
               const SizedBox(width: 8),
               Text(
                 '${'Wrong'} ${safeIndex + 1} / ${wrong.length}',
@@ -2978,11 +2961,7 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.search,
-                          size: 16,
-                          color: context.primaryRed,
-                        ),
+                        Icon(Icons.search, size: 16, color: context.primaryRed),
                         const SizedBox(width: 8),
                         Text(
                           '${'Detected'}: ',
@@ -3000,26 +2979,26 @@ class _SideBySideReviewState extends State<SideBySideReview> {
                           ),
                         ),
                         if (answer.confidence > 0) ...[
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: answer.confidence < 0.6
-                                  ? context.warning.withValues(alpha: 0.15)
-                                  : context.primaryRed.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '${(answer.confidence * 100).toStringAsFixed(0)}%',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: answer.confidence < 0.6
-                                    ? context.warning
-                                    : context.primaryRed,
-                              ),
+                           const Spacer(),
+                           Container(
+                             padding: const EdgeInsets.symmetric(
+                               horizontal: 6,
+                               vertical: 2,
+                             ),
+                             decoration: BoxDecoration(
+                               color: answer.confidence < 0.4
+                                   ? context.warning.withValues(alpha: 0.15)
+                                   : context.primaryRed.withValues(alpha: 0.1),
+                               borderRadius: BorderRadius.circular(4),
+                             ),
+                             child: Text(
+                               '${(answer.confidence * 100).toStringAsFixed(0)}%',
+                               style: TextStyle(
+                                 fontSize: 11,
+                                 color: answer.confidence < 0.4
+                                     ? context.warning
+                                     : context.primaryRed,
+                               ),
                             ),
                           ),
                         ],
@@ -3369,8 +3348,23 @@ class _SideBySideReviewState extends State<SideBySideReview> {
       );
     }).toList();
 
+    // Preserve what the scanner ORIGINALLY read for this question before
+    // the teacher's correction overwrites it (first correction wins).
+    // Backward compatible — stored in metadata, no schema change.
+    final originalRead = (original.ocrRawText?.isNotEmpty ?? false)
+        ? original.ocrRawText!
+        : original.detectedAnswer;
+    final preservedMetadata = ScanResult.preserveOriginalOcrRead(
+      _result.metadata,
+      questionNumber,
+      originalRead,
+    );
+
     setState(() {
-      _result = _result.copyWith(answers: updatedAnswers);
+      _result = _result.copyWith(
+        answers: updatedAnswers,
+        metadata: preservedMetadata,
+      );
     });
     _recalculateAndRefresh();
 
@@ -3561,9 +3555,7 @@ class _TfAnswerPicker extends StatelessWidget {
                     'True',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isTrue
-                          ? context.primaryGreen
-                          : context.darkText,
+                      color: isTrue ? context.primaryGreen : context.darkText,
                     ),
                   ),
                 ],
@@ -3600,9 +3592,7 @@ class _TfAnswerPicker extends StatelessWidget {
                     'False',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: !isTrue
-                          ? context.primaryRed
-                          : context.darkText,
+                      color: !isTrue ? context.primaryRed : context.darkText,
                     ),
                   ),
                 ],
@@ -3742,10 +3732,7 @@ class _ScoreItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: context.lightText),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: context.lightText)),
         Text(
           value,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -3765,7 +3752,7 @@ class _AnswerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMissing = answer.detectedAnswer == '[MISSING]';
     final isLowConfidence =
-        !isMissing && answer.confidence > 0 && answer.confidence < 0.6;
+        !isMissing && answer.confidence > 0 && answer.confidence < 0.4;
 
     // MISSING answer: prominent recovery card
     if (isMissing) {
@@ -3901,11 +3888,7 @@ class _AnswerTile extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.warning_amber,
-                      size: 12,
-                      color: context.warning,
-                    ),
+                    Icon(Icons.warning_amber, size: 12, color: context.warning),
                     const SizedBox(width: 4),
                     Text(
                       '${'Low confidence'} (${(answer.confidence * 100).toStringAsFixed(0)}%)',

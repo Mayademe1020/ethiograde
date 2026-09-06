@@ -6,14 +6,12 @@ class ExamSection {
   final int startQ;
   final int endQ;
   final String type;
-  final double points;
 
   const ExamSection({
     required this.name,
     required this.startQ,
     required this.endQ,
     required this.type,
-    required this.points,
   });
 
   factory ExamSection.fromMap(Map<String, dynamic> map) {
@@ -22,7 +20,6 @@ class ExamSection {
       startQ: map['startQ'] ?? 1,
       endQ: map['endQ'] ?? 1,
       type: map['type'] ?? 'mcq',
-      points: (map['points'] ?? 1).toDouble(),
     );
   }
 
@@ -31,7 +28,6 @@ class ExamSection {
     'startQ': startQ,
     'endQ': endQ,
     'type': type,
-    'points': points,
   };
 
   int get questionCount => endQ - startQ + 1;
@@ -41,18 +37,20 @@ class SectionHeader extends StatelessWidget {
   final ExamSection section;
   final int answeredCount;
   final VoidCallback? onTap;
+  final VoidCallback? onBulk;
 
   const SectionHeader({
     super.key,
     required this.section,
     required this.answeredCount,
     this.onTap,
+    this.onBulk,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = typeColor(section.type);
-    final label = _typeLabel(section.type);
+    final label = typeLabel(section.type);
 
     return GestureDetector(
       onTap: onTap,
@@ -63,7 +61,7 @@ class SectionHeader extends StatelessWidget {
           color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(8),
           border: Border(
-            left: BorderSide(color: color, width: 3),
+            left: BorderSide(color: color.withValues(alpha: 0.2), width: 3),
             top: BorderSide(color: color.withValues(alpha: 0.2)),
             right: BorderSide(color: color.withValues(alpha: 0.2)),
             bottom: BorderSide(color: color.withValues(alpha: 0.2)),
@@ -106,16 +104,19 @@ class SectionHeader extends StatelessWidget {
                 color: context.lightText,
               ),
             ),
-            const SizedBox(width: 4),
-            Text(
-              '${section.points.toInt()}pt',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 10,
-                color: context.lightText,
-              ),
-            ),
             const Spacer(),
+            if (onBulk != null)
+              GestureDetector(
+                onTap: onBulk,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Icon(
+                    Icons.content_paste,
+                    size: 16,
+                    color: context.primaryGreen,
+                  ),
+                ),
+              ),
             Text(
               '$answeredCount/${section.questionCount}',
               style: TextStyle(
@@ -145,7 +146,7 @@ class SectionHeader extends StatelessWidget {
     };
   }
 
-  static String _typeLabel(String type) {
+  static String typeLabel(String type) {
     return switch (type) {
       'mcq' => 'MCQ',
       'trueFalse' => 'T/F',
@@ -156,4 +157,53 @@ class SectionHeader extends StatelessWidget {
       _ => 'MCQ',
     };
   }
+}
+
+/// Resolves overlaps and gaps in a manually-edited section list by producing a
+/// clean, contiguous partition of [total] questions.
+///
+/// Earlier sections keep their intended size and type; each later section starts
+/// immediately after the previous one (so a first section kept at 1–12 makes the
+/// next start at 13), and the final section extends to cover the rest of the
+/// exam. This is the system-level "smart fix" offered to the teacher when a
+/// manual edit would otherwise leave the structure invalid.
+List<ExamSection> autoFixSections(List<ExamSection> sections, int total) {
+  if (sections.isEmpty) {
+    return [ExamSection(name: 'A', startQ: 1, endQ: total, type: 'mcq')];
+  }
+  final sorted = [...sections]..sort((a, b) => a.startQ.compareTo(b.startQ));
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  final result = <ExamSection>[];
+  var cursor = 1;
+  for (var i = 0; i < sorted.length; i++) {
+    final s = sorted[i];
+    final start = i == 0 ? 1 : cursor;
+    int end;
+    if (i == sorted.length - 1) {
+      end = total;
+    } else {
+      end = s.endQ;
+      if (end < start) end = start;
+      if (end > total) end = total;
+    }
+    result.add(
+      ExamSection(
+        name: i < letters.length ? letters[i] : s.name,
+        startQ: start,
+        endQ: end,
+        type: s.type,
+      ),
+    );
+    cursor = end + 1;
+  }
+  return result;
+}
+
+/// Human-readable summary of a section list, e.g.
+/// "A (MCQ): Questions 1–12\nB (T/F): Questions 13–20".
+String describeSections(List<ExamSection> sections) {
+  return sections.map((s) {
+    final type = SectionHeader.typeLabel(s.type);
+    return '${s.name} ($type): Questions ${s.startQ}–${s.endQ}';
+  }).join('\n');
 }

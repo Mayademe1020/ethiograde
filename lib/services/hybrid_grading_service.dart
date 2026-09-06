@@ -16,6 +16,8 @@ import 'validation_service.dart';
 import 'answer_parser.dart';
 import 'student_matcher.dart';
 import 'backup_service.dart';
+import 'smart_ocr_service.dart';
+import 'settings_provider.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.
 ///
@@ -101,6 +103,83 @@ class HybridGradingService with HiveBoxMixin {
     String resolvedId = studentId ?? '';
     String resolvedName = studentName ?? 'Student';
 
+    // ── Cloud grading fast path ──
+    // If cloud is enabled, try Gemini grading first (OCR + grading in one step).
+    // Much more accurate for handwriting. Falls back to ML Kit pipeline if offline.
+    try {
+      final settings = SettingsProvider();
+      if (settings.cloudOcrEnabled &&
+          settings.cloudOcrApiKey.isNotEmpty &&
+          settings.cloudOcrEndpoint.isNotEmpty) {
+        final socr = SmartOcrService.instance;
+        socr.setServerUrl(settings.cloudOcrEndpoint);
+        socr.setApiKey(settings.cloudOcrApiKey);
+
+        // Build answer key from assessment questions
+        final answerKey = <String, dynamic>{};
+        for (final q in assessment.questions) {
+          answerKey[q.number.toString()] = {
+            'type': q.type.name,
+            'correctAnswer': q.correctAnswer?.toString() ?? '',
+            'points': q.points,
+            'text': q.text,
+          };
+        }
+        if (answerKey.isNotEmpty) {
+          AppLog.info(this, 'gradePaper', 'Trying cloud grading via Gemini');
+          final cloudResult = await socr.gradeExam(
+            imagePath: imagePath,
+            answerKey: answerKey,
+            assessmentTitle: assessment.title,
+            preferredModel: settings.cloudOcrModel,
+          );
+
+          if (cloudResult != null && cloudResult.confidence >= 0.5) {
+            AppLog.info(this, 'gradePaper',
+                'Cloud grading succeeded: ${cloudResult.overallScore}/${cloudResult.maxScore} '
+                '(${(cloudResult.confidence * 100).toStringAsFixed(0)}% confidence, '
+                'provider: ${cloudResult.results.isNotEmpty ? "gemini" : "unknown"})');
+
+            // Build ScanResult from cloud result
+            final answerMatches = cloudResult.results.map((r) => AnswerMatch(
+              questionNumber: r.questionNumber,
+              detectedAnswer: r.detectedAnswer,
+              correctAnswer: r.correctAnswer,
+              isCorrect: r.isCorrect,
+              score: r.score,
+              maxScore: r.maxScore,
+              confidence: r.confidence,
+              ocrRawText: r.notes,
+            )).toList();
+
+            return ScanResult(
+              assessmentId: assessment.id,
+              studentId: resolvedId,
+              studentName: cloudResult.studentName ?? resolvedName,
+              totalScore: cloudResult.overallScore,
+              maxScore: cloudResult.maxScore,
+              percentage: cloudResult.percentage,
+              grade: _scoring.calculateGrade(cloudResult.percentage, assessment.rubricType),
+              status: ScanStatus.graded,
+              scannedAt: DateTime.now(),
+              imagePath: imagePath,
+              answers: answerMatches,
+              metadata: {
+                'detectedMethod': 'cloud-ocr',
+                'cloudProvider': 'gemini',
+                'cloudConfidence': cloudResult.confidence,
+                'gradingMode': 'cloud',
+              },
+            );
+          }
+          AppLog.info(this, 'gradePaper',
+              'Cloud grading returned low confidence, falling back to ML Kit');
+        }
+      }
+    } catch (e) {
+      AppLog.warn(this, 'gradePaper', 'Cloud grading failed: $e — falling back to ML Kit');
+    }
+
     try {
       // Check if this image was already graded by cloud OCR
       final existingResults = await loadScanResults(assessment.id);
@@ -142,7 +221,16 @@ class HybridGradingService with HiveBoxMixin {
       // ── Step 3: Run OCR (skipped for pure-OMR exams) ──
       ({List<TextRegion> regions, double skewAngle})? extractionResult;
       if (gradingMode != 'omr-only') {
-        extractionResult = await _ocr.extractTextRegions(enhancedPath);
+        // Subjective exams retain low-confidence handwriting lines so they
+        // can be associated with questions and routed to review instead of
+        // vanishing silently before parsing. Objective-only exams keep the
+        // historical printed-text floor unchanged.
+        extractionResult = await _ocr.extractTextRegions(
+          enhancedPath,
+          minConfidence: hasTextQuestions
+              ? OcrService.subjectiveMinConfidence
+              : OcrService.standardMinConfidence,
+        );
         AppLog.info(
           this,
           'gradePaper',
@@ -244,11 +332,30 @@ class HybridGradingService with HiveBoxMixin {
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
 
+      // ── Step 4b: Collect subjective-answer uncertainty for review ──
+      // Spatially-associated or sub-floor-confidence short answers must
+      // reach the teacher even when their OCR confidence is high.
+      final uncertainQs = uncertainQuestionNumbers(
+        detected: deduplicated,
+        assessment: assessment,
+      );
+
       // ── Step 5: Score against answer key ──
       final scoredAnswers = _scoring.scoreAnswers(
         detected: deduplicated,
         assessment: assessment,
       );
+
+      // ── Step 5b: Fuzzy-only short-answer matches → NEEDS REVIEW ──
+      // Phase 1.1 policy (Option B): a match that only passes via
+      // Levenshtein tolerance may be an OCR misread of a correct answer OR
+      // a genuinely wrong answer — never silently CORRECT. The teacher
+      // decides. Exact matches and clearly different answers are untouched.
+      final fuzzyQs = fuzzyOnlyReviewQuestions(
+        scored: scoredAnswers,
+        assessment: assessment,
+      );
+      final reviewFlags = <int>{...uncertainQs, ...fuzzyQs};
 
       // ── Step 6: Calculate totals ──
       double totalScore = _scoring.calculateTotalScore(scoredAnswers);
@@ -269,6 +376,11 @@ class HybridGradingService with HiveBoxMixin {
         'skewWarning': (extractionResult?.skewAngle.abs() ?? 0.0) > 8.0,
         'detectedMethod': gradingMode,
         if (omrRan) 'omrTemplate': omrTemplateName,
+        // Subjective answers whose recognition, association, or fuzzy-only
+        // match is uncertain — read by ScanResult.needsReview /
+        // requiresTeacherAction and resolved in the existing review flow.
+        if (reviewFlags.isNotEmpty)
+          'uncertainQuestions': reviewFlags.toList()..sort(),
         IntegrityMetadataKeys.scoredWithKeyFingerprint:
             assessment.answerKeyFingerprint,
         IntegrityMetadataKeys.scoredWithKeyRevision:
@@ -303,7 +415,9 @@ class HybridGradingService with HiveBoxMixin {
         maxScore: maxScore,
         percentage: percentage,
         grade: _scoring.calculateGrade(percentage.toDouble(), rubricType),
-        status: overallConfidence < 0.6
+        // Lowered from 0.6 to 0.4 to accept handwritten answers
+        // that have naturally lower confidence than printed text
+        status: overallConfidence < 0.4
             ? ScanStatus.needsRescan
             : ScanStatus.graded,
         confidence: overallConfidence,
@@ -438,6 +552,12 @@ class HybridGradingService with HiveBoxMixin {
   }
 
   /// Parse OCR text regions into DetectedAnswers.
+  ///
+  /// Uses positional parsing so handwritten answers that are not on the
+  /// same OCR line as their question number can still be associated.
+  /// Spatially-associated answers carry `needsReview: true` — they are
+  /// inherently less certain than same-line reads and must surface
+  /// through the existing review workflow.
   List<DetectedAnswer> _parseOcrAnswers(
     List<TextRegion> regions,
     Assessment assessment,
@@ -454,17 +574,91 @@ class HybridGradingService with HiveBoxMixin {
         )
         .toList();
 
-    return parser
-        .parseAnswers(inputs)
-        .map(
-          (p) => DetectedAnswer(
-            questionNumber: p.questionNumber,
-            answer: p.answer,
-            confidence: p.confidence,
-            rawText: p.rawText,
-          ),
-        )
-        .toList();
+    return parser.parseAnswersWithPosition(inputs).map((p) {
+      final isSpatial = p.spatialAssociation;
+      // Lines retained below the standard printed-text floor are only
+      // kept for subjective questions; flag them as uncertain too.
+      final isSubFloor =
+          !isSpatial && p.confidence < OcrService.standardMinConfidence;
+      return DetectedAnswer(
+        questionNumber: p.questionNumber,
+        answer: p.answer,
+        confidence: p.confidence,
+        rawText: p.rawText,
+        needsReview: isSpatial || isSubFloor,
+        source: isSpatial ? 'ocr-spatial' : 'ocr',
+      );
+    }).toList();
+  }
+
+  /// Collect question numbers whose recognition or question-association is
+  /// uncertain, for stamping into ScanResult.metadata ('uncertainQuestions').
+  ///
+  /// Pure function — testable without images or ML Kit. Objective questions
+  /// are deliberately excluded: their OMR/OCR path and thresholds are
+  /// unchanged in this phase.
+  static Set<int> uncertainQuestionNumbers({
+    required List<DetectedAnswer> detected,
+    required Assessment assessment,
+  }) {
+    final uncertain = <int>{};
+    final byNumber = {for (final q in assessment.questions) q.number: q};
+    for (final d in detected) {
+      final q = byNumber[d.questionNumber];
+      if (q == null || q.isObjective) continue;
+      if (d.needsReview) {
+        uncertain.add(d.questionNumber);
+      } else if (d.confidence > 0 &&
+          d.confidence < OcrService.standardMinConfidence) {
+        uncertain.add(d.questionNumber);
+      }
+    }
+    return uncertain;
+  }
+
+  /// Short-answer questions whose scored match passed ONLY via fuzzy
+  /// tolerance (Levenshtein ≤2 without an exact normalized match).
+  ///
+  /// Phase 1.1 policy (Option B): such matches must not silently award
+  /// CORRECT — they are flagged so the teacher decides whether OCR misread
+  /// a correct answer or the student wrote something wrong. The underlying
+  /// AnswerMatch keeps isCorrect/score from [ScoringService.checkAnswer]
+  /// (provisional correct/0) — the metadata flag is what routes it to
+  /// review via ScanResult.needsReview.
+  ///
+  /// Scope guards:
+  /// - applies ONLY to QuestionType.shortAnswer (MCQ/T-F/OMR untouched)
+  /// - already-incorrect answers stay incorrect (no review inflation)
+  /// - missing/unreadable sentinels are ignored (own review path exists)
+  ///
+  /// Pure function — testable without images or ML Kit.
+  static Set<int> fuzzyOnlyReviewQuestions({
+    required List<AnswerMatch> scored,
+    required Assessment assessment,
+  }) {
+    final fuzzyOnly = <int>{};
+    final byNumber = {for (final q in assessment.questions) q.number: q};
+    for (final m in scored) {
+      final q = byNumber[m.questionNumber];
+      if (q == null || q.type != QuestionType.shortAnswer) continue;
+      if (!m.isCorrect) continue; // clearly different → stays INCORRECT
+
+      final detected = m.detectedAnswer;
+      if (detected.isEmpty ||
+          detected.toUpperCase() == '[MISSING]' ||
+          detected.toUpperCase() == '[MULTIPLE]') {
+        continue;
+      }
+
+      final correct = q.correctAnswer;
+      final matchedFuzzyOnly = correct is List
+          ? correct.any(
+              (c) => ScoringService.isFuzzyOnlyMatch(detected, c.toString()),
+            )
+          : ScoringService.isFuzzyOnlyMatch(detected, correct.toString());
+      if (matchedFuzzyOnly) fuzzyOnly.add(m.questionNumber);
+    }
+    return fuzzyOnly;
   }
 
   /// Merge OMR and OCR answers using the hybrid strategy.

@@ -35,6 +35,10 @@ class BubbleTemplate {
   /// Normalized fill threshold: 0.0–1.0.
   /// If the dark pixel ratio in the sampling region exceeds this,
   /// the bubble is considered "filled".
+  ///
+  /// Lowered from 0.45 to 0.30 to detect pencil marks which have
+  /// lower contrast than pen/ink. Pencil bubbles typically fill at
+  /// 0.25–0.40; pen bubbles at 0.50–0.80.
   final double fillThreshold;
 
   const BubbleTemplate({
@@ -46,7 +50,7 @@ class BubbleTemplate {
     required this.columnSpacing,
     required this.rowSpacing,
     this.bubbleRadius = 8.0,
-    this.fillThreshold = 0.45,
+    this.fillThreshold = 0.30,
   });
 
   /// Get the expected center position of a specific bubble.
@@ -82,7 +86,7 @@ class BubbleTemplate {
     columnSpacing: (map['columnSpacing'] ?? 0).toDouble(),
     rowSpacing: (map['rowSpacing'] ?? 0).toDouble(),
     bubbleRadius: (map['bubbleRadius'] ?? 8.0).toDouble(),
-    fillThreshold: (map['fillThreshold'] ?? 0.45).toDouble());
+    fillThreshold: (map['fillThreshold'] ?? 0.30).toDouble());
 
   @override
   String toString() =>
@@ -108,7 +112,7 @@ class StandardTemplates {
     columnSpacing: 110,
     rowSpacing: 30,
     bubbleRadius: 8,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 30 questions, 5 options (A–E), single column.
   /// Extended format for comprehensive exams.
@@ -121,7 +125,7 @@ class StandardTemplates {
     columnSpacing: 110,
     rowSpacing: 27,
     bubbleRadius: 7,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 10 True/False questions.
   static const BubbleTemplate tf10 = BubbleTemplate(
@@ -133,7 +137,7 @@ class StandardTemplates {
     columnSpacing: 200,
     rowSpacing: 30,
     bubbleRadius: 8,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 20 True/False questions.
   static const BubbleTemplate tf20 = BubbleTemplate(
@@ -145,7 +149,7 @@ class StandardTemplates {
     columnSpacing: 200,
     rowSpacing: 27,
     bubbleRadius: 7,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 50 questions, 4 options (A–D). Common for university entrance exams.
   static const BubbleTemplate uni50x4 = BubbleTemplate(
@@ -157,7 +161,7 @@ class StandardTemplates {
     columnSpacing: 130,
     rowSpacing: 22,
     bubbleRadius: 6,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 100 questions, 5 options (A–E), two columns.
   /// Common for teacher-made comprehensive exams.
@@ -170,7 +174,7 @@ class StandardTemplates {
     columnSpacing: 110,
     rowSpacing: 26,
     bubbleRadius: 7,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// 120 questions, 5 options (A–E), three columns.
   /// Matches Ethiopian National Exam format.
@@ -183,7 +187,7 @@ class StandardTemplates {
     columnSpacing: 130,
     rowSpacing: 24,
     bubbleRadius: 6,
-    fillThreshold: 0.45);
+    fillThreshold: 0.30);
 
   /// Get a template by name (case-insensitive).
   static BubbleTemplate? byName(String name) {

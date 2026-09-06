@@ -28,6 +28,20 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
 
   List<ExamSection> _buildDefaultSections() {
     final total = widget.assessment.questionCount;
+    // Prefer the canonical persisted structure (single source of truth).
+    final canonical = widget.assessment.sections;
+    if (canonical != null && canonical.isNotEmpty) {
+      return [
+        for (var i = 0; i < canonical.length; i++)
+          ExamSection(
+            name: _letterLabels[i],
+            startQ: canonical[i].start,
+            endQ: canonical[i].end,
+            type: canonical[i].type.name,
+          ),
+      ];
+    }
+    // Legacy fallback (older assessments that still store sections here).
     final existing = widget.assessment.settings['sections'];
     if (existing is List && existing.isNotEmpty) {
       return existing
@@ -35,7 +49,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           .toList();
     }
     return [
-      ExamSection(name: 'A', startQ: 1, endQ: total, type: 'mcq', points: 1.0),
+      ExamSection(name: 'A', startQ: 1, endQ: total, type: 'mcq'),
     ];
   }
 
@@ -53,7 +67,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           startQ: nextStart,
           endQ: total,
           type: 'mcq',
-          points: 1.0,
         ),
       );
     });
@@ -71,7 +84,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           startQ: prev.startQ,
           endQ: removed.endQ,
           type: prev.type,
-          points: prev.points,
         );
       } else if (_sections.isNotEmpty) {
         final next = _sections[0];
@@ -80,7 +92,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           startQ: removed.startQ,
           endQ: next.endQ,
           type: next.type,
-          points: next.points,
         );
       }
       // Re-letter sections
@@ -90,7 +101,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           startQ: _sections[i].startQ,
           endQ: _sections[i].endQ,
           type: _sections[i].type,
-          points: _sections[i].points,
         );
       }
     });
@@ -101,7 +111,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
     int? startQ,
     int? endQ,
     String? type,
-    double? points,
   }) {
     setState(() {
       final old = _sections[index];
@@ -110,7 +119,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
         startQ: startQ ?? old.startQ,
         endQ: endQ ?? old.endQ,
         type: type ?? old.type,
-        points: points ?? old.points,
       );
     });
   }
@@ -145,9 +153,55 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
           startQ: 1,
           endQ: total,
           type: 'mcq',
-          points: 1.0,
+          
         ),
       ]),
+    );
+  }
+
+  void _requestAutoFix() {
+    final total = widget.assessment.questionCount;
+    final fixed = autoFixSections(_sections, total);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Fix sections automatically?'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Your sections overlap or leave gaps. We'll adjust them into "
+                'a clean split that keeps each section’s type:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                describeSections(fixed),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _sections = fixed);
+            },
+            child: const Text('Fix & apply'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -172,7 +226,7 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                'Organize $total questions into sections. Each section can have a different type and point value.',
+                'Organize $total questions into sections. Each section can have a different question type.',
                 style: TextStyle(fontSize: 12, color: context.lightText),
               ),
             ),
@@ -187,12 +241,29 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
                     color: const Color(0xFFDA2A2A).withValues(alpha: 0.3),
                   ),
                 ),
-                child: const Text(
-                  'Sections must cover 1 to N with no gaps or overlaps.',
-                  style: TextStyle(
-                    color: Color(0xFFDA2A2A),
-                    fontSize: 12,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Sections must cover 1 to N with no gaps or overlaps.',
+                      style: TextStyle(
+                        color: Color(0xFFDA2A2A),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _requestAutoFix,
+                        icon: const Icon(Icons.auto_fix_high, size: 16),
+                        label: const Text('Fix automatically'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             Expanded(
@@ -306,13 +377,6 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
                     onChanged: (v) => _updateSection(index, type: v),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildPointsField(
-                    value: section.points,
-                    onChanged: (v) => _updateSection(index, points: v),
-                  ),
-                ),
               ],
             ),
           ],
@@ -343,13 +407,29 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
             value: value,
             isExpanded: true,
             underline: const SizedBox(),
-            items: List.generate(
-              max - min + 1,
-              (i) => DropdownMenuItem(
-                value: min + i,
-                child: Text('${min + i}', style: const TextStyle(fontSize: 13)),
-              ),
-            ),
+            items: () {
+              // Always include the current value, even if an overlap/gap left it
+              // outside the [min, max] clamp (otherwise the dropdown crashes and
+              // the teacher can't reach the auto-fix).
+              final lo = value < min ? value : min;
+              final hi = value > max ? value : max;
+              final count = hi - lo + 1;
+              if (count <= 0) {
+                return [
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text('$value', style: const TextStyle(fontSize: 13)),
+                  ),
+                ];
+              }
+              return List.generate(
+                count,
+                (i) => DropdownMenuItem(
+                  value: lo + i,
+                  child: Text('${lo + i}', style: const TextStyle(fontSize: 13)),
+                ),
+              );
+            }(),
             onChanged: (v) {
               if (v != null) onChanged(v);
             },
@@ -413,60 +493,4 @@ class _AnswerKeySectionSetupState extends State<AnswerKeySectionSetup> {
     );
   }
 
-  Widget _buildPointsField({
-    required double value,
-    required ValueChanged<double> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Points per Q',
-          style: TextStyle(fontSize: 10, color: context.lightText),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: DropdownButton<double>(
-            value: value,
-            isExpanded: true,
-            underline: const SizedBox(),
-            items: const [
-              DropdownMenuItem(
-                value: 0.5,
-                child: Text('0.5', style: TextStyle(fontSize: 12)),
-              ),
-              DropdownMenuItem(
-                value: 1.0,
-                child: Text('1', style: TextStyle(fontSize: 12)),
-              ),
-              DropdownMenuItem(
-                value: 2.0,
-                child: Text('2', style: TextStyle(fontSize: 12)),
-              ),
-              DropdownMenuItem(
-                value: 3.0,
-                child: Text('3', style: TextStyle(fontSize: 12)),
-              ),
-              DropdownMenuItem(
-                value: 5.0,
-                child: Text('5', style: TextStyle(fontSize: 12)),
-              ),
-              DropdownMenuItem(
-                value: 10.0,
-                child: Text('10', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-            onChanged: (v) {
-              if (v != null) onChanged(v);
-            },
-          ),
-        ),
-      ],
-    );
-  }
 }

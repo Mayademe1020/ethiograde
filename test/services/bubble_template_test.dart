@@ -51,7 +51,7 @@ void main() {
         rowSpacing: 10);
       expect(t.options, ['A', 'B', 'C', 'D', 'E']);
       expect(t.bubbleRadius, 8.0);
-      expect(t.fillThreshold, 0.45);
+      expect(t.fillThreshold, 0.3);
     });
 
     test('toMap and fromMap roundtrip', () {
@@ -88,7 +88,7 @@ void main() {
       expect(restored.startX, 0);
       expect(restored.startY, 0);
       expect(restored.bubbleRadius, 8.0);
-      expect(restored.fillThreshold, 0.45);
+      expect(restored.fillThreshold, 0.3);
     });
 
     test('toString shows name and dimensions', () {

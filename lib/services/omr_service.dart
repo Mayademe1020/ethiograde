@@ -101,7 +101,8 @@ OmrResult _detectBubblesIsolate(_DetectBubblesParams params) {
           (a, b) => a.value > b.value ? a : b,
         );
 
-        if (mostFilled.value > scaledTemplate.fillThreshold * 0.6) {
+        // Lowered from 0.6 * threshold to 0.5 * threshold for pencil detection
+        if (mostFilled.value > scaledTemplate.fillThreshold * 0.5) {
           detectedAnswers.add(
             OmrAnswer(
               questionNumber: qi + 1,
@@ -180,7 +181,9 @@ double _sampleFillRatio(img.Image image, int cx, int cy, int radius) {
       final pixel = image.getPixel(px, py);
       final brightness = pixel.r / 255.0;
 
-      if (brightness < 0.4) darkCount++;
+      // Lowered from 0.4 to 0.6 to detect pencil marks (gray ~0.5-0.7)
+      // Pencil marks are lighter than pen/ink but still darker than paper
+      if (brightness < 0.6) darkCount++;
       totalCount++;
     }
   }

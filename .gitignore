@@ -103,6 +103,7 @@ aab_build*.txt
 apk_build*.txt
 build_log*.txt
 full_test_out*.txt
+fulltest.txt
 logcat_fresh.txt
 run*.pid
 walk*.pid

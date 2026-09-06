@@ -16,34 +16,39 @@ void main() {
       title: 'Test',
       subject: 'Math',
       rubricType: rubricType,
-      questions: questions ?? []);
+      questions: questions ?? [],
+    );
   }
 
   Question mcq(int number, String correct, {double points = 1.0}) => Question(
     number: number,
     type: QuestionType.mcq,
     correctAnswer: correct,
-    points: points);
+    points: points,
+  );
 
   Question tf(int number, String correct, {double points = 1.0}) => Question(
     number: number,
     type: QuestionType.trueFalse,
     correctAnswer: correct,
-    points: points);
+    points: points,
+  );
 
   Question shortAnswer(int number, dynamic correct, {double points = 2.0}) =>
       Question(
         number: number,
         type: QuestionType.shortAnswer,
         correctAnswer: correct,
-        points: points);
+        points: points,
+      );
 
   DetectedAnswer det(int q, String answer, {double confidence = 0.9}) =>
       DetectedAnswer(
         questionNumber: q,
         answer: answer,
         confidence: confidence,
-        rawText: '$q. $answer');
+        rawText: '$q. $answer',
+      );
 
   AnswerMatch am(
     int q,
@@ -57,7 +62,8 @@ void main() {
     isCorrect: detected.toUpperCase() == correct.toUpperCase(),
     score: detected.toUpperCase() == correct.toUpperCase() ? 1.0 : 0.0,
     maxScore: 1.0,
-    confidence: confidence);
+    confidence: confidence,
+  );
 
   // ════════════════════════════════════════════════════════════════
   // checkAnswer
@@ -69,8 +75,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'A',
           correct: 'A',
-          type: QuestionType.mcq),
-        isTrue);
+          type: QuestionType.mcq,
+        ),
+        isTrue,
+      );
     });
 
     test('case-insensitive match', () {
@@ -78,8 +86,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'b',
           correct: 'B',
-          type: QuestionType.mcq),
-        isTrue);
+          type: QuestionType.mcq,
+        ),
+        isTrue,
+      );
     });
 
     test('wrong answer', () {
@@ -87,8 +97,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'C',
           correct: 'A',
-          type: QuestionType.mcq),
-        isFalse);
+          type: QuestionType.mcq,
+        ),
+        isFalse,
+      );
     });
 
     test('null detected → false', () {
@@ -96,8 +108,10 @@ void main() {
         scoring.checkAnswer(
           detected: null,
           correct: 'A',
-          type: QuestionType.mcq),
-        isFalse);
+          type: QuestionType.mcq,
+        ),
+        isFalse,
+      );
     });
 
     test('null correct → false', () {
@@ -105,8 +119,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'A',
           correct: null,
-          type: QuestionType.mcq),
-        isFalse);
+          type: QuestionType.mcq,
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -116,8 +132,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'True',
           correct: 'True',
-          type: QuestionType.trueFalse),
-        isTrue);
+          type: QuestionType.trueFalse,
+        ),
+        isTrue,
+      );
     });
 
     test('false matches False (case-insensitive)', () {
@@ -125,8 +143,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'false',
           correct: 'False',
-          type: QuestionType.trueFalse),
-        isTrue);
+          type: QuestionType.trueFalse,
+        ),
+        isTrue,
+      );
     });
 
     test('True ≠ False', () {
@@ -134,8 +154,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'True',
           correct: 'False',
-          type: QuestionType.trueFalse),
-        isFalse);
+          type: QuestionType.trueFalse,
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -145,8 +167,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'Addis Ababa',
           correct: 'addis ababa',
-          type: QuestionType.shortAnswer),
-        isTrue);
+          type: QuestionType.shortAnswer,
+        ),
+        isTrue,
+      );
     });
 
     test('matches any in accepted list', () {
@@ -154,8 +178,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'Ethiopia',
           correct: ['ethiopia', 'Habesha'],
-          type: QuestionType.shortAnswer),
-        isTrue);
+          type: QuestionType.shortAnswer,
+        ),
+        isTrue,
+      );
     });
 
     test('no match in list', () {
@@ -163,8 +189,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'Kenya',
           correct: ['ethiopia', 'habesha'],
-          type: QuestionType.shortAnswer),
-        isFalse);
+          type: QuestionType.shortAnswer,
+        ),
+        isFalse,
+      );
     });
 
     test('case-insensitive list match', () {
@@ -172,8 +200,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'HABESHA',
           correct: ['ethiopia', 'habesha'],
-          type: QuestionType.shortAnswer),
-        isTrue);
+          type: QuestionType.shortAnswer,
+        ),
+        isTrue,
+      );
     });
 
     test('whitespace trimmed (OCR artifact)', () {
@@ -181,8 +211,10 @@ void main() {
         scoring.checkAnswer(
           detected: '  Addis Ababa  ',
           correct: 'Addis Ababa',
-          type: QuestionType.shortAnswer),
-        isTrue);
+          type: QuestionType.shortAnswer,
+        ),
+        isTrue,
+      );
     });
 
     test('extra internal spaces normalized', () {
@@ -190,8 +222,10 @@ void main() {
         scoring.checkAnswer(
           detected: 'Addis  Ababa',
           correct: 'Addis Ababa',
-          type: QuestionType.shortAnswer),
-        isTrue);
+          type: QuestionType.shortAnswer,
+        ),
+        isTrue,
+      );
     });
 
     test('MCQ with extra whitespace', () {
@@ -199,8 +233,10 @@ void main() {
         scoring.checkAnswer(
           detected: ' A ',
           correct: 'A',
-          type: QuestionType.mcq),
-        isTrue);
+          type: QuestionType.mcq,
+        ),
+        isTrue,
+      );
     });
   });
 
@@ -211,12 +247,14 @@ void main() {
   group('scoreAnswers', () {
     test('all correct MCQ → full score', () {
       final assessment = makeAssessment(
-        questions: [mcq(1, 'A'), mcq(2, 'B'), mcq(3, 'C')]);
+        questions: [mcq(1, 'A'), mcq(2, 'B'), mcq(3, 'C')],
+      );
       final detected = [det(1, 'A'), det(2, 'B'), det(3, 'C')];
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results.length, 3);
       expect(results.every((r) => r.isCorrect), isTrue);
@@ -229,7 +267,8 @@ void main() {
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results.every((r) => !r.isCorrect), isTrue);
       expect(results.every((r) => r.score == 0), isTrue);
@@ -241,7 +280,8 @@ void main() {
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results[1].detectedAnswer, '[MISSING]');
       expect(results[1].isCorrect, isFalse);
@@ -255,12 +295,14 @@ void main() {
           mcq(1, 'A', points: 2.0),
           mcq(2, 'B', points: 3.0),
           mcq(3, 'C', points: 1.0),
-        ]);
+        ],
+      );
       final detected = [det(1, 'A'), det(2, 'X'), det(3, 'C')];
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results[0].isCorrect, isTrue);
       expect(results[0].score, 2.0);
@@ -272,12 +314,14 @@ void main() {
 
     test('question types mixed (MCQ + T/F + short)', () {
       final assessment = makeAssessment(
-        questions: [mcq(1, 'A'), tf(2, 'True'), shortAnswer(3, 'gravity')]);
+        questions: [mcq(1, 'A'), tf(2, 'True'), shortAnswer(3, 'gravity')],
+      );
       final detected = [det(1, 'A'), det(2, 'True'), det(3, 'gravity')];
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results.every((r) => r.isCorrect), isTrue);
     });
@@ -289,12 +333,14 @@ void main() {
           questionNumber: 1,
           answer: 'A',
           confidence: 0.85,
-          rawText: '1. A '),
+          rawText: '1. A ',
+        ),
       ];
 
       final results = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(results[0].ocrRawText, '1. A ');
       expect(results[0].confidence, 0.85);
@@ -355,7 +401,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.8),
+          confidence: 0.8,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: 'B',
@@ -363,7 +410,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.6),
+          confidence: 0.6,
+        ),
       ];
 
       expect(scoring.calculateConfidence(answers), closeTo(0.7, 0.001));
@@ -382,7 +430,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.95),
+          confidence: 0.95,
+        ),
       ];
 
       expect(scoring.calculateConfidence(answers), closeTo(0.95, 0.001));
@@ -403,7 +452,8 @@ void main() {
           isCorrect: true,
           score: 2,
           maxScore: 2,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: 'B',
@@ -411,7 +461,8 @@ void main() {
           isCorrect: false,
           score: 0,
           maxScore: 3,
-          confidence: 0.8),
+          confidence: 0.8,
+        ),
         AnswerMatch(
           questionNumber: 3,
           detectedAnswer: 'C',
@@ -419,7 +470,8 @@ void main() {
           isCorrect: true,
           score: 5,
           maxScore: 5,
-          confidence: 0.95),
+          confidence: 0.95,
+        ),
       ];
 
       expect(scoring.calculateTotalScore(answers), 7.0);
@@ -438,7 +490,8 @@ void main() {
     test('7/10 → 70%', () {
       expect(
         scoring.calculatePercentage(totalScore: 7, maxScore: 10),
-        closeTo(70.0, 0.001));
+        closeTo(70.0, 0.001),
+      );
     });
 
     test('0/10 → 0%', () {
@@ -448,7 +501,8 @@ void main() {
     test('10/10 → 100%', () {
       expect(
         scoring.calculatePercentage(totalScore: 10, maxScore: 10),
-        closeTo(100.0, 0.001));
+        closeTo(100.0, 0.001),
+      );
     });
 
     test('maxScore = 0 → 0 (no division by zero)', () {
@@ -523,7 +577,8 @@ void main() {
       test('${entry.key}% → ${entry.value}', () {
         expect(
           scoring.calculateGrade(entry.key, 'private_international'),
-          entry.value);
+          entry.value,
+        );
       });
     }
   });
@@ -599,11 +654,13 @@ void main() {
       final deduped = scoring.deduplicateAnswers(detected);
       final scored = scoring.scoreAnswers(
         detected: deduped,
-        assessment: assessment);
+        assessment: assessment,
+      );
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
         totalScore: total,
-        maxScore: assessment.maxScore);
+        maxScore: assessment.maxScore,
+      );
       final grade = scoring.calculateGrade(pct, 'moe_national');
       final confidence = scoring.calculateConfidence(scored);
 
@@ -620,11 +677,13 @@ void main() {
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
         totalScore: total,
-        maxScore: assessment.maxScore);
+        maxScore: assessment.maxScore,
+      );
 
       expect(total, 20.0);
       expect(pct, closeTo(100.0, 0.01));
@@ -638,11 +697,13 @@ void main() {
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
       final total = scoring.calculateTotalScore(scored);
       final pct = scoring.calculatePercentage(
         totalScore: total,
-        maxScore: assessment.maxScore);
+        maxScore: assessment.maxScore,
+      );
 
       expect(total, 0);
       expect(pct, 0);
@@ -663,12 +724,14 @@ void main() {
           questionNumber: 3,
           answer: 'photosynthesis',
           confidence: 0.6,
-          rawText: '3 photosynthesis'),
+          rawText: '3 photosynthesis',
+        ),
         const DetectedAnswer(
           questionNumber: 3,
           answer: 'photosynthesis',
           confidence: 0.95,
-          rawText: '3. photosynthesis'),
+          rawText: '3. photosynthesis',
+        ),
       ];
 
       final assessment = makeAssessment(questions: questions);
@@ -677,7 +740,8 @@ void main() {
 
       final scored = scoring.scoreAnswers(
         detected: deduped,
-        assessment: assessment);
+        assessment: assessment,
+      );
       final total = scoring.calculateTotalScore(scored);
 
       // All correct: 1 + 1 + 3 = 5
@@ -694,7 +758,8 @@ void main() {
       final assessment = makeAssessment(questions: questions);
       final scored = scoring.scoreAnswers(
         detected: detected,
-        assessment: assessment);
+        assessment: assessment,
+      );
 
       expect(scored[0].isCorrect, isTrue);
       expect(scored[0].score, 2.0);
@@ -722,7 +787,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: 'B',
@@ -730,7 +796,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.8),
+          confidence: 0.8,
+        ),
         AnswerMatch(
           questionNumber: 3,
           detectedAnswer: 'C',
@@ -738,7 +805,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.85),
+          confidence: 0.85,
+        ),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
@@ -753,7 +821,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 1,
           detectedAnswer: 'A',
@@ -761,7 +830,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: 'B',
@@ -769,7 +839,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A|2:B|3:C');
@@ -784,7 +855,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A');
@@ -799,7 +871,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: 'false',
@@ -807,7 +880,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:TRUE|2:FALSE');
@@ -822,7 +896,8 @@ void main() {
           isCorrect: true,
           score: 1,
           maxScore: 1,
-          confidence: 0.9),
+          confidence: 0.9,
+        ),
         AnswerMatch(
           questionNumber: 2,
           detectedAnswer: '[MISSING]',
@@ -830,7 +905,8 @@ void main() {
           isCorrect: false,
           score: 0,
           maxScore: 1,
-          confidence: 0),
+          confidence: 0,
+        ),
       ];
 
       expect(scoring.generateAnswerFingerprint(answers), '1:A');
@@ -848,7 +924,8 @@ void main() {
         isCorrect: true,
         score: 1,
         maxScore: 1,
-        confidence: 0.9);
+        confidence: 0.9,
+      );
       final answers = [am(1, 'A'), am(2, 'B')];
       final fp1 = scoring.generateAnswerFingerprint(answers);
       final fp2 = scoring.generateAnswerFingerprint(answers);
@@ -1021,7 +1098,8 @@ void main() {
       const dup = AnswerDuplicate(
         scanIndexA: 0,
         scanIndexB: 1,
-        matchRatio: 0.975);
+        matchRatio: 0.975,
+      );
       expect(dup.matchPercent, closeTo(97.5, 0.001));
     });
 
@@ -1049,6 +1127,114 @@ void main() {
 
       expect(result.length, 1);
       expect(result[0].matchRatio, closeTo(0.9, 0.001)); // 9/10
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // Fuzzy-match comparator semantics (Phase 1 exposure, Phase 1.1 policy)
+  // ══════════════════════════════════════════════════════════════════
+  // checkAnswer remains a BINARY comparator — its semantics are unchanged
+  // (answer-key recalculation and diagnostics depend on them). The Phase
+  // 1.1 Option B policy lives ABOVE it: fuzzy-only short-answer matches
+  // are detected via isFuzzyOnlyMatch and routed to teacher review by
+  // HybridGradingService instead of silently awarding CORRECT.
+
+  group(
+    'ScoringService — short-answer binary comparator (unchanged baseline)',
+    () {
+      test('distance-1 misread still matches in the raw comparator', () {
+        expect(
+          scoring.checkAnswer(
+            detected: 'Photosynthesls',
+            correct: 'Photosynthesis',
+            type: QuestionType.shortAnswer,
+          ),
+          isTrue,
+          reason:
+              'Comparator contract unchanged; review routing happens at '
+              'pipeline level via fuzzyOnlyReviewQuestions (Option B)',
+        );
+      });
+
+      test('distance-2 difference still matches in the raw comparator', () {
+        expect(
+          scoring.checkAnswer(
+            detected: 'Addis Abena',
+            correct: 'Addis Ababa',
+            type: QuestionType.shortAnswer,
+          ),
+          isTrue,
+        );
+      });
+
+      test('beyond-tolerance difference does not match', () {
+        expect(
+          scoring.checkAnswer(
+            detected: 'Nairobi',
+            correct: 'Addis Ababa',
+            type: QuestionType.shortAnswer,
+          ),
+          isFalse,
+          reason: 'Clearly different answers stay INCORRECT — no review',
+        );
+      });
+
+      test('normalization precedes matching', () {
+        expect(
+          scoring.checkAnswer(
+            detected: '  ADDIS   ababa ',
+            correct: 'Addis Ababa',
+            type: QuestionType.shortAnswer,
+          ),
+          isTrue,
+        );
+      });
+    },
+  );
+
+  // ══════════════════════════════════════════════════════════════════
+  // Phase 1.1 Option B: isFuzzyOnlyMatch classification
+  // ══════════════════════════════════════════════════════════════════
+
+  group('ScoringService.isFuzzyOnlyMatch (Option B classifier)', () {
+    test('exact normalized match is NOT fuzzy-only → CORRECT path', () {
+      expect(
+        ScoringService.isFuzzyOnlyMatch('photosynthesis', 'Photosynthesis'),
+        isFalse,
+      );
+    });
+
+    test('normalization (case/spacing) still yields exact → CORRECT path', () {
+      expect(
+        ScoringService.isFuzzyOnlyMatch('  ADDIS   ababa ', 'Addis Ababa'),
+        isFalse,
+      );
+    });
+
+    test('clearly different answer is NOT fuzzy-only → INCORRECT path', () {
+      expect(
+        ScoringService.isFuzzyOnlyMatch('Nairobi', 'Addis Ababa'),
+        isFalse,
+      );
+    });
+
+    test('distance-1 recognition error IS fuzzy-only → NEEDS REVIEW', () {
+      expect(
+        ScoringService.isFuzzyOnlyMatch('Photosynthesls', 'Photosynthesis'),
+        isTrue,
+      );
+    });
+
+    test('distance-2 difference IS fuzzy-only → NEEDS REVIEW', () {
+      expect(
+        ScoringService.isFuzzyOnlyMatch('Addis Abena', 'Addis Ababa'),
+        isTrue,
+      );
+    });
+
+    test('empty input never classifies as fuzzy-only', () {
+      expect(ScoringService.isFuzzyOnlyMatch('', 'Addis Ababa'), isFalse);
+      expect(ScoringService.isFuzzyOnlyMatch('Nile River', ''), isFalse);
     });
   });
 }
