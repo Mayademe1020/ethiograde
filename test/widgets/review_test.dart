@@ -181,7 +181,8 @@ void main() {
 
       expect(find.text('Review queue'), findsOneWidget);
       expect(find.text('Check unclear answers'), findsWidgets);
-      expect(find.text('Match paper names'), findsOneWidget);
+      // Rendered twice: as the prominent queue card and as a compact tile.
+      expect(find.text('Match paper names'), findsWidgets);
       expect(find.text('Final save'), findsOneWidget);
       expect(find.text('Save draft'), findsOneWidget);
     });

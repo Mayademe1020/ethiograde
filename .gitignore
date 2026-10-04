@@ -107,7 +107,10 @@ fulltest.txt
 logcat_fresh.txt
 run*.pid
 walk*.pid
-/test_hive/
+/node_modules/
+.experimental/
+web_run.err
+test_hive/
 
 # AI director / agent workspaces
 ai-director-os-v2/

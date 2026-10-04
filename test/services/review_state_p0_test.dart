@@ -38,7 +38,7 @@ void main() {
 
   group('P0.2 — Review state semantics', () {
     test('low confidence → needs review', () {
-      final result = makeResult(confidence: 0.5);
+      final result = makeResult(confidence: 0.45);
       expect(result.needsReview, true);
     });
 
@@ -58,7 +58,7 @@ void main() {
             isCorrect: true,
             score: 1,
             maxScore: 1,
-            confidence: 0.4, // Low confidence
+            confidence: 0.35, // Low confidence (ScanResult needsReview requires < 0.4)
           ),
         ],
       );
@@ -92,7 +92,7 @@ void main() {
 
     test('teacher reviewed → no review needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         status: ScanStatus.reviewed,
       );
       expect(result.needsReview, false);
@@ -100,7 +100,7 @@ void main() {
 
     test('teacherReviewed metadata → no review needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'teacherReviewed': true},
       );
       expect(result.needsReview, false);
@@ -108,7 +108,7 @@ void main() {
 
     test('batchReviewResolution metadata → no review needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'batchReviewResolution': 'assigned_student'},
       );
       expect(result.needsReview, false);
@@ -116,7 +116,7 @@ void main() {
 
     test('duplicateReviewed metadata → no review needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'duplicateReviewed': true},
       );
       expect(result.needsReview, false);
@@ -124,7 +124,7 @@ void main() {
 
     test('studentMatchResolved metadata → no review needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'studentMatchResolved': true},
       );
       expect(result.needsReview, false);
@@ -133,7 +133,7 @@ void main() {
     test('resolved issues do not block finalization', () {
       final results = [
         makeResult(
-          confidence: 0.5,
+          confidence: 0.45,
           status: ScanStatus.reviewed,
         ),
         makeResult(
@@ -149,7 +149,7 @@ void main() {
     test('unresolved issues remain visible after restart', () {
       // Metadata persists in Hive, so needsReview is computed from persisted state
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {}, // No resolution flags
       );
       expect(result.needsReview, true);
@@ -157,7 +157,7 @@ void main() {
 
     test('resolution persists explicitly', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'teacherReviewed': true},
       );
       expect(result.needsReview, false);
@@ -166,7 +166,7 @@ void main() {
 
   group('requiresTeacherAction — unified resolver', () {
     test('low confidence → requires teacher action', () {
-      final result = makeResult(confidence: 0.5);
+      final result = makeResult(confidence: 0.45);
       expect(result.requiresTeacherAction, true);
     });
 
@@ -200,7 +200,7 @@ void main() {
 
     test('teacher reviewed → no action needed even with low confidence', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         status: ScanStatus.reviewed,
       );
       expect(result.requiresTeacherAction, false);
@@ -208,7 +208,7 @@ void main() {
 
     test('batchReviewResolution set → no action needed', () {
       final result = makeResult(
-        confidence: 0.5,
+        confidence: 0.45,
         metadata: {'batchReviewResolution': 'assigned_student'},
       );
       expect(result.requiresTeacherAction, false);
@@ -229,7 +229,7 @@ void main() {
       expect(makeResult(metadata: {'batchReviewResolution': 'x'}).isResolved, true);
       expect(makeResult(metadata: {'duplicateReviewed': true}).isResolved, true);
       expect(makeResult(metadata: {'studentMatchResolved': true}).isResolved, true);
-      expect(makeResult(confidence: 0.5).isResolved, false);
+      expect(makeResult(confidence: 0.45).isResolved, false);
     });
   });
 }

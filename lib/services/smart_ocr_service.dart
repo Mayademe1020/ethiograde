@@ -66,6 +66,90 @@ class SmartOcrService {
     if (_apiKey != null) 'X-Api-Key': _apiKey!,
   };
 
+  /// Normalised result of a proxy call.
+  ///
+  /// The proxy is a Google Apps Script web app, which cannot set HTTP status
+  /// codes — every reply arrives as 200. Success is therefore carried in the
+  /// `{ok, result, error}` envelope, not the status line.
+  ProxyResponse? _lastError;
+
+  /// True when the last failure was an auth rejection — the UI uses this to
+  /// tell the teacher their API key is wrong rather than showing a timeout.
+  bool get hadAuthFailure => _lastError?.code == 401 || _lastError?.code == 403;
+
+  String? get lastErrorMessage => _lastError?.error;
+
+  Uri _endpoint(String action) {
+    final base = _serverUrl!.replaceFirst(RegExp(r'/+$'), '');
+    return Uri.parse('$base?action=$action');
+  }
+
+  /// POST to the proxy and unwrap the `{ok, result}` envelope.
+  ///
+  /// The shared secret travels in the body because Apps Script web apps
+  /// cannot read inbound HTTP headers. The `X-Api-Key` header is still sent so
+  /// header-aware backends keep working.
+  Future<Map<String, dynamic>?> _postProxy(
+    String action,
+    Map<String, dynamic> data,
+  ) async {
+    if (_serverUrl == null || _serverUrl!.isEmpty) return null;
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      _lastError = const ProxyResponse('App API key not set', 401);
+      return null;
+    }
+
+    try {
+      final response = await http
+          .post(
+            _endpoint(action),
+            headers: _authHeaders,
+            body: jsonEncode({
+              'action': action,
+              'apiKey': _apiKey,
+              'data': data,
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
+
+      if (response.statusCode != 200) {
+        _lastError =
+            ProxyResponse('Server error ${response.statusCode}', response.statusCode);
+        debugPrint('SmartOCR: $action HTTP ${response.statusCode}');
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) {
+        _lastError = const ProxyResponse('Malformed server response', 502);
+        return null;
+      }
+
+      if (decoded['ok'] != true) {
+        _lastError = ProxyResponse(
+          (decoded['error'] ?? 'Unknown server error').toString(),
+          _asInt(decoded['code']) ?? 500,
+        );
+        debugPrint('SmartOCR: $action failed — ${_lastError!.error}');
+        return null;
+      }
+
+      _lastError = null;
+      final result = decoded['result'];
+      return result is Map ? result.cast<String, dynamic>() : <String, dynamic>{};
+    } catch (e) {
+      _lastError = ProxyResponse(e.toString(), 0);
+      debugPrint('SmartOCR: $action error ($e)');
+      return null;
+    }
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
   /// Set preferred model (gemini, gemini-flash-lite, openai).
   /// Falls back to other models if preferred is unavailable.
   void setPreferredModel(String model) {
@@ -76,29 +160,30 @@ class SmartOcrService {
   /// Get current preferred model.
   String get preferredModel => _preferredModel;
 
-  /// Get available models from server config.
+  /// Get available models from the proxy.
   Future<List<ModelInfo>> getAvailableModels() async {
-    if (_serverUrl == null) return [];
-
-    try {
-      final response = await http.get(
-        Uri.parse('$_serverUrl/getModels'),
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final models = data['result']['models'] as List? ?? [];
-        return models.map((m) => ModelInfo.fromJson(m)).toList();
-      }
-    } catch (e) {
-      debugPrint('SmartOCR: Failed to get models ($e)');
-    }
-
-    return [
-      const ModelInfo(name: 'gemini', displayName: 'Gemini 2.0 Flash', isAvailable: true),
-      const ModelInfo(name: 'gemini-flash-lite', displayName: 'Gemini 2.0 Flash Lite', isAvailable: true),
-    ];
+    final result = await _postProxy('getModels', const {});
+    final raw = result?['models'];
+    if (raw is! List) return _fallbackModels;
+    return raw
+        .whereType<Map>()
+        .map((m) => ModelInfo.fromJson(m.cast<String, dynamic>()))
+        .toList();
   }
+
+  static const List<ModelInfo> _fallbackModels = [
+    ModelInfo(name: 'gemini', displayName: 'Gemini 2.0 Flash', isAvailable: true),
+    ModelInfo(
+      name: 'gemini-flash-lite',
+      displayName: 'Gemini 2.0 Flash Lite',
+      isAvailable: true,
+    ),
+    ModelInfo(
+      name: 'gemini-2.5-flash',
+      displayName: 'Gemini 2.5 Flash',
+      isAvailable: true,
+    ),
+  ];
 
   /// Main OCR entry point.
   ///
@@ -132,10 +217,12 @@ class SmartOcrService {
     );
   }
 
-  /// Grade an exam paper — sends image + answer key to server.
+  /// Grade an exam paper — sends the image plus the answer key to the proxy.
   ///
-  /// This is the primary entry point for exam grading.
-  /// Returns graded results directly from Gemini via server proxy.
+  /// This is the primary entry point for cloud grading. Gemini reads the
+  /// handwriting and grades it against the key in a single pass, which is far
+  /// more accurate than on-device OCR. Returns null on any failure so the
+  /// caller can fall back to the local ML Kit pipeline.
   Future<GradingResult?> gradeExam({
     required String imagePath,
     required Map<String, dynamic> answerKey,
@@ -144,82 +231,47 @@ class SmartOcrService {
     String? preferredModel,
   }) async {
     if (!_cloudEnabled || _serverUrl == null) {
-      debugPrint('SmartOCR: Cloud not enabled, cannot grade');
-      return null;
-    }
-
-    if (_apiKey == null) {
-      debugPrint('SmartOCR: No API key configured');
+      debugPrint('SmartOCR: cloud disabled, cannot grade');
       return null;
     }
 
     try {
-      final file = File(imagePath);
-      final bytes = await file.readAsBytes();
-      final base64Image = base64Encode(bytes);
+      final bytes = await File(imagePath).readAsBytes();
+      final result = await _postProxy('gradeExam', {
+        'imageBase64': base64Encode(bytes),
+        'answerKey': answerKey,
+        'assessmentTitle': assessmentTitle,
+        'mimeType': mimeType ?? _guessMimeType(imagePath),
+        'preferredModel': preferredModel ?? _preferredModel,
+      });
 
-      final response = await http.post(
-        Uri.parse('$_serverUrl/gradeExam'),
-        headers: _authHeaders,
-        body: jsonEncode({
-          'data': {
-            'imageBase64': base64Image,
-            'answerKey': answerKey,
-            'assessmentTitle': assessmentTitle,
-            'mimeType': mimeType ?? 'image/jpeg',
-            'preferredModel': preferredModel ?? _preferredModel,
-          },
-        }),
-      ).timeout(const Duration(seconds: 120));
+      if (result == null) return null;
 
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        debugPrint('SmartOCR: Auth failed — check API key');
-        return null;
-      }
-
-      if (response.statusCode != 200) {
-        debugPrint('SmartOCR: Server error ${response.statusCode}: ${response.body}');
-        return null;
-      }
-
-      final json = jsonDecode(response.body);
-      final result = json['result'];
-
-      if (result == null) {
-        debugPrint('SmartOCR: Server returned null result');
-        return null;
-      }
-
-      debugPrint('SmartOCR: Graded with ${result['provider']} — Score: ${result['overallScore']}/${result['maxScore']}');
+      final conf = (result['confidence'] as num?)?.toDouble() ?? 0;
+      debugPrint(
+        'SmartOCR: graded by ${result['provider']} — '
+        '${result['overallScore']}/${result['maxScore']} '
+        '(${conf.toStringAsFixed(2)} conf)',
+      );
       return GradingResult.fromJson(result);
     } catch (e) {
-      debugPrint('SmartOCR: Grading error ($e)');
+      debugPrint('SmartOCR: gradeExam error ($e)');
       return null;
     }
   }
 
-  /// Fetch cost summary from server.
+  static String _guessMimeType(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
+  }
+
+  /// Fetch cost summary from the proxy.
   Future<CostSummary?> getCosts() async {
-    if (_serverUrl == null || _apiKey == null) return null;
-
-    try {
-      final response = await http.post(
-        Uri.parse('$_serverUrl/getCosts'),
-        headers: _authHeaders,
-        body: jsonEncode({'data': {}}),
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) return null;
-
-      final json = jsonDecode(response.body);
-      final result = json['result'];
-      if (result == null) return null;
-
-      return CostSummary.fromJson(result);
-    } catch (e) {
-      debugPrint('SmartOCR: getCosts error ($e)');
-      return null;
-    }
+    final result = await _postProxy('getCosts', const {});
+    if (result == null) return null;
+    return CostSummary.fromJson(result);
   }
 
   /// Run ML Kit text recognition.
@@ -301,9 +353,14 @@ class SmartOcrService {
     if (result.blocks.length > 2) {
       final heights = result.blocks.map((b) => b.height).toList();
       final avgHeight = heights.reduce((a, b) => a + b) / heights.length;
-      final variance = heights.map((h) => (h - avgHeight) * (h - avgHeight)).reduce((a, b) => a + b) / heights.length;
-      final cv = math.sqrt(variance) / avgHeight;
-      if (cv > 0.3) score += 1;
+      if (avgHeight > 0) {
+        final variance = heights
+                .map((h) => (h - avgHeight) * (h - avgHeight))
+                .reduce((a, b) => a + b) /
+            heights.length;
+        final cv = math.sqrt(variance) / avgHeight;
+        if (cv > 0.3) score += 1;
+      }
     }
 
     // Signal 4: Mixed case patterns
@@ -313,50 +370,39 @@ class SmartOcrService {
     return score >= 3;
   }
 
-  /// Call server proxy for cloud OCR/grading.
+  /// Ask the cloud to transcribe a paper without grading it.
+  ///
+  /// Used by [recognizeText] when ML Kit output looks like handwriting and no
+  /// answer key is available at that call site. The reply is reshaped into one
+  /// [OcrTextBlock] per question — each block already carries its own
+  /// `"<n>. <answer>"` label and a synthetic vertical position, so
+  /// `AnswerParser.parseAnswersWithPosition` can consume it directly. The
+  /// previous implementation collapsed every answer into one flat block,
+  /// which destroyed the per-question structure the parser depends on.
   Future<SmartOcrResult?> _callServerProxy(String imagePath) async {
-    if (_serverUrl == null || _apiKey == null) return null;
+    if (_serverUrl == null || _serverUrl!.isEmpty) return null;
+    if (_apiKey == null || _apiKey!.isEmpty) return null;
 
     try {
-      final file = File(imagePath);
-      final bytes = await file.readAsBytes();
-      final base64Image = base64Encode(bytes);
+      final bytes = await File(imagePath).readAsBytes();
+      final result = await _postProxy('gradeExam', {
+        'imageBase64': base64Encode(bytes),
+        'answerKey': const <String, dynamic>{},
+        'ocrOnly': true,
+        'mimeType': _guessMimeType(imagePath),
+        'preferredModel': _preferredModel,
+      });
 
-      final response = await http.post(
-        Uri.parse('$_serverUrl/gradeExam'),
-        headers: _authHeaders,
-        body: jsonEncode({
-          'data': {
-            'imageBase64': base64Image,
-            'answerKey': {}, // OCR only, no grading
-            'mimeType': 'image/jpeg',
-          },
-        }),
-      ).timeout(const Duration(seconds: 60));
-
-      if (response.statusCode != 200) return null;
-
-      final json = jsonDecode(response.body);
-      final result = json['result'];
       if (result == null) return null;
 
-      // Convert grading result to OCR result
-      final results = result['results'] as List? ?? [];
-      final text = results.map((r) => r['detectedAnswer'] ?? '').join('\n');
-      final confidence = (result['confidence'] as num?)?.toDouble() ?? 0.5;
+      final raw = result['results'];
+      final rows = raw is List
+          ? raw.whereType<Map>().map((m) => m.cast<String, dynamic>()).toList()
+          : const <Map<String, dynamic>>[];
 
-      return SmartOcrResult(
-        text: text,
-        blocks: [OcrTextBlock(
-          text: text,
-          confidence: confidence,
-          x: 0, y: 0, width: 0, height: 0,
-        )],
-        confidence: confidence,
-        source: OcrSource.cloud,
-      );
+      return buildCloudOcrResult(rows);
     } catch (e) {
-      debugPrint('SmartOCR: Server proxy error ($e)');
+      debugPrint('SmartOCR: cloud transcribe error ($e)');
       return null;
     }
   }
@@ -367,6 +413,84 @@ class SmartOcrService {
       _isInitialized = false;
     }
   }
+}
+
+/// A failed proxy call, carrying the HTTP-equivalent status the envelope
+/// reported so callers can distinguish auth problems from transport problems.
+class ProxyResponse {
+  final String error;
+  final int code;
+
+  const ProxyResponse(this.error, this.code);
+
+  bool get isAuthFailure => code == 401 || code == 403;
+
+  bool get isRateLimit => code == 429;
+}
+
+/// Vertical spacing used when laying cloud answers out as synthetic blocks.
+/// Matches a typical 30px line height so the column reads top-to-bottom.
+const double kCloudBlockLineHeight = 30.0;
+
+/// Reshape a cloud OCR reply into a [SmartOcrResult] the local pipeline can
+/// consume.
+///
+/// Every row becomes its own block labelled `"<n>. <answer>"` at a synthetic
+/// y-position derived from the question number. That self-labelling matters:
+/// [AnswerParser.parseAnswersWithPosition] can then match each block on its
+/// own line without needing spatial association, so a paper with gaps or
+/// out-of-order questions still parses correctly.
+///
+/// Returns null when nothing usable came back, which tells the caller to keep
+/// the local ML Kit reading instead.
+SmartOcrResult? buildCloudOcrResult(List<Map<String, dynamic>> rows) {
+  if (rows.isEmpty) return null;
+
+  final blocks = <OcrTextBlock>[];
+  final seen = <int>{};
+
+  for (final row in rows) {
+    final number = _asIntOrNull(row['questionNumber']);
+    if (number == null || number <= 0 || seen.contains(number)) continue;
+
+    final answer = (row['detectedAnswer'] ?? '').toString().trim();
+    if (answer.isEmpty) continue;
+
+    seen.add(number);
+    blocks.add(OcrTextBlock(
+      text: '$number. $answer',
+      confidence:
+          (row['confidence'] as num?)?.toDouble().clamp(0.0, 1.0) ?? 0.5,
+      x: 0,
+      y: number * kCloudBlockLineHeight,
+      width: 400,
+      height: kCloudBlockLineHeight,
+    ));
+  }
+
+  if (blocks.isEmpty) return null;
+
+  blocks.sort((a, b) => a.y.compareTo(b.y));
+
+  final total = blocks.fold<double>(0, (sum, b) => sum + b.confidence);
+  final avgConfidence = total / blocks.length;
+
+  return SmartOcrResult(
+    text: blocks.map((b) => b.text).join('\n'),
+    blocks: blocks,
+    confidence: avgConfidence,
+    source: OcrSource.cloud,
+    isHandwriting: true,
+    // Anything the model was unsure about goes to teacher review rather than
+    // being silently accepted as a reading.
+    needsReview: blocks.any((b) => b.confidence < 0.5),
+  );
+}
+
+int? _asIntOrNull(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '');
 }
 
 /// Source of OCR result.
@@ -450,11 +574,11 @@ class ModelInfo {
 
   factory ModelInfo.fromJson(Map<String, dynamic> json) {
     return ModelInfo(
-      name: json['name'] ?? '',
-      displayName: json['displayName'] ?? '',
-      isAvailable: json['isAvailable'] ?? false,
-      costPer1k: (json['costPer1k'] as num?)?.toDouble(),
-      latencyMs: json['latencyMs'],
+      name: (json['name'] ?? '').toString(),
+      displayName: (json['displayName'] ?? '').toString(),
+      isAvailable: json['isAvailable'] == true,
+      costPer1k: json['costPer1k'] == null ? null : _asDouble(json['costPer1k']),
+      latencyMs: _asIntOrNull(json['latencyMs']),
     );
   }
 }
@@ -478,15 +602,19 @@ class GradingResult {
   });
 
   factory GradingResult.fromJson(Map<String, dynamic> json) {
+    final raw = json['results'];
     return GradingResult(
-      results: (json['results'] as List? ?? [])
-          .map((r) => QuestionResult.fromJson(r))
-          .toList(),
-      overallScore: (json['overallScore'] as num?)?.toDouble() ?? 0,
-      maxScore: (json['maxScore'] as num?)?.toDouble() ?? 0,
-      confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
-      studentName: json['studentName'],
-      notes: json['notes'],
+      results: raw is List
+          ? raw
+              .whereType<Map>()
+              .map((r) => QuestionResult.fromJson(r.cast<String, dynamic>()))
+              .toList()
+          : const <QuestionResult>[],
+      overallScore: _asDouble(json['overallScore']),
+      maxScore: _asDouble(json['maxScore']),
+      confidence: _asDouble(json['confidence']),
+      studentName: json['studentName']?.toString(),
+      notes: json['notes']?.toString(),
     );
   }
 
@@ -517,16 +645,24 @@ class QuestionResult {
 
   factory QuestionResult.fromJson(Map<String, dynamic> json) {
     return QuestionResult(
-      questionNumber: json['questionNumber'] ?? 0,
-      detectedAnswer: json['detectedAnswer'] ?? '',
-      correctAnswer: json['correctAnswer'] ?? '',
-      isCorrect: json['isCorrect'] ?? false,
-      score: (json['score'] as num?)?.toDouble() ?? 0,
-      maxScore: (json['maxScore'] as num?)?.toDouble() ?? 0,
-      confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
-      notes: json['notes'],
+      // Gemini sometimes emits question numbers as strings ("4"), and score
+      // fields as numeric strings, so coerce rather than trusting the type.
+      questionNumber: _asIntOrNull(json['questionNumber']) ?? 0,
+      detectedAnswer: (json['detectedAnswer'] ?? '').toString(),
+      correctAnswer: (json['correctAnswer'] ?? '').toString(),
+      isCorrect: json['isCorrect'] == true,
+      score: _asDouble(json['score']),
+      maxScore: _asDouble(json['maxScore']),
+      confidence: _asDouble(json['confidence']),
+      notes: json['notes']?.toString(),
     );
   }
+}
+
+double _asDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0;
+  return 0;
 }
 
 /// Cost summary from server.
@@ -547,16 +683,23 @@ class CostSummary {
 
   factory CostSummary.fromJson(Map<String, dynamic> json) {
     final byProvider = <String, CostByProvider>{};
-    final raw = json['byProvider'] as Map? ?? {};
-    for (final entry in raw.entries) {
-      byProvider[entry.key] = CostByProvider.fromJson(entry.value);
+    final raw = json['byProvider'];
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        if (entry.value is Map) {
+          byProvider[entry.key.toString()] =
+              CostByProvider.fromJson((entry.value as Map).cast<String, dynamic>());
+        }
+      }
     }
 
     return CostSummary(
-      totalRequests: json['totalRequests'] ?? 0,
-      totalCost: (json['totalCost'] as num?)?.toDouble() ?? 0,
-      monthlyBudget: (json['monthlyBudget'] as num?)?.toDouble() ?? 10.0,
-      period: json['period'] ?? 'all-time',
+      totalRequests: _asIntOrNull(json['totalRequests']) ?? 0,
+      totalCost: _asDouble(json['totalCost']),
+      monthlyBudget: _asDouble(json['monthlyBudget']) == 0
+          ? 10.0
+          : _asDouble(json['monthlyBudget']),
+      period: (json['period'] ?? 'all-time').toString(),
       byProvider: byProvider,
     );
   }
@@ -576,8 +719,8 @@ class CostByProvider {
 
   factory CostByProvider.fromJson(Map<String, dynamic> json) {
     return CostByProvider(
-      requests: json['requests'] ?? 0,
-      cost: (json['cost'] as num?)?.toDouble() ?? 0,
+      requests: _asIntOrNull(json['requests']) ?? 0,
+      cost: _asDouble(json['cost']),
     );
   }
 }

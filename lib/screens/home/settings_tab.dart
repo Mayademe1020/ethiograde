@@ -1585,12 +1585,15 @@ class SettingsTab extends StatelessWidget {
     switch (model) {
       case 'gemini':
         return 'Gemini 2.0 Flash';
+      case 'gemini-2.5-flash':
+        return 'Gemini 2.5 Flash';
       case 'gemini-flash-lite':
         return 'Gemini 2.0 Flash Lite';
       case 'openai':
-        return 'GPT-4o';
       case 'openai-mini':
-        return 'GPT-4o-mini';
+        // Legacy ids kept so existing installs keep resolving. The proxy maps
+        // them onto Gemini models.
+        return 'Gemini (legacy setting)';
       default:
         return model;
     }
@@ -1599,13 +1602,14 @@ class SettingsTab extends StatelessWidget {
   String _getModelInfo(String model) {
     switch (model) {
       case 'gemini':
-        return 'Best accuracy (98%) · ~\$0.15/1000 scans · ~3s latency';
+        return 'Best accuracy · ~\$0.15/1000 scans · ~3s latency';
+      case 'gemini-2.5-flash':
+        return 'Newest Gemini · strongest handwriting reading · ~3s latency';
       case 'gemini-flash-lite':
-        return 'Good accuracy (95%) · ~\$0.05/1000 scans · ~2s latency';
+        return 'Cheapest · ~\$0.05/1000 scans · ~2s latency';
       case 'openai':
-        return 'High accuracy (98%) · ~\$1.25/1000 scans · ~4s latency';
       case 'openai-mini':
-        return 'Good accuracy (95%) · ~\$0.05/1000 scans · ~2s latency';
+        return 'Mapped to a Gemini model by the proxy';
       default:
         return '';
     }
@@ -1617,9 +1621,8 @@ class SettingsTab extends StatelessWidget {
   ) async {
     final models = [
       ('gemini', 'Gemini 2.0 Flash', 'Best accuracy, recommended'),
-      ('gemini-flash-lite', 'Gemini 2.0 Flash Lite', 'Cheaper, slightly lower accuracy'),
-      ('openai', 'GPT-4o', 'High accuracy, more expensive'),
-      ('openai-mini', 'GPT-4o-mini', 'Cheap alternative'),
+      ('gemini-2.5-flash', 'Gemini 2.5 Flash', 'Newest, strongest handwriting'),
+      ('gemini-flash-lite', 'Gemini 2.0 Flash Lite', 'Cheapest, slightly less accurate'),
     ];
 
     final result = await showModalBottomSheet<String>(

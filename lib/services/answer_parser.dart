@@ -179,7 +179,7 @@ class AnswerParser {
     // ── Amharic True/False words ──
     // Common Amharic words for True/False
     if (stripped == 'እውነት' || stripped == 'ት' || stripped == 'ትerule' || stripped == 'webenut') return 'True';
-    if (stripped == 'ሐሰት' || stripped == 'ሐ' || stripped == 'hset') return 'False';
+    if (stripped == 'ሐሰት' || stripped == 'hset') return 'False';
 
     // ── Amharic MCQ letters (ሀ=A, ለ=B, ሐ=C, መ=D, ሠ=E) ──
     // Extended mapping with common OCR misreads

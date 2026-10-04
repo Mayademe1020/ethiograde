@@ -61,7 +61,7 @@ void main() {
       expect(result.missingAnswers, 1);
     });
 
-    test('lowConfidenceAnswers counts answers below 0.6', () {
+    test('lowConfidenceAnswers counts answers below 0.4', () {
       const result = CoordinateMapOmrResult(
         answers: [
           CoordinateMapAnswer(
@@ -77,7 +77,7 @@ void main() {
             questionNumber: 2,
             detectedAnswer: 'B',
             correctAnswer: 'B',
-            confidence: 0.4,
+            confidence: 0.35,
             fillRatio: 0.3,
             fillRatios: {},
             isCorrect: true,
@@ -86,7 +86,7 @@ void main() {
             questionNumber: 3,
             detectedAnswer: 'C',
             correctAnswer: 'D',
-            confidence: 0.5,
+            confidence: 0.2,
             fillRatio: 0.35,
             fillRatios: {},
             isCorrect: false,
@@ -96,7 +96,8 @@ void main() {
         correctAnswers: 2,
         averageConfidence: 0.6,
         anchorsDetected: 4);
-      // Q2 (0.4) and Q3 (0.5) are below 0.6
+      // Threshold lowered from 0.6 to 0.4 for pencil marks; only Q2 and Q3
+      // fall under it, and Q1 is excluded.
       expect(result.lowConfidenceAnswers, 2);
     });
   });

@@ -99,7 +99,7 @@ void main() {
     test('unresolved review issues are blocking', () {
       final assessment = makeAssessment();
       final results = [
-        makeResult(confidence: 0.5), // Low confidence → needs review
+        makeResult(confidence: 0.45), // Low confidence (< 0.5) → needs review
       ];
 
       const gate = AssessmentCompletionGate();

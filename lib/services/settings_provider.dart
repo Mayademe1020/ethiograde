@@ -30,12 +30,15 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
   String _whatsappNumber = '';
   bool _loaded = false;
 
-  // Cloud OCR settings
+  // Cloud OCR settings.
+  //
+  // The endpoint is deliberately empty: cloud grading only works once a
+  // teacher pastes their own proxy URL (see appsscript/SETUP_APPS_SCRIPT.md).
+  // An empty default keeps grading fully offline until they opt in.
   bool _cloudOcrEnabled = false;
-  String _cloudOcrEndpoint =
-      'https://models.github.ai/inference/chat/completions';
+  String _cloudOcrEndpoint = '';
   String _cloudOcrApiKey = '';
-  String _cloudOcrModel = 'gpt-4o';
+  String _cloudOcrModel = 'gemini';
 
   // Custom grading scales
   List<GradingScale> _customScales = [];
@@ -104,11 +107,9 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
 
       // Cloud OCR settings (encrypted — API key is sensitive)
       _cloudOcrEnabled = piiBox.get('cloud_ocr_enabled') == true;
-      _cloudOcrEndpoint =
-          (piiBox.get('cloud_ocr_endpoint') as String?) ??
-          'https://models.github.ai/inference/chat/completions';
+      _cloudOcrEndpoint = (piiBox.get('cloud_ocr_endpoint') as String?) ?? '';
       _cloudOcrApiKey = (piiBox.get('cloud_ocr_api_key') as String?) ?? '';
-      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'gpt-4o';
+      _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'gemini';
 
       // Custom grading scales
       final scalesJson = prefs.getString('custom_grading_scales');

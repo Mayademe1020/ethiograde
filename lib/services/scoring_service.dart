@@ -290,6 +290,13 @@ class ScoringService {
     if (d.isEmpty || c.isEmpty) return false;
 
     // ── Word-level check ──
+    //
+    // The escape hatch exists for answers that are genuinely right but merely
+    // gained or lost a word ("Addis Ababa Ethiopia" vs "Addis Ababa"). It must
+    // require EVERY word of the shorter answer to be present. An earlier
+    // version compared against the longer count with a 50% threshold, so
+    // "Addis Abena" vs "Addis Ababa" escaped on the strength of "addis" alone
+    // and a real two-character typo was auto-marked CORRECT.
     final dWords = d.split(RegExp(r'\s+'));
     final cWords = c.split(RegExp(r'\s+'));
     if (dWords.length > 1 && cWords.length > 1) {
@@ -302,9 +309,9 @@ class ScoringService {
           }
         }
       }
-      final maxWords = dWords.length > cWords.length ? dWords.length : cWords.length;
-      // If word-level match, it's NOT fuzzy-only — it's a real match
-      if (matchCount >= (maxWords * 0.5).ceil()) return false;
+      final shorterWords =
+          dWords.length < cWords.length ? dWords.length : cWords.length;
+      if (matchCount >= shorterWords) return false;
     }
 
     // ── Semantic check ──
@@ -514,8 +521,14 @@ class ScoringService {
       }
     }
 
-    final maxWords = aWords.length > bWords.length ? aWords.length : bWords.length;
-    return matchCount >= (maxWords * 0.5).ceil();
+    // Require EVERY word of the shorter answer to be covered. Using the longer
+    // count with a 50% threshold let a single shared word certify the whole
+    // answer: "Addis Abena" vs "Addis Ababa" counted "addis" (identical, so a
+    // synonym of itself) as half a match and was treated as equivalent, hiding
+    // a real two-character typo.
+    final shorterWords =
+        aWords.length < bWords.length ? aWords.length : bWords.length;
+    return matchCount >= shorterWords;
   }
 
   // ── Light Stemming for Verb Forms ──

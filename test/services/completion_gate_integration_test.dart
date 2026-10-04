@@ -121,7 +121,7 @@ void main() {
 
     test('unresolved review issues are blocking', () {
       final assessment = makeAssessment();
-      final results = [makeResult(confidence: 0.5)];
+      final results = [makeResult(confidence: 0.45)];
 
       const gate = AssessmentCompletionGate();
       final check = gate.check(assessment: assessment, results: results);

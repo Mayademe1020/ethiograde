@@ -29,8 +29,13 @@ void main() {
         }
       }
     }
+    // Each image needs its own file. A shared fixed name (test_image_.jpg) lets
+    // concurrently running test files overwrite each other's image, which made
+    // the enhanceImage size/dimension assertions fail intermittently in full
+    // suite runs while passing in isolation.
     final tempDir = Directory.systemTemp;
-    final file = File('${tempDir.path}/test_image_$suffix');
+    final unique = '${width}x${height}_${DateTime.now().microsecondsSinceEpoch}';
+    final file = File('${tempDir.path}/test_image_$unique$suffix');
     final encoded = suffix == '.png'
         ? img.encodePng(image)
         : img.encodeJpg(image, quality: 92);
@@ -129,8 +134,10 @@ void main() {
 
     test('enhanced image is smaller than original for large images', () async {
       final ocr = OcrService();
-      // Create a 2000x1500 image (larger than _maxImageDimension=2000)
-      final inputPath = await createTestImage(width: 2000, height: 1500);
+      // Must exceed OcrService._maxImageDimension (2000) for the downscale
+      // step to run. A 2000px image is equal to the limit, so nothing is
+      // rescaled and the re-encoded file can come out larger.
+      final inputPath = await createTestImage(width: 2100, height: 1400);
 
       try {
         final originalSize = await File(inputPath).length();
@@ -142,7 +149,12 @@ void main() {
       } finally {
         await cleanupFile(inputPath);
       }
-    });
+    },
+        // The enhancement pipeline is pure-Dart morphological work and runs
+        // 5-20s on its own. OcrService.enhanceImage swallows isolate failures
+        // and returns the input path, so a run starved by full-suite
+        // parallelism surfaces as a bogus size assertion, not a timeout.
+        timeout: const Timeout(Duration(minutes: 3)));
 
     test('does not upscale small images', () async {
       final ocr = OcrService();
@@ -178,7 +190,10 @@ void main() {
       } finally {
         await cleanupFile(inputPath);
       }
-    });
+    },
+        // See the note on the size test above: heavy, and enhanceImage masks
+        // isolate failures by returning its input path.
+        timeout: const Timeout(Duration(minutes: 3)));
 
     test('enhanced image is grayscale', () async {
       final ocr = OcrService();
@@ -1061,13 +1076,14 @@ void main() {
       expect(restored.metadata['textLinesDetected'], 5);
     });
 
-    test('needsReview is true when confidence < 0.7', () {
+    test('needsReview is true when confidence is below the overall threshold', () {
+      // ScanResult.needsReview uses < 0.5 (lowered from 0.7 for handwriting).
       final result = ScanResult(
         assessmentId: 'test',
         studentId: 's1',
         studentName: 'Test',
         imagePath: '/img.jpg',
-        confidence: 0.5,
+        confidence: 0.45,
         answers: [],
       );
 
@@ -1089,7 +1105,7 @@ void main() {
             isCorrect: true,
             score: 1,
             maxScore: 1,
-            confidence: 0.4, // low
+            confidence: 0.35, // low (needsReview requires < 0.4)
           ),
         ],
       );
