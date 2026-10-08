@@ -99,10 +99,22 @@ progress against it.
 4. Check the Execution log at the bottom:
 
 ```
-OK: pong
+Testing key against gemini-2.0-flash…
+PASS: Gemini replied "pong"
 ```
 
-If you see `FAILED: ...`, your `GEMINI_API_KEY` is wrong. Double-check it.
+`testGemini` reports through the log, not a return value — Apps Script discards
+returns when you run a function from the editor, so nothing would appear
+otherwise.
+
+If the log shows `FAIL: ...`, read the message:
+
+| Message | Cause |
+|---------|-------|
+| `GEMINI_API_KEY is not set` | Property never saved — redo Step 3 |
+| `HTTP 400` | Key malformed, or the Generative Language API is not enabled for that Google Cloud project. Enable it at https://aistudio.google.com/apikey |
+| `HTTP 403` | Key rejected — generate a fresh one |
+| `Timed out` | Transient; run again |
 
 ---
 

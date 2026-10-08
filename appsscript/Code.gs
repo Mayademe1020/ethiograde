@@ -783,10 +783,25 @@ function parseJson_(raw, fallback) {
   }
 }
 
-/** Manual smoke test: run `testGemini` from the editor to verify the key. */
+/**
+ * Manual smoke test: run `testGemini` from the editor to verify the key.
+ *
+ * Reports through console.log rather than returning a value — Apps Script
+ * discards return values when a function is run from the editor, so a
+ * `return` here produces an empty Execution log and tells you nothing.
+ */
 function testGemini() {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-  if (!key) return 'GEMINI_API_KEY is not set';
+  if (!key) {
+    console.log(
+      'FAIL: GEMINI_API_KEY is not set. Add it under ' +
+        'Project Settings > Script Properties.'
+    );
+    return;
+  }
+
+  console.log('Testing key against ' + MODELS[DEFAULT_MODEL].model + '…');
+
   try {
     const reply = callGemini_({
       apiKey: key,
@@ -795,8 +810,13 @@ function testGemini() {
       imageBase64: '',
       mimeType: 'image/jpeg',
     });
-    return 'OK: ' + readGeminiText_(reply);
+    const text = readGeminiText_(reply);
+    if (text) {
+      console.log('PASS: Gemini replied "' + text + '"');
+    } else {
+      console.log('FAIL: Gemini returned no text. Raw reply: ' + JSON.stringify(reply).slice(0, 300));
+    }
   } catch (err) {
-    return 'FAILED: ' + err.message;
+    console.log('FAIL: ' + err.message);
   }
 }
