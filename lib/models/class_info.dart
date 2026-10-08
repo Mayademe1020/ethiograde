@@ -31,6 +31,8 @@ class ClassInfo {
   final DateTime? lastModifiedAt;
   @HiveField(10)
   final String? examScheduleNote; // Free text: "Final exam June 15"
+  @HiveField(11)
+  final String academicYear; // e.g. "2026-2027"
 
   const ClassInfo._({
     required this.id,
@@ -44,6 +46,7 @@ class ClassInfo {
     required this.createdAt,
     this.lastModifiedAt,
     this.examScheduleNote,
+    this.academicYear = '',
   });
 
   factory ClassInfo({
@@ -58,6 +61,7 @@ class ClassInfo {
     DateTime? createdAt,
     DateTime? lastModifiedAt,
     String? examScheduleNote,
+    String academicYear = '',
   }) => ClassInfo._(
     id: id ?? const Uuid().v4(),
     name: name,
@@ -69,7 +73,9 @@ class ClassInfo {
     ownerId: ownerId,
     createdAt: createdAt ?? DateTime.now(),
     lastModifiedAt: lastModifiedAt,
-    examScheduleNote: examScheduleNote);
+    examScheduleNote: examScheduleNote,
+    academicYear: academicYear,
+  );
 
   int get studentCount => studentIds.length;
 
@@ -92,6 +98,7 @@ class ClassInfo {
     String? ownerId,
     DateTime? lastModifiedAt,
     String? examScheduleNote,
+    String? academicYear,
   }) => ClassInfo(
     id: id,
     name: name ?? this.name,
@@ -103,7 +110,9 @@ class ClassInfo {
     ownerId: ownerId ?? this.ownerId,
     createdAt: createdAt,
     lastModifiedAt: lastModifiedAt ?? DateTime.now(),
-    examScheduleNote: examScheduleNote ?? this.examScheduleNote);
+    examScheduleNote: examScheduleNote ?? this.examScheduleNote,
+    academicYear: academicYear ?? this.academicYear,
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -117,6 +126,7 @@ class ClassInfo {
     'createdAt': createdAt.toIso8601String(),
     'lastModifiedAt': lastModifiedAt?.toIso8601String(),
     'examScheduleNote': examScheduleNote,
+    'academicYear': academicYear,
   };
 
   factory ClassInfo.fromMap(Map<String, dynamic> map) => ClassInfo(
@@ -134,5 +144,7 @@ class ClassInfo {
     lastModifiedAt: map['lastModifiedAt'] != null
         ? DateTime.tryParse(map['lastModifiedAt'])
         : null,
-    examScheduleNote: map['examScheduleNote']);
+    examScheduleNote: map['examScheduleNote'],
+    academicYear: map['academicYear'] ?? '',
+  );
 }

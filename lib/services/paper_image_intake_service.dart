@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 
 enum PaperImageSource { camera, upload }
 
@@ -48,6 +49,9 @@ class PaperImageIntakeResult {
 }
 
 class PaperImageIntakeService {
+  static const String uploadStorageFolder = 'uploaded_papers';
+  static const String temporaryRetention = 'temporary';
+
   static const Set<String> supportedExtensions = {
     '.jpg',
     '.jpeg',
@@ -106,9 +110,72 @@ class PaperImageIntakeService {
     return items;
   }
 
+  Future<List<String>> copyReadyImagesForGrading({
+    required Iterable<PaperImageReviewItem> items,
+    Directory? targetDirectory,
+  }) async {
+    final readyItems = items.where((item) => item.isReady).toList();
+    if (readyItems.isEmpty) return [];
+
+    final directory = targetDirectory ?? await _defaultUploadDirectory();
+    if (!directory.existsSync()) {
+      await directory.create(recursive: true);
+    }
+
+    final copiedPaths = <String>[];
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    for (var i = 0; i < readyItems.length; i++) {
+      final source = File(readyItems[i].path);
+      if (!source.existsSync()) continue;
+
+      final extension = _extensionFor(source.path);
+      final targetPath =
+          '${directory.path}${Platform.pathSeparator}paper_${timestamp}_$i$extension';
+      final copied = await source.copy(targetPath);
+      copiedPaths.add(copied.path);
+    }
+
+    return copiedPaths;
+  }
+
+  Future<void> deleteManagedTemporaryFiles(Iterable<String?> paths) async {
+    for (final path in paths) {
+      if (path == null || path.isEmpty || !_isManagedTemporaryPath(path)) {
+        continue;
+      }
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
   bool _isSupportedImage(String path) {
     final lower = path.toLowerCase();
     return supportedExtensions.any(lower.endsWith);
+  }
+
+  Future<Directory> _defaultUploadDirectory() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    return Directory(
+      '${appDir.path}${Platform.pathSeparator}images'
+      '${Platform.pathSeparator}$uploadStorageFolder',
+    );
+  }
+
+  bool _isManagedTemporaryPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    return normalized.contains('/$uploadStorageFolder/');
+  }
+
+  String _extensionFor(String path) {
+    final lower = path.toLowerCase();
+    for (final extension in supportedExtensions) {
+      if (lower.endsWith(extension)) return extension;
+    }
+    return '.jpg';
   }
 
   PaperImageReviewItem _reviewImage({

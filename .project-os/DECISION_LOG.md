@@ -99,3 +99,100 @@ Owner approval:
 
 Revisit when:
 ```
+
+## 2026-06-13 - Dashboard Phase 1 Foundation
+
+Decision: Wireframe 3 (Classroom Ready) is the selected information-architecture foundation for the dashboard, refined with Wireframe 2 calmness.
+
+Reason: Wireframe 3 best addresses the teacher's operational needs — resume interrupted work, see what to do next, understand what needs attention. Wireframe 2 prevents visual clutter. The dashboard must behave like an assistant, not a menu.
+
+Do not casually change:
+- the unified next-action resolver priority order
+- the single-dominant-CTA constraint
+- the operational-status resolver states
+
+Tests required: 25 widget and unit tests (all passing)
+
+Owner approval: approved 2026-06-13
+
+## 2026-06-13 - Navigation Preserved in Phase 1
+
+Decision: Bottom navigation remains Home / Assess / Students / Settings for Phase 1. Navigation restructuring is deferred.
+
+Reason: Changing navigation risks breaking existing workflows and tests. Phase 1 focuses on dashboard content, not navigation architecture.
+
+Do not casually change: navigation tab count, tab labels, or tab destinations
+
+Revisit when: Phase 3 — Classes root and More destination are audited
+
+## 2026-06-13 - Formal Master Scan Is Source-Connected
+
+Decision: The formal master-paper scanning workflow is source-connected end-to-end but not production-validated.
+
+Reason: The code path exists and links UI → camera → OMR → confirmation → persistence. However, it lacks end-to-end tests, real-device validation, and low-quality image testing.
+
+Do not casually change: CoordinateMapOmrService, BatchProcessor.processMasterKey, master key confirmation flow
+
+Revisit when: real-device testing is conducted
+
+## 2026-06-13 - Quick Grade Master Scan Is Missing
+
+Decision: Quick Grade currently requires manual answer-key entry. Master-paper scanning is not available.
+
+Reason: QuickGradeScreen was implemented as a manual-entry-only path. Adding master-scan support requires integrating AnswerSheetSetupScreen and CoordinateMapOmrService into the Quick Grade flow.
+
+Do not casually change: QuickGradeScreen without adding master-scan support
+
+Revisit when: P1 teacher-effort task is scheduled
+
+## 2026-06-13 - Answer-Key Stale-Result Protection Is Next P0
+
+Decision: The next implementation task is answer-key change safety — preventing stale scores when the answer key is edited after grading.
+
+Reason: Current behavior silently presents stale scores. No version tracking exists. The review screen has only a partial navigation-specific detection mechanism. This is a correctness and trust issue.
+
+Do not casually change: ScoringService.scoreAnswers, AnswerKeyScreen save flow, ScanResult persistence
+
+Tests required: fingerprint generation, staleness detection, recalculation prompt, backward compatibility
+
+Owner approval: audit completed 2026-06-13, implementation pending
+
+## 2026-06-13 - Unresolved Review State and Matching Order Are Subsequent P0
+
+Decision: After answer-key safety, the next P0 tasks are:
+1. Fix resolved vs unresolved review state (requiresTeacherAction resolver)
+2. Match exact student ID before fuzzy name in StudentMatcher
+
+Reason: Both are correctness issues that affect teacher trust. The review-state issue causes inflated "needs review" counts. The matching issue can assign papers to wrong students.
+
+Do not casually change: ScanResult.needsReview, BatchReviewService.summarize, StudentMatcher.matchFromOcr
+
+Revisit when: answer-key safety is implemented
+
+## 2026-06-14 - Answer-Key Change Safety Architecture
+
+Decision: Use deterministic canonical serialization + SHA-256 fingerprint with a monotonic revision counter.
+
+Reason: Fingerprint is the correctness mechanism (detects actual scoring-behavior changes). Revision is the ordering/UI mechanism. Runtime hashCode is non-deterministic. Revision alone cannot detect canceling edits. Revision + fingerprint covers both.
+
+Architecture:
+- Add `answerKeyRevision` (int, HiveField 18) and `answerKeyFingerprint` (String, HiveField 19) to Assessment
+- Stamp `scoredWithKeyFingerprint` and `scoredWithKeyRevision` in ScanResult.metadata at scoring time
+- IntegrityState enum: current, legacyBaseline, unknown, outdated, recalculating, recalculationFailed, currentButNeedsManualReview
+- Recalculation: re-run checkAnswer() from persisted detectedAnswer + new key (no image re-scan needed for objective types)
+- Manual overrides preserved: isManualEntry, teacher-corrected answers (detected by ocrRawText "(manual:" prefix), force-toggled correct/incorrect
+- Checkpoint-based recalculation with progressive persistence
+- Finalization blocked when outdated results exist
+- Legacy: lazy fingerprint generation on first read
+
+Do not casually change:
+- answerKeyFingerprint computation (canonical form must be deterministic)
+- IntegrityState resolution logic
+- Recalculation eligibility rules (manual overrides must be preserved)
+- Finalization gate (must not allow stale results to be finalized)
+
+Tests required: fingerprint computation, recalculation per question type, integrity state resolution, checkpoint recovery, finalization gate
+
+Owner approval: architecture confirmed 2026-06-14, implementation pending (7 slices)
+
+Revisit when: implementing each slice; review before Slice 4 (first behavioral change)

@@ -1,18 +1,23 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
 import '../models/student.dart';
 import '../models/weighted_grade.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
+import '../config/integrity_metadata_keys.dart';
 import 'ocr_service.dart';
 import 'omr_service.dart';
+import 'omr_calibration_service.dart';
 import 'bubble_template.dart';
 import 'scoring_service.dart';
 import 'validation_service.dart';
 import 'answer_parser.dart';
 import 'student_matcher.dart';
 import 'backup_service.dart';
+import 'smart_ocr_service.dart';
+import 'settings_provider.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.
 ///
@@ -31,7 +36,7 @@ import 'backup_service.dart';
 /// - Both detect → keep OMR for objective, OCR for subjective
 /// - Neither detects → mark MISSING
 /// - OMR confidence < 0.5 → fall back to OCR even for MCQ
-class HybridGradingService {
+class HybridGradingService with HiveBoxMixin {
   static final HybridGradingService _instance = HybridGradingService._();
   factory HybridGradingService() => _instance;
   HybridGradingService._();
@@ -84,41 +89,169 @@ class HybridGradingService {
     // Verify image file exists before processing
     final imageFile = File(imagePath);
     if (!await imageFile.exists()) {
-      debugPrint('HybridGrading: image not found: $imagePath');
+      AppLog.warn(this, 'gradePaper', 'image not found: $imagePath');
       return _failedResult(
         assessmentId: assessment.id,
         studentId: studentId ?? '',
         studentName: studentName ?? 'Unknown',
         imagePath: imagePath,
-        reason: 'Image file not found');
+        reason: 'Image file not found',
+      );
     }
 
     // Declare before try so catch block can reference them
     String resolvedId = studentId ?? '';
     String resolvedName = studentName ?? 'Student';
 
+    // ── Cloud grading fast path ──
+    // If cloud is enabled, try Gemini grading first (OCR + grading in one step).
+    // Much more accurate for handwriting. Falls back to ML Kit pipeline if offline.
     try {
+      final settings = SettingsProvider();
+      if (settings.cloudOcrEnabled && settings.cloudOcrEndpoint.isNotEmpty) {
+        final socr = SmartOcrService.instance;
+        socr.setServerUrl(settings.cloudOcrEndpoint);
+
+        // Build answer key from assessment questions
+        final answerKey = <String, dynamic>{};
+        for (final q in assessment.questions) {
+          answerKey[q.number.toString()] = {
+            'type': q.type.name,
+            'correctAnswer': q.correctAnswer?.toString() ?? '',
+            'points': q.points,
+            'text': q.text,
+          };
+        }
+        if (answerKey.isNotEmpty) {
+          AppLog.info(this, 'gradePaper', 'Trying cloud grading via Gemini');
+          final cloudResult = await socr.gradeExam(
+            imagePath: imagePath,
+            answerKey: answerKey,
+            assessmentTitle: assessment.title,
+            preferredModel: settings.cloudOcrModel,
+          );
+
+          if (cloudResult != null && cloudResult.confidence >= 0.5) {
+            AppLog.info(this, 'gradePaper',
+                'Cloud grading succeeded: ${cloudResult.overallScore}/${cloudResult.maxScore} '
+                '(${(cloudResult.confidence * 100).toStringAsFixed(0)}% confidence, '
+                'provider: ${cloudResult.results.isNotEmpty ? "gemini" : "unknown"})');
+
+            // Build ScanResult from cloud result
+            final answerMatches = cloudResult.results.map((r) => AnswerMatch(
+              questionNumber: r.questionNumber,
+              detectedAnswer: r.detectedAnswer,
+              correctAnswer: r.correctAnswer,
+              isCorrect: r.isCorrect,
+              score: r.score,
+              maxScore: r.maxScore,
+              confidence: r.confidence,
+              ocrRawText: r.notes,
+            )).toList();
+
+            return ScanResult(
+              assessmentId: assessment.id,
+              studentId: resolvedId,
+              studentName: cloudResult.studentName ?? resolvedName,
+              totalScore: cloudResult.overallScore,
+              maxScore: cloudResult.maxScore,
+              percentage: cloudResult.percentage,
+              grade: _scoring.calculateGrade(cloudResult.percentage, assessment.rubricType),
+              status: ScanStatus.graded,
+              scannedAt: DateTime.now(),
+              imagePath: imagePath,
+              answers: answerMatches,
+              metadata: {
+                'detectedMethod': 'cloud-ocr',
+                'cloudProvider': 'gemini',
+                'cloudConfidence': cloudResult.confidence,
+                'gradingMode': 'cloud',
+              },
+            );
+          }
+          AppLog.info(this, 'gradePaper',
+              'Cloud grading returned low confidence, falling back to ML Kit');
+        }
+      }
+    } catch (e) {
+      AppLog.warn(this, 'gradePaper', 'Cloud grading failed: $e — falling back to ML Kit');
+    }
+
+    try {
+      // Check if this image was already graded by cloud OCR
+      final existingResults = await loadScanResults(assessment.id);
+      final alreadyGraded = existingResults.where(
+        (r) =>
+            r.imagePath == imagePath &&
+            r.metadata['detectedMethod'] == 'cloud-ocr',
+      );
+      if (alreadyGraded.isNotEmpty) {
+        AppLog.info(
+          this,
+          'gradePaper',
+          'skipping — already graded by cloud OCR',
+        );
+        return alreadyGraded.first;
+      }
+
       // ── Step 1: Enhance image (once) ──
       // Both OCR and OMR work on the same enhanced image
       final enhancedPath = await _ocr.enhanceImage(imagePath);
 
-      // ── Step 2: Run OCR and OMR ──
-      // No parallelism — sequential is safe for 2GB devices
-      final extractionResult = await _ocr.extractTextRegions(enhancedPath);
+      // ── Step 2: Determine grading mode ──
+      // Auto-detect based on question types to avoid wasted processing
+      final hasTextQuestions =
+          assessment.shortAnswerCount > 0 ||
+          assessment.essayCount > 0 ||
+          assessment.multiAnswerCount > 0;
+      final hasBubbleQuestions =
+          assessment.mcqCount > 0 || assessment.trueFalseCount > 0;
 
-      // ── Step 2.5: Class-aware student matching ──
+      final gradingMode = hasTextQuestions && hasBubbleQuestions
+          ? 'hybrid'
+          : hasTextQuestions
+          ? 'ocr-only'
+          : 'omr-only';
+
+      AppLog.info(this, 'gradePaper', 'grading mode: $gradingMode');
+
+      // ── Step 3: Run OCR (skipped for pure-OMR exams) ──
+      ({List<TextRegion> regions, double skewAngle})? extractionResult;
+      if (gradingMode != 'omr-only') {
+        // Subjective exams retain low-confidence handwriting lines so they
+        // can be associated with questions and routed to review instead of
+        // vanishing silently before parsing. Objective-only exams keep the
+        // historical printed-text floor unchanged.
+        extractionResult = await _ocr.extractTextRegions(
+          enhancedPath,
+          minConfidence: hasTextQuestions
+              ? OcrService.subjectiveMinConfidence
+              : OcrService.standardMinConfidence,
+        );
+        AppLog.info(
+          this,
+          'gradePaper',
+          'OCR returned ${extractionResult.regions.length} text regions',
+        );
+      }
+
+      // ── Step 3.5: Class-aware student matching ──
 
       if (classId != null &&
           classStudents != null &&
-          classStudents.isNotEmpty) {
+          classStudents.isNotEmpty &&
+          extractionResult != null) {
         final ocrText = extractionResult.regions.map((r) => r.text).join('\n');
         final match = StudentMatcher.matchFromOcr(ocrText, classStudents);
 
         if (match.hasMatch && !match.isAmbiguous) {
           resolvedId = match.matchedStudent!.id;
           resolvedName = match.matchedStudent!.fullName;
-          debugPrint(
-            'HybridGrading: matched "$resolvedName" (${(match.confidence * 100).toStringAsFixed(0)}%)');
+          AppLog.info(
+            this,
+            'gradePaper',
+            'matched "$resolvedName" (${(match.confidence * 100).toStringAsFixed(0)}%)',
+          );
         } else if (onStudentNotFound != null) {
           // Ask the UI to resolve — teacher can add or select
           final scannedName = match.scannedName.isNotEmpty
@@ -140,49 +273,115 @@ class HybridGradingService {
         }
       }
 
-      final ocrAnswers = _parseOcrAnswers(extractionResult.regions, assessment);
-      final omrAnswers = await _omr.detectAndParse(
-        enhancedImagePath: enhancedPath,
-        assessment: assessment,
-        template: template);
+      final ocrAnswers = extractionResult != null
+          ? _parseOcrAnswers(extractionResult.regions, assessment)
+          : <DetectedAnswer>[];
 
-      // ── Step 3: Merge OCR + OMR results ──
-      final mergedAnswers = _mergeAnswers(
+      // ── Step 3.75: Run OMR (skipped for pure-OCR exams) ──
+      List<DetectedAnswer> omrAnswers = [];
+      bool omrRan = false;
+      String? omrTemplateName;
+
+      if (gradingMode != 'ocr-only') {
+        try {
+          // Try calibrated template first, then fall back to provided/default
+          final effectiveTemplate =
+              template ?? await _loadCalibratedTemplate(assessment.id);
+
+          final omrResult = await _omr.detectAndParse(
+            enhancedImagePath: enhancedPath,
+            assessment: assessment,
+            template: effectiveTemplate,
+          );
+          omrAnswers = omrResult;
+          omrRan = true;
+          omrTemplateName = effectiveTemplate?.name ?? 'auto';
+          AppLog.info(
+            this,
+            'gradePaper',
+            'OMR detected ${omrAnswers.length} answers (template: $omrTemplateName)',
+          );
+        } catch (e, st) {
+          AppLog.warn(
+            this,
+            'gradePaper',
+            'OMR failed, falling back to OCR: $e',
+          );
+          AppErrorHandler.catchError(this, 'gradePaper/OMR', e, st);
+        }
+      }
+
+      // ── Step 2.875: Merge OMR + OCR ──
+      // Strategy:
+      // - MCQ / TrueFalse → OMR wins if confidence >= 0.5, else OCR
+      // - Short answer / Essay / MultiAnswer → OCR wins
+      final mergedAnswers = _mergeOmrOcr(
         ocrAnswers: ocrAnswers,
         omrAnswers: omrAnswers,
-        assessment: assessment);
+        assessment: assessment,
+      );
+      AppLog.info(
+        this,
+        'gradePaper',
+        'merged ${mergedAnswers.length} answers (OMR ran: $omrRan)',
+      );
 
       // ── Step 4: Deduplicate (same Q# detected twice) ──
       final deduplicated = _scoring.deduplicateAnswers(mergedAnswers);
 
+      // ── Step 4b: Collect subjective-answer uncertainty for review ──
+      // Spatially-associated or sub-floor-confidence short answers must
+      // reach the teacher even when their OCR confidence is high.
+      final uncertainQs = uncertainQuestionNumbers(
+        detected: deduplicated,
+        assessment: assessment,
+      );
+
       // ── Step 5: Score against answer key ──
       final scoredAnswers = _scoring.scoreAnswers(
         detected: deduplicated,
-        assessment: assessment);
+        assessment: assessment,
+      );
+
+      // ── Step 5b: Fuzzy-only short-answer matches → NEEDS REVIEW ──
+      // Phase 1.1 policy (Option B): a match that only passes via
+      // Levenshtein tolerance may be an OCR misread of a correct answer OR
+      // a genuinely wrong answer — never silently CORRECT. The teacher
+      // decides. Exact matches and clearly different answers are untouched.
+      final fuzzyQs = fuzzyOnlyReviewQuestions(
+        scored: scoredAnswers,
+        assessment: assessment,
+      );
+      final reviewFlags = <int>{...uncertainQs, ...fuzzyQs};
 
       // ── Step 6: Calculate totals ──
       double totalScore = _scoring.calculateTotalScore(scoredAnswers);
-      double maxScore = assessment.maxScore;
+      final double maxScore = assessment.maxScore;
       double percentage = _scoring.calculatePercentage(
         totalScore: totalScore,
-        maxScore: maxScore);
+        maxScore: maxScore,
+      );
       final overallConfidence = _scoring.calculateConfidence(scoredAnswers);
 
       // ── Step 6b: Build metadata (before weighted scoring reads it) ──
       final metadata = <String, dynamic>{
-        'textLinesDetected': extractionResult.regions.length,
+        'textLinesDetected': extractionResult?.regions.length ?? 0,
         'ocrAnswersDetected': ocrAnswers.length,
         'omrAnswersDetected': omrAnswers.length,
-        'questionsMerged': mergedAnswers.length,
-        'questionsDeduplicated': deduplicated.length,
-        'duplicatesRemoved': mergedAnswers.length - deduplicated.length,
-        'skewAngle': extractionResult.skewAngle,
-        'skewWarning': extractionResult.skewAngle.abs() > 8.0,
-        'omrConfidence': omrAnswers.isEmpty
-            ? 0.0
-            : omrAnswers.fold(0.0, (s, a) => s + a.confidence) /
-                  omrAnswers.length,
-        'detectedMethod': omrAnswers.isNotEmpty ? 'hybrid' : 'ocr-only',
+        'questionsDetected': mergedAnswers.length,
+        'skewAngle': extractionResult?.skewAngle ?? 0.0,
+        'skewWarning': (extractionResult?.skewAngle.abs() ?? 0.0) > 8.0,
+        'detectedMethod': gradingMode,
+        if (omrRan) 'omrTemplate': omrTemplateName,
+        // Subjective answers whose recognition, association, or fuzzy-only
+        // match is uncertain — read by ScanResult.needsReview /
+        // requiresTeacherAction and resolved in the existing review flow.
+        if (reviewFlags.isNotEmpty)
+          'uncertainQuestions': reviewFlags.toList()..sort(),
+        IntegrityMetadataKeys.scoredWithKeyFingerprint:
+            assessment.answerKeyFingerprint,
+        IntegrityMetadataKeys.scoredWithKeyRevision:
+            assessment.answerKeyRevision,
       };
 
       // ── Step 7: Apply weighted scoring if scale is provided ──
@@ -191,7 +390,8 @@ class HybridGradingService {
         final weightedPct = _scoring.computeWeightedPercentage(
           scoredAnswers: scoredAnswers,
           questions: assessment.questions,
-          scale: weightedScale);
+          scale: weightedScale,
+        );
         if (weightedPct != null) {
           percentage = weightedPct;
           totalScore = (weightedPct / 100) * maxScore;
@@ -211,34 +411,35 @@ class HybridGradingService {
         totalScore: totalScore,
         maxScore: maxScore,
         percentage: percentage,
-        grade: _scoring.calculateGrade(
-          percentage.toDouble(),
-          rubricType),
-        status: overallConfidence < 0.6
+        grade: _scoring.calculateGrade(percentage.toDouble(), rubricType),
+        // Lowered from 0.6 to 0.4 to accept handwritten answers
+        // that have naturally lower confidence than printed text
+        status: overallConfidence < 0.4
             ? ScanStatus.needsRescan
             : ScanStatus.graded,
         confidence: overallConfidence,
-        metadata: metadata);
+        metadata: metadata,
+      );
 
-      debugPrint(
-        'HybridGrading: ${result.studentName} → '
-        '${result.totalScore}/${result.maxScore} '
-        '(${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, '
-        '${metadata['detectedMethod']})');
+      AppLog.info(
+        this,
+        'gradePaper',
+        '${result.studentName} → ${result.totalScore}/${result.maxScore} (${result.grade}, ${(result.confidence * 100).toStringAsFixed(0)}% conf, ${metadata['detectedMethod']})',
+      );
 
       // Auto-save with retry — never let persistence break the grading flow
       await _saveWithRetry(result);
 
       return result;
     } catch (e, stackTrace) {
-      debugPrint('HybridGrading: grading failed for $resolvedName ($e)');
-      debugPrint('Stack: $stackTrace');
+      AppErrorHandler.catchError(this, 'gradePaper', e, stackTrace);
       return _failedResult(
         assessmentId: assessment.id,
         studentId: resolvedId,
         studentName: resolvedName,
         imagePath: imagePath,
-        reason: 'Processing error: ${e.runtimeType}');
+        reason: 'Processing error: ${e.runtimeType}',
+      );
     }
   }
 
@@ -268,12 +469,14 @@ class HybridGradingService {
     onStudentNotFound,
     // Weighted scoring (optional)
     WeightedGradeScale? weightedScale,
+    int concurrency = 1,
   }) async {
     await initialize();
 
-    final results = <ScanResult>[];
+    final results = List<ScanResult?>.filled(imagePaths.length, null);
+    var processed = 0;
 
-    for (int i = 0; i < imagePaths.length; i++) {
+    Future<void> gradeOne(int i) async {
       final name = (studentNames != null && i < studentNames.length)
           ? studentNames[i]
           : null;
@@ -287,18 +490,38 @@ class HybridGradingService {
         classId: classId,
         classStudents: classStudents,
         onStudentNotFound: onStudentNotFound,
-        weightedScale: weightedScale);
+        weightedScale: weightedScale,
+      );
 
-      results.add(result);
-      onProgress?.call(i + 1, imagePaths.length);
+      results[i] = result;
+      processed++;
+      onProgress?.call(processed, imagePaths.length);
     }
 
-    debugPrint(
-      'HybridGrading: batch complete — '
-      '${results.where((r) => r.status == ScanStatus.graded).length} graded, '
-      '${results.where((r) => r.status == ScanStatus.needsRescan).length} need rescan');
+    if (concurrency <= 1) {
+      for (int i = 0; i < imagePaths.length; i++) {
+        await gradeOne(i);
+      }
+    } else {
+      final queue = <Future<void>>[];
+      for (int i = 0; i < imagePaths.length; i++) {
+        queue.add(gradeOne(i));
+        if (queue.length >= concurrency || i == imagePaths.length - 1) {
+          await Future.wait(queue);
+          queue.clear();
+        }
+      }
+    }
 
-    return results;
+    final validResults = results.whereType<ScanResult>().toList();
+    AppLog.info(
+      this,
+      'gradeBatch',
+      'batch complete — ${validResults.where((r) => r.status == ScanStatus.graded).length} graded, '
+          '${validResults.where((r) => r.status == ScanStatus.needsRescan).length} need rescan',
+    );
+
+    return validResults;
   }
 
   /// Re-grade a single paper (e.g., after teacher manually adjusts image).
@@ -312,7 +535,7 @@ class HybridGradingService {
     List<Student>? classStudents,
     WeightedGradeScale? weightedScale,
   }) async {
-    debugPrint('HybridGrading: re-grading $studentName');
+    AppLog.info(this, 'regradePaper', 're-grading $studentName');
     return gradePaper(
       imagePath: imagePath,
       assessment: assessment,
@@ -321,61 +544,167 @@ class HybridGradingService {
       template: template,
       classId: classId,
       classStudents: classStudents,
-      weightedScale: weightedScale);
+      weightedScale: weightedScale,
+    );
   }
 
-  // ── Answer Merging ────────────────────────────────────────────────
+  /// Parse OCR text regions into DetectedAnswers.
+  ///
+  /// Uses positional parsing so handwritten answers that are not on the
+  /// same OCR line as their question number can still be associated.
+  /// Spatially-associated answers carry `needsReview: true` — they are
+  /// inherently less certain than same-line reads and must surface
+  /// through the existing review workflow.
+  List<DetectedAnswer> _parseOcrAnswers(
+    List<TextRegion> regions,
+    Assessment assessment,
+  ) {
+    const parser = AnswerParser();
+    final inputs = regions
+        .map(
+          (r) => TextRegionInput(
+            text: r.text,
+            confidence: r.confidence,
+            x: r.x,
+            y: r.y,
+          ),
+        )
+        .toList();
 
-  /// Merge OCR and OMR results using the hybrid strategy.
+    return parser.parseAnswersWithPosition(inputs).map((p) {
+      final isSpatial = p.spatialAssociation;
+      // Lines retained below the standard printed-text floor are only
+      // kept for subjective questions; flag them as uncertain too.
+      final isSubFloor =
+          !isSpatial && p.confidence < OcrService.standardMinConfidence;
+      return DetectedAnswer(
+        questionNumber: p.questionNumber,
+        answer: p.answer,
+        confidence: p.confidence,
+        rawText: p.rawText,
+        needsReview: isSpatial || isSubFloor,
+        source: isSpatial ? 'ocr-spatial' : 'ocr',
+      );
+    }).toList();
+  }
+
+  /// Collect question numbers whose recognition or question-association is
+  /// uncertain, for stamping into ScanResult.metadata ('uncertainQuestions').
   ///
-  /// For each question in the assessment:
-  /// - MCQ / TrueFalse → prefer OMR (bubbles are source of truth)
-  ///   - Fall back to OCR if OMR confidence < 0.5
-  /// - ShortAnswer → always use OCR (OMR can't read free text)
-  /// - Essay → always use OCR
+  /// Pure function — testable without images or ML Kit. Objective questions
+  /// are deliberately excluded: their OMR/OCR path and thresholds are
+  /// unchanged in this phase.
+  static Set<int> uncertainQuestionNumbers({
+    required List<DetectedAnswer> detected,
+    required Assessment assessment,
+  }) {
+    final uncertain = <int>{};
+    final byNumber = {for (final q in assessment.questions) q.number: q};
+    for (final d in detected) {
+      final q = byNumber[d.questionNumber];
+      if (q == null || q.isObjective) continue;
+      if (d.needsReview) {
+        uncertain.add(d.questionNumber);
+      } else if (d.confidence > 0 &&
+          d.confidence < OcrService.standardMinConfidence) {
+        uncertain.add(d.questionNumber);
+      }
+    }
+    return uncertain;
+  }
+
+  /// Short-answer questions whose scored match passed ONLY via fuzzy
+  /// tolerance (Levenshtein ≤2 without an exact normalized match).
   ///
-  /// If both have the answer with similar confidence, OMR wins for objective.
-  List<DetectedAnswer> _mergeAnswers({
+  /// Phase 1.1 policy (Option B): such matches must not silently award
+  /// CORRECT — they are flagged so the teacher decides whether OCR misread
+  /// a correct answer or the student wrote something wrong. The underlying
+  /// AnswerMatch keeps isCorrect/score from [ScoringService.checkAnswer]
+  /// (provisional correct/0) — the metadata flag is what routes it to
+  /// review via ScanResult.needsReview.
+  ///
+  /// Scope guards:
+  /// - applies ONLY to QuestionType.shortAnswer (MCQ/T-F/OMR untouched)
+  /// - already-incorrect answers stay incorrect (no review inflation)
+  /// - missing/unreadable sentinels are ignored (own review path exists)
+  ///
+  /// Pure function — testable without images or ML Kit.
+  static Set<int> fuzzyOnlyReviewQuestions({
+    required List<AnswerMatch> scored,
+    required Assessment assessment,
+  }) {
+    final fuzzyOnly = <int>{};
+    final byNumber = {for (final q in assessment.questions) q.number: q};
+    for (final m in scored) {
+      final q = byNumber[m.questionNumber];
+      if (q == null || q.type != QuestionType.shortAnswer) continue;
+      if (!m.isCorrect) continue; // clearly different → stays INCORRECT
+
+      final detected = m.detectedAnswer;
+      if (detected.isEmpty ||
+          detected.toUpperCase() == '[MISSING]' ||
+          detected.toUpperCase() == '[MULTIPLE]') {
+        continue;
+      }
+
+      final correct = q.correctAnswer;
+      final matchedFuzzyOnly = correct is List
+          ? correct.any(
+              (c) => ScoringService.isFuzzyOnlyMatch(detected, c.toString()),
+            )
+          : ScoringService.isFuzzyOnlyMatch(detected, correct.toString());
+      if (matchedFuzzyOnly) fuzzyOnly.add(m.questionNumber);
+    }
+    return fuzzyOnly;
+  }
+
+  /// Merge OMR and OCR answers using the hybrid strategy.
+  ///
+  /// - MCQ / TrueFalse → OMR wins if confidence >= 0.5, else OCR
+  /// - Short answer / Essay / MultiAnswer → OCR wins
+  /// - Both sources missing → MISSING
+  List<DetectedAnswer> _mergeOmrOcr({
     required List<DetectedAnswer> ocrAnswers,
     required List<DetectedAnswer> omrAnswers,
     required Assessment assessment,
   }) {
     final merged = <DetectedAnswer>[];
+    final omrByQuestion = {for (var a in omrAnswers) a.questionNumber: a};
+    final ocrByQuestion = {for (var a in ocrAnswers) a.questionNumber: a};
+    final allQuestions = {...omrByQuestion.keys, ...ocrByQuestion.keys};
 
-    // Index by question number for fast lookup
-    final ocrByQ = <int, DetectedAnswer>{};
-    for (final a in ocrAnswers) {
-      ocrByQ[a.questionNumber] = a;
-    }
-
-    final omrByQ = <int, DetectedAnswer>{};
-    for (final a in omrAnswers) {
-      omrByQ[a.questionNumber] = a;
-    }
-
-    for (final question in assessment.questions) {
-      final ocr = ocrByQ[question.number];
-      final omr = omrByQ[question.number];
+    for (final qNum in allQuestions) {
+      final omr = omrByQuestion[qNum];
+      final ocr = ocrByQuestion[qNum];
+      final question = assessment.questions.firstWhere(
+        (q) => q.number == qNum,
+        orElse: () => Question(
+          number: qNum,
+          text: 'Q$qNum',
+          type: QuestionType.mcq,
+          correctAnswer: '',
+          points: 1,
+        ),
+      );
 
       final isObjective =
           question.type == QuestionType.mcq ||
-          question.type == QuestionType.trueFalse ||
-          question.type == QuestionType.matching;
+          question.type == QuestionType.trueFalse;
 
       if (isObjective) {
-        // Objective questions: OMR preferred
+        // Objective: OMR wins if confident, else OCR
         if (omr != null && omr.confidence >= 0.5) {
           merged.add(omr);
         } else if (ocr != null) {
-          // OMR absent or low-confidence — use OCR
           merged.add(ocr);
         } else if (omr != null) {
-          // OMR below 0.5 but nothing else — still use it
-          merged.add(omr);
+          // OMR exists but low confidence — include flagged for review
+          merged.add(
+            omr.copyWith(needsReview: true, source: 'omr-low-confidence'),
+          );
         }
-        // else: neither detected → skip (will show as MISSING in scoring)
       } else {
-        // Subjective questions: OCR always
+        // Subjective: OCR wins
         if (ocr != null) {
           merged.add(ocr);
         }
@@ -385,29 +714,19 @@ class HybridGradingService {
     return merged;
   }
 
-  /// Parse OCR text regions into DetectedAnswers.
-  List<DetectedAnswer> _parseOcrAnswers(
-    List<TextRegion> regions,
-    Assessment assessment) {
-    final parser = const AnswerParser();
-    final inputs = regions
-        .map(
-          (r) => TextRegionInput(
-            text: r.text,
-            confidence: r.confidence,
-            x: r.x,
-            y: r.y))
-        .toList();
-
-    return parser
-        .parseAnswers(inputs)
-        .map(
-          (p) => DetectedAnswer(
-            questionNumber: p.questionNumber,
-            answer: p.answer,
-            confidence: p.confidence,
-            rawText: p.rawText))
-        .toList();
+  /// Load calibrated template for an assessment, if available.
+  Future<BubbleTemplate?> _loadCalibratedTemplate(String assessmentId) async {
+    try {
+      final calibrationService = OmrCalibrationService();
+      return await calibrationService.loadCalibration(assessmentId);
+    } catch (e) {
+      AppLog.warn(
+        this,
+        '_loadCalibratedTemplate',
+        'Failed to load calibration: $e',
+      );
+      return null;
+    }
   }
 
   // ── Persistence ───────────────────────────────────────────────────
@@ -419,8 +738,8 @@ class HybridGradingService {
     try {
       await _saveWithRetry(result);
       return true;
-    } catch (e) {
-      debugPrint('HybridGrading: saveScanResult failed ($e)');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'saveScanResult', e, st);
       return false;
     }
   }
@@ -431,15 +750,18 @@ class HybridGradingService {
     // Validate before writing
     final validation = _validator.validateScanResult(result);
     if (!validation.isValid) {
-      debugPrint(
-        'HybridGrading: scan result validation failed: ${validation.errors}');
+      AppLog.warn(
+        this,
+        '_saveWithRetry',
+        'scan result validation failed: ${validation.errors}',
+      );
       // Still save — validation is advisory, not blocking
     }
 
     try {
-      final box = Hive.lazyBox(_scanResultsBoxName);
+      final box = await openBox(_scanResultsBoxName);
       await box.put(result.id, result.toMap());
-      debugPrint('HybridGrading: saved scan result ${result.id}');
+      AppLog.info(this, '_saveWithRetry', 'saved scan result ${result.id}');
 
       // Opportunistically flush pending saves
       await flushPendingSaves();
@@ -447,17 +769,19 @@ class HybridGradingService {
       // Trigger auto-backup check (every N scans)
       BackupService.instance.recordScanAndMaybeBackup();
     } catch (e) {
-      debugPrint(
-        'HybridGrading: save failed (${e.runtimeType}), retrying in 500ms…');
+      AppLog.warn(
+        this,
+        '_saveWithRetry',
+        'save failed (${e.runtimeType}), retrying in 500ms…',
+      );
       await Future.delayed(const Duration(milliseconds: 500));
       try {
-        final box = Hive.lazyBox(_scanResultsBoxName);
+        final box = await openBox(_scanResultsBoxName);
         await box.put(result.id, result.toMap());
-        debugPrint('HybridGrading: retry succeeded for ${result.id}');
+        AppLog.info(this, '_saveWithRetry', 'retry succeeded for ${result.id}');
         await flushPendingSaves();
-      } catch (e2) {
-        debugPrint(
-          'HybridGrading: retry failed (${e2.runtimeType}), queuing for later');
+      } catch (e2, st2) {
+        AppErrorHandler.catchError(this, '_saveWithRetry/retry', e2, st2);
         _pendingSaves.add(result);
       }
     }
@@ -468,21 +792,25 @@ class HybridGradingService {
   Future<void> flushPendingSaves() async {
     if (_pendingSaves.isEmpty) return;
 
-    final box = Hive.lazyBox(_scanResultsBoxName);
+    final box = await openBox(_scanResultsBoxName);
     final succeeded = <ScanResult>[];
 
     for (final result in _pendingSaves) {
       try {
         await box.put(result.id, result.toMap());
         succeeded.add(result);
-      } catch (e) {
-        debugPrint('HybridGrading: flush failed for ${result.id} ($e)');
+      } catch (e, st) {
+        AppErrorHandler.catchError(this, 'flushPendingSaves', e, st);
       }
     }
 
     _pendingSaves.removeWhere(succeeded.contains);
     if (succeeded.isNotEmpty) {
-      debugPrint('HybridGrading: flushed ${succeeded.length} pending saves');
+      AppLog.info(
+        this,
+        'flushPendingSaves',
+        'flushed ${succeeded.length} pending saves',
+      );
     }
   }
 
@@ -490,15 +818,22 @@ class HybridGradingService {
 
   /// Load all scan results for a specific assessment.
   /// Sorts by score descending (best first).
-  Future<List<ScanResult>> loadScanResults(String assessmentId) async {
+  ///
+  /// When [throwOnError] is true, storage failures are rethrown so the
+  /// caller can surface a real error state instead of silently treating
+  /// the failure as "no results".
+  Future<List<ScanResult>> loadScanResults(
+    String assessmentId, {
+    bool throwOnError = false,
+  }) async {
     try {
-      final box = Hive.lazyBox(_scanResultsBoxName);
+      final box = await openBox(_scanResultsBoxName);
       final results = <ScanResult>[];
 
       for (final key in box.keys) {
         final data = await box.get(key);
         if (data == null) continue;
-        final map = Map<String, dynamic>.from(data as Map);
+        final map = _deepCastMap(data);
         if (map['assessmentId'] == assessmentId) {
           results.add(ScanResult.fromMap(map));
         }
@@ -506,8 +841,34 @@ class HybridGradingService {
 
       results.sort((a, b) => b.totalScore.compareTo(a.totalScore));
       return results;
-    } catch (e) {
-      debugPrint('HybridGrading: loadScanResults failed ($e)');
+    } catch (e, st) {
+      if (throwOnError) rethrow;
+      AppErrorHandler.catchError(this, 'loadScanResults', e, st);
+      return [];
+    }
+  }
+
+  /// Load ALL scan results from the box.
+  ///
+  /// When [throwOnError] is true, storage failures are rethrown so the
+  /// caller can surface a real error state instead of an empty list.
+  Future<List<ScanResult>> loadAllScanResults({
+    bool throwOnError = false,
+  }) async {
+    try {
+      final box = await openBox(_scanResultsBoxName);
+      final results = <ScanResult>[];
+
+      for (final key in box.keys) {
+        final data = await box.get(key);
+        if (data == null) continue;
+        results.add(ScanResult.fromMap(_deepCastMap(data)));
+      }
+
+      return results;
+    } catch (e, st) {
+      if (throwOnError) rethrow;
+      AppErrorHandler.catchError(this, 'loadAllScanResults', e, st);
       return [];
     }
   }
@@ -515,20 +876,41 @@ class HybridGradingService {
   /// Single lookup by ID. Returns `null` when not found.
   Future<ScanResult?> getScanResultById(String id) async {
     try {
-      final box = Hive.lazyBox(_scanResultsBoxName);
+      final box = await openBox(_scanResultsBoxName);
       final data = await box.get(id);
       if (data == null) return null;
-      return ScanResult.fromMap(Map<String, dynamic>.from(data as Map));
-    } catch (e) {
-      debugPrint('HybridGrading: getScanResultById failed ($e)');
+      return ScanResult.fromMap(_deepCastMap(data));
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getScanResultById', e, st);
       return null;
     }
+  }
+
+  /// Deep-cast a Map from Hive (Map<dynamic,dynamic>) to Map<String,dynamic>.
+  static Map<String, dynamic> _deepCastMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) {
+      return data.map((key, value) {
+        if (value is Map) return MapEntry(key.toString(), _deepCastMap(value));
+        if (value is List) {
+          return MapEntry(
+            key.toString(),
+            value.map((e) {
+              if (e is Map) return _deepCastMap(e);
+              return e;
+            }).toList(),
+          );
+        }
+        return MapEntry(key.toString(), value);
+      });
+    }
+    return {};
   }
 
   /// Remove a scan result from the box AND delete associated image files.
   Future<bool> deleteScanResult(String id) async {
     try {
-      final box = Hive.lazyBox(_scanResultsBoxName);
+      final box = await openBox(_scanResultsBoxName);
       final data = await box.get(id);
 
       // Delete image files before removing the record
@@ -539,10 +921,10 @@ class HybridGradingService {
       }
 
       await box.delete(id);
-      debugPrint('HybridGrading: deleted scan result $id + images');
+      AppLog.info(this, 'deleteScanResult', 'deleted scan result $id + images');
       return true;
-    } catch (e) {
-      debugPrint('HybridGrading: deleteScanResult failed ($e)');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'deleteScanResult', e, st);
       return false;
     }
   }
@@ -554,10 +936,10 @@ class HybridGradingService {
       final file = File(path);
       if (await file.exists()) {
         await file.delete();
-        debugPrint('HybridGrading: deleted image $path');
+        AppLog.info(this, '_deleteImageFile', 'deleted image $path');
       }
-    } catch (e) {
-      debugPrint('HybridGrading: failed to delete image $path ($e)');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_deleteImageFile', e, st);
     }
   }
 
@@ -565,13 +947,13 @@ class HybridGradingService {
   /// Sorts by date descending (most recent first).
   Future<List<ScanResult>> getResultsForStudent(String studentId) async {
     try {
-      final box = Hive.lazyBox(_scanResultsBoxName);
+      final box = await openBox(_scanResultsBoxName);
       final results = <ScanResult>[];
 
       for (final key in box.keys) {
         final data = await box.get(key);
         if (data == null) continue;
-        final map = Map<String, dynamic>.from(data as Map);
+        final map = _deepCastMap(data);
         if (map['studentId'] == studentId) {
           results.add(ScanResult.fromMap(map));
         }
@@ -579,8 +961,8 @@ class HybridGradingService {
 
       results.sort((a, b) => b.scannedAt.compareTo(a.scannedAt));
       return results;
-    } catch (e) {
-      debugPrint('HybridGrading: getResultsForStudent failed ($e)');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getResultsForStudent', e, st);
       return [];
     }
   }
@@ -624,7 +1006,8 @@ class HybridGradingService {
       imagePath: imagePath,
       status: ScanStatus.needsRescan,
       confidence: 0,
-      metadata: {'error': reason});
+      metadata: {'error': reason},
+    );
   }
 
   /// Release resources. Call when app is shutting down.

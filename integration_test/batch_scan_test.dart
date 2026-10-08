@@ -33,13 +33,14 @@ void main() {
     });
 
     // Shared template for all batch sheets
-    final template = BubbleTemplate.mcq(
+    const template = BubbleTemplate(
+      name: 'batch_test',
       questionCount: 10,
-      optionCount: 5,
-      startRow: 120,
+      options: ['A', 'B', 'C', 'D', 'E'],
+      startY: 120,
       rowSpacing: 45,
-      startCol: 100,
-      colSpacing: 50,
+      startX: 100,
+      columnSpacing: 50,
       bubbleRadius: 8,
     );
 
@@ -59,7 +60,7 @@ void main() {
       await File(path).writeAsBytes(jpegBytes);
 
       final omr = OmrService();
-      final result = await omr.processImage(
+      final result = await omr.detectBubbles(
         enhancedImagePath: path,
         template: template,
       );
@@ -143,7 +144,7 @@ void main() {
         final path = '${tempDir.path}/mixed_batch.jpg';
         await File(path).writeAsBytes(jpegBytes);
 
-        final result = await OmrService().processImage(
+        final result = await OmrService().detectBubbles(
           enhancedImagePath: path,
           template: template,
         );
@@ -214,7 +215,7 @@ void main() {
             Uint8List.fromList(List.generate(50, (i) => i % 256)));
 
         final omr = OmrService();
-        final corruptResult = await omr.processImage(
+        final corruptResult = await omr.detectBubbles(
           enhancedImagePath: corruptPath,
           template: template,
         );
@@ -234,7 +235,7 @@ void main() {
 
       test('missing file in batch returns empty result', () async {
         final omr = OmrService();
-        final result = await omr.processImage(
+        final result = await omr.detectBubbles(
           enhancedImagePath: '/tmp/batch_nonexistent_${DateTime.now().microsecondsSinceEpoch}.jpg',
           template: template,
         );
@@ -247,7 +248,7 @@ void main() {
         await File(emptyPath).writeAsBytes(Uint8List(0));
 
         final omr = OmrService();
-        final emptyResult = await omr.processImage(
+        final emptyResult = await omr.detectBubbles(
           enhancedImagePath: emptyPath,
           template: template,
         );

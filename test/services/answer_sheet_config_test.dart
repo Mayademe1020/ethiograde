@@ -79,10 +79,10 @@ void main() {
         title: 'Alternating',
         subject: 'Mixed',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: 'B'),
-          const Question(number: 4, type: QuestionType.trueFalse, correctAnswer: 'False'),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.trueFalse, correctAnswer: 'True'),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: 'B'),
+          Question(number: 4, type: QuestionType.trueFalse, correctAnswer: 'False'),
         ]);
 
       final ranges = AnswerSheetConfig.detectRanges(assessment);
@@ -109,9 +109,9 @@ void main() {
         title: 'Matching Test',
         subject: 'English',
         questions: [
-          const Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
-          const Question(number: 2, type: QuestionType.matching, correctAnswer: 'MATCH:A-B'),
-          const Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
+          Question(number: 1, type: QuestionType.mcq, correctAnswer: 'A'),
+          Question(number: 2, type: QuestionType.matching, correctAnswer: 'MATCH:A-B'),
+          Question(number: 3, type: QuestionType.mcq, correctAnswer: 'C'),
         ]);
 
       final ranges = AnswerSheetConfig.detectRanges(assessment);

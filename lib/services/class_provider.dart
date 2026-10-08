@@ -3,6 +3,18 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/class_info.dart';
 import '../models/student.dart';
+import 'result.dart';
+
+/// Result of checking whether a class can be deleted.
+class ClassDeletionCheck {
+  final bool canDelete;
+  final List<String> blockingReasons;
+
+  const ClassDeletionCheck({
+    required this.canDelete,
+    required this.blockingReasons,
+  });
+}
 
 /// Manages class profiles — the primary organizational unit.
 ///
@@ -14,19 +26,20 @@ class ClassProvider extends ChangeNotifier {
 
   List<ClassInfo> _classes = [];
   bool _loaded = false;
+  bool _loadFailed = false;
   String _selectedClassId = '';
 
   List<ClassInfo> get classes => List.unmodifiable(_classes);
   bool get isLoaded => _loaded;
+  bool get loadFailed => _loadFailed;
   String get selectedClassId => _selectedClassId;
 
   ClassInfo? get selectedClass {
     if (_selectedClassId.isEmpty) return null;
-    try {
-      return _classes.firstWhere((c) => c.id == _selectedClassId);
-    } catch (_) {
-      return null;
+    for (final c in _classes) {
+      if (c.id == _selectedClassId) return c;
     }
+    return null;
   }
 
   /// Classes for a specific teacher.
@@ -36,11 +49,10 @@ class ClassProvider extends ChangeNotifier {
 
   /// Get a class by ID.
   ClassInfo? getClassById(String id) {
-    try {
-      return _classes.firstWhere((c) => c.id == id);
-    } catch (_) {
-      return null;
+    for (final c in _classes) {
+      if (c.id == id) return c;
     }
+    return null;
   }
 
   /// Classes a student belongs to.
@@ -67,20 +79,52 @@ class ClassProvider extends ChangeNotifier {
               .toList()
             ..sort((a, b) => a.name.compareTo(b.name));
       _loaded = true;
+      _loadFailed = false;
       debugPrint('ClassProvider: loaded ${_classes.length} class(es)');
     } catch (e) {
       debugPrint('ClassProvider: load failed ($e)');
       _classes = [];
       _loaded = true;
+      _loadFailed = true;
     }
     notifyListeners();
   }
 
+  /// Clear the loaded cache and reload from Hive (used for retry).
+  Future<void> reload() async {
+    _loaded = false;
+    _loadFailed = false;
+    await loadClasses();
+  }
+
   // ── Add ───────────────────────────────────────────────────────────
 
+  /// Check if a class with the same grade+section+subject+year already exists.
+  /// [excludeId] is for edit mode — don't flag the class being edited.
+  bool hasDuplicate({
+    required int grade,
+    required String section,
+    required String subject,
+    required String ownerId,
+    required String academicYear,
+    String? excludeId,
+  }) {
+    final normSubject = subject.trim().toLowerCase();
+    final normSection = section.trim().toUpperCase();
+    return _classes.any((c) =>
+      c.id != excludeId &&
+      c.ownerId == ownerId &&
+      c.grade == grade &&
+      c.section.toUpperCase() == normSection &&
+      c.subject.trim().toLowerCase() == normSubject &&
+      c.academicYear == academicYear);
+  }
+
   /// Create a new class. Returns the ClassInfo on success, null on failure.
-  Future<ClassInfo?> addClass(ClassInfo classInfo) async {
-    if (classInfo.name.trim().isEmpty) return null;
+  Future<Result<ClassInfo>> addClass(ClassInfo classInfo) async {
+    if (classInfo.name.trim().isEmpty) {
+      return const Result.failure('Class name is required');
+    }
 
     try {
       final box = await _getBox();
@@ -89,16 +133,16 @@ class ClassProvider extends ChangeNotifier {
       _classes.sort((a, b) => a.name.compareTo(b.name));
       notifyListeners();
       debugPrint('ClassProvider: added ${classInfo.name}');
-      return classInfo;
+      return Result.success(classInfo);
     } catch (e) {
       debugPrint('ClassProvider: addClass failed ($e)');
-      return null;
+      return const Result.failure('Failed to save class');
     }
   }
 
   // ── Update ────────────────────────────────────────────────────────
 
-  Future<bool> updateClass(ClassInfo updated) async {
+  Future<Result<ClassInfo>> updateClass(ClassInfo updated) async {
     try {
       final box = await _getBox();
       await box.put(updated.id, updated.toMap());
@@ -106,18 +150,73 @@ class ClassProvider extends ChangeNotifier {
       if (index >= 0) {
         _classes[index] = updated;
         notifyListeners();
-        return true;
+        return Result.success(updated);
       }
-      return false;
+      return Result.failure('Class ${updated.id} not found');
     } catch (e) {
       debugPrint('ClassProvider: updateClass failed ($e)');
-      return false;
+      return const Result.failure('Failed to update class');
     }
+  }
+
+  // ── Dependency Check ────────────────────────────────────────────────
+
+  /// Check if a class can be safely deleted.
+  ///
+  /// Returns blocking reasons if deletion is not safe.
+  ClassDeletionCheck canDeleteClass(String classId) {
+    final cls = _classes.firstWhere((c) => c.id == classId, orElse: () => ClassInfo(name: '', ownerId: ''));
+    if (cls.id.isEmpty) {
+      return const ClassDeletionCheck(canDelete: true, blockingReasons: []);
+    }
+
+    final reasons = <String>[];
+
+    // Check for students in the class
+    if (cls.studentIds.isNotEmpty) {
+      reasons.add('${cls.studentIds.length} student(s) still in this class. Remove them first.');
+    }
+
+    // Check for assessments linked to this class
+    try {
+      final assessBox = Hive.box('assessments');
+      for (final key in assessBox.keys) {
+        final data = assessBox.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['className'] == cls.displayName) {
+          reasons.add('Assessment "${map['title'] ?? 'Unknown'}" is linked to this class.');
+          break; // One assessment is enough to block
+        }
+      }
+    } catch (_) {}
+
+    // Check for grading drafts
+    try {
+      final draftBox = Hive.box('grading_drafts');
+      for (final key in draftBox.keys) {
+        final data = draftBox.get(key);
+        if (data == null) continue;
+        final map = Map<String, dynamic>.from(data as Map);
+        if (map['metadata'] is Map) {
+          final meta = Map<String, dynamic>.from(map['metadata']);
+          if (meta['classId'] == classId) {
+            reasons.add('Grading draft exists for this class.');
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    return ClassDeletionCheck(
+      canDelete: reasons.isEmpty,
+      blockingReasons: reasons,
+    );
   }
 
   // ── Delete ────────────────────────────────────────────────────────
 
-  Future<bool> deleteClass(String classId) async {
+  Future<Result<void>> deleteClass(String classId) async {
     try {
       final box = await _getBox();
       await box.delete(classId);
@@ -125,44 +224,53 @@ class ClassProvider extends ChangeNotifier {
       if (_selectedClassId == classId) _selectedClassId = '';
       notifyListeners();
       debugPrint('ClassProvider: deleted $classId');
-      return true;
+      return const Result.success(null);
     } catch (e) {
       debugPrint('ClassProvider: deleteClass failed ($e)');
-      return false;
+      return const Result.failure('Failed to delete class');
     }
   }
 
   // ── Student ↔ Class linking ──────────────────────────────────────
 
   /// Add a student to a class. Updates both sides.
-  Future<bool> addStudentToClass(String classId, String studentId) async {
+  Future<Result<void>> addStudentToClass(String classId, String studentId) async {
     final index = _classes.indexWhere((c) => c.id == classId);
-    if (index < 0) return false;
+    if (index < 0) return Result.failure('Class $classId not found');
 
     final cls = _classes[index];
-    if (cls.studentIds.contains(studentId)) return true; // already there
+    if (cls.studentIds.contains(studentId)) {
+      return const Result.success(null);
+    } // already there
 
     final updated = cls.copyWith(studentIds: [...cls.studentIds, studentId]);
-    return updateClass(updated);
+    return updateClass(updated).then((r) => r.success
+        ? const Result.success(null)
+        : Result.failure(r.error ?? 'Failed to add student'));
   }
 
   /// Remove a student from a class.
-  Future<bool> removeStudentFromClass(String classId, String studentId) async {
+  Future<Result<void>> removeStudentFromClass(
+    String classId,
+    String studentId,
+  ) async {
     final index = _classes.indexWhere((c) => c.id == classId);
-    if (index < 0) return false;
+    if (index < 0) return Result.failure('Class $classId not found');
 
     final cls = _classes[index];
     final updated = cls.copyWith(
       studentIds: cls.studentIds.where((id) => id != studentId).toList());
-    return updateClass(updated);
+    return updateClass(updated).then((r) => r.success
+        ? const Result.success(null)
+        : Result.failure(r.error ?? 'Failed to remove student'));
   }
 
   /// Add multiple students to a class at once.
-  Future<int> addStudentsToClass(
+  Future<Result<int>> addStudentsToClass(
     String classId,
     List<String> studentIds) async {
     final index = _classes.indexWhere((c) => c.id == classId);
-    if (index < 0) return 0;
+    if (index < 0) return Result.failure('Class $classId not found');
 
     final cls = _classes[index];
     final existing = cls.studentIds.toSet();
@@ -170,7 +278,9 @@ class ClassProvider extends ChangeNotifier {
 
     final updated = cls.copyWith(studentIds: merged);
     final ok = await updateClass(updated);
-    return ok ? merged.length - existing.length : 0;
+    return ok.success
+        ? Result.success(merged.length - existing.length)
+        : Result.failure(ok.error ?? 'Failed to add students');
   }
 
   // ── Selection ─────────────────────────────────────────────────────

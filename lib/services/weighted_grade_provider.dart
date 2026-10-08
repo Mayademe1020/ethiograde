@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/weighted_grade.dart';
 import '../models/scan_result.dart';
 import '../models/student.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 import 'weighted_grade_service.dart';
 
 /// Manages weighted grade scale persistence against the encrypted Hive
@@ -13,7 +15,7 @@ import 'weighted_grade_service.dart';
 /// - Per-exam scales (keyed by assessment ID)
 /// - Reusable templates (keyed by template name)
 /// - CRUD operations for both
-class WeightedGradeProvider extends ChangeNotifier {
+class WeightedGradeProvider extends ChangeNotifier with HiveBoxMixin {
   static const String _boxName = 'weighted_scales';
   static const String _templatePrefix = 'template:';
   static const String _examPrefix = 'exam:';
@@ -36,22 +38,20 @@ class WeightedGradeProvider extends ChangeNotifier {
     _loadScales();
   }
 
-  Future<Box> _getBox() async {
-    if (Hive.isBoxOpen(_boxName)) return Hive.box(_boxName);
-    return await Hive.openBox(_boxName);
-  }
-
   Future<void> _loadScales() async {
     if (_loaded) return;
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       _scales = box.values
-          .map((v) => WeightedGradeScale.fromMap(Map<String, dynamic>.from(v as Map)))
+          .map(
+            (v) =>
+                WeightedGradeScale.fromMap(Map<String, dynamic>.from(v as Map)),
+          )
           .toList();
       _loaded = true;
-      debugPrint('[WeightedGradeProvider] Loaded ${_scales.length} scales');
-    } catch (e) {
-      debugPrint('[WeightedGradeProvider] Load failed: $e');
+      AppLog.info(this, '_loadScales', 'loaded ${_scales.length} scale(s)');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_loadScales', e, st);
       _scales = [];
       _loaded = true;
     }
@@ -60,19 +60,24 @@ class WeightedGradeProvider extends ChangeNotifier {
 
   /// Save a scale for a specific exam.
   Future<void> saveForExam(String examId, WeightedGradeScale scale) async {
-    final box = await _getBox();
-    // Use exam-prefixed ID
-    final keyed = WeightedGradeScale(
-      id: '$_examPrefix$examId',
-      name: scale.name,      classId: scale.classId,
-      components: scale.components,
-      rubricType: scale.rubricType,
-      createdAt: scale.createdAt);
-    await box.put(keyed.id, keyed.toMap());
-    _scales.removeWhere((s) => s.id == keyed.id);
-    _scales.add(keyed);
-    notifyListeners();
-    debugPrint('[WeightedGradeProvider] Saved exam scale: $examId');
+    try {
+      final box = await openBox(_boxName);
+      final keyed = WeightedGradeScale(
+        id: '$_examPrefix$examId',
+        name: scale.name,
+        classId: scale.classId,
+        components: scale.components,
+        rubricType: scale.rubricType,
+        createdAt: scale.createdAt,
+      );
+      await box.put(keyed.id, keyed.toMap());
+      _scales.removeWhere((s) => s.id == keyed.id);
+      _scales.add(keyed);
+      notifyListeners();
+      AppLog.info(this, 'saveForExam', 'saved exam scale: $examId');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'saveForExam', e, st);
+    }
   }
 
   /// Get the scale for a specific exam, if any.
@@ -86,27 +91,40 @@ class WeightedGradeProvider extends ChangeNotifier {
 
   /// Remove the scale for a specific exam.
   Future<void> removeForExam(String examId) async {
-    final box = await _getBox();
-    final key = '$_examPrefix$examId';
-    await box.delete(key);
-    _scales.removeWhere((s) => s.id == key);
-    notifyListeners();
+    try {
+      final box = await openBox(_boxName);
+      final key = '$_examPrefix$examId';
+      await box.delete(key);
+      _scales.removeWhere((s) => s.id == key);
+      notifyListeners();
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'removeForExam', e, st);
+    }
   }
 
   /// Save a scale as a reusable template.
-  Future<void> saveTemplate(String templateName, WeightedGradeScale scale) async {
-    final box = await _getBox();
-    final keyed = WeightedGradeScale(
-      id: '$_templatePrefix$templateName',
-      name: templateName,      classId: '', // Templates are class-agnostic
-      components: scale.components,
-      rubricType: scale.rubricType,
-      createdAt: DateTime.now());
-    await box.put(keyed.id, keyed.toMap());
-    _scales.removeWhere((s) => s.id == keyed.id);
-    _scales.add(keyed);
-    notifyListeners();
-    debugPrint('[WeightedGradeProvider] Saved template: $templateName');
+  Future<void> saveTemplate(
+    String templateName,
+    WeightedGradeScale scale,
+  ) async {
+    try {
+      final box = await openBox(_boxName);
+      final keyed = WeightedGradeScale(
+        id: '$_templatePrefix$templateName',
+        name: templateName,
+        classId: '',
+        components: scale.components,
+        rubricType: scale.rubricType,
+        createdAt: DateTime.now(),
+      );
+      await box.put(keyed.id, keyed.toMap());
+      _scales.removeWhere((s) => s.id == keyed.id);
+      _scales.add(keyed);
+      notifyListeners();
+      AppLog.info(this, 'saveTemplate', 'saved template: $templateName');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'saveTemplate', e, st);
+    }
   }
 
   /// Get a template by name.
@@ -120,41 +138,44 @@ class WeightedGradeProvider extends ChangeNotifier {
 
   /// Delete a template.
   Future<void> deleteTemplate(String name) async {
-    final box = await _getBox();
-    final key = '$_templatePrefix$name';
-    await box.delete(key);
-    _scales.removeWhere((s) => s.id == key);
-    notifyListeners();
+    try {
+      final box = await openBox(_boxName);
+      final key = '$_templatePrefix$name';
+      await box.delete(key);
+      _scales.removeWhere((s) => s.id == key);
+      notifyListeners();
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'deleteTemplate', e, st);
+    }
   }
 
   /// Rename a template.
   Future<void> renameTemplate(String oldName, String newName) async {
-    final old = getTemplate(oldName);
-    if (old == null) return;
+    try {
+      final old = getTemplate(oldName);
+      if (old == null) return;
 
-    // Delete old
-    final box = await _getBox();
-    await box.delete(old.id);
-    _scales.removeWhere((s) => s.id == old.id);
+      final box = await openBox(_boxName);
+      await box.delete(old.id);
+      _scales.removeWhere((s) => s.id == old.id);
 
-    // Save with new name
-    final renamed = WeightedGradeScale(
-      id: '$_templatePrefix$newName',
-      name: newName,      classId: old.classId,
-      components: old.components,
-      rubricType: old.rubricType,
-      createdAt: old.createdAt);
-    await box.put(renamed.id, renamed.toMap());
-    _scales.add(renamed);
-    notifyListeners();
+      final renamed = WeightedGradeScale(
+        id: '$_templatePrefix$newName',
+        name: newName,
+        classId: old.classId,
+        components: old.components,
+        rubricType: old.rubricType,
+        createdAt: old.createdAt,
+      );
+      await box.put(renamed.id, renamed.toMap());
+      _scales.add(renamed);
+      notifyListeners();
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'renameTemplate', e, st);
+    }
   }
 
   /// Compute composite grades for an exam that has a weighted scale.
-  ///
-  /// Loads scan results for all assessments referenced in the scale's
-  /// components, then delegates to [WeightedGradeService] for computation.
-  ///
-  /// Returns null if no scale is linked to this exam.
   Future<List<CompositeGrade>?> computeForExam({
     required String examId,
     required List<Student> students,
@@ -162,10 +183,9 @@ class WeightedGradeProvider extends ChangeNotifier {
     final scale = getForExam(examId);
     if (scale == null) return null;
 
-    // Load scan results for ALL assessments in the scale
     final allResults = <String, List<ScanResult>>{};
     try {
-      final box = Hive.lazyBox('scan_results');
+      final box = await openBox('scan_results');
       for (final key in box.keys) {
         final data = await box.get(key);
         if (data == null) continue;
@@ -173,35 +193,36 @@ class WeightedGradeProvider extends ChangeNotifier {
         final assessmentId = map['assessmentId'] as String? ?? '';
         if (assessmentId.isEmpty) continue;
 
-        // Check if this assessment is referenced in any component
         final isRelevant = scale.components.any(
-          (c) => c.assessmentIds.contains(assessmentId));
+          (c) => c.assessmentIds.contains(assessmentId),
+        );
         if (!isRelevant) continue;
 
         allResults.putIfAbsent(assessmentId, () => []);
         allResults[assessmentId]!.add(ScanResult.fromMap(map));
       }
-    } catch (e) {
-      debugPrint('[WeightedGradeProvider] computeForExam: load failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'computeForExam', e, st);
       return [];
     }
 
-    final service = const WeightedGradeService();
+    const service = WeightedGradeService();
     return service.computeClassGrades(
       students: students,
       scale: scale,
-      allResults: allResults);
+      allResults: allResults,
+    );
   }
 
   /// Clear all scales.
   Future<void> clearAll() async {
     try {
-      final box = await _getBox();
+      final box = await openBox(_boxName);
       await box.clear();
       _scales.clear();
       notifyListeners();
-    } catch (e) {
-      debugPrint('[WeightedGradeProvider] clearAll failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'clearAll', e, st);
     }
   }
 }

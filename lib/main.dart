@@ -13,12 +13,13 @@ import 'config/routes.dart';
 import 'config/theme.dart';
 import 'config/constants.dart';
 import 'config/hive_adapters.dart';
-import 'models/grading_scale.dart';
 import 'services/assessment_provider.dart';
 import 'services/student_provider.dart';
 import 'services/settings_provider.dart';
 import 'services/teacher_provider.dart';
 import 'services/class_provider.dart';
+import 'services/attendance_provider.dart';
+import 'services/class_notes_provider.dart';
 import 'services/migration_service.dart';
 import 'services/hive_migration.dart';
 import 'services/scoring_service.dart';
@@ -37,7 +38,7 @@ class _BoxNames {
 const String _hiveKeyStorageKey = 'hive_encryption_key';
 
 /// Wrapper so [main] can report init errors to the UI.
-enum _InitStatus { ok, fallback, corruption }
+enum InitStatus { ok, fallback, corruption }
 
 /// Tracks whether any Hive box was corrupt during init.
 /// Used by the UI to show a recovery message.
@@ -70,7 +71,7 @@ class _AppLifecycleObserver with WidgetsBindingObserver {
   /// Best-effort cleanup — never throw from lifecycle callbacks.
   static void _cleanup() {
     try {
-      OcrService().dispose();
+      OcrService.instance.dispose();
     } catch (_) {}
     try {
       // Flush and close all Hive boxes to prevent corruption on force-kill.
@@ -82,19 +83,69 @@ class _AppLifecycleObserver with WidgetsBindingObserver {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  _InitStatus status;
+  // ── Global error handlers ──────────────────────────────────────────
+  // Catch Flutter framework errors (build/layout/paint failures).
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exception}\n${details.stack}');
+  };
+
+  // Catch async errors that escape try/catch (unhandled Future errors).
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    debugPrint('[PlatformDispatcher] $error\n$stack');
+    return true; // prevent default handler
+  };
+
+  // Replace red ErrorWidget with a user-friendly screen.
+  ErrorWidget.builder = (details) {
+    final cs = ThemeData().colorScheme;
+    return Material(
+      color: cs.errorContainer,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: cs.error, size: 48),
+              const SizedBox(height: 12),
+              Text(
+                'Something went wrong',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onErrorContainer,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                details.exception.toString(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onErrorContainer.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
+  InitStatus status;
 
   try {
     status = await _initEncryptedHive();
   } catch (e, st) {
     debugPrint('[Hive] Unexpected init failure: $e\n$st');
-    status = _InitStatus.fallback;
+    status = InitStatus.fallback;
   }
 
   final isFirstLaunch = await AppConstants.isFirstLaunch;
 
   // Register lifecycle observer for native resource cleanup.
-  final lifecycleObserver = _AppLifecycleObserver();
+  _AppLifecycleObserver();
 
   runApp(EthioGradeApp(initStatus: status, isFirstLaunch: isFirstLaunch));
 }
@@ -105,12 +156,13 @@ void main() async {
 /// 2. Open three boxes with [HiveAesCipher]:
 ///    - `students` (regular)
 ///    - `assessments` (regular)
-///    - `scan_results` (LAZY — expected to grow large)
+///    - `scan_results` (regular — opened lazy historically; services use it
+///      via [HiveBoxMixin.openBox] which requires a non-lazy box)
 /// 3. Compact each box to reclaim fragmented space.
 ///
 /// On *any* failure the caller falls back to in-memory-only state;
 /// the app always launches.
-Future<_InitStatus> _initEncryptedHive() async {
+Future<InitStatus> _initEncryptedHive() async {
   // ── 1. Hive init ──────────────────────────────────────────────────
   await Hive.initFlutter();
 
@@ -123,8 +175,9 @@ Future<_InitStatus> _initEncryptedHive() async {
   registerHiveAdapters();
 
   // ── 2. Encryption key ─────────────────────────────────────────────
-  final secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true));
+  const secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   Uint8List encryptionKey;
 
@@ -134,10 +187,12 @@ Future<_InitStatus> _initEncryptedHive() async {
     debugPrint('[Hive] Loaded existing encryption key');
   } else {
     encryptionKey = Uint8List.fromList(
-      List<int>.generate(32, (_) => Random.secure().nextInt(256)));
+      List<int>.generate(32, (_) => Random.secure().nextInt(256)),
+    );
     await secureStorage.write(
       key: _hiveKeyStorageKey,
-      value: base64Encode(encryptionKey));
+      value: base64Encode(encryptionKey),
+    );
     debugPrint('[Hive] Generated new AES-256 encryption key');
   }
 
@@ -147,9 +202,7 @@ Future<_InitStatus> _initEncryptedHive() async {
   // Only open core boxes at startup — others open on-demand via providers.
   final students = await _openBoxSafe(_BoxNames.students, cipher: cipher);
   final assessments = await _openBoxSafe(_BoxNames.assessments, cipher: cipher);
-  final scanResults = await _openLazyBoxSafe(
-    _BoxNames.scanResults,
-    cipher: cipher);
+  final scanResults = await _openBoxSafe(_BoxNames.scanResults, cipher: cipher);
 
   // PII settings box (encrypted) — teacher name, phone, handles
   await _openBoxSafe('settings_pii', cipher: cipher);
@@ -158,10 +211,13 @@ Future<_InitStatus> _initEncryptedHive() async {
   await _openBoxSafe(_BoxNames.metadata, cipher: cipher);
 
   // ── 4b. Edge-case boxes ───────────────────────────────────────────
-  await _openBoxSafe('audit_trail', cipher: cipher);     // Grade audit trail
-  await _openBoxSafe('grading_drafts', cipher: cipher);  // Auto-save mid-grading
+  await _openBoxSafe('audit_trail', cipher: cipher); // Grade audit trail
+  await _openBoxSafe('grading_drafts', cipher: cipher); // Auto-save mid-grading
   await _openBoxSafe('student_transfers', cipher: cipher); // Transfer history
-  await _openBoxSafe('weighted_scales', cipher: cipher);  // Weighted grade configs
+  await _openBoxSafe(
+    'weighted_scales',
+    cipher: cipher,
+  ); // Weighted grade configs
 
   // ── 5. Run migrations ─────────────────────────────────────────────
   await MigrationService.runMigrations();
@@ -169,11 +225,10 @@ Future<_InitStatus> _initEncryptedHive() async {
   debugPrint(
     '[Hive] Core boxes open — students: ${students.length}, '
     'assessments: ${assessments.length}, '
-    'scan_results: ${scanResults.length}');
+    'scan_results: ${scanResults.length}',
+  );
 
-  return _hiveCorruptionDetected
-      ? _InitStatus.corruption
-      : _InitStatus.ok;
+  return _hiveCorruptionDetected ? InitStatus.corruption : InitStatus.ok;
 }
 
 /// Open a regular [Box] with error recovery.
@@ -187,21 +242,6 @@ Future<Box> _openBoxSafe(String name, {required HiveCipher cipher}) async {
     // Rename corrupt file instead of deleting — preserves data for recovery
     await _preserveCorruptBox(name);
     return await Hive.openBox(name, encryptionCipher: cipher);
-  }
-}
-
-/// Open a [LazyBox] with error recovery.
-/// Corrupt boxes are RENAMED (not deleted) so data can be manually recovered.
-Future<LazyBox> _openLazyBoxSafe(
-  String name, {
-  required HiveCipher cipher,
-}) async {
-  try {
-    return await Hive.openLazyBox(name, encryptionCipher: cipher);
-  } catch (e) {
-    debugPrint('[Hive] Lazy box "$name" corrupt — preserving and recreating: $e');
-    await _preserveCorruptBox(name);
-    return await Hive.openLazyBox(name, encryptionCipher: cipher);
   }
 }
 
@@ -231,7 +271,7 @@ Future<void> _preserveCorruptBox(String name) async {
 }
 
 class EthioGradeApp extends StatelessWidget {
-  final _InitStatus initStatus;
+  final InitStatus initStatus;
   final bool isFirstLaunch;
 
   const EthioGradeApp({
@@ -243,14 +283,19 @@ class EthioGradeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+      providers: [
+        ChangeNotifierProvider(create: (_) => AssessmentProvider()),
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(
-          create: (_) => SettingsProvider()..loadSettings()),
+          create: (_) => SettingsProvider()..loadSettings(),
+        ),
         ChangeNotifierProvider(
-          create: (_) => TeacherProvider()..loadTeachers()),
+          create: (_) => TeacherProvider()..loadTeachers(),
+        ),
         ChangeNotifierProvider(create: (_) => ClassProvider()..loadClasses()),
         ChangeNotifierProvider(create: (_) => WeightedGradeProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()..load()),
+        ChangeNotifierProvider(create: (_) => ClassNotesProvider()..load()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, _) {
@@ -262,49 +307,66 @@ class EthioGradeApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            themeMode: ThemeMode.light,            initialRoute: isFirstLaunch
+            themeMode: ThemeMode.system,
+            initialRoute: isFirstLaunch
                 ? AppRoutes.onboarding
                 : AppRoutes.dashboard,
             onGenerateRoute: AppRoutes.onGenerateRoute,
             // Non-intrusive banner if Hive had issues.
-            builder: initStatus != _InitStatus.ok
-                ? (context, child) => _InitBanner(
-                    status: initStatus, child: child)
-                : null);
-        }));
+            builder: initStatus != InitStatus.ok
+                ? (context, child) =>
+                      _InitBanner(status: initStatus, child: child)
+                : null,
+          );
+        },
+      ),
+    );
   }
 }
 
 /// Banner shown when Hive init had issues (fallback or corruption).
 class _InitBanner extends StatelessWidget {
-  final _InitStatus status;
+  final InitStatus status;
   final Widget? child;
   const _InitBanner({required this.status, this.child});
 
   @override
   Widget build(BuildContext context) {
-    final isCorruption = status == _InitStatus.corruption;
+    final isCorruption = status == InitStatus.corruption;
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         MaterialBanner(
           content: Text(
             isCorruption
-                ? 'Some data was recovered from a corrupted storage file. '
-                    'Your latest grades are saved. '
-                    'Check Settings → Storage for details.'
-                : 'Storage unavailable — data will not be saved this session.'),
+                ? 'Some data was recovered from a corrupted file. '
+                      'Your grades are safe. See Settings → Storage.'
+                : 'Storage unavailable — grades will not be saved this session.',
+            style: TextStyle(
+              fontSize: 13,
+              color: isCorruption
+                  ? cs.onSecondaryContainer
+                  : cs.onErrorContainer,
+            ),
+          ),
           leading: Icon(
-            isCorruption ? Icons.healing : Icons.warning_amber_rounded),
+            isCorruption ? Icons.healing_outlined : Icons.warning_amber_rounded,
+            color: isCorruption ? cs.secondary : cs.error,
+          ),
           backgroundColor: isCorruption
-              ? Colors.orange.shade100
-              : Theme.of(context).colorScheme.errorContainer,
+              ? cs.secondaryContainer
+              : cs.errorContainer,
+          surfaceTintColor: Colors.transparent,
           actions: [
             TextButton(
               onPressed: () =>
                   ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
-              child: Text('DISMISS')),
-          ]),
+              child: const Text('Dismiss'),
+            ),
+          ],
+        ),
         Expanded(child: child ?? const SizedBox.shrink()),
-      ]);
+      ],
+    );
   }
 }

@@ -19,6 +19,14 @@ class Teacher {
   final bool isActive;
   @HiveField(6)
   final DateTime createdAt;
+  @HiveField(7)
+  final List<String> subjects;
+  @HiveField(8)
+  final List<String> classIds;
+  @HiveField(9)
+  final String phone;
+  @HiveField(10)
+  final List<String> grades;
 
   Teacher({
     String? id,
@@ -28,8 +36,26 @@ class Teacher {
     this.role = 'teacher',
     this.isActive = true,
     DateTime? createdAt,
+    List<String>? subjects,
+    List<String>? classIds,
+    this.phone = '',
+    List<String>? grades,
   }) : id = id ?? const Uuid().v4(),
-       createdAt = createdAt ?? DateTime.now();
+       createdAt = createdAt ?? DateTime.now(),
+       subjects = subjects ?? (subject.isEmpty ? const [] : [subject]),
+       classIds = classIds ?? const [],
+       grades = grades ?? const [];
+
+  /// Convenience accessor: the primary subject the teacher teaches.
+  String get primarySubject =>
+      subject.isNotEmpty ? subject : (subjects.isEmpty ? '' : subjects.first);
+
+  /// All subjects taught, always including the legacy single subject.
+  List<String> get allSubjects {
+    final set = <String>{...subjects};
+    if (subject.isNotEmpty) set.add(subject);
+    return set.toList()..sort();
+  }
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -39,6 +65,10 @@ class Teacher {
     'role': role,
     'isActive': isActive,
     'createdAt': createdAt.toIso8601String(),
+    'subjects': subjects,
+    'classIds': classIds,
+    'phone': phone,
+    'grades': grades,
   };
 
   factory Teacher.fromMap(Map<String, dynamic> map) => Teacher(
@@ -49,7 +79,12 @@ class Teacher {
     role: map['role'] as String? ?? 'teacher',
     isActive: map['isActive'] as bool? ?? true,
     createdAt:
-        DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now());
+        DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+    subjects: (map['subjects'] as List?)?.cast<String>() ?? const [],
+    classIds: (map['classIds'] as List?)?.cast<String>() ?? const [],
+    phone: map['phone'] as String? ?? '',
+    grades: (map['grades'] as List?)?.cast<String>() ?? const [],
+  );
 
   Teacher copyWith({
     String? name,
@@ -57,6 +92,10 @@ class Teacher {
     String? school,
     String? role,
     bool? isActive,
+    List<String>? subjects,
+    List<String>? classIds,
+    String? phone,
+    List<String>? grades,
   }) => Teacher(
     id: id,
     name: name ?? this.name,
@@ -64,7 +103,12 @@ class Teacher {
     school: school ?? this.school,
     role: role ?? this.role,
     isActive: isActive ?? this.isActive,
-    createdAt: createdAt);
+    createdAt: createdAt,
+    subjects: subjects ?? this.subjects,
+    classIds: classIds ?? this.classIds,
+    phone: phone ?? this.phone,
+    grades: grades ?? this.grades,
+  );
 
   @override
   String toString() => 'Teacher($name, $subject, $role)';

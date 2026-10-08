@@ -5,6 +5,8 @@ part 'scan_result.g.dart';
 
 @HiveType(typeId: 7)
 class ScanResult {
+  static const Object _copySentinel = Object();
+
   @HiveField(0)
   final String id;
   @HiveField(1)
@@ -67,8 +69,117 @@ class ScanResult {
   }) : id = id ?? const Uuid().v4(),
        scannedAt = scannedAt ?? DateTime.now();
 
-  bool get needsReview =>
-      confidence < 0.7 || answers.any((a) => a.confidence < 0.6);
+  /// Question numbers whose recognition or question-association the
+  /// grading pipeline flagged as uncertain (spatial association or
+  /// retained low-confidence subjective reads).
+  ///
+  /// Stored in metadata — no Hive schema change. Empty for legacy results.
+  Set<int> get uncertainQuestions {
+    final value = metadata['uncertainQuestions'];
+    if (value is! List) return const {};
+    return value.map((e) => int.tryParse('$e')).whereType<int>().toSet();
+  }
+
+  /// Whether this result has been resolved by the teacher.
+  ///
+  /// A result is resolved when any of these conditions hold:
+  /// - status is ScanStatus.reviewed
+  /// - metadata['teacherReviewed'] is true
+  /// - metadata['batchReviewResolution'] is non-null
+  /// - metadata['duplicateReviewed'] is true
+  /// - metadata['studentMatchResolved'] is true
+  bool get isResolved {
+    if (status == ScanStatus.reviewed) return true;
+    if (metadata['teacherReviewed'] == true) return true;
+    if (metadata['batchReviewResolution'] != null) return true;
+    if (metadata['duplicateReviewed'] == true) return true;
+    if (metadata['studentMatchResolved'] == true) return true;
+    return false;
+  }
+
+  /// Whether this result still requires teacher action.
+  ///
+  /// Returns true only for UNRESOLVED issues. Resolved items are excluded.
+  /// This is the canonical resolver — use this instead of checking
+  /// needsReview and isUnmatched separately.
+  ///
+  /// Combines:
+  /// - Low-confidence answers (needsReview)
+  /// - Unmatched student identity (isUnmatched)
+  bool get requiresTeacherAction {
+    if (isResolved) return false;
+
+    // Unresolved low-confidence overall
+    // Lowered from 0.7 to 0.5 for handwriting support
+    if (confidence < 0.5) return true;
+
+    // Unresolved low-confidence on individual answers
+    // Lowered from 0.6 to 0.4 for handwriting support
+    if (answers.any((a) => a.confidence < 0.4)) return true;
+
+    // Multiple-mark responses detected (confidence 0 from OMR)
+    if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
+
+    // Uncertain subjective recognition/association flagged by the pipeline
+    if (uncertainQuestions.isNotEmpty) return true;
+
+    // Unresolved unmatched student
+    if (studentId.isEmpty || studentName.trim().isEmpty) return true;
+
+    return false;
+  }
+
+  /// Whether this result still requires teacher review (low-confidence only).
+  ///
+  /// Returns true only for UNRESOLVED low-confidence issues.
+  /// Unmatched students and other issues are checked separately.
+  /// Prefer [requiresTeacherAction] for unified checking.
+  bool get needsReview {
+    if (isResolved) return false;
+
+    // Unresolved low-confidence overall
+    // Lowered from 0.7 to 0.5 for handwriting support
+    if (confidence < 0.5) return true;
+
+    // Unresolved low-confidence on individual answers
+    // Lowered from 0.6 to 0.4 for handwriting support
+    if (answers.any((a) => a.confidence < 0.4)) return true;
+
+    // Multiple-mark responses detected (confidence 0 from OMR)
+    if (answers.any((a) => a.detectedAnswer == '[MULTIPLE]')) return true;
+
+    // Uncertain subjective recognition/association flagged by the pipeline
+    if (uncertainQuestions.isNotEmpty) return true;
+
+    return false;
+  }
+
+  /// Preserve the ORIGINAL machine reading when a teacher manually corrects
+  /// an answer, without touching the Hive schema.
+  ///
+  /// The first correction wins: later edits never overwrite the earliest
+  /// recorded reading, so the audit trail always retains what the scanner
+  /// originally detected. Stored under metadata['originalOcrReads'] as
+  /// {questionNumber: originalRead}.
+  ///
+  /// Returns a new metadata map; the input map is not mutated.
+  static Map<String, dynamic> preserveOriginalOcrRead(
+    Map<String, dynamic> metadata,
+    int questionNumber,
+    String originalRead,
+  ) {
+    final existing = Map<String, dynamic>.from(
+      (metadata['originalOcrReads'] as Map?) ?? const {},
+    );
+    final key = '$questionNumber';
+    if (originalRead.isNotEmpty && !existing.containsKey(key)) {
+      existing[key] = originalRead;
+    }
+    return <String, dynamic>{...metadata, 'originalOcrReads': existing};
+  }
+
+  /// Whether this result has an unmatched student.
+  bool get isUnmatched => studentId.isEmpty || studentName.trim().isEmpty;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -119,6 +230,8 @@ class ScanResult {
   ScanResult copyWith({
     String? studentId,
     String? studentName,
+    String? imagePath,
+    Object? enhancedImagePath = _copySentinel,
     List<AnswerMatch>? answers,
     double? totalScore,
     double? maxScore,
@@ -136,8 +249,10 @@ class ScanResult {
     assessmentId: assessmentId,
     studentId: studentId ?? this.studentId,
     studentName: studentName ?? this.studentName,
-    imagePath: imagePath,
-    enhancedImagePath: enhancedImagePath,
+    imagePath: imagePath ?? this.imagePath,
+    enhancedImagePath: identical(enhancedImagePath, _copySentinel)
+        ? this.enhancedImagePath
+        : enhancedImagePath as String?,
     answers: answers ?? this.answers,
     totalScore: totalScore ?? this.totalScore,
     maxScore: maxScore ?? this.maxScore,
