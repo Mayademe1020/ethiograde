@@ -14,10 +14,33 @@ billing account. You paste the code into a browser editor and click Deploy.
 
 ---
 
+## What teachers have to do: nothing
+
+The proxy URL ships inside the app. A teacher flips one toggle and cloud
+grading works. There is no API key to paste, no URL to copy, nothing to get
+wrong.
+
+The Gemini key lives only in your Script Properties and never reaches any
+device.
+
+### What actually protects your quota
+
+Not a secret token — a hard budget ceiling plus rate limiting:
+
+| Control | Where | Effect |
+|---------|-------|--------|
+| Gemini key isolation | Script Properties | Key never leaves Google's servers |
+| Monthly budget ceiling | `monthlyBudget` script property | Proxy **refuses** to call Gemini once spend hits the limit |
+| Per-IP rate limit | 30 req/min per caller | Bounds throughput regardless of client |
+
+The budget ceiling is the real control: worst case spend is exactly the number
+you set, not an open tab.
+
+---
+
 ## What you need
 
 - The Gemini API key you already have (`AIza...`)
-- A random 40-character hex string (the app's shared secret)
 - About 10 minutes in a browser
 
 ---
@@ -36,26 +59,35 @@ billing account. You paste the code into a browser editor and click Deploy.
 2. Open `appsscript/Code.gs` from this repo
 3. Copy the whole file and paste it into the Apps Script editor
 
-Your editor should show one file called `Code.gs` with roughly 700 lines.
+Your editor should show one file called `Code.gs` of roughly 800 lines.
 
 ---
 
-## Step 3 — Add your two keys
+## Step 3 — Add your Gemini key
 
 1. Click the gear icon **Project Settings** (left sidebar, bottom)
 2. Scroll to **Script Properties**
-3. Click **Add script property** twice:
+3. Click **Add script property**:
 
 | Property | Value |
 |----------|-------|
 | `GEMINI_API_KEY` | your `AIza...` key |
-| `APP_API_KEY` | your 40-char hex string |
 
-To generate the hex string, run this in PowerShell:
+That is the only value you need to supply. There is no `APP_API_KEY` — the
+proxy is intentionally unauthenticated.
 
-```powershell
--join ((1..20) | ForEach-Object { '{0:x2}' -f (Get-Random -Max 256) })
-```
+### Optional: set your budget ceiling
+
+Add a second script property to control your maximum monthly spend:
+
+| Property | Value |
+|----------|-------|
+| `monthlyBudget` | e.g. `5` for $5/month |
+
+Leave it unset and the default is `$10`. When tracked spend reaches this
+number the proxy starts refusing grading instead of calling Gemini, so your
+exposure is capped exactly here. The **Usage & Cost** tile in the app shows
+progress against it.
 
 ---
 
@@ -63,7 +95,7 @@ To generate the hex string, run this in PowerShell:
 
 1. In the toolbar dropdown at the top, select the function **`testGemini`**
 2. Click **Run**
-3. Approve the permission prompt (Google will warn you the app is unverified — click **Advanced** → **Go to EthioGrade Proxy (unsafe)**)
+3. Approve the permission prompt (Google warns the app is unverified — click **Advanced** → **Go to EthioGrade Proxy (unsafe)**)
 4. Check the Execution log at the bottom:
 
 ```
@@ -113,36 +145,36 @@ serves the request directly.
 
 ---
 
-## Step 7 — Configure the app
+## Step 7 — Put the URL in the app
 
-On each phone that needs cloud grading:
+Open `lib/config/cloud_grading_config.dart` and set two values:
 
-1. Open EthioGrade → **Settings**
-2. Scroll to **Cloud OCR**
-3. Set:
+```dart
+static const String proxyUrl =
+    'https://script.googleusercontent.com/macros/s/AKfycbXXXXXXXX/exec';
 
-| Field | Value |
-|-------|-------|
-| Enable Cloud OCR | **on** |
-| Endpoint | the `script.googleusercontent.com/.../exec` URL |
-| App API Key | your 40-char hex string |
-| AI Model | **Gemini 2.0 Flash** |
+static const bool available = true;
+```
 
-4. Tap **Usage & Cost** — it should show `0 scans` and a budget of `$10.00`.
-   If it says "No data yet" and stays that way, the app cannot reach the
-   proxy; re-check the endpoint and key.
+Rebuild and reinstall the app. That is the last configuration step — the
+proxy URL ships inside the build, so no teacher ever pastes anything.
+
+On the phone, Settings → **Cloud Grading** now shows a working toggle, the
+model picker, and a **Test Connection** row. Endpoint and model details sit
+behind a collapsed **Advanced** section for troubleshooting only.
 
 ---
 
 ## Test it
 
 1. Create an assessment and fill in its answer key
-2. Print the sheet, or just write answers on paper
-3. Fill in a few answers in messy handwriting
-4. Scan it
+2. Fill in a few answers in messy handwriting on the sheet
+3. Scan it
 
-Cloud grading kicks in only when local OCR looks like handwriting, so the first
-scan may still use ML Kit. Handwriting-heavy papers route to Gemini.
+Cloud grading kicks in when local OCR looks like handwriting, so printed
+answers may still use ML Kit. Handwriting-heavy papers route to Gemini.
+
+Latency is ~3–8s per paper versus ~1s local. That is the trade for accuracy.
 
 ---
 
@@ -150,24 +182,24 @@ scan may still use ML Kit. Handwriting-heavy papers route to Gemini.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `App API key not set` in Settings | Endpoint or key blank | Re-enter both |
-| Usage & Cost stuck on "No data yet" | Proxy unreachable | Check URL uses `googleusercontent.com`, no trailing slash |
-| `Invalid API key` | `APP_API_KEY` mismatch | The phone value must match the script property exactly |
+| `Test Connection` reports unreachable | Bad or unset `proxyUrl` | Re-check Steps 6–7 |
+| `Monthly cloud grading budget reached` | Ceiling hit | Raise `monthlyBudget`, or wait for next month. Counters reset automatically on the 1st |
+| "Exceeded rate limit" | Over 30 scans/min from one IP | Wait a minute |
+| Usage & Cost stuck on "No data yet" | Proxy unreachable | Re-check the URL |
+| Scans return no answers | `script.google.com` URL still in use | Must be `googleusercontent.com` |
 | `GEMINI_API_KEY script property is not set` | Property missing | Redo Step 3 |
-| Scans return no answers | Old URL still in use | Switch to `googleusercontent.com` |
-| "Exceeded rate limit" | Over 30 scans/minute | Wait a minute |
-| Everything works on Wi-Fi, not mobile data | — | Expected: Apps Script is public, so mobile data works too. If it does not, check the phone's network. |
+| Handwriting still graded locally | Sheet reads as printed text | Expected — cloud only engages when ML Kit output looks like handwriting |
 
 ---
 
 ## Limits to be aware of
 
-- **Rate limit:** 30 requests/minute
-- **Execution:** 6 minutes per call, and Google allots roughly 90 min/day on
-  consumer accounts. A scan costs ~3–8 s, so ~90 min covers roughly
-  700–1,800 papers/day. Fine for a pilot; if you outgrow it, move the same
-  handler to Cloudflare Workers (also free, 100k requests/day).
-- **Offline:** with Cloud OCR off or unreachable, the app falls back to ML Kit
+- **Rate limit:** 30 requests/minute per caller IP
+- **Execution:** 6 minutes per call; Google allots roughly 90 min/day on
+  consumer accounts. At 3–8s per paper that covers roughly 700–1,800
+  papers/day. Fine for a pilot; outgrow it by moving the same handler to
+  Cloudflare Workers (also free, 100k requests/day).
+- **Offline:** with cloud disabled or unreachable, the app falls back to ML Kit
   automatically. Nothing breaks.
 
 ---
@@ -175,6 +207,5 @@ scan may still use ML Kit. Handwriting-heavy papers route to Gemini.
 ## Adding another model later
 
 Edit the `MODELS` table at the top of `Code.gs`, add the model name, then
-Deploy → **Manage deployments** → edit → **New version**. No app update needed.
-
-To change the default budget, add a script property named `monthlyBudget`.
+Deploy → **Manage deployments** → edit → **New version**. Add the matching id
+to the picker in `lib/screens/home/settings_tab.dart` and rebuild the app.

@@ -33,20 +33,16 @@ class SmartOcrService {
   String? _serverUrl;
   bool _cloudEnabled = false;
 
-  // API key for server auth — set from settings
-  String? _apiKey;
-
   // Model selection — can be changed at runtime
-  String _preferredModel = 'gemini'; // gemini, gemini-flash-lite, openai
+  String _preferredModel = 'gemini'; // gemini, gemini-flash-lite, gemini-2.5-flash
 
-  Future<void> initialize({String? serverUrl, String? apiKey}) async {
+  Future<void> initialize({String? serverUrl}) async {
     if (_isInitialized) return;
     _mlKitRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    _serverUrl = serverUrl;
-    _apiKey = apiKey;
-    _cloudEnabled = serverUrl != null && serverUrl.isNotEmpty;
+    _serverUrl = serverUrl ?? _serverUrl;
+    _cloudEnabled = _serverUrl != null && _serverUrl!.isNotEmpty;
     _isInitialized = true;
-    debugPrint('SmartOCR: initialized (Cloud: $_cloudEnabled, Auth: ${_apiKey != null})');
+    debugPrint('SmartOCR: initialized (Cloud: $_cloudEnabled)');
   }
 
   void setServerUrl(String? url) {
@@ -55,15 +51,8 @@ class SmartOcrService {
     debugPrint('SmartOCR: Cloud ${_cloudEnabled ? "enabled" : "disabled"}');
   }
 
-  /// Set the API key for server authentication.
-  void setApiKey(String? key) {
-    _apiKey = key;
-    debugPrint('SmartOCR: API key ${key != null ? "set" : "cleared"}');
-  }
-
   Map<String, String> get _authHeaders => {
     'Content-Type': 'application/json',
-    if (_apiKey != null) 'X-Api-Key': _apiKey!,
   };
 
   /// Normalised result of a proxy call.
@@ -73,11 +62,17 @@ class SmartOcrService {
   /// `{ok, result, error}` envelope, not the status line.
   ProxyResponse? _lastError;
 
-  /// True when the last failure was an auth rejection — the UI uses this to
-  /// tell the teacher their API key is wrong rather than showing a timeout.
-  bool get hadAuthFailure => _lastError?.code == 401 || _lastError?.code == 403;
+  /// True when the proxy refused for a reason the teacher can act on —
+  /// budget spent or rate limited, as opposed to a transport failure.
+  bool get isBlocked => _lastError?.isBudgetExceeded == true ||
+      _lastError?.isRateLimit == true;
+
+  bool get hadAuthFailure => false;
 
   String? get lastErrorMessage => _lastError?.error;
+
+  /// True when the last call failed because the monthly budget was reached.
+  bool get isBudgetBlocked => _lastError?.isBudgetExceeded == true;
 
   Uri _endpoint(String action) {
     final base = _serverUrl!.replaceFirst(RegExp(r'/+$'), '');
@@ -86,16 +81,15 @@ class SmartOcrService {
 
   /// POST to the proxy and unwrap the `{ok, result}` envelope.
   ///
-  /// The shared secret travels in the body because Apps Script web apps
-  /// cannot read inbound HTTP headers. The `X-Api-Key` header is still sent so
-  /// header-aware backends keep working.
+  /// The proxy is unauthenticated: its URL ships inside the app, so a shared
+  /// secret would be extractable and worth nothing. Access is instead bounded
+  /// server-side by a per-IP rate limit and a hard monthly budget ceiling.
   Future<Map<String, dynamic>?> _postProxy(
     String action,
     Map<String, dynamic> data,
   ) async {
-    if (_serverUrl == null || _serverUrl!.isEmpty) return null;
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      _lastError = const ProxyResponse('App API key not set', 401);
+    if (_serverUrl == null || _serverUrl!.isEmpty) {
+      _lastError = const ProxyResponse('Cloud grading endpoint not set', 500);
       return null;
     }
 
@@ -104,11 +98,7 @@ class SmartOcrService {
           .post(
             _endpoint(action),
             headers: _authHeaders,
-            body: jsonEncode({
-              'action': action,
-              'apiKey': _apiKey,
-              'data': data,
-            }),
+            body: jsonEncode({'action': action, 'data': data}),
           )
           .timeout(const Duration(seconds: 120));
 
@@ -381,7 +371,6 @@ class SmartOcrService {
   /// which destroyed the per-question structure the parser depends on.
   Future<SmartOcrResult?> _callServerProxy(String imagePath) async {
     if (_serverUrl == null || _serverUrl!.isEmpty) return null;
-    if (_apiKey == null || _apiKey!.isEmpty) return null;
 
     try {
       final bytes = await File(imagePath).readAsBytes();
@@ -416,14 +405,15 @@ class SmartOcrService {
 }
 
 /// A failed proxy call, carrying the HTTP-equivalent status the envelope
-/// reported so callers can distinguish auth problems from transport problems.
+/// reported so callers can distinguish blocked requests from transport errors.
 class ProxyResponse {
   final String error;
   final int code;
 
   const ProxyResponse(this.error, this.code);
 
-  bool get isAuthFailure => code == 401 || code == 403;
+  /// The proxy's monthly budget was spent and it refused to call the model.
+  bool get isBudgetExceeded => code == 402;
 
   bool get isRateLimit => code == 429;
 }
@@ -673,12 +663,16 @@ class CostSummary {
   final String period;
   final Map<String, CostByProvider> byProvider;
 
+  /// True when the proxy has hit its ceiling and refuses further grading.
+  final bool budgetExceeded;
+
   const CostSummary({
     required this.totalRequests,
     required this.totalCost,
     required this.monthlyBudget,
     required this.period,
     required this.byProvider,
+    this.budgetExceeded = false,
   });
 
   factory CostSummary.fromJson(Map<String, dynamic> json) {
@@ -701,6 +695,7 @@ class CostSummary {
           : _asDouble(json['monthlyBudget']),
       period: (json['period'] ?? 'all-time').toString(),
       byProvider: byProvider,
+      budgetExceeded: json['budgetExceeded'] == true,
     );
   }
 

@@ -108,12 +108,9 @@ class HybridGradingService with HiveBoxMixin {
     // Much more accurate for handwriting. Falls back to ML Kit pipeline if offline.
     try {
       final settings = SettingsProvider();
-      if (settings.cloudOcrEnabled &&
-          settings.cloudOcrApiKey.isNotEmpty &&
-          settings.cloudOcrEndpoint.isNotEmpty) {
+      if (settings.cloudOcrEnabled && settings.cloudOcrEndpoint.isNotEmpty) {
         final socr = SmartOcrService.instance;
         socr.setServerUrl(settings.cloudOcrEndpoint);
-        socr.setApiKey(settings.cloudOcrApiKey);
 
         // Build answer key from assessment questions
         final answerKey = <String, dynamic>{};

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/cloud_grading_config.dart';
 import '../models/grading_scale.dart';
 import 'error_handler.dart';
 import 'phone_utils.dart';
@@ -32,12 +33,12 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
 
   // Cloud OCR settings.
   //
-  // The endpoint is deliberately empty: cloud grading only works once a
-  // teacher pastes their own proxy URL (see appsscript/SETUP_APPS_SCRIPT.md).
-  // An empty default keeps grading fully offline until they opt in.
-  bool _cloudOcrEnabled = false;
-  String _cloudOcrEndpoint = '';
-  String _cloudOcrApiKey = '';
+  // The proxy URL ships inside the app (see CloudGradingConfig) so there is
+  // nothing for a teacher to configure — they just flip the toggle. The
+  // endpoint is persisted only so a self-hosted proxy can override it during
+  // testing.
+  bool _cloudOcrEnabled = CloudGradingConfig.available;
+  String _cloudOcrEndpoint = CloudGradingConfig.proxyUrl;
   String _cloudOcrModel = 'gemini';
 
   // Custom grading scales
@@ -73,7 +74,6 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
   // Cloud OCR getters
   bool get cloudOcrEnabled => _cloudOcrEnabled;
   String get cloudOcrEndpoint => _cloudOcrEndpoint;
-  String get cloudOcrApiKey => _cloudOcrApiKey;
   String get cloudOcrModel => _cloudOcrModel;
 
   /// Explicit load — call from widget tree, not constructor.
@@ -105,10 +105,14 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
       _telegramHandle = (piiBox.get('telegram_handle') as String?) ?? '';
       _whatsappNumber = (piiBox.get('whatsapp_number') as String?) ?? '';
 
-      // Cloud OCR settings (encrypted — API key is sensitive)
-      _cloudOcrEnabled = piiBox.get('cloud_ocr_enabled') == true;
-      _cloudOcrEndpoint = (piiBox.get('cloud_ocr_endpoint') as String?) ?? '';
-      _cloudOcrApiKey = (piiBox.get('cloud_ocr_api_key') as String?) ?? '';
+      // Cloud OCR settings (encrypted — endpoint is overridden only in testing)
+      _cloudOcrEnabled =
+          piiBox.get('cloud_ocr_enabled') ?? CloudGradingConfig.available;
+      final storedEndpoint = piiBox.get('cloud_ocr_endpoint') as String?;
+      _cloudOcrEndpoint =
+          (storedEndpoint != null && storedEndpoint.isNotEmpty)
+              ? storedEndpoint
+              : CloudGradingConfig.proxyUrl;
       _cloudOcrModel = (piiBox.get('cloud_ocr_model') as String?) ?? 'gemini';
 
       // Custom grading scales
@@ -263,7 +267,6 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
   Future<void> updateCloudOcr({
     bool? enabled,
     String? endpoint,
-    String? apiKey,
     String? model,
   }) async {
     final piiBox = await _getPiiBox();
@@ -274,10 +277,6 @@ class SettingsProvider extends ChangeNotifier with HiveBoxMixin {
     if (endpoint != null) {
       _cloudOcrEndpoint = endpoint;
       await piiBox.put('cloud_ocr_endpoint', endpoint);
-    }
-    if (apiKey != null) {
-      _cloudOcrApiKey = apiKey;
-      await piiBox.put('cloud_ocr_api_key', apiKey);
     }
     if (model != null) {
       _cloudOcrModel = model;

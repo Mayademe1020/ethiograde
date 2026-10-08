@@ -2,23 +2,28 @@
  * EthioGrade cloud grading proxy (Google Apps Script edition).
  *
  * Why this exists: the Gemini API key must never ship inside the APK, so the
- * app posts to this script instead. Apps Script runs on Google's servers for
- * free and needs no billing account or credit card.
+ * app posts the paper image to this script instead and the script calls
+ * Gemini. Apps Script runs on Google's servers for free and needs no billing
+ * account or credit card.
  *
  * Request  (POST, JSON body):
- *   { "action": "gradeExam", "apiKey": "...", "data": { ... } }
- *   { "action": "getCosts",  "apiKey": "..." }
- * GET (query string):  ?action=getModels&apiKey=...
+ *   { "action": "gradeExam", "data": { ... } }
+ * GET (query string):  ?action=getModels
  *
  * Response:
  *   { "ok": true,  "result": { ... } }
- *   { "ok": false, "error": "...", "code": 401 }
+ *   { "ok": false, "error": "...", "code": 402 }
  *
  * Apps Script cannot set HTTP status codes, so success/failure is carried in
  * the `ok` envelope. The Dart client (lib/services/smart_ocr_service.dart)
  * checks `ok` rather than the status line.
  *
- * The API key is read from Script Properties, never from this file:
+ * There is no shared secret. The proxy URL is baked into the app, so any token
+ * would be extractable from the APK and protect nothing. Usage is instead
+ * bounded by two real controls:
+ *   - rateLimitOk_()  30 requests/minute per caller IP
+ *   - budgetExceeded_() hard monthly cost ceiling; past it the proxy refuses
+ * The Gemini key itself is read from Script Properties, never from this file:
  *   Project Settings -> Script Properties -> GEMINI_API_KEY
  */
 
@@ -108,9 +113,9 @@ function route_(e, method) {
     }
 
     if (action === 'getModels') return handleGetModels_();
-    if (action === 'gradeExam') return handleGradeExam_(req);
-    if (action === 'getCosts') return handleGetCosts_(req);
-    if (action === 'getSchoolConfig') return handleGetConfig_(req);
+    if (action === 'gradeExam') return handleGradeExam_(req, e);
+    if (action === 'getCosts') return handleGetCosts_();
+    if (action === 'getSchoolConfig') return handleGetConfig_();
     if (action === 'updateSchoolConfig') return handleUpdateConfig_(req);
 
     return json_({ ok: false, error: 'Unknown action: ' + action, code: 404 });
@@ -125,7 +130,9 @@ function route_(e, method) {
 
 /**
  * Accepts a JSON POST body, form-encoded body, or GET query string and always
- * returns `{ action, apiKey, data }`.
+ * returns `{ action, data }`. No credential is carried: the proxy is
+ * unauthenticated by design and relies on per-IP rate limiting plus the
+ * monthly budget ceiling to bound usage.
  */
 function readRequest_(e) {
   const query = (e && e.parameter) || {};
@@ -150,51 +157,83 @@ function readRequest_(e) {
 
   return {
     action: body.action || query.action || '',
-    apiKey: body.apiKey || query.apiKey || '',
     data: body.data || {},
   };
 }
 
 // ---------------------------------------------------------------------------
-// Auth + rate limiting
+// Rate limiting + budget ceiling
 // ---------------------------------------------------------------------------
 
 /**
- * Apps Script web apps cannot read HTTP request headers, so the shared secret
- * travels in the JSON body instead of the X-Api-Key header.
- */
-function authorize_(req) {
-  const expected = PropertiesService.getScriptProperties()
-    .getProperty('APP_API_KEY');
-  if (!expected) {
-    return 'Server auth not configured (set APP_API_KEY script property)';
-  }
-  if (!req.apiKey) return 'Missing apiKey in request body';
-  if (req.apiKey !== expected) return 'Invalid API key';
-  return null;
-}
-
-/**
- * Rolling 60-second window persisted in script properties. Lock-guarded so
- * concurrent scans cannot race past the cap.
+ * Rolling 60-second window, counted per caller IP.
+ *
+ * There is no shared secret: the app ships with the proxy URL baked in, so any
+ * token would be extractable from the APK and worth nothing. What actually
+ * bounds abuse is this limit plus [budgetExceeded_] below — together they turn
+ * an open-ended bill into a hard number the operator controls.
+ *
+ * Apps Script cannot see X-Forwarded-For reliably, so the per-IP identity is
+ * Apps Script's own e.parameter.clientIp. Lock-guarded so concurrent scans
+ * cannot race past the cap.
  */
 function rateLimitOk_() {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const props = PropertiesService.getScriptProperties();
+    const ip = currentIp_();
     const now = Date.now();
-    let stamps = parseJson_(props.getProperty(P_RATE), []);
+
+    const all = parseJson_(props.getProperty(P_RATE), {});
+    let stamps = all[ip] || [];
+
     stamps = stamps.filter(function (t) {
       return now - t < 60000;
     });
-    if (stamps.length >= RATE_LIMIT_PER_MINUTE) return false;
+
+    if (stamps.length >= RATE_LIMIT_PER_MINUTE) {
+      all[ip] = stamps;
+      props.setProperty(P_RATE, JSON.stringify(all));
+      return false;
+    }
+
     stamps.push(now);
-    props.setProperty(P_RATE, JSON.stringify(stamps));
+    all[ip] = stamps;
+    props.setProperty(P_RATE, JSON.stringify(all));
     return true;
   } finally {
     lock.releaseLock();
   }
+}
+
+function currentIp_(e) {
+  if (e && e.parameter && e.parameter.clientIp) return e.parameter.clientIp;
+  return 'unknown';
+}
+
+/**
+ * Hard monthly ceiling. When tracked spend reaches the configured budget the
+ * proxy refuses further grading instead of calling the model, so the worst
+ * case is exactly the budget rather than an unbounded invoice.
+ */
+function budgetExceeded_() {
+  const props = PropertiesService.getScriptProperties();
+
+  // Roll the counters over when the calendar month changes.
+  const period = currentPeriod_();
+  if (props.getProperty(P_PERIOD) !== period) {
+    props.setProperty(P_PERIOD, period);
+    props.setProperty(P_REQUESTS, '0');
+    props.setProperty(P_COST, '0');
+    props.setProperty(P_PROVIDER_REQUESTS, '{}');
+    props.setProperty(P_PROVIDER_COST, '{}');
+    return false;
+  }
+
+  const budget = num_(props.getProperty(P_BUDGET)) || DEFAULT_MONTHLY_BUDGET;
+  if (budget <= 0) return false; // 0 or unset means "no ceiling configured"
+  return num_(props.getProperty(P_COST)) >= budget;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,11 +256,18 @@ function handleGetModels_() {
   return json_({ ok: true, result: { models: models, default: DEFAULT_MODEL } });
 }
 
-function handleGradeExam_(req) {
-  const authError = authorize_(req);
-  if (authError) return json_({ ok: false, error: authError, code: 401 });
+function handleGradeExam_(req, e) {
+  if (budgetExceeded_()) {
+    return json_({
+      ok: false,
+      error:
+        'Monthly cloud grading budget reached. Contact your administrator to ' +
+        'raise the budget or wait for next month.',
+      code: 402,
+    });
+  }
 
-  if (!rateLimitOk_()) {
+  if (!rateLimitOk_(e)) {
     return json_({
       ok: false,
       error: 'Rate limit: ' + RATE_LIMIT_PER_MINUTE + ' requests/minute',
@@ -316,10 +362,7 @@ function handleGradeExam_(req) {
   });
 }
 
-function handleGetCosts_(req) {
-  const authError = authorize_(req);
-  if (authError) return json_({ ok: false, error: authError, code: 401 });
-
+function handleGetCosts_() {
   const props = PropertiesService.getScriptProperties();
   const byProviderRequests = parseJson_(props.getProperty(P_PROVIDER_REQUESTS), {});
   const byProviderCost = parseJson_(props.getProperty(P_PROVIDER_COST), {});
@@ -343,14 +386,12 @@ function handleGetCosts_(req) {
       monthlyBudget: num_(props.getProperty(P_BUDGET)) || DEFAULT_MONTHLY_BUDGET,
       period: period,
       byProvider: byProvider,
+      budgetExceeded: budgetExceeded_(),
     },
   });
 }
 
-function handleGetConfig_(req) {
-  const authError = authorize_(req);
-  if (authError) return json_({ ok: false, error: authError, code: 401 });
-
+function handleGetConfig_() {
   const props = PropertiesService.getScriptProperties();
   return json_({
     ok: true,
@@ -364,9 +405,6 @@ function handleGetConfig_(req) {
 }
 
 function handleUpdateConfig_(req) {
-  const authError = authorize_(req);
-  if (authError) return json_({ ok: false, error: authError, code: 401 });
-
   const props = PropertiesService.getScriptProperties();
   const data = req.data || {};
 

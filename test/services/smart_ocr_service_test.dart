@@ -1,12 +1,12 @@
+import 'package:ethiograde/config/cloud_grading_config.dart';
 import 'package:ethiograde/services/smart_ocr_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ProxyResponse', () {
-    test('flags auth failures for 401 and 403', () {
-      expect(const ProxyResponse('bad key', 401).isAuthFailure, isTrue);
-      expect(const ProxyResponse('bad key', 403).isAuthFailure, isTrue);
-      expect(const ProxyResponse('boom', 500).isAuthFailure, isFalse);
+    test('flags a spent monthly budget', () {
+      expect(const ProxyResponse('budget reached', 402).isBudgetExceeded, isTrue);
+      expect(const ProxyResponse('boom', 500).isBudgetExceeded, isFalse);
     });
 
     test('flags rate limiting for 429 only', () {
@@ -235,6 +235,47 @@ void main() {
 
       expect(summary.monthlyBudget, 10.0);
       expect(summary.period, 'all-time');
+    });
+
+    test('surfaces the proxy budget-exhausted flag', () {
+      final spent = CostSummary.fromJson({
+        'totalCost': 10.0,
+        'monthlyBudget': 10.0,
+        'budgetExceeded': true,
+      });
+      expect(spent.budgetExceeded, isTrue);
+
+      final ok = CostSummary.fromJson({'budgetExceeded': false});
+      expect(ok.budgetExceeded, isFalse);
+
+      // Older proxies omit the field; must not read as exhausted.
+      expect(CostSummary.fromJson(const {}).budgetExceeded, isFalse);
+    });
+  });
+
+  group('CloudGradingConfig', () {
+    test('isConfigured is false while the URL is unset', () {
+      expect(CloudGradingConfig.isConfigured, isFalse);
+    });
+
+    test('isConfigured rejects a non-Apps-Script or non-https URL', () {
+      expect(
+        CloudGradingConfig.isConfiguredFor('http://script.googleusercontent.com/x'),
+        isFalse,
+      );
+      expect(
+        CloudGradingConfig.isConfiguredFor('https://evil.example.com/grade'),
+        isFalse,
+      );
+    });
+
+    test('isConfigured accepts an https Apps Script exec URL', () {
+      expect(
+        CloudGradingConfig.isConfiguredFor(
+          'https://script.googleusercontent.com/macros/s/DEPLOY_ID/exec',
+        ),
+        isTrue,
+      );
     });
   });
 

@@ -127,16 +127,16 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Cloud OCR section
+          // Cloud grading section
           SettingsSection(
-            title: 'Cloud OCR',
+            title: 'Cloud Grading',
             children: [
               SettingsTile(
-                icon: Icons.cloud_outlined,
-                title: 'Enable Cloud OCR',
+                icon: Icons.cloud_done_outlined,
+                title: 'Cloud Grading',
                 subtitle: settings.cloudOcrEnabled
-                    ? 'Active — uses ${settings.cloudOcrModel}'
-                    : 'Off — using local ML Kit',
+                    ? 'On — handwriting graded by AI'
+                    : 'Off — using on-device recognition',
                 trailing: Switch(
                   value: settings.cloudOcrEnabled,
                   onChanged: (value) => settings.updateCloudOcr(enabled: value),
@@ -149,27 +149,15 @@ class SettingsTab extends StatelessWidget {
                   subtitle: _getModelDisplayName(settings.cloudOcrModel),
                   onTap: () => _selectModel(context, settings),
                 ),
-                SettingsTile(
-                  icon: Icons.speed_outlined,
-                  title: 'Model Info',
-                  subtitle: _getModelInfo(settings.cloudOcrModel),
-                ),
-                SettingsTile(
-                  icon: Icons.key_outlined,
-                  title: 'App API Key',
-                  subtitle: settings.cloudOcrApiKey.isEmpty
-                      ? 'Not set — required for cloud grading'
-                      : '••••${settings.cloudOcrApiKey.length > 4 ? settings.cloudOcrApiKey.substring(settings.cloudOcrApiKey.length - 4) : settings.cloudOcrApiKey}',
-                  onTap: () => _editCloudOcrApiKey(context, settings),
-                ),
                 const _CostInfoTile(),
+                SettingsTile(
+                  icon: Icons.network_check_outlined,
+                  title: 'Test Connection',
+                  subtitle: 'Check the grading service is reachable',
+                  onTap: () => _testCloudConnection(context, settings),
+                ),
+                _AdvancedCloudTile(settings: settings),
               ],
-              SettingsTile(
-                icon: Icons.link_outlined,
-                title: 'Endpoint',
-                subtitle: settings.cloudOcrEndpoint,
-                onTap: () => _editCloudOcrEndpoint(context, settings),
-              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1231,112 +1219,29 @@ class SettingsTab extends StatelessWidget {
     }
   }
 
-  Future<void> _editCloudOcrApiKey(
+  Future<void> _testCloudConnection(
     BuildContext context,
     SettingsProvider settings,
   ) async {
-    final ctrl = TextEditingController(text: settings.cloudOcrApiKey);
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: ResponsiveLayout.horizontalPadding(ctx),
-          right: ResponsiveLayout.horizontalPadding(ctx),
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'App API Key',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'This key authenticates with the grading server. '
-              'Your administrator provides this key — teachers do not need to change it.',
-              style: TextStyle(color: context.lightText, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: ctrl,
-              autofocus: true,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'API Key',
-                prefixIcon: Icon(Icons.key_outlined),
-                hintText: 'Paste your API key here',
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Save'),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Testing cloud grading…')),
     );
-    if (result == true) {
-      settings.updateCloudOcr(apiKey: ctrl.text.trim());
-    }
-  }
 
-  Future<void> _editCloudOcrEndpoint(
-    BuildContext context,
-    SettingsProvider settings,
-  ) async {
-    final ctrl = TextEditingController(text: settings.cloudOcrEndpoint);
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: ResponsiveLayout.horizontalPadding(ctx),
-          right: ResponsiveLayout.horizontalPadding(ctx),
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Cloud OCR Endpoint',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: ctrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'API Endpoint URL',
-                prefixIcon: Icon(Icons.link_outlined),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Save'),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-    if (result == true) {
-      settings.updateCloudOcr(endpoint: ctrl.text.trim());
-    }
+    final service = SmartOcrService.instance;
+    service.setServerUrl(settings.cloudOcrEndpoint);
+    service.setPreferredModel(settings.cloudOcrModel);
+
+    final models = await service.getAvailableModels();
+    messenger.hideCurrentSnackBar();
+
+    if (!context.mounted) return;
+
+    final message = models.isEmpty
+        ? 'Could not reach the grading service. Check your internet connection.'
+        : 'Connected. Available: '
+            '${models.where((m) => m.isAvailable).length} model(s)';
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _selectRubric(
@@ -1596,22 +1501,6 @@ class SettingsTab extends StatelessWidget {
         return 'Gemini (legacy setting)';
       default:
         return model;
-    }
-  }
-
-  String _getModelInfo(String model) {
-    switch (model) {
-      case 'gemini':
-        return 'Best accuracy · ~\$0.15/1000 scans · ~3s latency';
-      case 'gemini-2.5-flash':
-        return 'Newest Gemini · strongest handwriting reading · ~3s latency';
-      case 'gemini-flash-lite':
-        return 'Cheapest · ~\$0.05/1000 scans · ~2s latency';
-      case 'openai':
-      case 'openai-mini':
-        return 'Mapped to a Gemini model by the proxy';
-      default:
-        return '';
     }
   }
 
@@ -2120,6 +2009,126 @@ class StorageInfo {
   }
 }
 
+String _getModelInfo(String model) {
+  switch (model) {
+    case 'gemini':
+      return 'Best accuracy · ~\$0.15/1000 scans · ~3s latency';
+    case 'gemini-2.5-flash':
+      return 'Newest Gemini · strongest handwriting · ~3s latency';
+    case 'gemini-flash-lite':
+      return 'Cheapest · ~\$0.05/1000 scans · ~2s latency';
+    default:
+      return '';
+  }
+}
+
+/// Troubleshooting-only controls, hidden behind a tap so a teacher never has
+/// to think about the proxy endpoint. The Gemini key is never shown or held
+/// here — it lives on the server, so there is nothing to configure.
+class _AdvancedCloudTile extends StatefulWidget {
+  final SettingsProvider settings;
+
+  const _AdvancedCloudTile({required this.settings});
+
+  @override
+  State<_AdvancedCloudTile> createState() => _AdvancedCloudTileState();
+}
+
+class _AdvancedCloudTileState extends State<_AdvancedCloudTile> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = widget.settings;
+    final endpoint = settings.cloudOcrEndpoint;
+
+    return Column(
+      children: [
+        SettingsTile(
+          icon: Icons.tune_outlined,
+          title: 'Advanced',
+          subtitle: _open ? 'Hide connection details' : 'Connection details',
+          onTap: () => setState(() => _open = !_open),
+        ),
+        if (_open) ...[
+          SettingsTile(
+            icon: Icons.link_outlined,
+            title: 'Endpoint',
+            subtitle: endpoint.isEmpty
+                ? 'Not configured in this build'
+                : endpoint,
+            onTap: () => _editEndpoint(context, settings),
+          ),
+          SettingsTile(
+            icon: Icons.speed_outlined,
+            title: 'Model Info',
+            subtitle: _getModelInfo(settings.cloudOcrModel),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _editEndpoint(
+    BuildContext context,
+    SettingsProvider settings,
+  ) async {
+    final controller = TextEditingController(text: settings.cloudOcrEndpoint);
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: ResponsiveLayout.horizontalPadding(ctx),
+          right: ResponsiveLayout.horizontalPadding(ctx),
+          top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Cloud Grading Endpoint',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Only change this if you are pointing the app at a self-hosted '
+              'grading service.',
+              style: TextStyle(color: context.lightText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Endpoint URL',
+                prefixIcon: Icon(Icons.link_outlined),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+    if (result == true) {
+      await settings.updateCloudOcr(endpoint: controller.text.trim());
+      if (context.mounted) {
+        setState(() {});
+      }
+    }
+  }
+}
+
 /// Cost tracking tile — fetches cost summary from server.
 class _CostInfoTile extends StatefulWidget {
   const _CostInfoTile();
@@ -2139,9 +2148,8 @@ class _CostInfoTileState extends State<_CostInfoTile> {
 
   void _load() {
     final settings = context.read<SettingsProvider>();
-    if (settings.cloudOcrEnabled && settings.cloudOcrApiKey.isNotEmpty) {
+    if (settings.cloudOcrEnabled && settings.cloudOcrEndpoint.isNotEmpty) {
       final socr = SmartOcrService.instance;
-      socr.setApiKey(settings.cloudOcrApiKey);
       socr.setServerUrl(settings.cloudOcrEndpoint);
       setState(() {
         _future = socr.getCosts();
