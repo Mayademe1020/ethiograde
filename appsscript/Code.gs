@@ -105,6 +105,12 @@ function route_(e, method) {
     const req = readRequest_(e);
     const action = req.action || (req.data && req.data.action) || '';
 
+    // Log every request. Besides being the only way to see what the proxy is
+    // doing in production, it means running ANY function from the editor
+    // produces output — picking the wrong one in the function dropdown
+    // otherwise yields a silently empty Execution log.
+    console.log('[' + method + '] action=' + (action || '(none)'));
+
     if (!action) {
       return json_({ ok: false, error: 'Missing action', code: 400 });
     }
@@ -120,6 +126,7 @@ function route_(e, method) {
 
     return json_({ ok: false, error: 'Unknown action: ' + action, code: 404 });
   } catch (err) {
+    console.log('ERROR ' + err.message);
     return json_({ ok: false, error: 'Server error: ' + err.message, code: 500 });
   }
 }
@@ -792,6 +799,8 @@ function parseJson_(raw, fallback) {
  */
 function testGemini() {
   const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  console.log('=== testGemini started ===');
+
   if (!key) {
     console.log(
       'FAIL: GEMINI_API_KEY is not set. Add it under ' +
@@ -819,4 +828,6 @@ function testGemini() {
   } catch (err) {
     console.log('FAIL: ' + err.message);
   }
+
+  console.log('=== testGemini finished ===');
 }
