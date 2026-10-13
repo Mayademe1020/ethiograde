@@ -32,44 +32,59 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models
 /**
  * Model aliases. These ids match the picker in settings_tab.dart so the Dart
  * side needs no change; only this table maps them to real model names.
+ *
+ * Note the 3.x generation: gemini-2.0-flash and gemini-2.0-flash-lite were
+ * shut down on 2026-06-01 and gemini-2.5-flash is scheduled for retirement, so
+ * every id here points at a currently supported model. Legacy OpenAI ids are
+ * retained only so older installs keep resolving.
  */
 const MODELS = {
   gemini: {
-    model: 'gemini-2.0-flash',
-    displayName: 'Gemini 2.0 Flash',
-    costPerCall: 0.00015,
-    latencyMs: 3000,
+    model: 'gemini-3.8-flash',
+    displayName: 'Gemini 3.8 Flash',
+    costPerCall: 0.005,
+    latencyMs: 4000,
     notes: 'Best accuracy, recommended',
   },
-  'gemini-flash-lite': {
-    model: 'gemini-2.0-flash-lite',
-    displayName: 'Gemini 2.0 Flash Lite',
-    costPerCall: 0.00005,
-    latencyMs: 2000,
-    notes: 'Cheaper, slightly lower accuracy',
-  },
   'gemini-2.5-flash': {
-    model: 'gemini-2.5-flash',
-    displayName: 'Gemini 2.5 Flash',
-    costPerCall: 0.0003,
-    latencyMs: 3000,
-    notes: 'Newer Gemini, strong handwriting reading',
+    model: 'gemini-3.7-flash',
+    displayName: 'Gemini 3.7 Flash',
+    costPerCall: 0.003,
+    latencyMs: 3500,
+    notes: 'Previous generation, slightly cheaper',
+  },
+  'gemini-flash-lite': {
+    model: 'gemini-3.5-flash-lite',
+    displayName: 'Gemini 3.5 Flash Lite',
+    costPerCall: 0.001,
+    latencyMs: 2000,
+    notes: 'Cheapest, slightly less accurate',
   },
   openai: {
-    model: 'gemini-2.5-flash',
-    displayName: 'Gemini 2.5 Flash (OpenAI slot)',
-    costPerCall: 0.0003,
-    latencyMs: 3000,
+    model: 'gemini-3.8-flash',
+    displayName: 'Gemini 3.8 Flash (legacy slot)',
+    costPerCall: 0.005,
+    latencyMs: 4000,
     notes: 'Kept for backwards compatibility with older settings',
   },
   'openai-mini': {
-    model: 'gemini-2.0-flash-lite',
-    displayName: 'Flash Lite (OpenAI slot)',
-    costPerCall: 0.00005,
+    model: 'gemini-3.5-flash-lite',
+    displayName: 'Flash Lite (legacy slot)',
+    costPerCall: 0.001,
     latencyMs: 2000,
     notes: 'Kept for backwards compatibility with older settings',
   },
 };
+
+/**
+ * Tried in order when the preferred model is unavailable.
+ *
+ * Google retires models on a schedule — the whole 2.0 family was shut down on
+ * 2026-06-01 — so hard-coding a single id means the proxy silently breaks for
+ * every installed build the day Google announces a retirement. This chain
+ * keeps a working model reachable without redeploying.
+ */
+const MODEL_FALLBACKS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
 
 const DEFAULT_MODEL = 'gemini';
 const DEFAULT_MONTHLY_BUDGET = 10.0;
@@ -329,7 +344,7 @@ function handleGradeExam_(req, e) {
     });
   }
 
-  const text = readGeminiText_(modelReply);
+  const text = modelReply.text;
   if (!text) {
     return json_({ ok: false, error: 'Gemini returned no content', code: 502 });
   }
@@ -363,7 +378,7 @@ function handleGradeExam_(req, e) {
       notes: parsed.notes || null,
       ocrOnly: ocrOnly,
       provider: alias,
-      model: chosen.model,
+      model: modelReply.modelUsed,
       latencyMs: latencyMs,
     },
   });
@@ -429,13 +444,41 @@ function handleUpdateConfig_(req) {
 // ---------------------------------------------------------------------------
 
 function callGemini_(opts) {
+  const candidates = [opts.model].concat(MODEL_FALLBACKS);
+  const tried = [];
+  let lastError = null;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const model = candidates[i];
+    if (tried.indexOf(model) !== -1) continue;
+
+    try {
+      const reply = fetchGemini_(opts, model);
+      if (reply.text) {
+        reply.modelUsed = model;
+        return reply;
+      }
+    } catch (err) {
+      lastError = err;
+      tried.push(model + ' (' + err.message + ')');
+      console.log('Model ' + model + ' unavailable, trying next: ' + err.message);
+    }
+  }
+
+  throw new Error('All models failed — ' + tried.join('; '));
+}
+
+function fetchGemini_(opts, model) {
   const url =
     GEMINI_ENDPOINT +
     '/' +
-    encodeURIComponent(opts.model) +
+    encodeURIComponent(model) +
     ':generateContent?key=' +
     encodeURIComponent(opts.apiKey);
 
+  // No temperature/top_p/top_k: the 3.x generation rejects the old sampling
+  // parameters. Determinism comes from a 0-1 probability scale plus the
+  // explicit JSON response format below.
   const payload = {
     contents: [
       {
@@ -452,7 +495,6 @@ function callGemini_(opts) {
       },
     ],
     generationConfig: {
-      temperature: 0.1,
       maxOutputTokens: 4096,
       responseMimeType: 'application/json',
     },
@@ -468,9 +510,9 @@ function callGemini_(opts) {
   const code = res.getResponseCode();
   const body = res.getContentText();
   if (code < 200 || code >= 300) {
-    throw new Error('HTTP ' + code + ': ' + String(body).slice(0, 300));
+    throw new Error('HTTP ' + code + ': ' + String(body).slice(0, 200));
   }
-  return JSON.parse(body);
+  return { text: readGeminiText_(JSON.parse(body)) };
 }
 
 function readGeminiText_(reply) {
@@ -819,11 +861,10 @@ function testGemini() {
       imageBase64: '',
       mimeType: 'image/jpeg',
     });
-    const text = readGeminiText_(reply);
-    if (text) {
-      console.log('PASS: Gemini replied "' + text + '"');
+    if (reply.text) {
+      console.log('PASS: Gemini replied "' + reply.text + '" via ' + reply.modelUsed);
     } else {
-      console.log('FAIL: Gemini returned no text. Raw reply: ' + JSON.stringify(reply).slice(0, 300));
+      console.log('FAIL: Gemini returned no text.');
     }
   } catch (err) {
     console.log('FAIL: ' + err.message);

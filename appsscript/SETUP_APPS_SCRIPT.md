@@ -32,9 +32,18 @@ Not a secret token — a hard budget ceiling plus rate limiting:
 | Gemini key isolation | Script Properties | Key never leaves Google's servers |
 | Monthly budget ceiling | `monthlyBudget` script property | Proxy **refuses** to call Gemini once spend hits the limit |
 | Per-IP rate limit | 30 req/min per caller | Bounds throughput regardless of client |
+| Model fallback chain | `MODEL_FALLBACKS` in `Code.gs` | Survives Google retiring a model |
 
 The budget ceiling is the real control: worst case spend is exactly the number
 you set, not an open tab.
+
+### A note on model churn
+
+Google retires models on a schedule — the entire `gemini-2.0-*` family was shut
+down on 2026-06-01. `callGemini_` therefore tries the selected model and then
+walks `MODEL_FALLBACKS` until one responds, so a retirement does not brick every
+installed build. If `testGemini` ever reports `HTTP 404`, add a current model id
+to both tables and redeploy.
 
 ---
 
@@ -89,6 +98,10 @@ number the proxy starts refusing grading instead of calling Gemini, so your
 exposure is capped exactly here. The **Usage & Cost** tile in the app shows
 progress against it.
 
+Rough sizing: a scanned paper costs about **$0.005** on Gemini 3.8 Flash and
+**$0.001** on Flash Lite — image tokens dominate. So $10 is roughly 2,000 papers
+on 3.8, or 10,000 on Lite.
+
 ---
 
 ## Step 4 — Verify the key works (recommended)
@@ -99,8 +112,8 @@ progress against it.
 4. Check the Execution log at the bottom:
 
 ```
-Testing key against gemini-2.0-flash…
-PASS: Gemini replied "pong"
+Testing key against gemini-3.8-flash…
+PASS: Gemini replied "pong" via gemini-3.8-flash
 ```
 
 `testGemini` reports through the log, not a return value — Apps Script discards
@@ -114,6 +127,7 @@ If the log shows `FAIL: ...`, read the message:
 | `GEMINI_API_KEY is not set` | Property never saved — redo Step 3 |
 | `HTTP 400` | Key malformed, or the Generative Language API is not enabled for that Google Cloud project. Enable it at https://aistudio.google.com/apikey |
 | `HTTP 403` | Key rejected — generate a fresh one |
+| `HTTP 404` | Every model in the fallback chain is retired. Add a current id to `MODELS` / `MODEL_FALLBACKS` and redeploy |
 | `Timed out` | Transient; run again |
 
 ---

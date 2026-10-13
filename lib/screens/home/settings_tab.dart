@@ -1489,11 +1489,11 @@ class SettingsTab extends StatelessWidget {
   String _getModelDisplayName(String model) {
     switch (model) {
       case 'gemini':
-        return 'Gemini 2.0 Flash';
+        return 'Gemini 3.8 Flash';
       case 'gemini-2.5-flash':
-        return 'Gemini 2.5 Flash';
+        return 'Gemini 3.7 Flash';
       case 'gemini-flash-lite':
-        return 'Gemini 2.0 Flash Lite';
+        return 'Gemini 3.5 Flash Lite';
       case 'openai':
       case 'openai-mini':
         // Legacy ids kept so existing installs keep resolving. The proxy maps
@@ -1509,9 +1509,9 @@ class SettingsTab extends StatelessWidget {
     SettingsProvider settings,
   ) async {
     final models = [
-      ('gemini', 'Gemini 2.0 Flash', 'Best accuracy, recommended'),
-      ('gemini-2.5-flash', 'Gemini 2.5 Flash', 'Newest, strongest handwriting'),
-      ('gemini-flash-lite', 'Gemini 2.0 Flash Lite', 'Cheapest, slightly less accurate'),
+      ('gemini', 'Gemini 3.8 Flash', 'Best accuracy, recommended'),
+      ('gemini-2.5-flash', 'Gemini 3.7 Flash', 'Slightly cheaper, slightly faster'),
+      ('gemini-flash-lite', 'Gemini 3.5 Flash Lite', 'Cheapest, slightly less accurate'),
     ];
 
     final result = await showModalBottomSheet<String>(
@@ -2012,11 +2012,11 @@ class StorageInfo {
 String _getModelInfo(String model) {
   switch (model) {
     case 'gemini':
-      return 'Best accuracy · ~\$0.15/1000 scans · ~3s latency';
+      return 'Best accuracy · ~3-4s per paper';
     case 'gemini-2.5-flash':
-      return 'Newest Gemini · strongest handwriting · ~3s latency';
+      return 'Previous generation · ~3-4s per paper';
     case 'gemini-flash-lite':
-      return 'Cheapest · ~\$0.05/1000 scans · ~2s latency';
+      return 'Cheapest · ~2s per paper';
     default:
       return '';
   }
