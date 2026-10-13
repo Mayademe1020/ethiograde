@@ -45,6 +45,10 @@ walks `MODEL_FALLBACKS` until one responds, so a retirement does not brick every
 installed build. If `testGemini` ever reports `HTTP 404`, add a current model id
 to both tables and redeploy.
 
+`503 UNAVAILABLE` ("high demand") is expected occasionally and is exactly what
+the fallback exists for — it is why 3.7 Flash is the default rather than 3.8,
+which is more capable but more often saturated.
+
 ---
 
 ## What you need
@@ -112,8 +116,9 @@ on 3.8, or 10,000 on Lite.
 4. Check the Execution log at the bottom:
 
 ```
-Testing key against gemini-3.8-flash…
-PASS: Gemini replied "pong" via gemini-3.8-flash
+=== testGemini started ===
+PASS: Gemini replied "pong" via gemini-3.7-flash
+=== testGemini finished ===
 ```
 
 `testGemini` reports through the log, not a return value — Apps Script discards
@@ -127,6 +132,7 @@ If the log shows `FAIL: ...`, read the message:
 | `GEMINI_API_KEY is not set` | Property never saved — redo Step 3 |
 | `HTTP 400` | Key malformed, or the Generative Language API is not enabled for that Google Cloud project. Enable it at https://aistudio.google.com/apikey |
 | `HTTP 403` | Key rejected — generate a fresh one |
+| `HTTP 503` | Model busy. The proxy falls through to the next model automatically; if it appears in a *successful* run's log that is normal |
 | `HTTP 404` | Every model in the fallback chain is retired. Add a current id to `MODELS` / `MODEL_FALLBACKS` and redeploy |
 | `Timed out` | Transient; run again |
 

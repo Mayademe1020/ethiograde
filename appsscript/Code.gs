@@ -40,18 +40,25 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models
  */
 const MODELS = {
   gemini: {
-    model: 'gemini-3.8-flash',
-    displayName: 'Gemini 3.8 Flash',
-    costPerCall: 0.005,
-    latencyMs: 4000,
-    notes: 'Best accuracy, recommended',
-  },
-  'gemini-2.5-flash': {
     model: 'gemini-3.7-flash',
     displayName: 'Gemini 3.7 Flash',
     costPerCall: 0.003,
     latencyMs: 3500,
-    notes: 'Previous generation, slightly cheaper',
+    notes: 'Best accuracy, recommended',
+  },
+  'gemini-3.8-flash': {
+    model: 'gemini-3.8-flash',
+    displayName: 'Gemini 3.8 Flash',
+    costPerCall: 0.005,
+    latencyMs: 4000,
+    notes: 'Newest, but intermittently returns 503 under load',
+  },
+  'gemini-2.5-flash': {
+    model: 'gemini-3.7-flash',
+    displayName: 'Gemini 3.7 Flash (legacy slot)',
+    costPerCall: 0.003,
+    latencyMs: 3500,
+    notes: 'Kept for backwards compatibility with older settings',
   },
   'gemini-flash-lite': {
     model: 'gemini-3.5-flash-lite',
@@ -61,10 +68,10 @@ const MODELS = {
     notes: 'Cheapest, slightly less accurate',
   },
   openai: {
-    model: 'gemini-3.8-flash',
-    displayName: 'Gemini 3.8 Flash (legacy slot)',
-    costPerCall: 0.005,
-    latencyMs: 4000,
+    model: 'gemini-3.7-flash',
+    displayName: 'Gemini 3.7 Flash (legacy slot)',
+    costPerCall: 0.003,
+    latencyMs: 3500,
     notes: 'Kept for backwards compatibility with older settings',
   },
   'openai-mini': {
@@ -83,8 +90,12 @@ const MODELS = {
  * 2026-06-01 — so hard-coding a single id means the proxy silently breaks for
  * every installed build the day Google announces a retirement. This chain
  * keeps a working model reachable without redeploying.
+ *
+ * 3.8 Flash leads the chain because it is the strongest, but it returns 503
+ * under load far more often than 3.7, which is why 3.7 is the default: paying a
+ * failed round trip on every paper would add several seconds to each scan.
  */
-const MODEL_FALLBACKS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
+const MODEL_FALLBACKS = ['gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 
 const DEFAULT_MODEL = 'gemini';
 const DEFAULT_MONTHLY_BUDGET = 10.0;
@@ -463,12 +474,17 @@ function handleUpdateConfig_(req) {
 
 function callGemini_(opts) {
   const candidates = [opts.model].concat(MODEL_FALLBACKS);
-  const tried = [];
-  let lastError = null;
+  const attempted = [];
+  const errors = [];
 
   for (let i = 0; i < candidates.length; i++) {
     const model = candidates[i];
-    if (tried.indexOf(model) !== -1) continue;
+
+    // Track bare ids here. Storing decorated error strings in this list made
+    // the guard never match, so the preferred model was retried on itself —
+    // burning a full round trip (and its latency) every time it returned 503.
+    if (attempted.indexOf(model) !== -1) continue;
+    attempted.push(model);
 
     try {
       const reply = fetchGemini_(opts, model);
@@ -476,14 +492,14 @@ function callGemini_(opts) {
         reply.modelUsed = model;
         return reply;
       }
+      errors.push(model + ': no content returned');
     } catch (err) {
-      lastError = err;
-      tried.push(model + ' (' + err.message + ')');
+      errors.push(model + ': ' + err.message);
       console.log('Model ' + model + ' unavailable, trying next: ' + err.message);
     }
   }
 
-  throw new Error('All models failed — ' + tried.join('; '));
+  throw new Error('All models failed — ' + errors.join(' | '));
 }
 
 function fetchGemini_(opts, model) {

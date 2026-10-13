@@ -1489,13 +1489,14 @@ class SettingsTab extends StatelessWidget {
   String _getModelDisplayName(String model) {
     switch (model) {
       case 'gemini':
-        return 'Gemini 3.8 Flash';
-      case 'gemini-2.5-flash':
         return 'Gemini 3.7 Flash';
+      case 'gemini-3.8-flash':
+        return 'Gemini 3.8 Flash';
       case 'gemini-flash-lite':
         return 'Gemini 3.5 Flash Lite';
       case 'openai':
       case 'openai-mini':
+      case 'gemini-2.5-flash':
         // Legacy ids kept so existing installs keep resolving. The proxy maps
         // them onto Gemini models.
         return 'Gemini (legacy setting)';
@@ -1509,8 +1510,8 @@ class SettingsTab extends StatelessWidget {
     SettingsProvider settings,
   ) async {
     final models = [
-      ('gemini', 'Gemini 3.8 Flash', 'Best accuracy, recommended'),
-      ('gemini-2.5-flash', 'Gemini 3.7 Flash', 'Slightly cheaper, slightly faster'),
+      ('gemini', 'Gemini 3.7 Flash', 'Best accuracy, recommended'),
+      ('gemini-3.8-flash', 'Gemini 3.8 Flash', 'Newest, but often busy'),
       ('gemini-flash-lite', 'Gemini 3.5 Flash Lite', 'Cheapest, slightly less accurate'),
     ];
 
@@ -2013,8 +2014,8 @@ String _getModelInfo(String model) {
   switch (model) {
     case 'gemini':
       return 'Best accuracy · ~3-4s per paper';
-    case 'gemini-2.5-flash':
-      return 'Previous generation · ~3-4s per paper';
+    case 'gemini-3.8-flash':
+      return 'Newest model · can be slow when busy';
     case 'gemini-flash-lite':
       return 'Cheapest · ~2s per paper';
     default:
