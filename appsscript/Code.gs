@@ -307,6 +307,24 @@ function handleGradeExam_(req, e) {
     return json_({ ok: false, error: 'Missing image', code: 400 });
   }
 
+  // The API reports anything malformed as "Unable to process input image",
+  // which tells neither the teacher nor the operator anything. Catch the
+  // obviously-unusable cases here instead.
+  if (imageBase64.length < 64) {
+    return json_({
+      ok: false,
+      error: 'Image data is too small to be a photograph (' + imageBase64.length + ' bytes)',
+      code: 400,
+    });
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64.slice(0, 256))) {
+    return json_({
+      ok: false,
+      error: 'Image data is not valid base64',
+      code: 400,
+    });
+  }
+
   const geminiKey = PropertiesService.getScriptProperties()
     .getProperty('GEMINI_API_KEY');
   if (!geminiKey) {
@@ -479,19 +497,26 @@ function fetchGemini_(opts, model) {
   // No temperature/top_p/top_k: the 3.x generation rejects the old sampling
   // parameters. Determinism comes from a 0-1 probability scale plus the
   // explicit JSON response format below.
+  const parts = [{ text: opts.prompt }];
+
+  // Only attach the image when there is actually one. An inlineData part with
+  // empty `data` is rejected by the API with "Unable to process input image",
+  // which is both wrong for text-only calls and a needlessly opaque failure
+  // when a real scan arrives with unusable image bytes.
+  if (opts.imageBase64) {
+    parts.push({
+      inlineData: {
+        mimeType: opts.mimeType,
+        data: opts.imageBase64,
+      },
+    });
+  }
+
   const payload = {
     contents: [
       {
         role: 'user',
-        parts: [
-          { text: opts.prompt },
-          {
-            inlineData: {
-              mimeType: opts.mimeType,
-              data: opts.imageBase64,
-            },
-          },
-        ],
+        parts: parts,
       },
     ],
     generationConfig: {
