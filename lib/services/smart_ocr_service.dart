@@ -162,15 +162,19 @@ class SmartOcrService {
   }
 
   static const List<ModelInfo> _fallbackModels = [
-    ModelInfo(name: 'gemini', displayName: 'Gemini 3.7 Flash', isAvailable: true),
     ModelInfo(
-      name: 'gemini-3.8-flash',
-      displayName: 'Gemini 3.8 Flash',
+      name: 'gemini',
+      displayName: 'Gemini 3.5 Flash Lite',
       isAvailable: true,
     ),
     ModelInfo(
-      name: 'gemini-flash-lite',
-      displayName: 'Gemini 3.5 Flash Lite',
+      name: 'gemini-3.7-flash',
+      displayName: 'Gemini 3.7 Flash',
+      isAvailable: true,
+    ),
+    ModelInfo(
+      name: 'gemini-3.8-flash',
+      displayName: 'Gemini 3.8 Flash',
       isAvailable: true,
     ),
   ];

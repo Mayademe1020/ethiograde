@@ -40,24 +40,31 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models
  */
 const MODELS = {
   gemini: {
+    model: 'gemini-3.5-flash-lite',
+    displayName: 'Gemini 3.5 Flash Lite',
+    costPerCall: 0.001,
+    latencyMs: 2000,
+    notes: 'Reliable and cheapest — recommended',
+  },
+  'gemini-3.7-flash': {
     model: 'gemini-3.7-flash',
     displayName: 'Gemini 3.7 Flash',
     costPerCall: 0.003,
     latencyMs: 3500,
-    notes: 'Best accuracy, recommended',
+    notes: 'Best accuracy, but often returns 503 when busy',
   },
   'gemini-3.8-flash': {
     model: 'gemini-3.8-flash',
     displayName: 'Gemini 3.8 Flash',
     costPerCall: 0.005,
     latencyMs: 4000,
-    notes: 'Newest, but intermittently returns 503 under load',
+    notes: 'Most capable, most saturated',
   },
   'gemini-2.5-flash': {
-    model: 'gemini-3.7-flash',
-    displayName: 'Gemini 3.7 Flash (legacy slot)',
-    costPerCall: 0.003,
-    latencyMs: 3500,
+    model: 'gemini-3.5-flash-lite',
+    displayName: 'Flash Lite (legacy slot)',
+    costPerCall: 0.001,
+    latencyMs: 2000,
     notes: 'Kept for backwards compatibility with older settings',
   },
   'gemini-flash-lite': {
@@ -68,10 +75,10 @@ const MODELS = {
     notes: 'Cheapest, slightly less accurate',
   },
   openai: {
-    model: 'gemini-3.7-flash',
-    displayName: 'Gemini 3.7 Flash (legacy slot)',
-    costPerCall: 0.003,
-    latencyMs: 3500,
+    model: 'gemini-3.5-flash-lite',
+    displayName: 'Flash Lite (legacy slot)',
+    costPerCall: 0.001,
+    latencyMs: 2000,
     notes: 'Kept for backwards compatibility with older settings',
   },
   'openai-mini': {
@@ -86,16 +93,21 @@ const MODELS = {
 /**
  * Tried in order when the preferred model is unavailable.
  *
- * Google retires models on a schedule — the whole 2.0 family was shut down on
- * 2026-06-01 — so hard-coding a single id means the proxy silently breaks for
- * every installed build the day Google announces a retirement. This chain
- * keeps a working model reachable without redeploying.
+ * Two independent reasons this exists:
  *
- * 3.8 Flash leads the chain because it is the strongest, but it returns 503
- * under load far more often than 3.7, which is why 3.7 is the default: paying a
- * failed round trip on every paper would add several seconds to each scan.
+ * 1. Google retires models on a schedule — the whole 2.0 family was shut down
+ *    on 2026-06-01 — so a single hard-coded id would break every installed
+ *    build the day a retirement is announced.
+ * 2. Contention. 3.8 and 3.7 Flash both return 503 UNAVAILABLE frequently
+ *    during peak hours, while Flash Lite stays responsive. The Lite tier leads
+ *    so the common case never pays for a failed round trip; the Flash models
+ *    follow for callers who want the extra accuracy.
  */
-const MODEL_FALLBACKS = ['gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const MODEL_FALLBACKS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.7-flash',
+  'gemini-3.8-flash',
+];
 
 const DEFAULT_MODEL = 'gemini';
 const DEFAULT_MONTHLY_BUDGET = 10.0;
@@ -486,20 +498,42 @@ function callGemini_(opts) {
     if (attempted.indexOf(model) !== -1) continue;
     attempted.push(model);
 
-    try {
-      const reply = fetchGemini_(opts, model);
-      if (reply.text) {
-        reply.modelUsed = model;
-        return reply;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const reply = fetchGemini_(opts, model);
+        if (reply.text) {
+          reply.modelUsed = model;
+          return reply;
+        }
+        errors.push(model + ': no content returned');
+        break;
+      } catch (err) {
+        const message = String(err.message);
+
+        // 503/429 are explicitly described by the API as temporary. One short
+        // pause is far cheaper than the scan's own latency and far better than
+        // dropping to a weaker model, so retry once before moving on.
+        if (attempt === 0 && isTransient_(message)) {
+          console.log(model + ' busy, retrying in 2s…');
+          Utilities.sleep(2000);
+          continue;
+        }
+
+        errors.push(model + ': ' + message);
+        console.log('Model ' + model + ' unavailable, trying next: ' + message);
+        break;
       }
-      errors.push(model + ': no content returned');
-    } catch (err) {
-      errors.push(model + ': ' + err.message);
-      console.log('Model ' + model + ' unavailable, trying next: ' + err.message);
     }
   }
 
   throw new Error('All models failed — ' + errors.join(' | '));
+}
+
+/** Transient conditions worth one immediate retry rather than a model switch. */
+function isTransient_(message) {
+  return message.indexOf('503') !== -1 ||
+    message.indexOf('429') !== -1 ||
+    message.indexOf('UNAVAILABLE') !== -1;
 }
 
 function fetchGemini_(opts, model) {
@@ -898,12 +932,15 @@ function testGemini() {
     const reply = callGemini_({
       apiKey: key,
       model: MODELS[DEFAULT_MODEL].model,
-      prompt: 'Reply with the single word: pong',
+      prompt: 'Return JSON of the form {"response":"pong"}',
       imageBase64: '',
       mimeType: 'image/jpeg',
     });
     if (reply.text) {
-      console.log('PASS: Gemini replied "' + reply.text + '" via ' + reply.modelUsed);
+      console.log(
+        'PASS: Gemini replied ' + reply.text.replace(/\s+/g, ' ').slice(0, 80) +
+          ' via ' + reply.modelUsed
+      );
     } else {
       console.log('FAIL: Gemini returned no text.');
     }

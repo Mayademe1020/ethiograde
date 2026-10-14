@@ -45,9 +45,10 @@ walks `MODEL_FALLBACKS` until one responds, so a retirement does not brick every
 installed build. If `testGemini` ever reports `HTTP 404`, add a current model id
 to both tables and redeploy.
 
-`503 UNAVAILABLE` ("high demand") is expected occasionally and is exactly what
-the fallback exists for — it is why 3.7 Flash is the default rather than 3.8,
-which is more capable but more often saturated.
+`503 UNAVAILABLE` ("high demand") is expected during peak hours. The proxy
+retries once after a 2s pause, then moves to the next model in the chain. Flash
+Lite leads the chain because it stays responsive when the Flash tiers are
+saturated, so the default model is Flash Lite.
 
 ---
 
@@ -117,7 +118,8 @@ on 3.8, or 10,000 on Lite.
 
 ```
 === testGemini started ===
-PASS: Gemini replied "pong" via gemini-3.7-flash
+Testing key against gemini-3.5-flash-lite…
+PASS: Gemini replied {"response":"pong"} via gemini-3.5-flash-lite
 === testGemini finished ===
 ```
 
