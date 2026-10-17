@@ -22,13 +22,15 @@ class CloudGradingConfig {
   ///
   /// Format:
   ///   https://script.googleusercontent.com/macros/s/<DEPLOYMENT_ID>/exec
-  static const String proxyUrl = '';
+  static const String proxyUrl =
+      'https://script.googleusercontent.com/macros/s/'
+      'AKfycbwNe0VJwoCDH1UQVL-tJBnsXw02UiPKXte0-Bry8NS4tucqumjUHsjgFRHs1MyxzRI/exec';
 
   /// Whether cloud grading is offered in the UI at all.
   ///
   /// False keeps the app fully offline: ML Kit does the OCR and no settings
   /// are shown. Flip to true once [proxyUrl] is filled in and deployed.
-  static const bool available = false;
+  static const bool available = true;
 
   /// True when [proxyUrl] looks like a usable Apps Script endpoint.
   static bool get isConfigured => isConfiguredFor(proxyUrl);

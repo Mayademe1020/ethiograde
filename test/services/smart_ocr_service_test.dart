@@ -254,11 +254,19 @@ void main() {
   });
 
   group('CloudGradingConfig', () {
-    test('isConfigured is false while the URL is unset', () {
-      expect(CloudGradingConfig.isConfigured, isFalse);
+    test('the shipped endpoint is a valid Apps Script URL', () {
+      // Guards against a deployment being pasted into the wrong host, which
+      // fails silently at scan time rather than at build time.
+      expect(CloudGradingConfig.proxyUrl, isNotEmpty);
+      expect(CloudGradingConfig.isConfigured, isTrue,
+          reason: 'proxyUrl must be a valid HTTPS Apps Script exec URL');
     });
 
-    test('isConfigured rejects a non-Apps-Script or non-https URL', () {
+    test('cloud grading is switched on', () {
+      expect(CloudGradingConfig.available, isTrue);
+    });
+
+    test('rejects a non-Apps-Script or non-https URL', () {
       expect(
         CloudGradingConfig.isConfiguredFor('http://script.googleusercontent.com/x'),
         isFalse,
@@ -267,9 +275,15 @@ void main() {
         CloudGradingConfig.isConfiguredFor('https://evil.example.com/grade'),
         isFalse,
       );
+      expect(
+        CloudGradingConfig.isConfiguredFor('https://script.google.com/macros/s/A/exec'),
+        isFalse,
+        reason: 'script.google.com redirects and drops the POST body',
+      );
+      expect(CloudGradingConfig.isConfiguredFor(''), isFalse);
     });
 
-    test('isConfigured accepts an https Apps Script exec URL', () {
+    test('accepts an https Apps Script exec URL', () {
       expect(
         CloudGradingConfig.isConfiguredFor(
           'https://script.googleusercontent.com/macros/s/DEPLOY_ID/exec',
