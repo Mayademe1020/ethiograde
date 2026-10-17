@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../config/theme.dart';
 import '../../models/audit_entry.dart';
@@ -50,14 +49,14 @@ class AuditTrailSheet extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2))),
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
                 children: [
-                  Icon(Icons.history, color: AppTheme.primaryGreen),
+                  Icon(Icons.history, color: context.primaryGreen),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -70,7 +69,7 @@ class AuditTrailSheet extends StatelessWidget {
                         Text(
                           result.studentName,
                           style: TextStyle(
-                            color: AppTheme.lightText,
+                            color: context.lightText,
                             fontSize: 14)),
                       ])),
                   // Current grade badge
@@ -79,13 +78,13 @@ class AuditTrailSheet extends StatelessWidget {
                       horizontal: 12,
                       vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withOpacity(0.1),
+                      color: context.primaryGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8)),
                     child: Text(
                       '${result.grade} (${result.percentage.toStringAsFixed(1)}%)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryGreen))),
+                        color: context.primaryGreen))),
                 ])),
             const Divider(height: 1),
             // Timeline
@@ -98,15 +97,15 @@ class AuditTrailSheet extends StatelessWidget {
                           Icon(
                             Icons.check_circle_outline,
                             size: 48,
-                            color: Colors.grey.shade400),
+                            color: context.outlineLight),
                           const SizedBox(height: 12),
                           Text(
                             'No changes recorded',
-                            style: TextStyle(color: AppTheme.lightText)),
+                            style: TextStyle(color: context.lightText)),
                           Text(
                             'Grade is as originally entered',
                             style: TextStyle(
-                              color: AppTheme.lightText,
+                              color: context.lightText,
                               fontSize: 12)),
                         ]))
                   : ListView.builder(
@@ -213,18 +212,23 @@ class _TimelineEntry extends StatelessWidget {
             child: Column(
               children: [
                 if (!isFirst)
-                  Container(width: 2, height: 12, color: Colors.grey.shade300),
+                  Container(
+                    width: 2,
+                    height: 12,
+                    color: Theme.of(context).colorScheme.outlineVariant),
                 Container(
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                     border: Border.all(color: color, width: 2)),
                   child: Icon(_actionIcon(entry.action), size: 16, color: color)),
                 if (!isLast)
                   Expanded(
-                    child: Container(width: 2, color: Colors.grey.shade300)),
+                    child: Container(
+                      width: 2,
+                      color: Theme.of(context).colorScheme.outlineVariant)),
               ])),
           const SizedBox(width: 12),
           // Content
@@ -233,9 +237,10 @@ class _TimelineEntry extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: context.warmGray,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200)),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -249,7 +254,7 @@ class _TimelineEntry extends StatelessWidget {
                   // Who and when
                   Row(
                     children: [
-                      Icon(Icons.person_outline, size: 14, color: AppTheme.lightText),
+                      Icon(Icons.person_outline, size: 14, color: context.lightText),
                       const SizedBox(width: 4),
                       Text(
                         entry.teacherName.isNotEmpty
@@ -257,15 +262,15 @@ class _TimelineEntry extends StatelessWidget {
                             : ('Unknown'),
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.lightText)),
+                          color: context.lightText)),
                       const SizedBox(width: 12),
-                      Icon(Icons.access_time, size: 14, color: AppTheme.lightText),
+                      Icon(Icons.access_time, size: 14, color: context.lightText),
                       const SizedBox(width: 4),
                       Text(
                         _formatTimestamp(entry.timestamp),
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.lightText)),
+                          color: context.lightText)),
                     ]),
                   // Score change details (for overrides)
                   if (entry.action == 'score_override' ||
@@ -279,12 +284,12 @@ class _TimelineEntry extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, size: 14, color: AppTheme.info),
+                        const Icon(Icons.info_outline, size: 14, color: AppTheme.info),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             '${"Reason: "}${entry.reason}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               color: AppTheme.info,
                               fontStyle: FontStyle.italic))),
@@ -298,11 +303,11 @@ class _TimelineEntry extends StatelessWidget {
                       child: TextButton.icon(
                         onPressed: () => onRevert!(entry),
                         icon: const Icon(Icons.undo, size: 16),
-                        label: Text(
+                        label: const Text(
                           'Revert to this',
-                          style: const TextStyle(fontSize: 12)),
+                          style: TextStyle(fontSize: 12)),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.warning,
+                          foregroundColor: context.warning,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4),
@@ -328,9 +333,9 @@ class _ScoreChangeDetail extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.05),
+        color: context.warning.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.2))),
+        border: Border.all(color: context.warning.withValues(alpha: 0.2))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -339,28 +344,28 @@ class _ScoreChangeDetail extends StatelessWidget {
             children: [
               Text(
                 'Before',
-                style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                style: TextStyle(fontSize: 10, color: context.lightText)),
               Text(
                 '${old['grade'] ?? ''} (${(old['percentage'] as num?)?.toStringAsFixed(1) ?? (old['totalScore']?.toString() ?? '')}%)',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.error,
+                  color: context.error,
                   decoration: TextDecoration.lineThrough)),
             ]),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Icon(Icons.arrow_forward, size: 16, color: AppTheme.warning)),
+            child: Icon(Icons.arrow_forward, size: 16, color: context.warning)),
           // New value
           Column(
             children: [
               Text(
                 'After',
-                style: TextStyle(fontSize: 10, color: AppTheme.lightText)),
+                style: TextStyle(fontSize: 10, color: context.lightText)),
               Text(
                 '${newV['grade'] ?? ''} (${(newV['percentage'] as num?)?.toStringAsFixed(1) ?? (newV['totalScore']?.toString() ?? '')}%)',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryGreen)),
+                  color: context.primaryGreen)),
             ]),
         ]));
   }

@@ -163,7 +163,7 @@ void main() {
               ChangeNotifierProvider(create: (_) => StudentProvider()),
               ChangeNotifierProvider(create: (_) => ClassProvider()),
             ],
-            child: AnswerKeyScreen())));
+            child: const AnswerKeyScreen())));
       await tester.pumpAndSettle();
 
       expect(find.text('No assessment selected'), findsOneWidget);

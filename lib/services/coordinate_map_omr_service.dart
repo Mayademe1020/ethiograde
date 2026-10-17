@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import '../models/assessment.dart';
 import '../models/coordinate_map.dart';
-import '../services/answer_sheet_generator.dart';
 
 /// Coordinate-map-aware OMR scanning service.
 ///
@@ -29,6 +28,64 @@ class CoordinateMapOmrService {
       CoordinateMapOmrService._();
   factory CoordinateMapOmrService() => _instance;
   CoordinateMapOmrService._();
+
+  /// Scan a multi-page answer sheet, auto-detecting which page is in the image.
+  ///
+  /// Tries each page's coordinate map. Since all pages share identical anchor
+  /// positions, we use the number of detected answers as the discriminator:
+  /// the correct page will have more successfully detected bubble fills.
+  ///
+  /// Returns [MultiPageScanResult] with the detected page index and OMR result.
+  Future<MultiPageScanResult> scanMultiPage({
+    required String imagePath,
+    required List<CoordinateMap> pages,
+    required Assessment assessment,
+  }) async {
+    if (pages.isEmpty) {
+      return const MultiPageScanResult(
+        pageIndex: -1,
+        omrResult: CoordinateMapOmrResult.empty,
+        totalPages: 0,
+      );
+    }
+
+    int bestPageIndex = 0;
+    int bestDetectedCount = -1;
+    CoordinateMapOmrResult bestResult = CoordinateMapOmrResult.empty;
+
+    for (int i = 0; i < pages.length; i++) {
+      final result = await scan(
+        imagePath: imagePath,
+        coordinateMap: pages[i],
+        assessment: assessment,
+      );
+
+      // If anchors weren't detected, skip this page
+      if (result.anchorsDetected < 4) continue;
+
+      // Use detected answer count as discriminator:
+      // Correct page = more answers with valid fills
+      // Wrong page = few answers (bubbles at wrong positions are empty)
+      final detectedCount = result.answers
+          .where((a) => a.detectedAnswer.isNotEmpty && a.detectedAnswer != '[MULTIPLE]')
+          .length;
+
+      if (detectedCount > bestDetectedCount) {
+        bestDetectedCount = detectedCount;
+        bestPageIndex = i;
+        bestResult = result;
+
+        // Short-circuit: if we found 4 anchors and some answers, this is likely correct
+        if (bestDetectedCount > 0) break;
+      }
+    }
+
+    return MultiPageScanResult(
+      pageIndex: bestDetectedCount >= 0 ? bestPageIndex : -1,
+      omrResult: bestResult,
+      totalPages: pages.length,
+    );
+  }
 
   /// Scan a filled answer sheet image using a coordinate map.
   ///
@@ -104,7 +161,6 @@ class CoordinateMapOmrService {
 
       // 5. Sample bubbles
       final detected = <CoordinateMapAnswer>[];
-      int objectiveCount = 0;
 
       for (final qMap in coordinateMap.questions) {
         final assessmentQ = assessment.questions.firstWhere(
@@ -113,8 +169,6 @@ class CoordinateMapOmrService {
 
         if (assessmentQ.number == 0) continue; // Question not in assessment
         if (!assessmentQ.isObjective) continue; // Skip essay/short answer
-
-        objectiveCount++;
 
         // Find the filled bubble
         double bestFill = 0;
@@ -148,20 +202,27 @@ class CoordinateMapOmrService {
         }
 
         // Determine if a bubble is filled (threshold-based)
-        const fillThreshold = 0.35;
-        const pencilThreshold = 0.20;
+        // Lowered thresholds for pencil detection:
+        // - fillThreshold: 0.35 → 0.25 (pencil marks fill ~0.20-0.35)
+        // - pencilThreshold: 0.20 → 0.12 (very light pencil marks)
+        const fillThreshold = 0.25;
+        const pencilThreshold = 0.12;
 
         String? answer;
         double confidence = 0;
 
         if (bestFill > fillThreshold) {
-          answer = bestOption;
           // Count how many are above threshold
-          final filledCount =
-              fillRatios.values.where((f) => f > fillThreshold).length;
-          if (filledCount > 1) {
-            confidence = 0.5; // Ambiguous
+          final filledOptions = fillRatios.entries
+              .where((e) => e.value > fillThreshold)
+              .toList();
+
+          if (filledOptions.length > 1) {
+            // Multiple marks detected — invalid response, requires teacher review
+            answer = '[MULTIPLE]';
+            confidence = 0;
           } else {
+            answer = bestOption;
             confidence = _fillConfidence(bestFill, fillThreshold);
           }
         } else if (bestFill > pencilThreshold) {
@@ -230,7 +291,8 @@ class CoordinateMapOmrService {
           anchor.position.yMm + anchor.position.heightMm / 2, image.height);
 
       // Search in a region around the approximate position
-      final searchRadius = _mmToPixelRaw(15, image.width); // 15mm search radius
+      // Increased from 15mm to 25mm for more forgiving anchor detection
+      final searchRadius = _mmToPixelRaw(25, image.width); // 25mm search radius
       final anchorSizePx =
           _mmToPixelRaw(anchor.position.widthMm, image.width).toInt();
 
@@ -305,11 +367,13 @@ class CoordinateMapOmrService {
       for (int dx = -half; dx <= half; dx++) {
         final px = cx + dx;
         final py = cy + dy;
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height)
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height) {
           continue;
+        }
 
         final brightness = image.getPixel(px, py).r / 255.0;
-        if (brightness < 0.3) darkCount++;
+        // Lowered from 0.3 to 0.4 for anchor detection on lower-contrast images
+        if (brightness < 0.4) darkCount++;
         total++;
       }
     }
@@ -401,7 +465,7 @@ class CoordinateMapOmrService {
   }
 
   List<double>? _solveLinear(List<List<double>> a, List<double> b) {
-    final n = 8;
+    const n = 8;
     final aug = List.generate(n, (i) => [...a[i], b[i]]);
 
     for (int col = 0; col < n; col++) {
@@ -480,11 +544,13 @@ class CoordinateMapOmrService {
       for (int dx = -radius; dx <= radius; dx++) {
         final px = cx + dx;
         final py = cy + dy;
-        if (px < 0 || px >= image.width || py < 0 || py >= image.height)
+        if (px < 0 || px >= image.width || py < 0 || py >= image.height) {
           continue;
+        }
 
         final brightness = image.getPixel(px, py).r / 255.0;
-        if (brightness < 0.4) darkCount++;
+        // Lowered from 0.4 to 0.6 to detect pencil marks
+        if (brightness < 0.6) darkCount++;
         total++;
       }
     }
@@ -592,7 +658,7 @@ class CoordinateMapOmrResult {
       answers.where((a) => a.isEmpty).length;
 
   int get lowConfidenceAnswers =>
-      answers.where((a) => a.confidence < 0.6 && !a.isEmpty).length;
+      answers.where((a) => a.confidence < 0.4 && !a.isEmpty).length;
 
   /// Extract answer key as a map of questionNumber → answer.
   /// Used when isAnswerKey is true.
@@ -605,4 +671,22 @@ class CoordinateMapOmrResult {
     }
     return key;
   }
+}
+
+/// Result from multi-page OMR scanning.
+///
+/// Contains the detected page index and the OMR result for that page.
+class MultiPageScanResult {
+  final int pageIndex; // 0-based index of detected page (-1 if none detected)
+  final CoordinateMapOmrResult omrResult;
+  final int totalPages;
+
+  const MultiPageScanResult({
+    required this.pageIndex,
+    required this.omrResult,
+    required this.totalPages,
+  });
+
+  bool get isDetected => pageIndex >= 0;
+  String get pageLabel => isDetected ? 'Page ${pageIndex + 1}/$totalPages' : 'No page detected';
 }

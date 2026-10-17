@@ -26,6 +26,7 @@ void registerHiveAdapters() {
   Hive.registerAdapter(QuestionAdapter());
   Hive.registerAdapter(QuestionTypeAdapter());
   Hive.registerAdapter(EssayRubricAdapter());
+  Hive.registerAdapter(AnswerKeySectionAdapter());
 
   // ScanResult + nested types
   Hive.registerAdapter(ScanResultAdapter());

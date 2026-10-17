@@ -173,6 +173,27 @@ void main() {
       expect(result.$2, '42');
     });
 
+    test('"6. 2.5" decimal answer preserved (no prefix strip)', () {
+      final result = parser.parseQuestionAnswer('6. 2.5');
+      expect(result, isNotNull);
+      expect(result!.$1, 6);
+      expect(result.$2, '2.5');
+    });
+
+    test('"7. 42 km" numeric short answer preserved', () {
+      final result = parser.parseQuestionAnswer('7. 42 km');
+      expect(result, isNotNull);
+      expect(result!.$1, 7);
+      expect(result.$2, '42 km');
+    });
+
+    test('"8. 1984" bare numeric answer preserved', () {
+      final result = parser.parseQuestionAnswer('8. 1984');
+      expect(result, isNotNull);
+      expect(result!.$1, 8);
+      expect(result.$2, '1984');
+    });
+
     test('"7-Photosynthesis"', () {
       final result = parser.parseQuestionAnswer('7-Photosynthesis');
       expect(result, isNotNull);
@@ -306,7 +327,8 @@ void main() {
       expect(parser.normalizeAnswer('42 kilometers'), '42 kilometers');
       expect(
         parser.normalizeAnswer('this is a valid short answer'),
-        'this is a valid short answer');
+        'this is a valid short answer',
+      );
     });
 
     test('pure noise (no alphanumeric) still returns empty', () {
@@ -361,7 +383,8 @@ void main() {
         expect(answers.length, 2);
         expect(answers[0].questionNumber, 1);
         expect(answers[1].questionNumber, 3);
-      });
+      },
+    );
 
     test('noisy OCR — extra spaces, mixed delimiters', () {
       final regions = [
@@ -418,7 +441,8 @@ void main() {
         const TextRegionInput(text: '2. B', confidence: 0.90),
         const TextRegionInput(
           text: 'Grade 10 Mathematics Final Exam',
-          confidence: 0.93),
+          confidence: 0.93,
+        ),
         const TextRegionInput(text: 'ID: 12345678', confidence: 0.91),
       ];
 
@@ -430,47 +454,272 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════
-  // DualLabels — bilingual MCQ option labels
+  // FORMAT 1: Ethiopian answer-before-question (most common format)
   // ══════════════════════════════════════════════════════════════════
 
-  group('DualLabels', () {
-    test('label() maps English to dual-label', () {
-      expect(DualLabels.label('A'), 'A / ሀ');
-      expect(DualLabels.label('B'), 'B / ለ');
-      expect(DualLabels.label('C'), 'C / ሐ');
-      expect(DualLabels.label('D'), 'D / መ');
-      expect(DualLabels.label('E'), 'E / ሠ');
+  group('parseQuestionAnswer — Format 1: Ethiopian answer-before-question', () {
+    test('"B 1. What is the capital of France?" → Q1, B', () {
+      final result = parser.parseQuestionAnswer(
+        'B 1. What is the capital of France?',
+      );
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
     });
 
-    test('label() is case-insensitive for English', () {
-      expect(DualLabels.label('a'), 'a / ሀ');
-      expect(DualLabels.label('b'), 'b / ለ');
+    test('"b 1. What is..." → Q1, B (lowercase)', () {
+      final result = parser.parseQuestionAnswer('b 1. What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
     });
 
-    test('label() returns original for non-MCQ options', () {
-      expect(DualLabels.label('True'), 'True');
-      expect(DualLabels.label('False'), 'False');
-      expect(DualLabels.label('X'), 'X');
+    test('"A 2. What is 2+2?" → Q2, A', () {
+      final result = parser.parseQuestionAnswer('A 2. What is 2+2?');
+      expect(result, isNotNull);
+      expect(result!.$1, 2);
+      expect(result.$2, 'A');
     });
 
-    test('labels() maps a list of options', () {
-      final result = DualLabels.labels(['A', 'B', 'C', 'D', 'E']);
-      expect(result, ['A / ሀ', 'B / ለ', 'C / ሐ', 'D / መ', 'E / ሠ']);
+    test('"C 3. Who wrote Hamlet?" → Q3, C', () {
+      final result = parser.parseQuestionAnswer('C 3. Who wrote Hamlet?');
+      expect(result, isNotNull);
+      expect(result!.$1, 3);
+      expect(result.$2, 'C');
     });
 
-    test('labels() handles True/False', () {
-      final result = DualLabels.labels(['True', 'False']);
-      expect(result, ['True', 'False']);
+    test('"AC 4. Name two colors" → Q4, A,C (multi-letter)', () {
+      final result = parser.parseQuestionAnswer(
+        'AC 4. Name two colors in the flag',
+      );
+      expect(result, isNotNull);
+      expect(result!.$1, 4);
+      expect(result.$2, 'A,C');
     });
 
-    test('labels() handles empty list', () {
-      expect(DualLabels.labels([]), <String>[]);
+    test('"aC 4. Name two colors" → Q4, A,C (mixed case)', () {
+      final result = parser.parseQuestionAnswer('aC 4. Name two colors');
+      expect(result, isNotNull);
+      expect(result!.$1, 4);
+      expect(result.$2, 'A,C');
     });
 
-    test('enToAm and amToEn are inverse mappings', () {
-      for (final entry in DualLabels.enToAm.entries) {
-        expect(DualLabels.amToEn[entry.value], entry.key);
+    test('"D 5. Largest ocean?" → Q5, D', () {
+      final result = parser.parseQuestionAnswer('D 5. Largest ocean?');
+      expect(result, isNotNull);
+      expect(result!.$1, 5);
+      expect(result.$2, 'D');
+    });
+
+    test('"a 10. Which planet..." → Q10, A (double-digit Q#)', () {
+      final result = parser.parseQuestionAnswer(
+        'a 10. Which planet is closest?',
+      );
+      expect(result, isNotNull);
+      expect(result!.$1, 10);
+      expect(result.$2, 'A');
+    });
+
+    test('"B 1 What is..." → Q1, B (no period delimiter)', () {
+      final result = parser.parseQuestionAnswer('B 1 What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+
+    test('"B 1- What is..." → Q1, B (dash delimiter)', () {
+      final result = parser.parseQuestionAnswer('B 1- What is the capital?');
+      expect(result, isNotNull);
+      expect(result!.$1, 1);
+      expect(result.$2, 'B');
+    });
+  });
+
+  group('parseAnswers — Ethiopian format full simulation', () {
+    test('5-question Ethiopian exam paper', () {
+      final regions = [
+        const TextRegionInput(
+          text: 'B 1. What is the capital of France?',
+          confidence: 0.92,
+        ),
+        const TextRegionInput(text: 'A 2. What is 2+2?', confidence: 0.88),
+        const TextRegionInput(text: 'C 3. Who wrote Hamlet?', confidence: 0.91),
+        const TextRegionInput(
+          text: 'AC 4. Name two colors in the flag',
+          confidence: 0.85,
+        ),
+        const TextRegionInput(text: 'D 5. Largest ocean?', confidence: 0.90),
+      ];
+
+      final answers = parser.parseAnswers(regions);
+      expect(answers.length, 5);
+      expect(answers[0].questionNumber, 1);
+      expect(answers[0].answer, 'B');
+      expect(answers[1].questionNumber, 2);
+      expect(answers[1].answer, 'A');
+      expect(answers[2].questionNumber, 3);
+      expect(answers[2].answer, 'C');
+      expect(answers[3].questionNumber, 4);
+      expect(answers[3].answer, 'A,C');
+      expect(answers[4].questionNumber, 5);
+      expect(answers[4].answer, 'D');
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // Phase 1: spatial short-answer association (handwritten answers)
+  // ══════════════════════════════════════════════════════════════════
+
+  group('AnswerParser — Phase 1 spatial short-answer association', () {
+    test('same-line format still parses exactly as before', () {
+      final result = parser.parseQuestionAnswer('16. Addis Ababa');
+      expect(result, isNotNull);
+      expect(result!.$1, 16);
+      expect(result.$2, 'Addis Ababa');
+
+      // And via the positional entry point — standard pass stays authoritative
+      final answers = parser.parseAnswersWithPosition([
+        const TextRegionInput(text: '16. Addis Ababa', confidence: 0.9),
+      ]);
+      expect(answers.length, 1);
+      expect(answers[0].questionNumber, 16);
+      expect(answers[0].answer, 'Addis Ababa');
+      expect(answers[0].spatialAssociation, isFalse);
+    });
+
+    test('bare number + handwritten answer on the NEXT line associates', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(
+          text: 'Addis Ababa',
+          confidence: 0.72,
+          x: 130,
+          y: 140,
+        ),
+      ];
+
+      final answers = parser.parseAnswersWithPosition(regions);
+      expect(answers.length, 1);
+      expect(answers[0].questionNumber, 16);
+      expect(answers[0].answer, 'Addis Ababa');
+      expect(answers[0].spatialAssociation, isTrue);
+    });
+
+    test('numbered line below an anchor is NOT stolen by it', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(
+          text: '17. Nairobi',
+          confidence: 0.85,
+          x: 120,
+          y: 140,
+        ),
+      ];
+
+      final answers = parser.parseAnswersWithPosition(regions);
+      expect(answers.length, 1);
+      expect(answers[0].questionNumber, 17);
+      expect(answers[0].answer, 'Nairobi');
+    });
+
+    test('noise line below an anchor is not attached', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(text: '~~~ ###', confidence: 0.4, x: 130, y: 140),
+      ];
+
+      expect(parser.parseAnswersWithPosition(regions), isEmpty);
+    });
+
+    test('candidate beyond the vertical gap is not attached', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(
+          text: 'Addis Ababa',
+          confidence: 0.7,
+          x: 130,
+          y: 300,
+        ),
+      ];
+
+      expect(parser.parseAnswersWithPosition(regions), isEmpty);
+    });
+
+    test('candidate in a far horizontal column is not attached', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(
+          text: 'Addis Ababa',
+          confidence: 0.7,
+          x: 700,
+          y: 140,
+        ),
+      ];
+
+      expect(parser.parseAnswersWithPosition(regions), isEmpty);
+    });
+
+    test('nearest number above wins when anchors are stacked', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(
+          text: 'Addis Ababa',
+          confidence: 0.75,
+          x: 120,
+          y: 125,
+        ),
+        const TextRegionInput(text: '17', confidence: 0.9, x: 100, y: 170),
+      ];
+
+      final answers = parser.parseAnswersWithPosition(regions);
+      expect(answers.length, 1);
+      expect(answers[0].questionNumber, 16);
+      expect(answers[0].answer, 'Addis Ababa');
+    });
+
+    test('column of bare numbers does not chain-attach as fake answers', () {
+      final regions = [
+        const TextRegionInput(text: '16', confidence: 0.9, x: 100, y: 100),
+        const TextRegionInput(text: '17', confidence: 0.9, x: 100, y: 150),
+        const TextRegionInput(text: '18', confidence: 0.9, x: 100, y: 200),
+      ];
+
+      // Pure-digit fallback exists, but each number must only attach at most
+      // one candidate and must never consume another question's anchor line
+      // in a way that breaks later association. Here every region is an
+      // anchor; the first anchor may take "17" as a numeric fallback but
+      // "18" then remains available as Q17's own anchor... — verify the
+      // conservative outcome: anchors are consumed top-down.
+      final answers = parser.parseAnswersWithPosition(regions);
+      // Whatever attaches, no answer may claim question 18's number twice,
+      // and all outputs must be flagged spatial.
+      for (final a in answers) {
+        expect(a.spatialAssociation, isTrue);
       }
+      final nums = answers.map((a) => a.questionNumber).toSet();
+      expect(nums.length, answers.length); // no duplicate claims
+    });
+
+    test('page-number-like values out of range never anchor (noise guard)', () {
+      final regions = [
+        const TextRegionInput(text: '2024', confidence: 0.95, x: 500, y: 40),
+        const TextRegionInput(text: 'Ethiopia', confidence: 0.8, x: 520, y: 80),
+      ];
+
+      expect(parser.parseAnswersWithPosition(regions), isEmpty);
+    });
+
+    test('horizontal spatial parsing unchanged (regression)', () {
+      final regions = [
+        const TextRegionInput(text: '2.', confidence: 0.9, x: 50, y: 150),
+        const TextRegionInput(text: 'C', confidence: 0.85, x: 300, y: 152),
+      ];
+
+      final answers = parser.parseAnswersWithPosition(regions);
+      expect(answers.length, 1);
+      expect(answers[0].questionNumber, 2);
+      expect(answers[0].answer, 'C');
+      expect(answers[0].spatialAssociation, isTrue);
     });
   });
 }

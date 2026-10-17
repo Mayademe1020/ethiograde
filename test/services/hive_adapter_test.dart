@@ -134,7 +134,7 @@ void main() {
             score: 2,
             maxScore: 2,
             confidence: 0.95,
-            boundingBox: BoundingBox(left: 10, top: 20, right: 50, bottom: 60)),
+            boundingBox: const BoundingBox(left: 10, top: 20, right: 50, bottom: 60)),
         ],
         totalScore: 2,
         maxScore: 2,

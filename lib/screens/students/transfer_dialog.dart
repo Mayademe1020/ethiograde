@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -58,6 +58,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
   Future<void> _transfer() async {
     if (_selectedClass == null) return;
 
+    final studentProvider = context.read<StudentProvider>();
+    final classProv = context.read<ClassProvider>();
+
     setState(() => _isTransferring = true);
 
     final result = await StudentTransferService().transferStudent(
@@ -70,11 +73,10 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
 
     if (result.success && result.updatedStudent != null) {
       // Update the student in StudentProvider
-      await context.read<StudentProvider>().updateStudent(result.updatedStudent!);
+      await studentProvider.updateStudent(result.updatedStudent!);
 
       // Update class rosters — student must be removed from old class and
       // added to new class in ClassProvider, otherwise the roster is stale
-      final classProv = context.read<ClassProvider>();
       await classProv.removeStudentFromClass(widget.fromClass.id, widget.student.id);
       await classProv.addStudentToClass(_selectedClass!.id, widget.student.id);
 
@@ -85,8 +87,8 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "${widget.student.fullName} transferred to ${_selectedClass!.displayName}"),
-            backgroundColor: AppTheme.primaryGreen,
+              '${widget.student.fullName} transferred to ${_selectedClass!.displayName}'),
+            backgroundColor: context.primaryGreen,
             action: SnackBarAction(
               label: 'UNDO',
               textColor: Colors.white,
@@ -99,12 +101,15 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.message),
-            backgroundColor: AppTheme.error));
+            backgroundColor: context.error));
       }
     }
   }
 
   Future<void> _undoTransfer(Student currentStudent) async {
+    final studentProvider = context.read<StudentProvider>();
+    final classProv = context.read<ClassProvider>();
+
     // Transfer back using the CURRENT student state (not stale widget.student)
     final result = await StudentTransferService().transferStudent(
       student: currentStudent,
@@ -113,10 +118,9 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
       reason: 'Undo transfer');
 
     if (result.success && result.updatedStudent != null && mounted) {
-      await context.read<StudentProvider>().updateStudent(result.updatedStudent!);
+      await studentProvider.updateStudent(result.updatedStudent!);
 
       // Update class rosters back
-      final classProv = context.read<ClassProvider>();
       await classProv.removeStudentFromClass(_selectedClass!.id, widget.student.id);
       await classProv.addStudentToClass(widget.fromClass.id, widget.student.id);
 
@@ -124,7 +128,7 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "${widget.student.fullName} restored to ${widget.fromClass.displayName}"),
+              '${widget.student.fullName} restored to ${widget.fromClass.displayName}'),
             backgroundColor: AppTheme.info));
       }
     }
@@ -140,16 +144,16 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
         .toList();
 
     return AlertDialog(
-      title: Row(
+      title: const Row(
         children: [
           Icon(Icons.swap_horiz, color: AppTheme.info),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text('Transfer Student'),
         ]),
       content: availableClasses.isEmpty
           ? Text(
               'No other classes — create one first',
-              style: TextStyle(color: AppTheme.lightText))
+              style: TextStyle(color: context.lightText))
           : SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -159,17 +163,17 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: context.warmGray,
                       borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                          backgroundColor: context.primaryGreen.withValues(alpha: 0.1),
                           child: Text(
                             widget.student.firstName.isNotEmpty
                                 ? widget.student.firstName[0]
                                 : '?',
-                            style: const TextStyle(color: AppTheme.primaryGreen))),
+                            style: TextStyle(color: context.primaryGreen))),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -182,14 +186,14 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                                 '${"From"}: ${widget.fromClass.displayName}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: AppTheme.lightText)),
+                                  color: context.lightText)),
                             ])),
                       ])),
                   const SizedBox(height: 16),
                   // Destination class picker
-                  Text(
+                  const Text(
                     'To (select class)',
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                    style: TextStyle(fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -200,16 +204,16 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
                         label: Text(cls.displayName),
                         selected: selected,
                         onSelected: (_) => setState(() => _selectedClass = cls),
-                        selectedColor: AppTheme.primaryGreen.withOpacity(0.2),
+                        selectedColor: context.primaryGreen.withValues(alpha: 0.2),
                         labelStyle: TextStyle(
-                          color: selected ? AppTheme.primaryGreen : AppTheme.darkText,
+                          color: selected ? context.primaryGreen : context.darkText,
                           fontWeight: selected ? FontWeight.w600 : FontWeight.normal));
                     }).toList()),
                   const SizedBox(height: 16),
                   // Reason field
                   TextField(
                     controller: _reasonController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Reason (optional)',
                       hintText: 'e.g. Moved to different section',
                       isDense: true),
@@ -218,20 +222,20 @@ class _StudentTransferDialogState extends State<StudentTransferDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel')),
+          child: const Text('Cancel')),
         if (availableClasses.isNotEmpty)
           ElevatedButton(
             onPressed: _selectedClass != null && !_isTransferring
-                ? () => _transfer()
+                ? _transfer
                 : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen),
+              backgroundColor: context.primaryGreen),
             child: _isTransferring
                 ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text('Transfer')),
+                : const Text('Transfer')),
       ]);
   }
 }

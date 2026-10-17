@@ -7,7 +7,6 @@ import '../models/assessment.dart';
 import '../models/scan_result.dart';
 import '../models/audit_entry.dart';
 import '../models/grading_scale.dart';
-import '../models/teacher.dart';
 import '../models/weighted_grade.dart';
 
 /// Migrates Hive data from raw Map serialization to typed TypeAdapter format.
@@ -65,25 +64,25 @@ class HiveMigrationService {
     // Migrate each box
     await _migrateBox<Student>(
       'students',
-      (map) => Student.fromMap(map));
+      Student.fromMap);
     await _migrateBox<ClassInfo>(
       'classes',
-      (map) => ClassInfo.fromMap(map));
+      ClassInfo.fromMap);
     await _migrateBox<Assessment>(
       'assessments',
-      (map) => Assessment.fromMap(map));
-    await _migrateLazyBox<ScanResult>(
+      Assessment.fromMap);
+    await _migrateBox<ScanResult>(
       'scan_results',
-      (map) => ScanResult.fromMap(map));
+      ScanResult.fromMap);
     await _migrateBox<AuditEntry>(
       'audit_trail',
-      (map) => AuditEntry.fromMap(map));
+      AuditEntry.fromMap);
     await _migrateBox<GradingScale>(
       'grading_scales',
-      (map) => GradingScale.fromMap(map));
+      GradingScale.fromMap);
     await _migrateBox<WeightedGradeScale>(
       'weighted_scales',
-      (map) => WeightedGradeScale.fromMap(map));
+      WeightedGradeScale.fromMap);
 
     await markComplete();
     debugPrint('[HiveMigration] Complete in ${sw.elapsedMilliseconds}ms');
@@ -137,52 +136,6 @@ class HiveMigrationService {
     } catch (e) {
       debugPrint('[HiveMigration] $boxName: error — $e');
       // Non-fatal: app will work with empty/corrupt box (corruption recovery in main.dart)
-    }
-  }
-
-  /// Migrate a lazy box from Maps to typed objects.
-  static Future<void> _migrateLazyBox<T>(
-    String boxName,
-    T Function(Map<String, dynamic>) fromMap) async {
-    try {
-      final box = await Hive.openLazyBox(boxName);
-      if (box.isEmpty) {
-        await box.close();
-        debugPrint('[HiveMigration] $boxName (lazy): empty — skipping');
-        return;
-      }
-
-      final entries = <String, Map<String, dynamic>>{};
-      for (final key in box.keys) {
-        final value = await box.get(key);
-        if (value is Map) {
-          entries[key.toString()] = Map<String, dynamic>.from(value);
-        }
-      }
-
-      if (entries.isEmpty) {
-        await box.close();
-        debugPrint('[HiveMigration] $boxName (lazy): no Map data — skipping');
-        return;
-      }
-
-      debugPrint('[HiveMigration] $boxName (lazy): migrating ${entries.length} entries');
-
-      await box.clear();
-      for (final entry in entries.entries) {
-        try {
-          final typed = fromMap(entry.value);
-          await box.put(entry.key, typed);
-        } catch (e) {
-          debugPrint('[HiveMigration] $boxName (lazy): failed key=${entry.key}: $e');
-          await box.put(entry.key, entry.value);
-        }
-      }
-
-      await box.close();
-      debugPrint('[HiveMigration] $boxName (lazy): done');
-    } catch (e) {
-      debugPrint('[HiveMigration] $boxName (lazy): error — $e');
     }
   }
 }

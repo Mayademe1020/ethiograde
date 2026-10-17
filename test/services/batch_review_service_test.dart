@@ -71,7 +71,7 @@ void main() {
 
     final summary = service.summarize(
       results: [
-        result(studentId: 's1', studentName: 'Abebe Kebede', confidence: 0.5),
+        result(studentId: 's1', studentName: 'Abebe Kebede', confidence: 0.4),
         result(studentId: '', studentName: 'Paper 2'),
       ],
       roster: roster,

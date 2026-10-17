@@ -125,6 +125,13 @@ class ValidationService {
             errors.add('Question ${q.number}: matching answer cannot be empty');
           }
           break;
+        case QuestionType.multiAnswer:
+          // Multi-answer: comma-separated letters like "A,C" or "A,C,E"
+          final answer = q.correctAnswer.toString().trim();
+          if (answer.isEmpty) {
+            errors.add('Question ${q.number}: multi-answer cannot be empty');
+          }
+          break;
       }
     }
 

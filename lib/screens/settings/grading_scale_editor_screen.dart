@@ -36,10 +36,13 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
       final s = widget.existingScale!;
       _nameController.text = s.name;
       _ranges = s.ranges
-          .map((r) => _RangeEntry(
-                grade: r.grade,
-                min: r.minScore.toString(),
-                max: r.maxScore.toString()))
+          .map(
+            (r) => _RangeEntry(
+              grade: r.grade,
+              min: r.minScore.toString(),
+              max: r.maxScore.toString(),
+            ),
+          )
           .toList();
     } else {
       // Start with a sensible default template
@@ -66,78 +69,88 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          isEditing
-              ? ('Edit Grading Scale')
-              : ('New Grading Scale')),
+        title: Text(isEditing ? ('Edit Grading Scale') : ('New Grading Scale')),
         actions: [
           TextButton.icon(
             onPressed: _save,
             icon: const Icon(Icons.check),
-            label: Text('Save')),
-        ]),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Name field
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Scale Name',
-                hintText:
-                    'e.g. My School Scale',
-                prefixIcon: const Icon(Icons.label_outline)),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? ('Name is required')
-                  : null),
-            const SizedBox(height: 12),
-            TextFormField(
-              decoration: InputDecoration(
-                hintText: 'Optional',
-                prefixIcon: const Icon(Icons.translate))),
-            const SizedBox(height: 24),
+            label: const Text('Save'),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Name field
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Scale Name',
+                  hintText: 'e.g. My School Scale',
+                  prefixIcon: Icon(Icons.label_outline),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? ('Name is required') : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(
+                  hintText: 'Optional',
+                  prefixIcon: Icon(Icons.translate),
+                ),
+              ),
+              const SizedBox(height: 24),
 
-            // Header
-            Row(
-              children: [
-                Icon(Icons.grading, color: AppTheme.primaryGreen, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Grade Bands',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _addRange,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text('Add')),
-              ]),
-            const SizedBox(height: 8),
+              // Header
+              Row(
+                children: [
+                  Icon(Icons.grading, color: context.primaryGreen, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Grade Bands',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _addRange,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
 
-            // Grade range entries
-            ..._ranges.asMap().entries.map((entry) {
-              final i = entry.key;
-              final r = entry.value;
-              return _buildRangeCard(r, i);
-            }),
+              // Grade range entries
+              ..._ranges.asMap().entries.map((entry) {
+                final i = entry.key;
+                final r = entry.value;
+                return _buildRangeCard(r, i);
+              }),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Save button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.save),
-                label: Text(
-                  isEditing
-                      ? ('Update Scale')
-                      : ('Create Scale')),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14)))),
-          ])));
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save),
+                  label: Text(isEditing ? ('Update Scale') : ('Create Scale')),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildRangeCard(_RangeEntry r, int index) {
@@ -155,13 +168,19 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16),
-                decoration: InputDecoration(
+                  fontSize: 16,
+                ),
+                decoration: const InputDecoration(
                   labelText: 'Grade',
                   isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8)),
-                onChanged: (v) => r.grade = v.trim())),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
+                ),
+                onChanged: (v) => r.grade = v.trim(),
+              ),
+            ),
             const SizedBox(width: 12),
 
             // Min score
@@ -169,40 +188,47 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
               child: TextFormField(
                 initialValue: r.min,
                 keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
-                decoration: InputDecoration(
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
                   labelText: 'From %',
                   isDense: true,
-                  suffixText: '%'),
-                onChanged: (v) => r.min = v)),
+                  suffixText: '%',
+                ),
+                onChanged: (v) => r.min = v,
+              ),
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('–')),
+              child: Text('–'),
+            ),
 
             // Max score
             Expanded(
               child: TextFormField(
                 initialValue: r.max,
                 keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
-                decoration: InputDecoration(
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
                   labelText: 'To %',
                   isDense: true,
-                  suffixText: '%'),
-                onChanged: (v) => r.max = v)),
+                  suffixText: '%',
+                ),
+                onChanged: (v) => r.max = v,
+              ),
+            ),
             const SizedBox(width: 4),
 
             // Delete button
             IconButton(
               icon: const Icon(Icons.close, size: 18),
-              color: AppTheme.error,
+              color: context.error,
               onPressed: () => setState(() => _ranges.removeAt(index)),
-              tooltip: 'Remove'),
-          ])));
+              tooltip: 'Remove',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _addRange() {
@@ -222,9 +248,8 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
       final max = int.tryParse(r.max);
       if (min == null || max == null || min < 0 || max > 100 || min > max) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Invalid score range for ${r.grade}')));
+          SnackBar(content: Text('Invalid score range for ${r.grade}')),
+        );
         return;
       }
       ranges.add(GradeRange(grade: r.grade, minScore: min, maxScore: max));
@@ -232,9 +257,8 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
 
     if (ranges.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'At least one grade band is required')));
+        const SnackBar(content: Text('At least one grade band is required')),
+      );
       return;
     }
 
@@ -243,7 +267,8 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
     final scale = GradingScale(
       id: widget.existingScale?.id,
       name: _nameController.text.trim(),
-      ranges: ranges);
+      ranges: ranges,
+    );
 
     // Show confirmation before saving
     _confirmAndSave(scale, isEditing);
@@ -254,7 +279,9 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(isEditing ? 'Update Grading Scale?' : 'Create Grading Scale?'),
+        title: Text(
+          isEditing ? 'Update Grading Scale?' : 'Create Grading Scale?',
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,40 +289,53 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
             Text(
               isEditing
                   ? 'Changes to "${scale.name}" will affect all future grading sessions using this scale.'
-                  : 'The scale "${scale.name}" will be available for grading sessions.'),
+                  : 'The scale "${scale.name}" will be available for grading sessions.',
+            ),
             const SizedBox(height: 12),
             Text(
               'Existing saved records keep their current grades unless you explicitly regrade them.',
-              style: TextStyle(color: AppTheme.lightText, fontSize: 13)),
+              style: TextStyle(color: context.lightText, fontSize: 13),
+            ),
             if (isEditing) ...[
               const SizedBox(height: 12),
-              const Text('New grade bands:',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                'New grade bands:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 4),
-              ...scale.ranges.map((r) => Text(
-                '  ${r.grade}: ${r.minScore}–${r.maxScore}%',
-                style: const TextStyle(fontSize: 13))),
+              ...scale.ranges.map(
+                (r) => Text(
+                  '  ${r.grade}: ${r.minScore}–${r.maxScore}%',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
             ],
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel')),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isEditing ? 'Update' : 'Create')),
-      ],
-    ));
+            child: Text(isEditing ? 'Update' : 'Create'),
+          ),
+        ],
+      ),
+    );
 
     if (confirmed != true) return;
+    if (!mounted) return;
+
+    final settingsProvider = context.read<SettingsProvider>();
+    final teacherProvider = context.read<TeacherProvider>();
 
     // Save the scale
-    await context.read<SettingsProvider>().saveCustomScale(scale);
+    await settingsProvider.saveCustomScale(scale);
 
     // Audit: record the scale change
     try {
-      final teacherProvider = context.read<TeacherProvider>();
       final teacher = teacherProvider.activeTeacher;
       await AuditService().recordScaleChange(
         scaleId: scale.id,
@@ -306,7 +346,8 @@ class _GradingScaleEditorScreenState extends State<GradingScaleEditorScreen> {
             ? widget.existingScale!.ranges.map((r) => r.toMap()).toList()
             : [],
         newRanges: scale.ranges.map((r) => r.toMap()).toList(),
-        reason: isEditing ? 'Scale updated' : 'Scale created');
+        reason: isEditing ? 'Scale updated' : 'Scale created',
+      );
     } catch (_) {
       // Never crash on audit failure
     }

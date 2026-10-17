@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ethiograde/models/class_info.dart';
 import 'package:ethiograde/screens/assessment/exam_day_create_screen.dart';
 import 'package:ethiograde/services/assessment_provider.dart';
 import 'package:ethiograde/services/class_provider.dart';
@@ -82,64 +83,93 @@ void main() {
   }
 
   group('ExamDayCreateScreen', () {
-    testWidgets('starts from the teacher grading job', (tester) async {
-      await tester.pumpWidget(buildScreen());
-      await tester.pumpAndSettle();
-
-      expect(find.text('Grade papers'), findsOneWidget);
-      expect(find.text('I have papers. I need grades.'), findsOneWidget);
-      expect(find.text('Answer key'), findsOneWidget);
-      expect(
-        find.text('Choose how the correct answers will be created.'),
-        findsOneWidget,
-      );
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      await scrollToText(tester, 'Student list');
-      expect(find.text('Student list'), findsOneWidget);
-    });
-
-    testWidgets('keeps student mode and answer-key mode separate', (
+    testWidgets('renders Create Exam title and answer key section', (
       tester,
     ) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      await scrollToText(tester, 'Grade without student list');
-      expect(find.text('Grade without student list'), findsOneWidget);
-      await scrollToText(tester, 'Grade with class list');
-      expect(find.text('Grade with class list'), findsOneWidget);
+      expect(find.text('Create Exam'), findsOneWidget);
+      expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
+
+      await scrollToText(tester, 'Scan Answer Sheet');
+      expect(find.text('Scan Answer Sheet'), findsOneWidget);
+    });
+
+    testWidgets('shows questions count field', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Questions');
+      expect(find.text('Questions'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '20'), findsOneWidget);
     });
 
     testWidgets('supports custom question count', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Custom');
-      final customField = find.widgetWithText(TextField, 'Custom');
-      expect(customField, findsOneWidget);
-
-      await tester.enterText(customField, '37');
+      await scrollToText(tester, 'Questions');
+      final countField = find.widgetWithText(TextField, '20');
+      await tester.enterText(countField, '37');
       await tester.pumpAndSettle();
 
       expect(find.text('37'), findsOneWidget);
     });
 
-    testWidgets('initial no-roster mode still allows master scan choice', (
+    testWidgets('shows Type Answers option', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Type Answers');
+      expect(find.text('Type Answers'), findsOneWidget);
+      expect(find.text('Quick Grading'), findsNothing);
+    });
+
+    testWidgets('selecting Type Answers changes the primary action', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        buildScreen(initialMode: ExamDayStartMode.noRoster),
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Type Answers');
+      await tester.tap(find.text('Type Answers'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
+      expect(find.text('Continue to Scan'), findsNothing);
+    });
+
+    testWidgets('shows continue button for scan mode', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await scrollToText(tester, 'Scan Answer Sheet');
+      await tester.tap(find.text('Scan Answer Sheet'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Continue to Scan'), findsOneWidget);
+    });
+
+    testWidgets('requires a class before continuing', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'e.g. Grade 8 Biology midterm'),
+        'Biology Midterm',
       );
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Grade without student list');
-      expect(find.text('Grade without student list'), findsOneWidget);
-      await scrollToText(tester, 'Answer key');
-      expect(find.text('Scan master answer sheet'), findsOneWidget);
-      expect(find.text('Continue to master scan'), findsOneWidget);
+      // No class selected yet — the CTA shows a hint and prompts on tap.
+      expect(find.text('Select a class first'), findsOneWidget);
+      await tester.tap(find.text('Continue to Answer Key'));
+      await tester.pumpAndSettle();
+
+      // The prompt asks for a title/class rather than proceeding.
+      expect(find.text('Exam title required'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
     });
 
     testWidgets('initial manual-key mode changes the primary action', (
@@ -150,9 +180,75 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await scrollToText(tester, 'Enter answer key manually');
-      expect(find.text('Enter answer key manually'), findsOneWidget);
-      expect(find.text('Continue to answer key'), findsOneWidget);
+      expect(find.text('Continue to Answer Key'), findsOneWidget);
+      expect(find.text('Continue to Scan'), findsNothing);
+    });
+
+    testWidgets('shows summary line with question count and no class', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.pumpAndSettle();
+
+      expect(find.text('20 Qs · No class selected'), findsOneWidget);
+    });
+
+    testWidgets('selecting a class shows its subject and updates summary', (
+      tester,
+    ) async {
+      final classProvider = ClassProvider();
+      await tester.runAsync(() async {
+        await classProvider.addClass(
+          ClassInfo(
+            id: 'c1',
+            name: 'Grade 5A',
+            school: 'Test School',
+            grade: 5,
+            section: 'A',
+            subject: 'Math',
+            studentIds: const ['s1', 's2'],
+            ownerId: 't1',
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        );
+      });
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => StudentProvider()),
+            ChangeNotifierProvider(create: (_) => AssessmentProvider()),
+            ChangeNotifierProvider(create: (_) => SettingsProvider()),
+            ChangeNotifierProvider(create: (_) => classProvider),
+            ChangeNotifierProvider(create: (_) => TeacherProvider()),
+            ChangeNotifierProvider(create: (_) => WeightedGradeProvider()),
+          ],
+          child: const MaterialApp(
+            home: ExamDayCreateScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // No class selected yet.
+      expect(find.text('20 Qs · No class selected'), findsOneWidget);
+
+      // Select the class — summary updates and subject defaults to the class.
+      await scrollToText(tester, 'Grade 5 A Math');
+      await tester.tap(find.text('Grade 5 A Math'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('20 Qs · Grade 5 A Math'), findsOneWidget);
+      expect(find.text('Math'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextField, 'Grade 5 A Math — Midterm'),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(TextField, 'Exam title *'),
+        findsOneWidget,
+      );
     });
   });
 }

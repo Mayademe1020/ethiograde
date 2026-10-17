@@ -41,7 +41,19 @@ void main() {
         }
       }
 
-      final signal = analyzer.analyzeLumaPlane(
+      // paperVisible requires 3 of the last 5 frames to be visible
+      // (flicker suppression), so feed the same paper frame repeatedly.
+      var signal = analyzer.analyzeLumaPlane(
+        lumaBytes: Uint8List.fromList(bytes),
+        width: 10,
+        height: 10,
+      );
+      signal = analyzer.analyzeLumaPlane(
+        lumaBytes: Uint8List.fromList(bytes),
+        width: 10,
+        height: 10,
+      );
+      signal = analyzer.analyzeLumaPlane(
         lumaBytes: Uint8List.fromList(bytes),
         width: 10,
         height: 10,

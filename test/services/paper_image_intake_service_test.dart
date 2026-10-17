@@ -86,6 +86,42 @@ void main() {
       expect(result.readyItems, isEmpty);
       expect(result.attentionItems.single.message, contains('Too dark'));
     });
+
+    test('copies only ready images into app-managed storage', () async {
+      final ready = _writeImage('${tempDir.path}/ready.png');
+      final small = _writeImage('${tempDir.path}/small.png', size: 120);
+      final targetDir = Directory('${tempDir.path}/managed');
+      final result = service.fromPaths(
+        paths: [ready.path, small.path],
+        source: PaperImageSource.upload,
+      );
+
+      final copied = await service.copyReadyImagesForGrading(
+        items: result.reviewItems,
+        targetDirectory: targetDir,
+      );
+
+      expect(copied.length, 1);
+      expect(copied.single, isNot(ready.path));
+      expect(File(copied.single).existsSync(), isTrue);
+      expect(copied.single.startsWith(targetDir.path), isTrue);
+    });
+
+    test('deletes only managed temporary uploaded paper files', () async {
+      final managedDir = Directory(
+        '${tempDir.path}${Platform.pathSeparator}'
+        '${PaperImageIntakeService.uploadStorageFolder}',
+      )..createSync();
+      final managed = File('${managedDir.path}/paper.png')
+        ..writeAsBytesSync([1]);
+      final original = File('${tempDir.path}/original.png')
+        ..writeAsBytesSync([1]);
+
+      await service.deleteManagedTemporaryFiles([managed.path, original.path]);
+
+      expect(managed.existsSync(), isFalse);
+      expect(original.existsSync(), isTrue);
+    });
   });
 }
 

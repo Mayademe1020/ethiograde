@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/student.dart';
-import '../models/scan_result.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 
 /// Service for handling student transfers between classes.
 ///
@@ -14,7 +14,7 @@ import '../models/scan_result.dart';
 /// Implementation: Uses the student's metadata map to store transfer
 /// history, and the existing classIds list for current class membership.
 /// No schema changes needed.
-class StudentTransferService {
+class StudentTransferService with HiveBoxMixin {
   static final StudentTransferService _instance = StudentTransferService._();
   factory StudentTransferService() => _instance;
   StudentTransferService._();
@@ -37,15 +37,17 @@ class StudentTransferService {
     String? teacherName,
   }) async {
     if (fromClassId == toClassId) {
-      return TransferResult(
+      return const TransferResult(
         success: false,
-        message: 'Source and destination classes are the same');
+        message: 'Source and destination classes are the same',
+      );
     }
 
     if (!student.classIds.contains(fromClassId)) {
-      return TransferResult(
+      return const TransferResult(
         success: false,
-        message: 'Student is not in the source class');
+        message: 'Student is not in the source class',
+      );
     }
 
     // Build new classIds
@@ -57,7 +59,8 @@ class StudentTransferService {
 
     // Record transfer in metadata
     final transfers = List<Map<String, dynamic>>.from(
-      student.metadata['transfers'] ?? []);
+      student.metadata['transfers'] ?? [],
+    );
     transfers.add({
       'fromClassId': fromClassId,
       'toClassId': toClassId,
@@ -73,12 +76,14 @@ class StudentTransferService {
     // Create updated student with transfer history in metadata
     final updatedStudent = student.copyWith(
       classIds: newClassIds,
-      metadata: newMetadata);
+      metadata: newMetadata,
+    );
 
     // Also persist transfer record separately for querying
     try {
-      final box = Hive.box(_transfersBox);
-      final transferId = '${student.id}_${DateTime.now().millisecondsSinceEpoch}';
+      final box = await openBox(_transfersBox);
+      final transferId =
+          '${student.id}_${DateTime.now().millisecondsSinceEpoch}';
       await box.put(transferId, {
         'studentId': student.id,
         'studentName': student.fullName,
@@ -89,28 +94,33 @@ class StudentTransferService {
         'teacherId': teacherId ?? '',
         'teacherName': teacherName ?? '',
       });
-    } catch (e) {
-      debugPrint('[Transfer] Failed to persist transfer record: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'transferStudent', e, st);
     }
 
     return TransferResult(
       success: true,
       message: 'Student transferred successfully',
       updatedStudent: updatedStudent,
-      transferHistory: transfers);
+      transferHistory: transfers,
+    );
   }
 
   /// Get transfer history for a student.
   List<TransferRecord> getTransferHistory(String studentId) {
     try {
+      // Note: Hive.box is used for sync API compatibility.
+      // The box is expected to be pre-opened at startup.
       final box = Hive.box(_transfersBox);
       return box.values
-          .map((v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)))
+          .map(
+            (v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)),
+          )
           .where((r) => r.studentId == studentId)
           .toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    } catch (e) {
-      debugPrint('[Transfer] getTransferHistory failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getTransferHistory', e, st);
       return [];
     }
   }
@@ -120,12 +130,14 @@ class StudentTransferService {
     try {
       final box = Hive.box(_transfersBox);
       return box.values
-          .map((v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)))
+          .map(
+            (v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)),
+          )
           .where((r) => r.fromClassId == classId)
           .toList()
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    } catch (e) {
-      debugPrint('[Transfer] getTransfersOutOf failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getTransfersOutOf', e, st);
       return [];
     }
   }
@@ -135,12 +147,14 @@ class StudentTransferService {
     try {
       final box = Hive.box(_transfersBox);
       return box.values
-          .map((v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)))
+          .map(
+            (v) => TransferRecord.fromMap(Map<String, dynamic>.from(v as Map)),
+          )
           .where((r) => r.toClassId == classId)
           .toList()
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    } catch (e) {
-      debugPrint('[Transfer] getTransfersInto failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'getTransfersInto', e, st);
       return [];
     }
   }
@@ -148,10 +162,10 @@ class StudentTransferService {
   /// Clear all transfer records.
   Future<void> clearAll() async {
     try {
-      final box = Hive.box(_transfersBox);
+      final box = await openBox(_transfersBox);
       await box.clear();
-    } catch (e) {
-      debugPrint('[Transfer] clearAll failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'clearAll', e, st);
     }
   }
 }
@@ -201,5 +215,6 @@ class TransferRecord {
     timestamp: DateTime.tryParse(map['timestamp'] ?? '') ?? DateTime.now(),
     reason: map['reason'] ?? '',
     teacherId: map['teacherId'] ?? '',
-    teacherName: map['teacherName'] ?? '');
+    teacherName: map['teacherName'] ?? '',
+  );
 }

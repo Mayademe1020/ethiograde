@@ -14,7 +14,7 @@ import 'package:ethiograde/models/scan_result.dart';
 
 /// Mock path_provider platform for unit tests.
 class _MockPathProvider extends PathProviderPlatform {
-  late String _tempPath;
+  late final String _tempPath;
   _MockPathProvider(this._tempPath);
 
   @override
@@ -103,8 +103,8 @@ void main() {
     });
     await Hive.openBox(studentsBox);
     await Hive.openBox(assessmentsBox);
-    // Must be lazy — BackupService uses Hive.lazyBox('scan_results')
-    await Hive.openLazyBox(scanResultsBox);
+    // scan_results is a regular box in production (main.dart _openBoxSafe)
+    await Hive.openBox(scanResultsBox);
     await Hive.openBox(metadataBox);
   });
 
@@ -120,9 +120,9 @@ void main() {
     }
     if (Hive.isBoxOpen(scanResultsBox)) {
       try {
-        final lazyBox = Hive.lazyBox(scanResultsBox);
-        await lazyBox.clear();
-        await lazyBox.close();
+        final box = Hive.box(scanResultsBox);
+        await box.clear();
+        await box.close();
       } catch (_) {}
     }
     // Clean up any backup files from getApplicationDocumentsDirectory()
@@ -171,7 +171,7 @@ void main() {
       final assessmentsBox = Hive.box('assessments');
       await assessmentsBox.put('a1', makeAssessment().toMap());
 
-      final scanResultsBox = Hive.lazyBox('scan_results');
+      final scanResultsBox = Hive.box('scan_results');
       await scanResultsBox.put('r1', makeScanResult().toMap());
 
       final result = await BackupService.instance.exportAllData();
@@ -263,7 +263,7 @@ void main() {
 
     test('exported JSON contains correct scan results', () async {
       final scan = makeScanResult(id: 'r3', studentId: 's5');
-      await Hive.lazyBox('scan_results').put('r3', scan.toMap());
+      await Hive.box('scan_results').put('r3', scan.toMap());
 
       final filePath = await BackupService.instance.exportAllData();
       expect(filePath, isNotNull);
@@ -467,7 +467,7 @@ void main() {
         makeStudent(id: 's2', firstName: 'Tigist', studentId: '002').toMap(),
       );
       await Hive.box('assessments').put('a1', makeAssessment().toMap());
-      await Hive.lazyBox('scan_results').put('r1', makeScanResult().toMap());
+      await Hive.box('scan_results').put('r1', makeScanResult().toMap());
 
       // Export
       final exportPath = await BackupService.instance.exportAllData();
@@ -476,7 +476,7 @@ void main() {
       // Clear all data
       await Hive.box('students').clear();
       await Hive.box('assessments').clear();
-      await Hive.lazyBox('scan_results').clear();
+      await Hive.box('scan_results').clear();
 
       expect(Hive.box('students').length, 0);
 

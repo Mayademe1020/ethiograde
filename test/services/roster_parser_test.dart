@@ -22,7 +22,7 @@ void main() {
     });
 
     test('parses multiple numbered lines', () {
-      final text = '1. አበበ ከበደ\n2. ተስፋዬ ወልዴ\n3. ሃብተ አለሙ';
+      const text = '1. አበበ ከበደ\n2. ተስፋዬ ወልዴ\n3. ሃብተ አለሙ';
       final results = parser.parse(text);
       expect(results, hasLength(3));
       expect(results[0].studentId, '1');
@@ -65,7 +65,7 @@ void main() {
     });
 
     test('parses full table', () {
-      final text = '001 አበበ ከበደ ወንድ\n002 ሃብተ ወልዴ ሴት\n003 ተስፋዬ ገብረ ወንድ';
+      const text = '001 አበበ ከበደ ወንድ\n002 ሃብተ ወልዴ ሴት\n003 ተስፋዬ ገብረ ወንድ';
       final results = parser.parse(text);
       expect(results, hasLength(3));
       expect(results[0].gender, 'M');
@@ -147,7 +147,7 @@ void main() {
 
   group('RosterParser — mixed format roster', () {
     test('parses real-world roster', () {
-      final text = '''ተ.ቁ  ስም  ጾታ
+      const text = '''ተ.ቁ  ስም  ጾታ
 1. አበበ ከበደ ተስፋዬ ወንድ
 2. ሃብተ ወልዴ አለሙ ሴት
 3. ገብረ ሃይለ ወርቅ ወንድ
@@ -171,13 +171,13 @@ void main() {
 
   group('RosterParser — deduplication', () {
     test('deduplicates by student ID', () {
-      final text = '001 አበበ ከበደ\n001 አበበ ከበደ';
+      const text = '001 አበበ ከበደ\n001 አበበ ከበደ';
       final results = parser.parse(text);
       expect(results, hasLength(1));
     });
 
     test('deduplicates by name when no ID', () {
-      final text = 'አበበ ከበደ\nአበበ ከበደ';
+      const text = 'አበበ ከበደ\nአበበ ከበደ';
       final results = parser.parse(text);
       expect(results, hasLength(1));
     });
@@ -202,7 +202,7 @@ void main() {
 
   group('RosterParser — auto-index fallback', () {
     test('assigns sequential IDs when no roll number found', () {
-      final text = 'አበበ ከበደ\nሃብተ ወልዴ\nገብረ ሃይለ';
+      const text = 'አበበ ከበደ\nሃብተ ወልዴ\nገብረ ሃይለ';
       final results = parser.parse(text);
       expect(results, hasLength(3));
       expect(results[0].studentId, '001');

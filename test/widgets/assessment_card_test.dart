@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:ethiograde/widgets/assessment_card.dart';
 import 'package:ethiograde/models/assessment.dart';
+import 'package:ethiograde/services/class_provider.dart';
+import 'package:ethiograde/models/class_info.dart';
 
 void main() {
-  Widget wrap(Widget child) {
-    return MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)));
+  Widget wrap(Widget child, {List<ClassInfo> classes = const []}) {
+    final prov = ClassProvider();
+    for (final c in classes) {
+      prov.addClass(c);
+    }
+    return ChangeNotifierProvider<ClassProvider>.value(
+      value: prov,
+      child: MaterialApp(
+        home: Scaffold(body: SingleChildScrollView(child: child))));
   }
 
   Assessment makeAssessment({
@@ -34,13 +43,17 @@ void main() {
     });
 
     testWidgets('shows English status label', (tester) async {
+      final questions = [
+        Question(number: 1, text: 'Q1', type: QuestionType.mcq, points: 1),
+        Question(number: 2, text: 'Q2', type: QuestionType.mcq, points: 1),
+      ];
       for (final entry in {
         AssessmentStatus.draft: 'Draft',
-        AssessmentStatus.active: 'Active',
-        AssessmentStatus.grading: 'Grading',
-        AssessmentStatus.completed: 'Completed',
+        AssessmentStatus.active: 'Needs answer key',
+        AssessmentStatus.grading: 'Needs answer key',
+        AssessmentStatus.completed: 'Graded',
       }.entries) {
-        final assessment = makeAssessment(status: entry.key);
+        final assessment = makeAssessment(status: entry.key, questions: questions);
         await tester.pumpWidget(wrap(AssessmentCard(
           assessment: assessment)));
         await tester.pumpAndSettle();
@@ -106,13 +119,57 @@ void main() {
       final assessment = makeAssessment();
       await tester.pumpWidget(wrap(AssessmentCard(
         assessment: assessment,
-onTap: () => tapped = true)));
+        onTap: () => tapped = true)));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(AssessmentCard));
       await tester.pumpAndSettle();
 
       expect(tapped, isTrue);
+    });
+
+    testWidgets('no overflow at narrow width with a long class name',
+        (tester) async {
+      // Regression for the real-device RenderFlex overflow that fired when a
+      // card rendered its metadata row (Q · pts · class) at the ~310px card
+      // width used in the dashboard / review / analytics lists. The metadata
+      // row is a Wrap (since the fix), so it must never overflow horizontally.
+      // The academic-year badge uses the same Wrap, so it is covered too.
+      tester.view.physicalSize = const Size(310, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final assessment = Assessment(
+        title: 'Mathematics Midterm Examination',
+        subject: 'Mathematics',
+        className: 'Grade 10 Section B Advanced',
+        questions: [
+          Question(number: 1, text: 'Q1', type: QuestionType.mcq, points: 2),
+          Question(number: 2, text: 'Q2', type: QuestionType.trueFalse, points: 1),
+          Question(number: 3, text: 'Q3', type: QuestionType.shortAnswer, points: 1),
+          Question(number: 4, text: 'Q4', type: QuestionType.essay, points: 5),
+        ],
+      );
+
+      await tester.pumpWidget(ChangeNotifierProvider<ClassProvider>.value(
+        value: ClassProvider(),
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: AssessmentCard(assessment: assessment),
+            ),
+          ),
+        ),
+      ));
+      // Bounded settle (avoid pumpAndSettle in case of any ticker).
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      // RenderFlex overflow throws a FlutterError during layout — captured here.
+      final ex = tester.takeException();
+      expect(ex, isNull,
+          reason: 'AssessmentCard overflowed at 310px: $ex');
     });
   });
 }

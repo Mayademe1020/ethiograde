@@ -16,9 +16,13 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
+  # Crypto (SHA-256 for answer-key fingerprinting)
+  crypto: ^3.0.3
+
   # Camera & Image
   camera: ^0.10.5+9
   image: ^4.1.3
+  image_picker: ^1.1.2
   path_provider: ^2.1.2
 
   # PDF & CSV
@@ -36,14 +40,19 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.1
   # google_mlkit_commons is transitive — don't pin it directly
 
+  # Network (optional cloud OCR — not used in offline mode)
+  http: ^1.2.2
+
   # Security
   flutter_secure_storage: ^9.0.0
   encrypt: ^5.0.3
 
   # UI & Utilities
   share_plus: ^7.2.1
+  url_launcher: ^6.3.1
   uuid: ^4.2.2
   shared_preferences: ^2.2.2
+  google_fonts: ^8.1.0
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +63,21 @@ dev_dependencies:
   hive_generator: ^2.0.1
   build_runner: ^2.4.8
   path_provider_platform_interface: ^2.0.0
+  url_launcher_platform_interface: ^2.1.2
 
+  camera_platform_interface: any
 flutter:
   uses-material-design: true
+  assets:
+    - assets/fonts/
+  fonts:
+    - family: Plus Jakarta Sans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-Italic.ttf
+          style: italic
+        - asset: assets/fonts/PlusJakartaSans-BoldItalic.ttf
+          weight: 700
+          style: italic

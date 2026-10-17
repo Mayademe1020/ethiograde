@@ -12,11 +12,11 @@ class Student {
   @HiveField(2)
   final String firstName;
   @HiveField(3)
-  final String lastName;  @HiveField(6)
+  final String lastName;
+  @HiveField(6)
   final String gender; // 'M' or 'F' — required
   @HiveField(7)
-  final List<String>
-  classIds; // Many-to-many: student can be in multiple classes
+  final List<String> classIds; // Many-to-many: student can be in multiple classes
   @HiveField(8)
   final String className; // Legacy — kept for backward compat
   @HiveField(9)
@@ -42,7 +42,8 @@ class Student {
     String? id,
     required this.studentId,
     required this.firstName,
-    required this.lastName,    this.gender = '',
+    required this.lastName,
+    this.gender = '',
     List<String>? classIds,
     this.className = '',
     this.section = '',
@@ -65,7 +66,8 @@ class Student {
     String? id,
     String? studentId,
     String? firstName,
-    String? lastName,    String? gender,
+    String? lastName,
+    String? gender,
     List<String>? classIds,
     String? className,
     String? section,
@@ -92,13 +94,15 @@ class Student {
     createdBy: createdBy ?? this.createdBy,
     lastModifiedAt: lastModifiedAt ?? DateTime.now(),
     lastModifiedBy: lastModifiedBy ?? this.lastModifiedBy,
-    metadata: metadata ?? this.metadata);
+    metadata: metadata ?? this.metadata,
+  );
 
   Map<String, dynamic> toMap() => {
     'id': id,
     'studentId': studentId,
     'firstName': firstName,
-    'lastName': lastName,    'gender': gender,
+    'lastName': lastName,
+    'gender': gender,
     'classIds': classIds,
     'className': className,
     'section': section,
@@ -130,5 +134,6 @@ class Student {
         ? DateTime.tryParse(map['lastModifiedAt'])
         : null,
     lastModifiedBy: map['lastModifiedBy'],
-    metadata: Map<String, dynamic>.from(map['metadata'] ?? {}));
+    metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
+  );
 }

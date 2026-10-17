@@ -5,11 +5,11 @@ import 'package:ethiograde/models/coordinate_map.dart';
 void main() {
   group('CoordinateMap', () {
     test('toMap / fromMap roundtrip', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'test-1',
-        page: const PageDimensions(),
+        page: PageDimensions(),
         anchors: [
-          const AnchorPoint(
+          AnchorPoint(
             corner: 'topLeft',
             position: BubblePosition(
               xMm: 10,
@@ -19,7 +19,7 @@ void main() {
               option: '')),
         ],
         questions: [
-          const QuestionBubble(
+          QuestionBubble(
             number: 1,
             type: SheetQuestionType.mcq,
             bubbles: [
@@ -44,12 +44,12 @@ void main() {
     });
 
     test('findBubble returns correct position', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'test-2',
-        page: const PageDimensions(),
-        anchors: const [],
+        page: PageDimensions(),
+        anchors: [],
         questions: [
-          const QuestionBubble(
+          QuestionBubble(
             number: 5,
             type: SheetQuestionType.trueFalse,
             bubbles: [
@@ -68,12 +68,12 @@ void main() {
     });
 
     test('findBubble is case-insensitive', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'test-3',
-        page: const PageDimensions(),
-        anchors: const [],
+        page: PageDimensions(),
+        anchors: [],
         questions: [
-          const QuestionBubble(
+          QuestionBubble(
             number: 1,
             type: SheetQuestionType.mcq,
             bubbles: [
@@ -86,11 +86,11 @@ void main() {
     });
 
     test('anchorPositions flattens anchors', () {
-      final map = CoordinateMap(
+      const map = CoordinateMap(
         assessmentId: 'test-4',
-        page: const PageDimensions(),
+        page: PageDimensions(),
         anchors: [
-          const AnchorPoint(
+          AnchorPoint(
             corner: 'topLeft',
             position: BubblePosition(
               xMm: 10,
@@ -98,7 +98,7 @@ void main() {
               widthMm: 8,
               heightMm: 8,
               option: '')),
-          const AnchorPoint(
+          AnchorPoint(
             corner: 'bottomRight',
             position: BubblePosition(
               xMm: 192,
@@ -107,7 +107,7 @@ void main() {
               heightMm: 8,
               option: '')),
         ],
-        questions: const []);
+        questions: []);
 
       final positions = map.anchorPositions;
       expect(positions, hasLength(2));
