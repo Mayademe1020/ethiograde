@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:ethiograde/config/cloud_grading_config.dart';
 import 'package:ethiograde/services/smart_ocr_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   group('ProxyResponse', () {
@@ -290,6 +293,80 @@ void main() {
         ),
         isTrue,
       );
+    });
+  });
+
+  group('upload image preparation', () {
+    /// Builds a real oversized JPEG whose checkerboard pattern resists
+    /// compression, so the payload reliably exceeds the upload threshold and
+    /// the resize branch is deterministic.
+    Uint8List makeJpeg({required int width, required int height}) {
+      final image = img.Image(width: width, height: height);
+      for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+          final on = ((x ~/ 4) + (y ~/ 4)) % 2 == 0;
+          image.setPixel(
+            x,
+            y,
+            on ? img.ColorRgb8(230, 230, 230) : img.ColorRgb8(30, 30, 30),
+          );
+        }
+      }
+      return Uint8List.fromList(img.encodeJpg(image, quality: 90));
+    }
+
+    test('oversized images are downscaled to the edge limit', () {
+      final original = makeJpeg(width: 3200, height: 2400);
+      expect(original.length,
+          greaterThanOrEqualTo(SmartOcrService.uploadCompressionThresholdBytes),
+          reason: 'checkerboard pattern should keep the payload large');
+      final prepared = SmartOcrService.prepareUploadImage(original);
+      expect(prepared.reencoded, isTrue);
+      final decoded = img.decodeImage(prepared.bytes);
+      expect(decoded, isNotNull);
+      final longest = decoded!.width > decoded.height
+          ? decoded.width
+          : decoded.height;
+      expect(longest, lessThanOrEqualTo(SmartOcrService.uploadMaxEdgePx));
+    });
+
+    test('small images pass through untouched', () {
+      final tiny = makeJpeg(width: 320, height: 240);
+      final prepared = SmartOcrService.prepareUploadImage(tiny);
+      expect(prepared.reencoded, isFalse);
+      expect(identical(prepared.bytes, tiny), isTrue,
+          reason: 'pass-through must not copy or re-encode');
+    });
+
+    test('mime detection follows payload magic bytes, not extension', () {
+      // A JPEG payload mislabelled with a .png path must still report jpeg.
+      final jpeg = Uint8List.fromList(const <int>[
+        0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      ]);
+      expect(
+        SmartOcrService.mimeTypeForUpload(jpeg, 'photo.png'),
+        'image/jpeg',
+      );
+
+      // Re-encoded payloads are always JPEG regardless of source extension.
+      final oversized = makeJpeg(width: 3200, height: 2400);
+      final prepared = SmartOcrService.prepareUploadImage(oversized);
+      expect(prepared.reencoded, isTrue);
+      expect(
+        SmartOcrService.mimeTypeForUpload(prepared.bytes, 'scan.png'),
+        'image/jpeg',
+      );
+    });
+
+    test('corrupt oversized payloads are returned unchanged', () {
+      // decodeImage fails → no resize, no crash, caller uploads the original.
+      final junk = Uint8List.fromList(
+        List<int>.filled(SmartOcrService.uploadCompressionThresholdBytes + 10,
+            0x21),
+      );
+      final prepared = SmartOcrService.prepareUploadImage(junk);
+      expect(prepared.reencoded, isFalse);
+      expect(identical(prepared.bytes, junk), isTrue);
     });
   });
 

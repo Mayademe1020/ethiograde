@@ -160,7 +160,12 @@ function route_(e, method) {
     if (action === 'gradeExam') return handleGradeExam_(req, e);
     if (action === 'getCosts') return handleGetCosts_();
     if (action === 'getSchoolConfig') return handleGetConfig_();
-    if (action === 'updateSchoolConfig') return handleUpdateConfig_(req);
+    // `updateSchoolConfig` was intentionally removed. It wrote Properties
+    // (monthlyBudget, preferredModel) with no authentication, and because the
+    // deployment URL ships inside the APK, anyone could have raised the budget
+    // ceiling — dissolving the protection the whole no-auth design rests on.
+    // Budget changes now happen only here in the editor under Script
+    // Properties.
 
     return json_({ ok: false, error: 'Unknown action: ' + action, code: 404 });
   } catch (err) {
@@ -465,19 +470,6 @@ function handleGetConfig_() {
       enableFallback: true,
     },
   });
-}
-
-function handleUpdateConfig_(req) {
-  const props = PropertiesService.getScriptProperties();
-  const data = req.data || {};
-
-  if (data.preferredModel && MODELS[data.preferredModel]) {
-    props.setProperty('preferredModel', data.preferredModel);
-  }
-  if (data.monthlyBudget !== undefined && data.monthlyBudget !== null) {
-    props.setProperty(P_BUDGET, String(data.monthlyBudget));
-  }
-  return json_({ ok: true, result: { success: true } });
 }
 
 // ---------------------------------------------------------------------------

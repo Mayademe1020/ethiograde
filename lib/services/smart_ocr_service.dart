@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 /// Smart OCR routing service.
@@ -230,12 +231,15 @@ class SmartOcrService {
     }
 
     try {
-      final bytes = await File(imagePath).readAsBytes();
+      final raw = await File(imagePath).readAsBytes();
+      final prepared = prepareUploadImage(raw);
       final result = await _postProxy('gradeExam', {
-        'imageBase64': base64Encode(bytes),
+        'imageBase64': base64Encode(prepared.bytes),
         'answerKey': answerKey,
         'assessmentTitle': assessmentTitle,
-        'mimeType': mimeType ?? _guessMimeType(imagePath),
+        'mimeType': prepared.reencoded
+            ? 'image/jpeg'
+            : (mimeType ?? _guessMimeType(imagePath)),
         'preferredModel': preferredModel ?? _preferredModel,
       });
 
@@ -259,6 +263,79 @@ class SmartOcrService {
     if (lower.endsWith('.png')) return 'image/png';
     if (lower.endsWith('.webp')) return 'image/webp';
     return 'image/jpeg';
+  }
+
+  /// Files below this size skip recompression entirely. Small files are
+  /// either already intake artifacts produced at sane dimensions, or so cheap
+  /// to upload that a decode-resize-encode round trip would cost more
+  /// (latency + generational quality loss) than it saves.
+  @visibleForTesting
+  static const int uploadCompressionThresholdBytes = 350 * 1024;
+
+  /// Longest edge (in px) a cloud upload may have.
+  @visibleForTesting
+  static const int uploadMaxEdgePx = 1600;
+
+  /// JPEG quality used when an upload is recompressed.
+  @visibleForTesting
+  static const int uploadJpegQuality = 80;
+
+  /// Prepares raw file bytes for upload to the proxy.
+  ///
+  /// Phone cameras emit multi-megapixel stills (3-5 MB JPEGs), and base64
+  /// inflates them by a third again. OCR accuracy does not need more than
+  /// ~1600 px on the longest edge, but upload time on metered mobile data and
+  /// the vision-token component of the Gemini bill scale with pixels, so
+  /// oversized inputs are resized and re-encoded as JPEG here.
+  ///
+  /// Returns `(bytes, reencoded)`. Files that are small or already within
+  /// bounds are passed through untouched — recompressing already-compliant
+  /// images only degrades them.
+  @visibleForTesting
+  static ({Uint8List bytes, bool reencoded}) prepareUploadImage(
+    Uint8List raw, {
+    int maxEdgePx = uploadMaxEdgePx,
+  }) {
+    if (raw.length < uploadCompressionThresholdBytes) {
+      return (bytes: raw, reencoded: false);
+    }
+
+    final decoded = img.decodeImage(raw);
+    if (decoded == null) return (bytes: raw, reencoded: false);
+
+    final longest = math.max(decoded.width, decoded.height);
+    if (longest <= maxEdgePx) return (bytes: raw, reencoded: false);
+
+    final scale = maxEdgePx / longest;
+    final resized = img.copyResize(
+      decoded,
+      width: (decoded.width * scale).round(),
+      height: (decoded.height * scale).round(),
+      interpolation: img.Interpolation.average,
+    );
+    return (
+      bytes: Uint8List.fromList(
+        img.encodeJpg(resized, quality: uploadJpegQuality),
+      ),
+      reencoded: true,
+    );
+  }
+
+  /// MIME type for [bytes], used after [prepareUploadImage] because a
+  /// re-encoded payload is JPEG regardless of the source file's extension.
+  @visibleForTesting
+  static String mimeTypeForUpload(Uint8List bytes, String path) {
+    if (bytes.length > 12) {
+      if (bytes[0] == 0xFF && bytes[1] == 0xD8) return 'image/jpeg';
+      if (bytes[0] == 0x89 && bytes[1] == 0x50) return 'image/png';
+      if (bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[8] == 0x57 &&
+          bytes[9] == 0x45) {
+        return 'image/webp';
+      }
+    }
+    return _guessMimeType(path);
   }
 
   /// Fetch cost summary from the proxy.
@@ -377,12 +454,13 @@ class SmartOcrService {
     if (_serverUrl == null || _serverUrl!.isEmpty) return null;
 
     try {
-      final bytes = await File(imagePath).readAsBytes();
+      final fileBytes = await File(imagePath).readAsBytes();
+      final prepared = prepareUploadImage(fileBytes);
       final result = await _postProxy('gradeExam', {
-        'imageBase64': base64Encode(bytes),
+        'imageBase64': base64Encode(prepared.bytes),
         'answerKey': const <String, dynamic>{},
         'ocrOnly': true,
-        'mimeType': _guessMimeType(imagePath),
+        'mimeType': mimeTypeForUpload(prepared.bytes, imagePath),
         'preferredModel': _preferredModel,
       });
 
