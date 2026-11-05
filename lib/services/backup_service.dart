@@ -1,17 +1,21 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/student.dart';
 import '../models/assessment.dart';
 import '../models/scan_result.dart';
+import 'app_log.dart';
+import 'error_handler.dart';
+import 'hive_box_mixin.dart';
 import 'validation_service.dart';
 
 /// Import result with counts and error details.
@@ -37,7 +41,7 @@ class ImportResult {
 ///
 /// Manual exports are encrypted backup files. Imports validate every record
 /// via [ValidationService] before writing.
-class BackupService {
+class BackupService with HiveBoxMixin {
   BackupService._();
   static final BackupService instance = BackupService._();
 
@@ -49,7 +53,7 @@ class BackupService {
   static const String _autoBackupCountKey = 'auto_backup_scan_count';
   static const String _hiveKeyStorageKey = 'hive_encryption_key';
 
-  static const int _autoBackupInterval = 10; // every N scans
+  static const int _autoBackupInterval = 10;
   static const int _maxAutoBackups = 3;
 
   // ── Export ─────────────────────────────────────────────────────────
@@ -70,18 +74,17 @@ class BackupService {
       final data = await _collectAllData();
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
 
-      // Encrypt with the same key as Hive
       final encrypted = await _encryptData(jsonStr);
       if (encrypted == null) {
-        debugPrint('[Backup] Encryption failed, aborting export');
+        AppLog.warn(this, 'exportAllData', 'encryption failed, aborting export');
         return null;
       }
 
       await File(filePath).writeAsBytes(encrypted);
-      debugPrint('[Backup] Exported encrypted to $filePath');
+      AppLog.info(this, 'exportAllData', 'exported encrypted to $filePath');
       return filePath;
-    } catch (e) {
-      debugPrint('[Backup] Export failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'exportAllData', e, st);
       return null;
     }
   }
@@ -97,8 +100,8 @@ class BackupService {
         subject: 'EthioGrade Backup',
         text: 'EthioGrade data backup',
       );
-    } catch (e) {
-      debugPrint('[Backup] Share failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'exportAndShare', e, st);
     }
   }
 
@@ -128,10 +131,9 @@ class BackupService {
 
       late final String jsonStr;
       if (filePath.endsWith('.enc')) {
-        // Encrypted backup — decrypt first
         final decrypted = await _decryptData(await file.readAsBytes());
         if (decrypted == null) {
-          return ImportResult(
+          return const ImportResult(
             imported: 0,
             skipped: 0,
             errors: [
@@ -141,14 +143,14 @@ class BackupService {
         }
         jsonStr = decrypted;
       } else {
-        // Legacy unencrypted backup
         jsonStr = await file.readAsString();
       }
 
       final Map<String, dynamic> data;
       try {
         data = jsonDecode(jsonStr) as Map<String, dynamic>;
-      } catch (e) {
+      } catch (e, st) {
+        AppErrorHandler.catchError(this, 'importData/jsonDecode', e, st);
         return ImportResult(
           imported: 0,
           skipped: 0,
@@ -156,7 +158,6 @@ class BackupService {
         );
       }
 
-      // Version check
       final version = data['version'] as int? ?? 0;
       if (version < 1) {
         return ImportResult(
@@ -166,12 +167,10 @@ class BackupService {
         );
       }
 
-      // Clear existing data if replace mode
       if (replace) {
         await _clearAllBoxes();
       }
 
-      // Import students
       final students = data['students'] as List? ?? [];
       for (final item in students) {
         try {
@@ -186,20 +185,20 @@ class BackupService {
             continue;
           }
 
-          final box = Hive.box(_studentsBox);
+          final box = await openBox(_studentsBox);
           if (!replace && box.containsKey(student.id)) {
             skipped++;
             continue;
           }
           await box.put(student.id, student.toMap());
           imported++;
-        } catch (e) {
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'importData/student', e, st);
           errors.add('Student record: $e');
           skipped++;
         }
       }
 
-      // Import assessments
       final assessments = data['assessments'] as List? ?? [];
       for (final item in assessments) {
         try {
@@ -214,20 +213,20 @@ class BackupService {
             continue;
           }
 
-          final box = Hive.box(_assessmentsBox);
+          final box = await openBox(_assessmentsBox);
           if (!replace && box.containsKey(assessment.id)) {
             skipped++;
             continue;
           }
           await box.put(assessment.id, assessment.toMap());
           imported++;
-        } catch (e) {
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'importData/assessment', e, st);
           errors.add('Assessment record: $e');
           skipped++;
         }
       }
 
-      // Import scan results
       final scanResults = data['scanResults'] as List? ?? [];
       for (final item in scanResults) {
         try {
@@ -242,7 +241,7 @@ class BackupService {
             continue;
           }
 
-          final box = Hive.lazyBox(_scanResultsBox);
+          final box = await openBox(_scanResultsBox);
           if (!replace) {
             final existing = await box.get(scan.id);
             if (existing != null) {
@@ -252,19 +251,22 @@ class BackupService {
           }
           await box.put(scan.id, scan.toMap());
           imported++;
-        } catch (e) {
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'importData/scanResult', e, st);
           errors.add('ScanResult record: $e');
           skipped++;
         }
       }
 
-      debugPrint(
-        '[Backup] Import done: $imported imported, $skipped skipped, '
+      AppLog.info(
+        this,
+        'importData',
+        'import done: $imported imported, $skipped skipped, '
         '${errors.length} errors',
       );
       return ImportResult(imported: imported, skipped: skipped, errors: errors);
-    } catch (e) {
-      debugPrint('[Backup] Import failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'importData', e, st);
       return ImportResult(
         imported: 0,
         skipped: 0,
@@ -278,7 +280,7 @@ class BackupService {
   /// Call after every scan. Auto-backs up every [_autoBackupInterval] scans.
   Future<void> recordScanAndMaybeBackup() async {
     try {
-      final metaBox = Hive.box(_metadataBox);
+      final metaBox = await openBox(_metadataBox);
       final count =
           (metaBox.get(_autoBackupCountKey, defaultValue: 0) as int) + 1;
 
@@ -288,8 +290,8 @@ class BackupService {
       } else {
         await metaBox.put(_autoBackupCountKey, count);
       }
-    } catch (e) {
-      debugPrint('[Backup] recordScanAndMaybeBackup failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'recordScanAndMaybeBackup', e, st);
     }
   }
 
@@ -308,31 +310,31 @@ class BackupService {
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
       final encrypted = await _encryptData(jsonStr);
       if (encrypted == null) {
-        debugPrint('[Backup] Auto-backup encryption failed, aborting backup');
+        AppLog.warn(this, '_autoBackup', 'encryption failed, aborting');
         return;
       }
 
       await File(filePath).writeAsBytes(encrypted);
+      AppLog.info(this, '_autoBackup', 'saved to $filePath');
 
-      debugPrint('[Backup] Auto-backup saved to $filePath');
-
-      // Prune: keep only last N auto-backups
       final autoBackups =
           dir
               .listSync()
               .whereType<File>()
               .where((f) => f.path.contains('ethiograde_auto_'))
               .toList()
-            ..sort((a, b) => b.path.compareTo(a.path)); // newest first
+            ..sort((a, b) => b.path.compareTo(a.path));
 
       for (int i = _maxAutoBackups; i < autoBackups.length; i++) {
         try {
           await autoBackups[i].delete();
-          debugPrint('[Backup] Pruned old auto-backup: ${autoBackups[i].path}');
-        } catch (_) {}
+          AppLog.info(this, '_autoBackup', 'pruned old backup: ${autoBackups[i].path}');
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, '_autoBackup/prune', e, st);
+        }
       }
-    } catch (e) {
-      debugPrint('[Backup] Auto-backup failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_autoBackup', e, st);
     }
   }
 
@@ -347,8 +349,9 @@ class BackupService {
       for (final entity in dir.listSync()) {
         if (entity is! File) continue;
         if (!entity.path.contains('ethiograde_')) continue;
-        if (!entity.path.endsWith('.json') && !entity.path.endsWith('.enc'))
+        if (!entity.path.endsWith('.json') && !entity.path.endsWith('.enc')) {
           continue;
+        }
 
         try {
           final stat = await entity.stat();
@@ -363,14 +366,69 @@ class BackupService {
               isAutoBackup: isAuto,
             ),
           );
-        } catch (_) {}
+        } catch (e, st) {
+          AppErrorHandler.catchError(this, 'listBackups/stat', e, st);
+        }
       }
 
       backups.sort((a, b) => b.date.compareTo(a.date));
       return backups;
-    } catch (e) {
-      debugPrint('[Backup] listBackups failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'listBackups', e, st);
       return [];
+    }
+  }
+
+  // ── Verify backup integrity ───────────────────────────────────────
+
+  /// Verify a backup file's integrity without importing it.
+  /// Returns null on success, or an error message on failure.
+  Future<String?> verifyBackup(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        return 'File not found: $filePath';
+      }
+
+      final content = await file.readAsBytes();
+      if (content.length < 17) {
+        return 'File too small — not a valid backup';
+      }
+
+      final decrypted = await _decryptData(content);
+      if (decrypted == null) {
+        return 'Failed to decrypt — wrong device or corrupted file';
+      }
+
+      final data = jsonDecode(decrypted) as Map<String, dynamic>;
+
+      final version = data['version'] as int? ?? 0;
+      if (version < 1) {
+        return 'Unsupported backup version: $version';
+      }
+
+      final checksum = data['checksum'] as String?;
+      if (checksum != null) {
+        final dataWithoutChecksum = Map<String, dynamic>.from(data)
+          ..remove('checksum');
+        final computedChecksum = _computeChecksum(dataWithoutChecksum);
+        if (computedChecksum != checksum) {
+          return 'Checksum mismatch — backup file has been corrupted';
+        }
+      }
+
+      final requiredKeys = ['version', 'exportDate', 'students', 'assessments', 'scanResults'];
+      for (final key in requiredKeys) {
+        if (!data.containsKey(key)) {
+          return 'Missing required key: $key';
+        }
+      }
+
+      AppLog.info(this, 'verifyBackup', 'backup verified successfully: $filePath');
+      return null;
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, 'verifyBackup', e, st);
+      return 'Verification failed: $e';
     }
   }
 
@@ -394,13 +452,12 @@ class BackupService {
       );
       final encrypted = encrypter.encrypt(plainText, iv: iv);
 
-      // Prepend IV (16 bytes) + encrypted data
       final result = Uint8List(16 + encrypted.bytes.length);
       result.setAll(0, iv.bytes);
       result.setAll(16, encrypted.bytes);
       return result;
-    } catch (e) {
-      debugPrint('[Backup] encryptData failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_encryptData', e, st);
       return null;
     }
   }
@@ -409,7 +466,7 @@ class BackupService {
   /// Returns JSON string or null on failure.
   Future<String?> _decryptData(Uint8List data) async {
     try {
-      if (data.length < 17) return null; // Need at least IV + 1 block
+      if (data.length < 17) return null;
 
       final keyBytes = await _getEncryptionKey();
       if (keyBytes == null) return null;
@@ -420,11 +477,13 @@ class BackupService {
         enc.AES(enc.Key(keyBytes), mode: enc.AESMode.cbc),
       );
       return encrypter.decrypt64(base64Encode(encryptedBytes), iv: iv);
-    } catch (e) {
-      debugPrint('[Backup] decryptData failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_decryptData', e, st);
       return null;
     }
   }
+
+  // ── Helpers ───────────────────────────────────────────────────────
 
   /// Read the AES-256 key from secure storage (same as Hive uses).
   Future<Uint8List?> _getEncryptionKey() async {
@@ -435,19 +494,17 @@ class BackupService {
       final storedKey = await storage.read(key: _hiveKeyStorageKey);
       if (storedKey == null || storedKey.isEmpty) return null;
       return base64Decode(storedKey);
-    } catch (e) {
-      debugPrint('[Backup] getEncryptionKey failed: $e');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_getEncryptionKey', e, st);
       return null;
     }
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────
-
   /// Collect all data from all boxes into a single JSON-serialisable map.
   Future<Map<String, dynamic>> _collectAllData() async {
-    final studentsBox = Hive.box(_studentsBox);
-    final assessmentsBox = Hive.box(_assessmentsBox);
-    final scanResultsBox = Hive.lazyBox(_scanResultsBox);
+    final studentsBox = await openBox(_studentsBox);
+    final assessmentsBox = await openBox(_assessmentsBox);
+    final scanResultsBox = await openBox(_scanResultsBox);
 
     final students = studentsBox.values
         .map((v) => Map<String, dynamic>.from(v as Map))
@@ -465,24 +522,34 @@ class BackupService {
       }
     }
 
-    return {
+    final data = {
       'version': 1,
       'exportDate': DateTime.now().toIso8601String(),
       'students': students,
       'assessments': assessments,
       'scanResults': scanResults,
     };
+
+    data['checksum'] = _computeChecksum(data);
+
+    return data;
+  }
+
+  /// Compute SHA-256 checksum of the data map.
+  String _computeChecksum(Map<String, dynamic> data) {
+    final canonicalJson = jsonEncode(data);
+    return sha256.convert(utf8.encode(canonicalJson)).toString();
   }
 
   /// Clear all data boxes (used in replace-mode import).
   Future<void> _clearAllBoxes() async {
     try {
-      await Hive.box(_studentsBox).clear();
-      await Hive.box(_assessmentsBox).clear();
-      await Hive.lazyBox(_scanResultsBox).clear();
-      debugPrint('[Backup] All boxes cleared for replace import');
-    } catch (e) {
-      debugPrint('[Backup] clearAllBoxes failed: $e');
+      await (await openBox(_studentsBox)).clear();
+      await (await openBox(_assessmentsBox)).clear();
+      await (await openBox(_scanResultsBox)).clear();
+      AppLog.info(this, '_clearAllBoxes', 'all boxes cleared for replace import');
+    } catch (e, st) {
+      AppErrorHandler.catchError(this, '_clearAllBoxes', e, st);
     }
   }
 }
@@ -505,8 +572,9 @@ class BackupInfo {
 
   String get sizeFormatted {
     if (sizeBytes < 1024) return '$sizeBytes B';
-    if (sizeBytes < 1024 * 1024)
+    if (sizeBytes < 1024 * 1024) {
       return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
+    }
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }

@@ -14,12 +14,18 @@ class AutoScanFrameSignal {
   final double brightness;
   final double movement;
   final int? contentHash;
+  final double paperCoverage;
+  final double offsetX;
+  final double offsetY;
 
   const AutoScanFrameSignal({
     required this.paperVisible,
     required this.brightness,
     required this.movement,
     this.contentHash,
+    this.paperCoverage = 0.0,
+    this.offsetX = 0.0,
+    this.offsetY = 0.0,
   });
 }
 

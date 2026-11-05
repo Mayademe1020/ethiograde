@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
-import '../../services/demo_data_service.dart';
+import '../../models/class_info.dart';
+import '../../models/teacher.dart';
 import '../../services/class_provider.dart';
-import '../../services/student_provider.dart';
-import '../../services/assessment_provider.dart';
+import '../../services/teacher_provider.dart';
+import '../../services/settings_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -21,6 +21,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   final _nameController = TextEditingController();
   final _schoolController = TextEditingController();
+  final _subjectController = TextEditingController();
+  final _academicYearController = TextEditingController();
+  final List<String> _selectedSubjects = [];
+  String? _selectedAcademicYear;
+  final List<String> _selectedClassIds = [];
+  int? _selectedGrade;
+  bool _nameError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Default the selection to the already-set (auto-defaulted) year so the
+    // user sees a preselected chip and can just confirm or change it.
+    final settings = context.read<SettingsProvider>();
+    _selectedAcademicYear = settings.currentAcademicYear;
+  }
 
   final List<_OnboardingPage> _pages = [
     _OnboardingPage(
@@ -55,18 +71,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
-            Align(
-              alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: _completeSetup,
-                child: Text(
-                  'Skip',
-                  style: TextStyle(color: AppTheme.lightText),
-                ),
-              ),
-            ),
-
             // Pages
             Expanded(
               child: PageView.builder(
@@ -96,8 +100,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     height: 8,
                     decoration: BoxDecoration(
                       color: _currentPage == i
-                          ? AppTheme.primaryGreen
-                          : Colors.grey.shade300,
+                          ? context.primaryGreen
+                          : Theme.of(context).colorScheme.outlineVariant,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -119,7 +123,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             curve: Curves.easeInOut,
                           );
                         },
-                        child: Text('Back'),
+                        child: const Text('Back'),
                       ),
                     ),
                   if (_currentPage > 0) const SizedBox(width: 12),
@@ -152,41 +156,53 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget _buildPage(_OnboardingPage page) {
     return Padding(
       padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryGreen.withOpacity(0.1),
-              shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: context.primaryGreen.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(page.icon, size: 56, color: context.primaryGreen),
             ),
-            child: Icon(page.icon, size: 56, color: AppTheme.primaryGreen),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            page.titleEn,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            page.descEn,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppTheme.lightText,
-              height: 1.6,
+            const SizedBox(height: 32),
+            Text(
+              page.titleEn,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              page.descEn,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: context.lightText,
+                height: 1.6,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSetupPage() {
+    final settings = context.watch<SettingsProvider>();
+    final classes = context.watch<ClassProvider>().classes;
+    final selectedSubjects = _selectedSubjects;
+
+    // Helper: is a subject currently selected?
+    bool isSelected(String s) => selectedSubjects.any(
+          (e) => e.toLowerCase() == s.toLowerCase(),
+        );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -195,26 +211,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 24),
           Text(
             'Welcome!',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             'Tell us about yourself',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: AppTheme.lightText),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: context.lightText,
+                ),
           ),
           const SizedBox(height: 32),
 
           // Teacher name
           TextField(
             controller: _nameController,
+            onChanged: (_) {
+              if (_nameError) setState(() => _nameError = false);
+            },
             decoration: InputDecoration(
               labelText: 'Your Name',
               prefixIcon: const Icon(Icons.person_outline),
               hintText: 'e.g. Abebe Tesfaye',
+              errorText: _nameError ? 'Please enter your name' : null,
+              errorStyle: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -222,46 +246,519 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // School name
           TextField(
             controller: _schoolController,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'School Name (optional)',
-              prefixIcon: const Icon(Icons.school_outlined),
+              prefixIcon: Icon(Icons.school_outlined),
               hintText: 'e.g. Bole Primary School',
             ),
           ),
+          const SizedBox(height: 24),
+
+          // Academic Year — visible & selectable (like subjects/classes),
+          // supports multiple years; the chosen one becomes the default.
+          Text(
+            'Academic Year',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final year in settings.academicYears)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(
+                        year,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: _selectedAcademicYear == year
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: _selectedAcademicYear == year
+                              ? Colors.white
+                              : const Color(0xFF1F2823),
+                        ),
+                      ),
+                      selected: _selectedAcademicYear == year,
+                      onSelected: (_) =>
+                          setState(() => _selectedAcademicYear = year),
+                      selectedColor: AppTheme.primaryGreen,
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      showCheckmark: false,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: _selectedAcademicYear == year
+                              ? AppTheme.primaryGreen
+                              : Colors.grey.shade400,
+                          width: _selectedAcademicYear == year ? 2 : 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _academicYearController,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _addAcademicYear(context, settings),
+                  decoration: const InputDecoration(
+                    labelText: 'Add another year',
+                    prefixIcon: Icon(Icons.calendar_today_outlined),
+                    hintText: 'e.g. 2027-2028',
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _addAcademicYear(context, settings),
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Grade selector — Grades 1-12. A class is created for the chosen
+          // grade so the teacher can scan/enter right away.
+          Text(
+            'Which grade do you teach?',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          // Grade row — scrollable, all chips visible
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: List.generate(12, (i) {
+                final grade = i + 1;
+                final selected = _selectedGrade == grade;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(
+                      'G$grade',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: selected
+                            ? Colors.white
+                            : const Color(0xFF1F2823),
+                      ),
+                    ),
+                    selected: selected,
+                    onSelected: (_) =>
+                        setState(() => _selectedGrade = grade),
+                    selectedColor: AppTheme.primaryGreen,
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    showCheckmark: false,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: selected
+                            ? AppTheme.primaryGreen
+                            : Colors.grey.shade400,
+                        width: selected ? 2 : 1.5,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Subject — default + multiple
+          Text(
+            'What do you teach?',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _subjectController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: _addSubjectChip,
+            decoration: InputDecoration(
+              labelText: 'Subject',
+              prefixIcon: const Icon(Icons.menu_book_outlined),
+              hintText: 'e.g. Mathematics',
+              suffixIcon: Container(
+                margin: const EdgeInsets.only(right: 8),
+                decoration: const BoxDecoration(
+                  color: AppTheme.primaryGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  tooltip: 'Add subject',
+                  icon: const Icon(
+                    Icons.add,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  onPressed: () =>
+                      _addSubjectChip(_subjectController.text),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+              ),
+            ),
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          // Subject row — scrollable, all chips visible, big & clear
+          if (settings.subjects.isNotEmpty)
+            SizedBox(
+              height: 52,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final subject in settings.subjects)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(
+                          subject,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: isSelected(subject)
+                                ? FontWeight.w800
+                                : FontWeight.w700,
+                            color: isSelected(subject)
+                                ? Colors.white
+                                : const Color(0xFF1F2823),
+                          ),
+                        ),
+                          selected: isSelected(subject),
+                        onSelected: (sel) {
+                          setState(() {
+                            if (sel) {
+                              if (!isSelected(subject)) {
+                                selectedSubjects.add(subject);
+                              }
+                            } else {
+                              selectedSubjects.removeWhere(
+                                (s) =>
+                                    s.toLowerCase() ==
+                                    subject.toLowerCase(),
+                              );
+                            }
+                          });
+                        },
+                        selectedColor: AppTheme.primaryGreen,
+                        backgroundColor: Colors.white,
+                        showCheckmark: false,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: isSelected(subject)
+                                ? AppTheme.primaryGreen
+                                : Colors.grey.shade400,
+                            width: isSelected(subject) ? 2 : 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          Text(
+            'Your profile will be saved automatically. You can add more subjects and classes later in Settings.',
+            style: TextStyle(color: context.lightText, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
+
+          // Class selection — visually clear with grade + subject
+          Text(
+            'Classes',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          if (classes.isEmpty)
+            Text(
+              'No classes added yet. You can add classes later in the Students tab.',
+              style: TextStyle(color: context.lightText, fontSize: 13),
+            ),
+          if (_selectedGrade == null && classes.isEmpty)
+            Text(
+              'Optionally select a grade above to create your first class, or skip this step.',
+              style: TextStyle(color: context.lightText, fontSize: 12),
+            ),
+          if (classes.isNotEmpty)
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final cls in classes)
+                  FilterChip(
+                    label: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Grade ${cls.grade}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: _selectedClassIds.contains(cls.id)
+                                ? Colors.white
+                                : const Color(0xFF1F2823),
+                          ),
+                        ),
+                        Text(
+                          cls.subject.isNotEmpty
+                              ? cls.subject
+                              : cls.section.isNotEmpty
+                                  ? cls.section
+                                  : 'No subject',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedClassIds.contains(cls.id)
+                                ? const Color(0xFFE7F4EC)
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    selected: _selectedClassIds.contains(cls.id),
+                    onSelected: (sel) {
+                      setState(() {
+                        if (sel) {
+                          if (!_selectedClassIds.contains(cls.id)) {
+                            _selectedClassIds.add(cls.id);
+                          }
+                        } else {
+                          _selectedClassIds.remove(cls.id);
+                        }
+                      });
+                    },
+                    selectedColor: AppTheme.primaryGreen,
+                    backgroundColor: Colors.white,
+                    showCheckmark: false,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: _selectedClassIds.contains(cls.id)
+                            ? AppTheme.primaryGreen
+                            : Colors.grey.shade400,
+                        width: _selectedClassIds.contains(cls.id) ? 2 : 1.5,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
     );
   }
 
+  Future<void> _addSubjectChip(String value) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    final exists = _selectedSubjects.any(
+      (s) => s.toLowerCase() == trimmed.toLowerCase(),
+    );
+    if (!exists) {
+      // Persist new subjects to Settings so they appear in future selectors
+      // and stay in sync with the teacher profile.
+      try {
+        await context.read<SettingsProvider>().addSubject(trimmed);
+      } catch (e) {
+        debugPrint("Couldn't save subject: $e");
+      }
+      setState(() => _selectedSubjects.add(trimmed));
+    }
+    _subjectController.clear();
+  }
+
+  void _addAcademicYear(BuildContext context, SettingsProvider settings) {
+    final value = _academicYearController.text.trim();
+    if (value.isEmpty) return;
+    // setAcademicYear updates the current year AND adds it to the list,
+    // so it shows up immediately and becomes the default for new classes.
+    settings.setAcademicYear(value);
+    setState(() {
+      _selectedAcademicYear = value;
+      _academicYearController.clear();
+    });
+  }
+
   Future<void> _completeSetup() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name to continue')),
+      );
+      return;
+    }
+    setState(() => _nameError = false);
+
+    final settings = context.read<SettingsProvider>();
+    final classProvider = context.read<ClassProvider>();
+    final teacherProvider = context.read<TeacherProvider>();
+    final navigator = Navigator.of(context);
+
+    // Mark onboarding complete so we never show it again.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('first_launch', false);
-    await prefs.setString('language', 'en');
 
-    // PII → encrypted Hive (not SharedPreferences)
-    if (_nameController.text.isNotEmpty || _schoolController.text.isNotEmpty) {
-      final piiBox = Hive.isBoxOpen('settings_pii')
-          ? Hive.box('settings_pii')
-          : await Hive.openBox('settings_pii');
-      if (_nameController.text.isNotEmpty) {
-        await piiBox.put('teacher_name', _nameController.text);
-      }
-      if (_schoolController.text.isNotEmpty) {
-        await piiBox.put('school_name', _schoolController.text);
+    final schoolName = _schoolController.text.trim();
+
+    // Sync PII to Settings via the SettingsProvider (single source of truth).
+    await settings.updateSchoolInfo(
+      name: schoolName.isNotEmpty ? schoolName : null,
+      teacher: name,
+    );
+
+    // Use the academic year the user selected on this screen (falls back to
+    // the already-defaulted one). This becomes the default for new classes.
+    final academicYear = _selectedAcademicYear ??
+        settings.currentAcademicYear;
+    if (academicYear.isNotEmpty) {
+      await settings.setAcademicYear(academicYear);
+    }
+
+    // Collect all unique subjects (controller + selected chips).
+    final subjectInput = _subjectController.text.trim();
+    final allSubjects = <String>{};
+    if (subjectInput.isNotEmpty) allSubjects.add(subjectInput);
+    for (final s in _selectedSubjects) {
+      if (s.trim().isNotEmpty) allSubjects.add(s.trim());
+    }
+
+    // Persist any new subjects to Settings so they appear in future selectors.
+    for (final s in allSubjects) {
+      if (!settings.subjects.any(
+        (e) => e.toLowerCase() == s.toLowerCase(),
+      )) {
+        try {
+          await settings.addSubject(s);
+        } catch (e) {
+          debugPrint('Couldn\'t save subject "$s": $e');
+        }
       }
     }
 
-    // Seed demo data so the dashboard isn't empty on first launch
-    if (mounted) {
-      await DemoDataService.seed(
-        classProvider: context.read<ClassProvider>(),
-        studentProvider: context.read<StudentProvider>(),
-        assessmentProvider: context.read<AssessmentProvider>(),
+    final subjectsList = [...allSubjects];
+    final primarySubject = subjectsList.firstOrNull ?? '';
+
+    // Create teacher record.
+    Teacher? createdTeacher;
+    try {
+      final hasExisting = teacherProvider.teachers.any(
+        (t) => t.name.toLowerCase() == name.toLowerCase(),
       );
+      if (hasExisting) {
+        createdTeacher = teacherProvider.teachers.firstWhere(
+          (t) => t.name.toLowerCase() == name.toLowerCase(),
+        );
+        // Update the existing teacher's subjects + school.
+        final updated = createdTeacher.copyWith(
+          school: schoolName,
+          subjects: subjectsList,
+          classIds: [...createdTeacher.classIds, ..._selectedClassIds],
+        );
+        final result = await teacherProvider.updateTeacher(updated);
+        if (result.success && mounted) {
+          createdTeacher = result.data;
+        }
+      } else {
+        final teacher = Teacher(
+          name: name,
+          school: schoolName,
+          subject: primarySubject,
+          subjects: subjectsList,
+          classIds: [..._selectedClassIds],
+        );
+        final result = await teacherProvider.addTeacher(teacher);
+        if (result.success && mounted) {
+          createdTeacher = result.data;
+        }
+      }
+    } catch (e) {
+      debugPrint('Couldn\'t create/update teacher record: $e');
+    }
+
+    // Create a starter class if a grade was selected.
+    final classIds = [..._selectedClassIds];
+    if (_selectedGrade != null && createdTeacher != null) {
+      final grade = _selectedGrade!;
+      final className = 'Grade $grade';
+      final existing = classProvider.classesForTeacher(createdTeacher.id);
+      final hasClass = existing.any(
+        (c) => c.grade == grade && c.subject.toLowerCase() == primarySubject.toLowerCase(),
+      );
+      if (!hasClass) {
+        final starterClass = ClassInfo(
+          name: className,
+          school: schoolName,
+          grade: grade,
+          section: '',
+          subject: primarySubject,
+          studentIds: [],
+          ownerId: createdTeacher.id,
+          academicYear: academicYear,
+        );
+        final classResult = await classProvider.addClass(starterClass);
+        if (classResult.success && classResult.data != null) {
+          classIds.add(classResult.data!.id);
+          classProvider.selectClass(classResult.data!.id);
+        }
+      }
+    }
+
+    // Update teacher's class list if we created a starter class.
+    if (createdTeacher != null &&
+        classIds.any((id) => !createdTeacher!.classIds.contains(id))) {
+      try {
+        final updated = createdTeacher.copyWith(
+          classIds: [...{...createdTeacher.classIds, ...classIds}],
+        );
+        await teacherProvider.updateTeacher(updated);
+      } catch (e) {
+        debugPrint('Couldn\'t update teacher classIds: $e');
+      }
     }
 
     if (mounted) {
-      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+      navigator.pushReplacementNamed(AppRoutes.dashboard);
     }
   }
 
@@ -270,6 +767,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _pageController.dispose();
     _nameController.dispose();
     _schoolController.dispose();
+    _subjectController.dispose();
     super.dispose();
   }
 }

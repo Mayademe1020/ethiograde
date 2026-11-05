@@ -381,7 +381,7 @@ class PerspectiveCorrectionService {
   /// Default corners when detection fails (full image rectangle).
   List<Point> _imageCorners(double w, double h) {
     return [
-      Point(0, 0), // TL
+      const Point(0, 0), // TL
       Point(w, 0), // TR
       Point(w, h), // BR
       Point(0, h), // BL
@@ -425,7 +425,7 @@ class PerspectiveCorrectionService {
       // Compute homography matrix (source → destination)
       final srcPoints = corners;
       final dstPoints = [
-        Point(0.0, 0.0),
+        const Point(0.0, 0.0),
         Point(outWidth.toDouble(), 0.0),
         Point(outWidth.toDouble(), outHeight.toDouble()),
         Point(0.0, outHeight.toDouble()),
@@ -500,7 +500,7 @@ class PerspectiveCorrectionService {
 
   /// Solve an 8x8 linear system Ax = b using Gaussian elimination with partial pivoting.
   List<double>? _solveLinear(List<List<double>> a, List<double> b) {
-    final n = 8;
+    const n = 8;
     // Augmented matrix
     final aug = List.generate(n, (i) => [...a[i], b[i]]);
 

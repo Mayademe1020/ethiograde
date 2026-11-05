@@ -4,7 +4,7 @@ import 'package:ethiograde/services/coordinate_map_omr_service.dart';
 void main() {
   group('CoordinateMapOmrResult', () {
     test('empty result has zero values', () {
-      final result = CoordinateMapOmrResult.empty;
+      const result = CoordinateMapOmrResult.empty;
       expect(result.answers, isEmpty);
       expect(result.totalQuestions, 0);
       expect(result.correctAnswers, 0);
@@ -13,7 +13,7 @@ void main() {
     });
 
     test('percentage calculates correctly', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [],
         totalQuestions: 10,
         correctAnswers: 8,
@@ -23,7 +23,7 @@ void main() {
     });
 
     test('percentage is 0 for zero questions', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [],
         totalQuestions: 0,
         correctAnswers: 0,
@@ -33,9 +33,9 @@ void main() {
     });
 
     test('missingAnswers counts empty detected answers', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 1,
             detectedAnswer: 'A',
             correctAnswer: 'A',
@@ -44,7 +44,7 @@ void main() {
             fillRatios: {'A': 0.7, 'B': 0.1, 'C': 0.05, 'D': 0.05},
             isCorrect: true,
             questionType: 'MCQ'),
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 2,
             detectedAnswer: '',
             correctAnswer: 'B',
@@ -61,10 +61,10 @@ void main() {
       expect(result.missingAnswers, 1);
     });
 
-    test('lowConfidenceAnswers counts answers below 0.6', () {
-      final result = CoordinateMapOmrResult(
+    test('lowConfidenceAnswers counts answers below 0.4', () {
+      const result = CoordinateMapOmrResult(
         answers: [
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 1,
             detectedAnswer: 'A',
             correctAnswer: 'A',
@@ -73,20 +73,20 @@ void main() {
             fillRatios: {},
             isCorrect: true,
             questionType: 'MCQ'),
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 2,
             detectedAnswer: 'B',
             correctAnswer: 'B',
-            confidence: 0.4,
+            confidence: 0.35,
             fillRatio: 0.3,
             fillRatios: {},
             isCorrect: true,
             questionType: 'MCQ'),
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 3,
             detectedAnswer: 'C',
             correctAnswer: 'D',
-            confidence: 0.5,
+            confidence: 0.2,
             fillRatio: 0.35,
             fillRatios: {},
             isCorrect: false,
@@ -96,7 +96,8 @@ void main() {
         correctAnswers: 2,
         averageConfidence: 0.6,
         anchorsDetected: 4);
-      // Q2 (0.4) and Q3 (0.5) are below 0.6
+      // Threshold lowered from 0.6 to 0.4 for pencil marks; only Q2 and Q3
+      // fall under it, and Q1 is excluded.
       expect(result.lowConfidenceAnswers, 2);
     });
   });
@@ -131,14 +132,14 @@ void main() {
 
   group('Answer Key Detection', () {
     test('isAnswerKey defaults to false', () {
-      final result = CoordinateMapOmrResult.empty;
+      const result = CoordinateMapOmrResult.empty;
       expect(result.isAnswerKey, isFalse);
     });
 
     test('isAnswerKey can be set to true', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 1,
             detectedAnswer: 'A',
             correctAnswer: '',
@@ -157,17 +158,17 @@ void main() {
     });
 
     test('answerKey extracts question→answer map', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 1, detectedAnswer: 'A', correctAnswer: '',
             confidence: 0.9, fillRatio: 0.7, fillRatios: {},
             isCorrect: false, questionType: 'MCQ'),
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 2, detectedAnswer: 'B', correctAnswer: '',
             confidence: 0.8, fillRatio: 0.6, fillRatios: {},
             isCorrect: false, questionType: 'MCQ'),
-          const CoordinateMapAnswer(
+          CoordinateMapAnswer(
             questionNumber: 3, detectedAnswer: '', correctAnswer: '',
             confidence: 0.0, fillRatio: 0.0, fillRatios: {},
             isCorrect: false, questionType: 'MCQ'),
@@ -186,7 +187,7 @@ void main() {
     });
 
     test('answerKey is empty when no answers detected', () {
-      final result = CoordinateMapOmrResult(
+      const result = CoordinateMapOmrResult(
         answers: [],
         totalQuestions: 0,
         correctAnswers: 0,

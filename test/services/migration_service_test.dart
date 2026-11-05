@@ -18,7 +18,7 @@ void main() {
   });
 
   tearDown(() async {
-    for (final name in Hive.boxNames) {
+    for (final name in ['metadata', 'students', 'assessments', 'classes', 'teachers', 'settings_pii', 'grading_drafts', 'audit_trail', 'weighted_scales', 'scan_results']) {
       if (Hive.isBoxOpen(name)) {
         try {
           await Hive.box(name).close();

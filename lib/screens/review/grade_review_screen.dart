@@ -6,7 +6,6 @@ import '../../models/scan_result.dart';
 import '../../models/assessment.dart';
 import '../../models/weighted_grade.dart';
 import '../../models/student.dart';
-import '../../services/scoring_service.dart';
 import '../../services/draft_service.dart';
 import '../../services/audit_service.dart';
 import '../../services/teacher_provider.dart';
@@ -15,6 +14,11 @@ import '../../services/weighted_grade_service.dart';
 import '../../services/class_provider.dart';
 import '../../services/student_provider.dart';
 import '../../services/voice_service.dart';
+import '../../services/settings_provider.dart';
+import '../../services/assessment_completion_gate.dart';
+import '../../services/results_pdf_service.dart';
+import '../../widgets/scan_accuracy_summary_card.dart';
+import '../analytics/item_analysis_screen.dart';
 
 /// Summary screen shown after completing grade entry, before final submit.
 ///
@@ -29,11 +33,13 @@ import '../../services/voice_service.dart';
 class GradeReviewScreen extends StatefulWidget {
   final Assessment assessment;
   final List<ScanResult> results;
+  final bool readOnly;
 
   const GradeReviewScreen({
     super.key,
     required this.assessment,
     required this.results,
+    this.readOnly = false,
   });
 
   @override
@@ -63,15 +69,19 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
       maxScores: results.map((r) => r.maxScore.toDouble()).toList(),
       percentages: results.map((r) => r.percentage).toList(),
       grades: results.map((r) => r.grade).toList(),
+      mode: context.read<SettingsProvider>().voiceFeedbackMode,
+      needsReview: results.map((r) => r.needsReview).toList(),
       onReadingIndex: (i) {
         if (mounted) setState(() => _readingIndex = i);
       },
     );
 
-    if (mounted) setState(() {
-      _isReading = false;
-      _readingIndex = -1;
-    });
+    if (mounted) {
+      setState(() {
+        _isReading = false;
+        _readingIndex = -1;
+      });
+    }
   }
 
   @override
@@ -80,19 +90,44 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     super.dispose();
   }
 
+  Future<void> _exportPdf(BuildContext context) async {
+    try {
+      final settings = context.read<SettingsProvider>();
+      final pdfService = ResultsPdfService();
+      final file = await pdfService.generateResultsReport(
+        assessment: assessment,
+        results: results,
+        schoolName: settings.schoolName,
+        teacherName: settings.teacherName,
+      );
+
+      if (!context.mounted) return;
+
+      await pdfService.openFile(file);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate report: $e'),
+            backgroundColor: context.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-
     // Compute stats
     final percentages = results.map((r) => r.percentage).toList()..sort();
     final avg = percentages.isNotEmpty
         ? percentages.reduce((a, b) => a + b) / percentages.length
         : 0.0;
-    final median = percentages.isNotEmpty
-        ? _median(percentages)
-        : 0.0;
+    final median = percentages.isNotEmpty ? _median(percentages) : 0.0;
     final passCount = results.where((r) => r.percentage >= 50).length;
-    final passRate = results.isNotEmpty ? passCount / results.length * 100 : 0.0;
+    final passRate = results.isNotEmpty
+        ? passCount / results.length * 100
+        : 0.0;
     final highest = percentages.isNotEmpty ? percentages.last : 0.0;
     final lowest = percentages.isNotEmpty ? percentages.first : 0.0;
 
@@ -100,26 +135,56 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     ScanResult? highestStudent;
     ScanResult? lowestStudent;
     if (results.isNotEmpty) {
-      highestStudent = results.reduce((a, b) => a.percentage > b.percentage ? a : b);
-      lowestStudent = results.reduce((a, b) => a.percentage < b.percentage ? a : b);
+      highestStudent = results.reduce(
+        (a, b) => a.percentage > b.percentage ? a : b,
+      );
+      lowestStudent = results.reduce(
+        (a, b) => a.percentage < b.percentage ? a : b,
+      );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Review & Confirm'),
+        title: Text(widget.readOnly ? 'Results' : 'Review & Confirm'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined),
+            onPressed: results.isNotEmpty
+                ? () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ItemAnalysisScreen(
+                        assessment: assessment,
+                        results: results,
+                      ),
+                    ),
+                  )
+                : null,
+            tooltip: 'Item Analysis',
+          ),
           IconButton(
             icon: Icon(
               _isReading ? Icons.stop_circle : Icons.volume_up,
-              color: _isReading ? AppTheme.primaryRed : null),
-            onPressed: results.isNotEmpty ? () => _readAllScores() : null,
-            tooltip: _isReading ? 'Stop' : 'Read All Scores'),
-        ]),
+              color: _isReading ? context.primaryRed : null,
+            ),
+            onPressed: results.isNotEmpty ? _readAllScores : null,
+            tooltip: _isReading ? 'Stop' : 'Read All Scores',
+          ),
+          if (results.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: () => _exportPdf(context),
+              tooltip: 'Export PDF',
+            ),
+        ],
+      ),
       body: results.isEmpty
           ? Center(
               child: Text(
                 'No results to review',
-                style: TextStyle(color: AppTheme.lightText)))
+                style: TextStyle(color: context.lightText),
+              ),
+            )
           : Column(
               children: [
                 // Stats summary
@@ -130,18 +195,24 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                   passCount: passCount,
                   total: results.length,
                   highest: highest,
-                  lowest: lowest),
+                  lowest: lowest,
+                ),
+                // Scan accuracy summary
+                ScanAccuracySummaryCard(
+                  assessment: assessment,
+                  results: results,
+                ),
                 const Divider(height: 1),
                 // Weighted composite grade banner (if configured)
                 if (assessment.weightedScaleId != null)
-                  _WeightedGradeBanner(
-                    assessment: assessment),
+                  _WeightedGradeBanner(assessment: assessment),
                 // Student table
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, indent: 16, endIndent: 16),
                     itemBuilder: (context, index) {
                       final result = results[index];
                       final isHighest = result == highestStudent;
@@ -152,40 +223,91 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
                         isHighest: isHighest,
                         isLowest: isLowest,
                         isReading: index == _readingIndex,
-                        onEdit: () => Navigator.pop(context, result));
-                    })),
-                // Confirm button
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _confirmAndSave(context),
-                        icon: const Icon(Icons.check_circle),
-                        label: Text(
-                          'Confirm & Save',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryGreen,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16))))))),
-              ]));
+                        readOnly: widget.readOnly,
+                        onEdit: () => Navigator.pop(context, result),
+                      );
+                    },
+                  ),
+                ),
+                // Confirm button (hidden in read-only mode)
+                if (!widget.readOnly)
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _confirmAndSave(context),
+                          icon: const Icon(Icons.check_circle),
+                          label: const Text(
+                            'Confirm & Save',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+backgroundColor: context.primaryGreen,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
   }
 
   void _confirmAndSave(BuildContext context) async {
-    // Pull real teacher identity from TeacherProvider
+    // Check completion gate before saving
+    const gate = AssessmentCompletionGate();
+    final check = gate.check(assessment: assessment, results: results);
+
+    // Pull real teacher identity from TeacherProvider (before any await)
     final teacher = context.read<TeacherProvider>().activeTeacher;
     final teacherName = teacher?.name ?? ('Unknown Teacher');
     final teacherId = teacher?.id ?? 'unknown';
+
+    if (!check.isReady) {
+      final blockingLabels = check.blocking
+          .map((i) => '• ${i.label}')
+          .join('\n');
+      if (context.mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Issues remain'),
+            content: Text(
+              'The following blocking issues exist:\n\n$blockingLabels\n\n'
+              'Save anyway?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save anyway'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+      }
+    }
 
     for (final result in results) {
       await AuditService().recordCreated(
         result: result,
         teacherId: teacherId,
-        teacherName: teacherName);
+        teacherName: teacherName,
+      );
     }
 
     // Clear the grading draft
@@ -194,9 +316,10 @@ class _GradeReviewScreenState extends State<GradeReviewScreen> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            "${results.length} results saved"),
-          backgroundColor: AppTheme.primaryGreen));
+          content: Text('${results.length} results saved'),
+          backgroundColor: context.primaryGreen,
+        ),
+      );
       // Pop with results to indicate success
       Navigator.pop(context, results);
     }
@@ -217,7 +340,8 @@ class _StatsHeader extends StatelessWidget {
   final int passCount;
   final int total;
   final double highest;
-  final double lowest;const _StatsHeader({
+  final double lowest;
+  const _StatsHeader({
     required this.average,
     required this.median,
     required this.passRate,
@@ -225,13 +349,13 @@ class _StatsHeader extends StatelessWidget {
     required this.total,
     required this.highest,
     required this.lowest,
-    });
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey.shade50,
+      color: context.warmGray,
       child: Column(
         children: [
           Row(
@@ -239,37 +363,49 @@ class _StatsHeader extends StatelessWidget {
               _StatChip(
                 label: 'Average',
                 value: '${average.toStringAsFixed(1)}%',
-                color: AppTheme.info),
+                color: AppTheme.info,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Median',
                 value: '${median.toStringAsFixed(1)}%',
-                color: AppTheme.info),
+                color: AppTheme.info,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Pass',
                 value: '$passCount/$total (${passRate.toStringAsFixed(0)}%)',
-                color: passRate >= 50 ? AppTheme.primaryGreen : AppTheme.primaryRed),
-            ]),
+                color: passRate >= 50
+                    ? context.primaryGreen
+                    : context.primaryRed,
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               _StatChip(
                 label: 'Highest',
                 value: '${highest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryGreen),
+                color: context.primaryGreen,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Lowest',
                 value: '${lowest.toStringAsFixed(1)}%',
-                color: AppTheme.primaryRed),
+                color: context.primaryRed,
+              ),
               const SizedBox(width: 8),
               _StatChip(
                 label: 'Total',
                 value: '$total',
-                color: AppTheme.darkText),
-            ]),
-        ]));
+                color: context.darkText,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -290,20 +426,24 @@ class _StatChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8)),
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: color)),
+            Text(label, style: TextStyle(fontSize: 10, color: color)),
             Text(
               value,
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: color)),
-          ])));
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -314,6 +454,7 @@ class _StudentRow extends StatelessWidget {
   final bool isHighest;
   final bool isLowest;
   final bool isReading;
+  final bool readOnly;
   final VoidCallback onEdit;
 
   const _StudentRow({
@@ -322,6 +463,7 @@ class _StudentRow extends StatelessWidget {
     required this.isHighest,
     required this.isLowest,
     this.isReading = false,
+    this.readOnly = false,
     required this.onEdit,
   });
 
@@ -329,85 +471,124 @@ class _StudentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final passed = result.percentage >= 50;
     final highlightColor = isHighest
-        ? AppTheme.primaryGreen
+        ? context.primaryGreen
         : isLowest
-            ? AppTheme.primaryRed
-            : null;
+        ? context.primaryRed
+        : null;
 
     return ColoredBox(
-      color: isReading ? AppTheme.info.withOpacity(0.06) : Colors.transparent,
+      color: isReading
+          ? AppTheme.info.withValues(alpha: 0.06)
+          : Colors.transparent,
       child: ListTile(
-      leading: CircleAvatar(
-        backgroundColor: (highlightColor ?? AppTheme.lightText).withOpacity(0.1),
-        child: isReading
-            ? Icon(Icons.volume_up, color: AppTheme.info, size: 20)
-            : Text(
-          '$rank',
-          style: TextStyle(
-            color: highlightColor ?? AppTheme.darkText,
-            fontWeight: FontWeight.bold,
-            fontSize: 14))),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              result.studentName,
-              style: TextStyle(
-                fontWeight: isHighest || isLowest ? FontWeight.w700 : FontWeight.w500))),
-          if (isHighest)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                'Top',
-                style: const TextStyle(fontSize: 10, color: AppTheme.primaryGreen))),
-          if (isLowest)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryRed.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4)),
-              child: Text(
-                'Low',
-                style: const TextStyle(fontSize: 10, color: AppTheme.primaryRed))),
-        ]),
-      subtitle: Text(
-        '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
-        style: TextStyle(fontSize: 12, color: AppTheme.lightText)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: passed
-                  ? AppTheme.primaryGreen.withOpacity(0.1)
-                  : AppTheme.primaryRed.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  result.grade,
+        leading: CircleAvatar(
+          backgroundColor: (highlightColor ?? context.lightText).withValues(
+            alpha: 0.1,
+          ),
+          child: isReading
+              ? const Icon(Icons.volume_up, color: AppTheme.info, size: 20)
+              : Text(
+                  '$rank',
                   style: TextStyle(
+                    color: highlightColor ?? context.darkText,
                     fontWeight: FontWeight.bold,
-                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed)),
-                Text(
-                  '${result.percentage.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: passed ? AppTheme.primaryGreen : AppTheme.primaryRed)),
-              ])),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.edit, size: 18, color: AppTheme.lightText),
-            onPressed: onEdit,
-            tooltip: 'Edit',
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero),
-        ])),
+                    fontSize: 14,
+                  ),
+                ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                result.studentName,
+                style: TextStyle(
+                  fontWeight: isHighest || isLowest
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isHighest)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: context.primaryGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Top',
+                  style: TextStyle(fontSize: 10, color: context.primaryGreen),
+                ),
+              ),
+            if (isLowest)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: context.primaryRed.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Low',
+                  style: TextStyle(fontSize: 10, color: context.primaryRed),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Text(
+          '${result.totalScore.toInt()}/${result.maxScore.toInt()}',
+          style: TextStyle(fontSize: 12, color: context.lightText),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: passed
+                    ? context.primaryGreen.withValues(alpha: 0.1)
+                    : context.primaryRed.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    result.grade,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+color: passed
+                        ? context.primaryGreen
+                        : context.primaryRed,
+                    ),
+                  ),
+                  Text(
+                    '${result.percentage.toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+color: passed
+                        ? context.primaryGreen
+                        : context.primaryRed,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (!readOnly)
+              IconButton(
+                icon: Icon(
+                  Icons.edit,
+                  size: 18,
+                  color: context.lightText,
+                ),
+                onPressed: onEdit,
+                tooltip: 'Edit',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: EdgeInsets.zero,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -419,9 +600,8 @@ class _StudentRow extends StatelessWidget {
 /// - Computes and displays composite grades when all component data is available
 /// - Shows which components are still pending
 class _WeightedGradeBanner extends StatelessWidget {
-  final Assessment assessment;const _WeightedGradeBanner({
-    required this.assessment,
-    });
+  final Assessment assessment;
+  const _WeightedGradeBanner({required this.assessment});
 
   @override
   Widget build(BuildContext context) {
@@ -443,28 +623,34 @@ class _WeightedGradeBanner extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.info.withOpacity(0.06),
+        color: AppTheme.info.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.info.withOpacity(0.2))),
+        border: Border.all(color: AppTheme.info.withValues(alpha: 0.2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
               Icon(Icons.balance, size: 18, color: AppTheme.info),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Weighted Composite Grade',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppTheme.info,
-                    fontSize: 13))),
-            ]),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           Text(
             weightSummary,
-            style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          ),
           // Composite grades via FutureBuilder
           FutureBuilder<List<CompositeGrade>?>(
             future: _loadCompositeGrades(context, weightedProvider),
@@ -472,7 +658,8 @@ class _WeightedGradeBanner extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Padding(
                   padding: EdgeInsets.only(top: 8),
-                  child: LinearProgressIndicator(minHeight: 2));
+                  child: LinearProgressIndicator(minHeight: 2),
+                );
               }
 
               final grades = snapshot.data;
@@ -481,11 +668,13 @@ class _WeightedGradeBanner extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Composite grades appear once all components are graded',
-                    style: TextStyle(fontSize: 11, color: AppTheme.lightText)));
+                    style: TextStyle(fontSize: 11, color: context.lightText),
+                  ),
+                );
               }
 
               // Show composite stats
-              final service = const WeightedGradeService();
+              const service = WeightedGradeService();
               final stats = service.computeClassStats(grades);
               return Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -494,21 +683,30 @@ class _WeightedGradeBanner extends StatelessWidget {
                   children: [
                     _CompositeStat(
                       label: 'Average',
-                      value: '${stats.average.toStringAsFixed(1)}%'),
+                      value: '${stats.average.toStringAsFixed(1)}%',
+                    ),
                     _CompositeStat(
                       label: 'Pass Rate',
-                      value: '${stats.passRate.toStringAsFixed(0)}%'),
+                      value: '${stats.passRate.toStringAsFixed(0)}%',
+                    ),
                     _CompositeStat(
                       label: 'Students',
-                      value: '${stats.studentCount}'),
-                  ]));
-            }),
-        ]));
+                      value: '${stats.studentCount}',
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<List<CompositeGrade>?> _loadCompositeGrades(
     BuildContext context,
-    WeightedGradeProvider provider) async {
+    WeightedGradeProvider provider,
+  ) async {
     // Get students for the class
     final classProvider = context.read<ClassProvider>();
     final studentProvider = context.read<StudentProvider>();
@@ -527,19 +725,15 @@ class _WeightedGradeBanner extends StatelessWidget {
       students = studentProvider.students;
     }
 
-    return provider.computeForExam(
-      examId: assessment.id,
-      students: students);
+    return provider.computeForExam(examId: assessment.id, students: students);
   }
 }
 
 /// Small stat display for composite grade summary.
 class _CompositeStat extends StatelessWidget {
   final String label;
-  final String value;const _CompositeStat({
-    required this.label,
-    required this.value,
-    });
+  final String value;
+  const _CompositeStat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -547,13 +741,17 @@ class _CompositeStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 16,
-            color: AppTheme.info)),
+            color: AppTheme.info,
+          ),
+        ),
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: AppTheme.lightText)),
-      ]);
+          style: TextStyle(fontSize: 11, color: context.lightText),
+        ),
+      ],
+    );
   }
 }

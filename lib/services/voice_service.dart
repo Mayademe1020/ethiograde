@@ -26,8 +26,8 @@ class VoiceService {
   bool _shouldStop = false;
 
   // Stub state (STT/recording/playback — not implemented)
-  bool _isListening = false;
-  bool _isRecording = false;
+  final bool _isListening = false;
+  final bool _isRecording = false;
   bool _isPlaying = false;
 
   bool get isListening => _isListening;

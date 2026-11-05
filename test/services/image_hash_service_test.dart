@@ -7,7 +7,7 @@ void main() {
   final hasher = ImageHashService();
 
   /// Helper: create a simple test image with given dimensions and fill color.
-  Uint8List _createTestImage(int width, int height, {int? fillColor}) {
+  Uint8List createTestImage(int width, int height, {int? fillColor}) {
     final image = img.Image(width: width, height: height);
     if (fillColor != null) {
       img.fill(image, color: img.ColorRgb8(fillColor, fillColor, fillColor));
@@ -16,7 +16,7 @@ void main() {
   }
 
   /// Helper: create a test image with a checkerboard pattern (non-uniform).
-  Uint8List _createGradientImage(int width, int height) {
+  Uint8List createGradientImage(int width, int height) {
     final image = img.Image(width: width, height: height);
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
@@ -30,7 +30,7 @@ void main() {
 
   group('ImageHashService — dHash', () {
     test('1. computeHashFromBytes returns non-null for valid image', () {
-      final bytes = _createTestImage(100, 100, fillColor: 128);
+      final bytes = createTestImage(100, 100, fillColor: 128);
       final hash = hasher.computeHashFromBytes(bytes);
       expect(hash, isNotNull);
     });
@@ -41,7 +41,7 @@ void main() {
     });
 
     test('3. Same image produces same hash (deterministic)', () {
-      final bytes = _createTestImage(200, 150, fillColor: 100);
+      final bytes = createTestImage(200, 150, fillColor: 100);
       final hash1 = hasher.computeHashFromBytes(bytes);
       final hash2 = hasher.computeHashFromBytes(bytes);
       expect(hash1, equals(hash2));
@@ -49,8 +49,8 @@ void main() {
 
     test('4. Different images produce different hashes', () {
       // Use non-uniform images — dHash can't distinguish uniform colors
-      final checker = _createGradientImage(200, 200); // checkerboard
-      final solid = _createTestImage(200, 200, fillColor: 128); // solid gray
+      final checker = createGradientImage(200, 200); // checkerboard
+      final solid = createTestImage(200, 200, fillColor: 128); // solid gray
       final hash1 = hasher.computeHashFromBytes(checker);
       final hash2 = hasher.computeHashFromBytes(solid);
       expect(hash1, isNotNull);
@@ -59,7 +59,7 @@ void main() {
     });
 
     test('5. Solid color image produces all-same-bits hash', () {
-      final bytes = _createTestImage(100, 100, fillColor: 128);
+      final bytes = createTestImage(100, 100, fillColor: 128);
       final hash = hasher.computeHashFromBytes(bytes);
       expect(hash, isNotNull);
       // Solid color → all adjacent pixels equal → all bits same (all 0 or all 1)
@@ -67,7 +67,7 @@ void main() {
     });
 
     test('6. Gradient image produces non-trivial hash', () {
-      final bytes = _createGradientImage(100, 100);
+      final bytes = createGradientImage(100, 100);
       final hash = hasher.computeHashFromBytes(bytes);
       expect(hash, isNotNull);
       expect(hash, isNot(equals(0)));
@@ -75,13 +75,13 @@ void main() {
 
     test('7. Very small image still works', () {
       // dHash needs at least 9×8 pixels
-      final bytes = _createTestImage(9, 8, fillColor: 200);
+      final bytes = createTestImage(9, 8, fillColor: 200);
       final hash = hasher.computeHashFromBytes(bytes);
       expect(hash, isNotNull);
     });
 
     test('8. Large image is downscaled and hashed', () {
-      final bytes = _createGradientImage(4000, 3000);
+      final bytes = createGradientImage(4000, 3000);
       final hash = hasher.computeHashFromBytes(bytes);
       expect(hash, isNotNull);
     });
@@ -122,7 +122,7 @@ void main() {
 
     test('15. Hashes within threshold are duplicate', () {
       // Create two hashes with exactly 6 bits difference
-      final h1 = 0;
+      const h1 = 0;
       int h2 = 0;
       for (int i = 0; i < 6; i++) {
         h2 |= (1 << i);
@@ -132,7 +132,7 @@ void main() {
     });
 
     test('16. Hashes beyond threshold are NOT duplicate', () {
-      final h1 = 0;
+      const h1 = 0;
       int h2 = 0;
       for (int i = 0; i < 7; i++) {
         h2 |= (1 << i);
@@ -226,8 +226,8 @@ void main() {
       });
 
     test('26. Uniform images of different colors produce different hashes', () {
-      final white = _createTestImage(100, 100, fillColor: 255);
-      final midGray = _createTestImage(100, 100, fillColor: 128);
+      final white = createTestImage(100, 100, fillColor: 255);
+      final midGray = createTestImage(100, 100, fillColor: 128);
       final hash1 = hasher.computeHashFromBytes(white);
       final hash2 = hasher.computeHashFromBytes(midGray);
       expect(hash1, isNotNull);

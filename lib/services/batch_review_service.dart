@@ -6,6 +6,7 @@ import 'scoring_service.dart';
 class BatchReviewSummary {
   const BatchReviewSummary({
     required this.scannedPapers,
+    required this.papersNeedingAction,
     required this.lowConfidencePapers,
     required this.possibleDuplicates,
     required this.missingStudents,
@@ -13,16 +14,16 @@ class BatchReviewSummary {
   });
 
   final int scannedPapers;
+  final int papersNeedingAction;
   final int lowConfidencePapers;
   final int possibleDuplicates;
   final List<Student> missingStudents;
   final int unassignedPapers;
 
   bool get hasBlockingReview =>
-      lowConfidencePapers > 0 ||
+      papersNeedingAction > 0 ||
       possibleDuplicates > 0 ||
-      missingStudents.isNotEmpty ||
-      unassignedPapers > 0;
+      missingStudents.isNotEmpty;
 }
 
 class BatchReviewService {
@@ -47,15 +48,11 @@ class BatchReviewService {
 
     return BatchReviewSummary(
       scannedPapers: results.length,
+      papersNeedingAction: results.where((r) => r.requiresTeacherAction).length,
       lowConfidencePapers: results.where((result) => result.needsReview).length,
       possibleDuplicates: duplicateCount,
       missingStudents: missingStudents,
-      unassignedPapers: results
-          .where(
-            (result) =>
-                result.studentId.isEmpty || result.studentName.trim().isEmpty,
-          )
-          .length,
+      unassignedPapers: results.where((r) => r.isUnmatched).length,
     );
   }
 

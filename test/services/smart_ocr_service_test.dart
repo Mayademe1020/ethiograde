@@ -1,0 +1,573 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:ethiograde/config/cloud_grading_config.dart';
+import 'package:ethiograde/services/smart_ocr_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  group('ProxyResponse', () {
+    test('flags a spent monthly budget', () {
+      expect(const ProxyResponse('budget reached', 402).isBudgetExceeded, isTrue);
+      expect(const ProxyResponse('boom', 500).isBudgetExceeded, isFalse);
+    });
+
+    test('flags rate limiting for 429 only', () {
+      expect(const ProxyResponse('slow down', 429).isRateLimit, isTrue);
+      expect(const ProxyResponse('boom', 500).isRateLimit, isFalse);
+    });
+  });
+
+  group('buildCloudOcrResult', () {
+    Map<String, dynamic> row(
+      int number, [
+      String answer = 'A',
+      double confidence = 0.9,
+    ]) =>
+        {
+          'questionNumber': number,
+          'detectedAnswer': answer,
+          'confidence': confidence,
+        };
+
+    test('returns null for an empty reply', () {
+      expect(buildCloudOcrResult(const []), isNull);
+    });
+
+    test('returns null when every row is unusable', () {
+      expect(
+        buildCloudOcrResult([
+          row(0),
+          {'questionNumber': 'abc', 'detectedAnswer': 'A'},
+          row(1, '   '),
+        ]),
+        isNull,
+      );
+    });
+
+    test('creates one self-labelled block per question', () {
+      final result = buildCloudOcrResult([row(1), row(2), row(3)]);
+
+      expect(result, isNotNull);
+      expect(result!.blocks, hasLength(3));
+      expect(result.blocks[0].text, '1. A');
+      expect(result.blocks[1].text, '2. A');
+      expect(result.blocks[2].text, '3. A');
+    });
+
+    test('positions blocks in a top-to-bottom column by question number', () {
+      final result = buildCloudOcrResult([row(3), row(1), row(2)])!;
+
+      expect(result.blocks.map((b) => b.text).toList(),
+          ['1. A', '2. A', '3. A']);
+      expect(result.blocks[0].y, 1 * kCloudBlockLineHeight);
+      expect(result.blocks[1].y, 2 * kCloudBlockLineHeight);
+      expect(result.blocks[2].y, 3 * kCloudBlockLineHeight);
+    });
+
+    test('keeps short answers verbatim', () {
+      final result =
+          buildCloudOcrResult([row(16, 'Addis Ababa'), row(17, '42 km')]);
+
+      expect(result!.blocks[0].text, '16. Addis Ababa');
+      expect(result.blocks[1].text, '17. 42 km');
+      expect(result.text, '16. Addis Ababa\n17. 42 km');
+    });
+
+    test('drops questions the model could not read', () {
+      final result =
+          buildCloudOcrResult([row(1), row(2, ''), row(3, 'C')]);
+
+      expect(result!.blocks, hasLength(2));
+      expect(result.blocks.map((b) => b.text).toList(), ['1. A', '3. C']);
+    });
+
+    test('de-duplicates repeated question numbers, first wins', () {
+      final result = buildCloudOcrResult([
+        row(1, 'A'),
+        row(1, 'B'),
+      ]);
+
+      expect(result!.blocks, hasLength(1));
+      expect(result.blocks.single.text, '1. A');
+    });
+
+    test('accepts numeric strings for question numbers', () {
+      final result = buildCloudOcrResult([
+        {'questionNumber': '5', 'detectedAnswer': 'D', 'confidence': 0.8},
+      ]);
+
+      expect(result!.blocks.single.text, '5. D');
+    });
+
+    test('flags handwriting and averages confidence', () {
+      final result = buildCloudOcrResult([
+        row(1, 'A', 0.8),
+        row(2, 'B', 0.6),
+      ]);
+
+      expect(result!.source, OcrSource.cloud);
+      expect(result.isHandwriting, isTrue);
+      expect(result.confidence, closeTo(0.7, 1e-9));
+    });
+
+    test('routes low-confidence readings to teacher review', () {
+      final mixed = buildCloudOcrResult([
+        row(1, 'A', 0.95),
+        row(2, 'B', 0.3),
+      ]);
+      expect(mixed!.needsReview, isTrue);
+
+      final clean = buildCloudOcrResult([
+        row(1, 'A', 0.95),
+        row(2, 'B', 0.9),
+      ]);
+      expect(clean!.needsReview, isFalse);
+    });
+
+    test('clamps out-of-range confidence into 0..1', () {
+      final result = buildCloudOcrResult([
+        row(1, 'A', 5.0),
+        row(2, 'B', -3.0),
+      ]);
+
+      expect(result!.blocks[0].confidence, 1.0);
+      expect(result.blocks[1].confidence, 0.0);
+      expect(result.needsReview, isTrue);
+    });
+
+    test('defaults a missing confidence to 0.5', () {
+      final result = buildCloudOcrResult([
+        {'questionNumber': 1, 'detectedAnswer': 'A'},
+      ]);
+
+      expect(result!.blocks.single.confidence, 0.5);
+    });
+  });
+
+  group('GradingResult', () {
+    test('computes percentage from score over max', () {
+      final result = GradingResult.fromJson({
+        'results': [],
+        'overallScore': 18,
+        'maxScore': 20,
+        'confidence': 0.9,
+      });
+
+      expect(result.percentage, closeTo(90, 1e-9));
+    });
+
+    test('percentage is zero when maxScore is zero', () {
+      final result = GradingResult.fromJson({
+        'results': [],
+        'overallScore': 0,
+        'maxScore': 0,
+        'confidence': 0,
+      });
+
+      expect(result.percentage, 0);
+    });
+
+    test('tolerates a reply with no fields at all', () {
+      final result = GradingResult.fromJson(const {});
+
+      expect(result.results, isEmpty);
+      expect(result.overallScore, 0);
+      expect(result.maxScore, 0);
+      expect(result.confidence, 0);
+    });
+
+    test('parses per-question results with string numerics', () {
+      final result = GradingResult.fromJson({
+        'results': [
+          {
+            'questionNumber': '4',
+            'detectedAnswer': 'B',
+            'correctAnswer': 'B',
+            'isCorrect': true,
+            'score': '2',
+            'maxScore': '2',
+            'confidence': 0.97,
+            'notes': 'clear',
+          },
+        ],
+        'overallScore': 2,
+        'maxScore': 2,
+        'confidence': 0.9,
+      });
+
+      final q = result.results.single;
+      expect(q.questionNumber, 4);
+      expect(q.score, 2.0);
+      expect(q.maxScore, 2.0);
+      expect(q.isCorrect, isTrue);
+      expect(q.notes, 'clear');
+    });
+  });
+
+  group('CostSummary', () {
+    test('reports budget usage and over-budget state', () {
+      final summary = CostSummary.fromJson({
+        'totalRequests': 120,
+        'totalCost': 2.5,
+        'monthlyBudget': 10.0,
+        'period': '2026-10',
+        'byProvider': {
+          'gemini': {'requests': 120, 'cost': 2.5},
+        },
+      });
+
+      expect(summary.totalRequests, 120);
+      expect(summary.budgetUsedPercent, closeTo(25, 1e-9));
+      expect(summary.isOverBudget, isFalse);
+      expect(summary.byProvider['gemini']?.requests, 120);
+    });
+
+    test('is over budget when spend exceeds the limit', () {
+      final summary = CostSummary.fromJson({
+        'totalCost': 12.0,
+        'monthlyBudget': 10.0,
+      });
+
+      expect(summary.isOverBudget, isTrue);
+      expect(summary.budgetUsedPercent, closeTo(100, 1e-9));
+    });
+
+    test('falls back to a default budget when none is set', () {
+      final summary = CostSummary.fromJson(const {});
+
+      expect(summary.monthlyBudget, 10.0);
+      expect(summary.period, 'all-time');
+    });
+
+    test('surfaces the proxy budget-exhausted flag', () {
+      final spent = CostSummary.fromJson({
+        'totalCost': 10.0,
+        'monthlyBudget': 10.0,
+        'budgetExceeded': true,
+      });
+      expect(spent.budgetExceeded, isTrue);
+
+      final ok = CostSummary.fromJson({'budgetExceeded': false});
+      expect(ok.budgetExceeded, isFalse);
+
+      // Older proxies omit the field; must not read as exhausted.
+      expect(CostSummary.fromJson(const {}).budgetExceeded, isFalse);
+    });
+  });
+
+  group('CloudGradingConfig', () {
+    test('the shipped endpoint is a valid Apps Script URL', () {
+      // Guards against a deployment being pasted into the wrong host, which
+      // fails silently at scan time rather than at build time.
+      expect(CloudGradingConfig.proxyUrl, isNotEmpty);
+      expect(CloudGradingConfig.isConfigured, isTrue,
+          reason: 'proxyUrl must be a valid HTTPS Apps Script exec URL');
+    });
+
+    test('cloud grading is switched on', () {
+      expect(CloudGradingConfig.available, isTrue);
+    });
+
+    test('rejects a non-Apps-Script or non-https URL', () {
+      expect(
+        CloudGradingConfig.isConfiguredFor('http://script.googleusercontent.com/x'),
+        isFalse,
+      );
+      expect(
+        CloudGradingConfig.isConfiguredFor('https://evil.example.com/grade'),
+        isFalse,
+      );
+      expect(
+        CloudGradingConfig.isConfiguredFor('https://script.google.com/macros/s/A/exec'),
+        isFalse,
+        reason: 'script.google.com redirects and drops the POST body',
+      );
+      expect(CloudGradingConfig.isConfiguredFor(''), isFalse);
+    });
+
+    test('accepts an https Apps Script exec URL', () {
+      expect(
+        CloudGradingConfig.isConfiguredFor(
+          'https://script.googleusercontent.com/macros/s/DEPLOY_ID/exec',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('upload image preparation', () {
+    /// Builds a real oversized JPEG whose checkerboard pattern resists
+    /// compression, so the payload reliably exceeds the upload threshold and
+    /// the resize branch is deterministic.
+    Uint8List makeJpeg({required int width, required int height}) {
+      final image = img.Image(width: width, height: height);
+      for (var y = 0; y < height; y++) {
+        for (var x = 0; x < width; x++) {
+          final on = ((x ~/ 4) + (y ~/ 4)) % 2 == 0;
+          image.setPixel(
+            x,
+            y,
+            on ? img.ColorRgb8(230, 230, 230) : img.ColorRgb8(30, 30, 30),
+          );
+        }
+      }
+      return Uint8List.fromList(img.encodeJpg(image, quality: 90));
+    }
+
+    test('oversized images are downscaled to the edge limit', () {
+      final original = makeJpeg(width: 3200, height: 2400);
+      expect(original.length,
+          greaterThanOrEqualTo(SmartOcrService.uploadCompressionThresholdBytes),
+          reason: 'checkerboard pattern should keep the payload large');
+      final prepared = SmartOcrService.prepareUploadImage(original);
+      expect(prepared.reencoded, isTrue);
+      final decoded = img.decodeImage(prepared.bytes);
+      expect(decoded, isNotNull);
+      final longest = decoded!.width > decoded.height
+          ? decoded.width
+          : decoded.height;
+      expect(longest, lessThanOrEqualTo(SmartOcrService.uploadMaxEdgePx));
+    });
+
+    test('small images pass through untouched', () {
+      final tiny = makeJpeg(width: 320, height: 240);
+      final prepared = SmartOcrService.prepareUploadImage(tiny);
+      expect(prepared.reencoded, isFalse);
+      expect(identical(prepared.bytes, tiny), isTrue,
+          reason: 'pass-through must not copy or re-encode');
+    });
+
+    test('mime detection follows payload magic bytes, not extension', () {
+      // A JPEG payload mislabelled with a .png path must still report jpeg.
+      final jpeg = Uint8List.fromList(const <int>[
+        0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      ]);
+      expect(
+        SmartOcrService.mimeTypeForUpload(jpeg, 'photo.png'),
+        'image/jpeg',
+      );
+
+      // Re-encoded payloads are always JPEG regardless of source extension.
+      final oversized = makeJpeg(width: 3200, height: 2400);
+      final prepared = SmartOcrService.prepareUploadImage(oversized);
+      expect(prepared.reencoded, isTrue);
+      expect(
+        SmartOcrService.mimeTypeForUpload(prepared.bytes, 'scan.png'),
+        'image/jpeg',
+      );
+    });
+
+    test('corrupt oversized payloads are returned unchanged', () {
+      // decodeImage fails → no resize, no crash, caller uploads the original.
+      final junk = Uint8List.fromList(
+        List<int>.filled(SmartOcrService.uploadCompressionThresholdBytes + 10,
+            0x21),
+      );
+      final prepared = SmartOcrService.prepareUploadImage(junk);
+      expect(prepared.reencoded, isFalse);
+      expect(identical(prepared.bytes, junk), isTrue);
+    });
+  });
+
+  group('transient failure handling', () {
+    FakeHttpException? throwOnFirst;
+
+    /// Records request bodies and replays [responses] entries in order; when
+    /// [firstThrows] is set the first call raises a transport error instead.
+    http.Client clientWith(
+      List<Object> responses, {
+      List<String>? recorded,
+    }) {
+      return _SequencedHttpClient(responses, throwOnFirst, recorder: recorded);
+    }
+
+    setUp(() {
+      SmartOcrService.transientRetryDelay = Duration.zero;
+    });
+    tearDown(() {
+      SmartOcrService.transientRetryDelay = const Duration(seconds: 2);
+      throwOnFirst = null;
+    });
+
+    test('looksLikeHtml distinguishes HTML error pages from the envelope', () {
+      expect(SmartOcrService.looksLikeHtml('<html><body>busy</body>'), isTrue);
+      expect(SmartOcrService.looksLikeHtml('  \n<!DOCTYPE html>'), isTrue);
+      expect(
+        SmartOcrService.looksLikeHtml('{"ok":true,"result":{}}'),
+        isFalse,
+      );
+      expect(SmartOcrService.looksLikeHtml(''), isFalse);
+    });
+
+    test('HTML answer page surfaces a friendly busy error after retry', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      service.httpOverride = clientWith([
+        http.Response('<html><body>our systems detected unusual traffic'
+            '</body></html>', 200),
+        http.Response('<html><body>busy</body></html>', 200),
+      ]);
+
+      final result = await service.getCosts();
+      expect(result, isNull);
+      expect(service.lastErrorMessage, contains('busy'));
+    });
+
+    test('a dropped connection is retried once and then succeeds', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      const envelope = '{"ok":true,"result":{"totalCost":0}}';
+      throwOnFirst = const FakeHttpException('connection aborted');
+      service.httpOverride = clientWith([
+        http.Response(envelope, 200),
+      ]);
+
+      final result = await service.getCosts();
+      expect(result, isNotNull);
+      expect(result!.totalCost, 0);
+    });
+
+    test('the proxy receives a stable install id on every request',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      final recorded = <String>[];
+      service.httpOverride = clientWith(
+        [http.Response('{"ok":true,"result":{}}', 200)],
+        recorded: recorded,
+      );
+
+      await service.getCosts();
+      await service.getCosts();
+
+      expect(recorded.length, 2);
+      final first = jsonDecode(recorded[0]) as Map<String, dynamic>;
+      final second = jsonDecode(recorded[1]) as Map<String, dynamic>;
+      expect(first['data']['installId'], '0123456789abcdef');
+      expect(second['data']['installId'], first['data']['installId']);
+    });
+  });
+
+  group('Amharic routing', () {
+    test('Ethiopic characters are detected across the supported blocks', () {
+      expect(SmartOcrService.containsEthiopic('ሐምዴ'), isTrue);
+      expect(SmartOcrService.containsEthiopic('Question 3: ትምህርት'), isTrue);
+      expect(SmartOcrService.containsEthiopic('plain latin only'), isFalse);
+      expect(SmartOcrService.containsEthiopic(''), isFalse);
+    });
+  });
+
+  group('ModelInfo', () {
+    test('parses a server model entry', () {
+      final info = ModelInfo.fromJson({
+        'name': 'gemini',
+        'displayName': 'Gemini 2.0 Flash',
+        'isAvailable': true,
+        'costPer1k': 0.15,
+        'latencyMs': 3000,
+      });
+
+      expect(info.name, 'gemini');
+      expect(info.isAvailable, isTrue);
+      expect(info.costPer1k, 0.15);
+      expect(info.latencyMs, 3000);
+    });
+
+    test('defaults isAvailable to false when absent', () {
+      expect(ModelInfo.fromJson(const {}).isAvailable, isFalse);
+    });
+  });
+
+  group('SmartOcrResult', () {
+    test('copyWith preserves untouched fields', () {
+      const original = SmartOcrResult(
+        text: 'hello',
+        blocks: [],
+        confidence: 0.5,
+        source: OcrSource.cloud,
+        isHandwriting: true,
+        needsReview: true,
+      );
+
+      final updated = original.copyWith(confidence: 0.9);
+
+      expect(updated.confidence, 0.9);
+      expect(updated.text, 'hello');
+      expect(updated.source, OcrSource.cloud);
+      expect(updated.isHandwriting, isTrue);
+      expect(updated.needsReview, isTrue);
+    });
+
+    test('empty result is empty and not flagged', () {
+      final empty = SmartOcrResult.empty();
+
+      expect(empty.isEmpty, isTrue);
+      expect(empty.isNotEmpty, isFalse);
+      expect(empty.confidence, 0);
+      expect(empty.needsReview, isFalse);
+    });
+  });
+}
+
+/// Transport error that a flaky mobile link produces — thrown by
+/// [_SequencedHttpClient] instead of answering.
+class FakeHttpException implements Exception {
+  const FakeHttpException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'FakeHttpException: $message';
+}
+
+/// Replays scripted responses in call order on [send]; optionally throws a
+/// transport error on the first call. Records request bodies when asked, so
+/// tests can assert exactly what reached the proxy.
+class _SequencedHttpClient extends http.BaseClient {
+  _SequencedHttpClient(this._responses, this._firstThrows, {List<String>? recorder})
+      : _recorder = recorder;
+
+  final List<Object> _responses;
+  final FakeHttpException? _firstThrows;
+  final List<String>? _recorder;
+  int _calls = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final recorder = _recorder;
+    if (recorder != null && request is http.Request) recorder.add(request.body);
+
+    if (_calls == 0 && _firstThrows != null) {
+      _calls++;
+      throw _firstThrows;
+    }
+
+    final entry = _responses[_calls.clamp(0, _responses.length - 1)];
+    _calls++;
+
+    if (entry is http.Response) {
+      return http.StreamedResponse(
+        Stream<List<int>>.fromIterable(<List<int>>[entry.bodyBytes]),
+        entry.statusCode,
+        headers: entry.headers,
+        request: request,
+      );
+    }
+    throw StateError('unknown scripted entry: $entry');
+  }
+
+  @override
+  void close() {}
+}

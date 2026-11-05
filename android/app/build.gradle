@@ -22,6 +22,14 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
     namespace "com.ethiograde"
     compileSdk 36
@@ -58,9 +66,20 @@ android {
         resourceConfigurations += ['en']
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -70,6 +89,20 @@ android {
                 debugSymbolLevel 'NONE'
             }
         }
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def releaseTasks = [
+        ':app:bundleRelease',
+        ':app:assembleRelease',
+        ':app:packageRelease',
+    ]
+    if (releaseTasks.any { taskGraph.hasTask(it) } && !keystorePropertiesFile.exists()) {
+        throw new GradleException(
+            'Release signing is not configured. Create android/key.properties ' +
+            'with storeFile, storePassword, keyAlias, and keyPassword before building release.'
+        )
     }
 }
 
@@ -92,6 +125,18 @@ afterEvaluate {
             def srcApk = file("${androidApkDir}/app-debug.apk")
             if (srcApk.exists()) {
                 def dstApk = file("${flutterApkDir}/app-debug.apk")
+                dstApk.bytes = srcApk.bytes
+                println("[EthioGrade] APK copied to: ${dstApk}")
+            }
+        }
+    }
+
+    tasks.matching { it.name == 'assembleRelease' }.all { task ->
+        task.doLast {
+            flutterApkDir.mkdirs()
+            def srcApk = file("${androidApkDir}/app-release.apk")
+            if (srcApk.exists()) {
+                def dstApk = file("${flutterApkDir}/app-release.apk")
                 dstApk.bytes = srcApk.bytes
                 println("[EthioGrade] APK copied to: ${dstApk}")
             }
