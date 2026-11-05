@@ -21,7 +21,8 @@
  * There is no shared secret. The proxy URL is baked into the app, so any token
  * would be extractable from the APK and protect nothing. Usage is instead
  * bounded by two real controls:
- *   - rateLimitOk_()  30 requests/minute per caller IP
+ *   - rateLimitOk_()  30 requests/minute per device (install id), with a
+ *     per-IP ceiling of 3x that to bound forged-id rotation
  *   - budgetExceeded_() hard monthly cost ceiling; past it the proxy refuses
  * The Gemini key itself is read from Script Properties, never from this file:
  *   Project Settings -> Script Properties -> GEMINI_API_KEY
@@ -111,7 +112,21 @@ const MODEL_FALLBACKS = [
 
 const DEFAULT_MODEL = 'gemini';
 const DEFAULT_MONTHLY_BUDGET = 10.0;
+
+/** Per-device (install id) requests per minute. */
 const RATE_LIMIT_PER_MINUTE = 30;
+
+/**
+ * Per-IP ceiling across all device ids combined.
+ *
+ * The app sends an install id so phones behind one school router are capped
+ * per device rather than as a single caller (a class scanning simultaneously
+ * used to trip the per-IP cap together). Ids are client-supplied and
+ * forgeable, so a caller rotating ids would otherwise escape the cap — this
+ * ceiling bounds that: one IP can never exceed 3x the per-device rate no
+ * matter how many ids it presents.
+ */
+const RATE_LIMIT_IP_CEILING = RATE_LIMIT_PER_MINUTE * 3;
 
 // Script property keys for cost tracking.
 const P_REQUESTS = 'requests';
@@ -227,34 +242,65 @@ function readRequest_(e) {
  * Apps Script's own e.parameter.clientIp. Lock-guarded so concurrent scans
  * cannot race past the cap.
  */
-function rateLimitOk_() {
+function rateLimitOk_(e, req) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const props = PropertiesService.getScriptProperties();
-    const ip = currentIp_();
     const now = Date.now();
+    // The signature used to take no argument even though handleGradeExam_
+    // passed one, so currentIp_() always saw undefined and every request was
+    // counted under a single 'unknown' bucket — the 30/min cap was global.
+    const ip = currentIp_(e);
+    const installId = sanitizeInstallId_(req);
 
     const all = parseJson_(props.getProperty(P_RATE), {});
-    let stamps = all[ip] || [];
 
-    stamps = stamps.filter(function (t) {
-      return now - t < 60000;
-    });
-
-    if (stamps.length >= RATE_LIMIT_PER_MINUTE) {
-      all[ip] = stamps;
+    // Per-device bucket: phones behind one school router share an IP, so key
+    // each device separately or a whole class trips the cap simultaneously.
+    // Requests without a usable id fall back to the IP bucket below anyway.
+    const deviceKey = installId ? ip + '|' + installId : 'ip:' + ip;
+    if (!bumpRate_(all, deviceKey, RATE_LIMIT_PER_MINUTE, now)) {
       props.setProperty(P_RATE, JSON.stringify(all));
       return false;
     }
 
-    stamps.push(now);
-    all[ip] = stamps;
+    // Per-IP ceiling: bounds rotation of forged install ids. A school with
+    // many devices stays far below 3x the per-device rate in normal use.
+    if (installId && !bumpRate_(all, 'ip:' + ip, RATE_LIMIT_IP_CEILING, now)) {
+      props.setProperty(P_RATE, JSON.stringify(all));
+      return false;
+    }
+
     props.setProperty(P_RATE, JSON.stringify(all));
     return true;
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Sliding-minute window for one bucket key. Returns false at the cap. */
+function bumpRate_(all, key, limit, now) {
+  let stamps = (all[key] || []).filter(function (t) {
+    return now - t < 60000;
+  });
+
+  if (stamps.length >= limit) {
+    all[key] = stamps;
+    return false;
+  }
+
+  stamps.push(now);
+  all[key] = stamps;
+  return true;
+}
+
+/** Client install ids are advisory — strip anything unsafe to use as a key. */
+function sanitizeInstallId_(req) {
+  const raw = req && req.data && req.data.installId;
+  if (typeof raw !== 'string') return '';
+  const cleaned = raw.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+  return cleaned.length >= 8 ? cleaned : '';
 }
 
 function currentIp_(e) {
@@ -317,7 +363,7 @@ function handleGradeExam_(req, e) {
     });
   }
 
-  if (!rateLimitOk_(e)) {
+  if (!rateLimitOk_(e, req)) {
     return json_({
       ok: false,
       error: 'Rate limit: ' + RATE_LIMIT_PER_MINUTE + ' requests/minute',

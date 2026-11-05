@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ethiograde/config/cloud_grading_config.dart';
 import 'package:ethiograde/services/smart_ocr_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('ProxyResponse', () {
@@ -370,6 +373,103 @@ void main() {
     });
   });
 
+  group('transient failure handling', () {
+    FakeHttpException? throwOnFirst;
+
+    /// Records request bodies and replays [responses] entries in order; when
+    /// [firstThrows] is set the first call raises a transport error instead.
+    http.Client clientWith(
+      List<Object> responses, {
+      List<String>? recorded,
+    }) {
+      return _SequencedHttpClient(responses, throwOnFirst, recorder: recorded);
+    }
+
+    setUp(() {
+      SmartOcrService.transientRetryDelay = Duration.zero;
+    });
+    tearDown(() {
+      SmartOcrService.transientRetryDelay = const Duration(seconds: 2);
+      throwOnFirst = null;
+    });
+
+    test('looksLikeHtml distinguishes HTML error pages from the envelope', () {
+      expect(SmartOcrService.looksLikeHtml('<html><body>busy</body>'), isTrue);
+      expect(SmartOcrService.looksLikeHtml('  \n<!DOCTYPE html>'), isTrue);
+      expect(
+        SmartOcrService.looksLikeHtml('{"ok":true,"result":{}}'),
+        isFalse,
+      );
+      expect(SmartOcrService.looksLikeHtml(''), isFalse);
+    });
+
+    test('HTML answer page surfaces a friendly busy error after retry', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      service.httpOverride = clientWith([
+        http.Response('<html><body>our systems detected unusual traffic'
+            '</body></html>', 200),
+        http.Response('<html><body>busy</body></html>', 200),
+      ]);
+
+      final result = await service.getCosts();
+      expect(result, isNull);
+      expect(service.lastErrorMessage, contains('busy'));
+    });
+
+    test('a dropped connection is retried once and then succeeds', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      const envelope = '{"ok":true,"result":{"totalCost":0}}';
+      throwOnFirst = const FakeHttpException('connection aborted');
+      service.httpOverride = clientWith([
+        http.Response(envelope, 200),
+      ]);
+
+      final result = await service.getCosts();
+      expect(result, isNotNull);
+      expect(result!.totalCost, 0);
+    });
+
+    test('the proxy receives a stable install id on every request',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final service = SmartOcrService()..overrideInstallId('0123456789abcdef');
+      service.setServerUrl(
+        'https://script.googleusercontent.com/macros/s/X/exec',
+      );
+      final recorded = <String>[];
+      service.httpOverride = clientWith(
+        [http.Response('{"ok":true,"result":{}}', 200)],
+        recorded: recorded,
+      );
+
+      await service.getCosts();
+      await service.getCosts();
+
+      expect(recorded.length, 2);
+      final first = jsonDecode(recorded[0]) as Map<String, dynamic>;
+      final second = jsonDecode(recorded[1]) as Map<String, dynamic>;
+      expect(first['data']['installId'], '0123456789abcdef');
+      expect(second['data']['installId'], first['data']['installId']);
+    });
+  });
+
+  group('Amharic routing', () {
+    test('Ethiopic characters are detected across the supported blocks', () {
+      expect(SmartOcrService.containsEthiopic('ሐምዴ'), isTrue);
+      expect(SmartOcrService.containsEthiopic('Question 3: ትምህርት'), isTrue);
+      expect(SmartOcrService.containsEthiopic('plain latin only'), isFalse);
+      expect(SmartOcrService.containsEthiopic(''), isFalse);
+    });
+  });
+
   group('ModelInfo', () {
     test('parses a server model entry', () {
       final info = ModelInfo.fromJson({
@@ -420,4 +520,54 @@ void main() {
       expect(empty.needsReview, isFalse);
     });
   });
+}
+
+/// Transport error that a flaky mobile link produces — thrown by
+/// [_SequencedHttpClient] instead of answering.
+class FakeHttpException implements Exception {
+  const FakeHttpException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'FakeHttpException: $message';
+}
+
+/// Replays scripted responses in call order on [send]; optionally throws a
+/// transport error on the first call. Records request bodies when asked, so
+/// tests can assert exactly what reached the proxy.
+class _SequencedHttpClient extends http.BaseClient {
+  _SequencedHttpClient(this._responses, this._firstThrows, {List<String>? recorder})
+      : _recorder = recorder;
+
+  final List<Object> _responses;
+  final FakeHttpException? _firstThrows;
+  final List<String>? _recorder;
+  int _calls = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final recorder = _recorder;
+    if (recorder != null && request is http.Request) recorder.add(request.body);
+
+    if (_calls == 0 && _firstThrows != null) {
+      _calls++;
+      throw _firstThrows;
+    }
+
+    final entry = _responses[_calls.clamp(0, _responses.length - 1)];
+    _calls++;
+
+    if (entry is http.Response) {
+      return http.StreamedResponse(
+        Stream<List<int>>.fromIterable(<List<int>>[entry.bodyBytes]),
+        entry.statusCode,
+        headers: entry.headers,
+        request: request,
+      );
+    }
+    throw StateError('unknown scripted entry: $entry');
+  }
+
+  @override
+  void close() {}
 }

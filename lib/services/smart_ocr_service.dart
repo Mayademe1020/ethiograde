@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 /// Smart OCR routing service.
@@ -56,6 +57,26 @@ class SmartOcrService {
     'Content-Type': 'application/json',
   };
 
+  /// Injectable HTTP client for tests. When set, [callWithOverride] uses it
+  /// and real connections are never opened; when null every proxy call builds
+  /// a fresh client and closes it after the call.
+  @visibleForTesting
+  http.Client? httpOverride;
+
+  /// Pause between transient-failure retries. Production waits 2s; tests set
+  /// [Duration.zero] to keep the suite fast. Reset it in test teardown.
+  @visibleForTesting
+  static Duration transientRetryDelay = const Duration(seconds: 2);
+
+  /// How many attempts a single proxy call makes when it hits a *transient*
+  /// failure: connection drops mid-upload, a 5xx from Google's front end, or
+  /// an HTML error page (Apps Script's throttle wears plain HTML). Ethiopian
+  /// mobile data drops connections routinely and a retry costs seconds
+  /// whereas a failure costs the teacher a full rescan of the paper, so the
+  /// asymmetry favours retrying.
+  @visibleForTesting
+  static const int maxAttempts = 2;
+
   /// Normalised result of a proxy call.
   ///
   /// The proxy is a Google Apps Script web app, which cannot set HTTP status
@@ -84,7 +105,12 @@ class SmartOcrService {
   ///
   /// The proxy is unauthenticated: its URL ships inside the app, so a shared
   /// secret would be extractable and worth nothing. Access is instead bounded
-  /// server-side by a per-IP rate limit and a hard monthly budget ceiling.
+  /// server-side by a per-device rate limit and a hard monthly budget ceiling.
+  ///
+  /// Transient failures — dropped connections, upstream 5xx, or an HTML error
+  /// page instead of the envelope — are retried once after a pause (see
+  /// [maxAttempts]). Everything else surfaces immediately via [_lastError]
+  /// and a null return.
   Future<Map<String, dynamic>?> _postProxy(
     String action,
     Map<String, dynamic> data,
@@ -94,51 +120,173 @@ class SmartOcrService {
       return null;
     }
 
+    final installId = await _resolveInstallId();
+    final payload = <String, dynamic>{
+      'action': action,
+      'data': <String, dynamic>{...data, 'installId': installId},
+    };
+
+    final client = httpOverride ?? http.Client();
+    final injected = httpOverride != null;
+
     try {
-      final response = await http
-          .post(
-            _endpoint(action),
-            headers: _authHeaders,
-            body: jsonEncode({'action': action, 'data': data}),
-          )
-          .timeout(const Duration(seconds: 120));
+      for (var attempt = 0; ; attempt++) {
+        try {
+          final response = await client
+              .post(
+                _endpoint(action),
+                headers: _authHeaders,
+                body: jsonEncode(payload),
+              )
+              .timeout(const Duration(seconds: 120));
 
-      if (response.statusCode != 200) {
-        _lastError =
-            ProxyResponse('Server error ${response.statusCode}', response.statusCode);
-        debugPrint('SmartOCR: $action HTTP ${response.statusCode}');
-        return null;
+          final body = response.body;
+
+          // Upstream 5xx from Google's front end are temporary; one short
+          // pause is cheaper than failing the scan outright.
+          if (response.statusCode >= 500 && attempt == 0 && hasAttemptLeft(attempt)) {
+            debugPrint(
+              'SmartOCR: $action HTTP ${response.statusCode}, '
+              'retrying in ${transientRetryDelay.inMilliseconds}ms…',
+            );
+            await Future<void>.delayed(transientRetryDelay);
+            continue;
+          }
+          if (response.statusCode != 200) {
+            _lastError = ProxyResponse(
+              'Server error ${response.statusCode}',
+              response.statusCode,
+            );
+            debugPrint('SmartOCR: $action HTTP ${response.statusCode}');
+            return null;
+          }
+
+          // Apps Script's throttles and outages answer with an HTML page, not
+          // the envelope. Detect that *before* jsonDecode throws something
+          // opaque like "Unexpected character '<'".
+          if (looksLikeHtml(body)) {
+            if (attempt == 0 && hasAttemptLeft(attempt)) {
+              debugPrint(
+                'SmartOCR: $action got HTML instead of the envelope, '
+                'retrying in ${transientRetryDelay.inMilliseconds}ms…',
+              );
+              await Future<void>.delayed(transientRetryDelay);
+              continue;
+            }
+            _lastError = const ProxyResponse(
+              'Service is busy — try again in a minute',
+              503,
+            );
+            debugPrint('SmartOCR: $action received HTML (busy) response');
+            return null;
+          }
+
+          final decoded = jsonDecode(body);
+          if (decoded is! Map) {
+            _lastError = const ProxyResponse('Malformed server response', 502);
+            return null;
+          }
+
+          if (decoded['ok'] != true) {
+            _lastError = ProxyResponse(
+              (decoded['error'] ?? 'Unknown server error').toString(),
+              _asInt(decoded['code']) ?? 500,
+            );
+            debugPrint('SmartOCR: $action failed — ${_lastError!.error}');
+            return null;
+          }
+
+          _lastError = null;
+          final result = decoded['result'];
+          return result is Map ? result.cast<String, dynamic>() : <String, dynamic>{};
+        } catch (err) {
+          // Connection drops mid-upload are the routine failure on metered
+          // mobile data; a retry costs seconds while a failure costs the
+          // teacher a full rescan of the paper.
+          if (attempt == 0 && hasAttemptLeft(attempt)) {
+            debugPrint(
+              'SmartOCR: $action transport error ($err), '
+              'retrying in ${transientRetryDelay.inMilliseconds}ms…',
+            );
+            await Future<void>.delayed(transientRetryDelay);
+            continue;
+          }
+          _lastError = ProxyResponse(err.toString(), 0);
+          debugPrint('SmartOCR: $action error ($err)');
+          return null;
+        }
       }
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map) {
-        _lastError = const ProxyResponse('Malformed server response', 502);
-        return null;
-      }
-
-      if (decoded['ok'] != true) {
-        _lastError = ProxyResponse(
-          (decoded['error'] ?? 'Unknown server error').toString(),
-          _asInt(decoded['code']) ?? 500,
-        );
-        debugPrint('SmartOCR: $action failed — ${_lastError!.error}');
-        return null;
-      }
-
-      _lastError = null;
-      final result = decoded['result'];
-      return result is Map ? result.cast<String, dynamic>() : <String, dynamic>{};
-    } catch (e) {
-      _lastError = ProxyResponse(e.toString(), 0);
-      debugPrint('SmartOCR: $action error ($e)');
-      return null;
+    } finally {
+      if (!injected) client.close();
     }
+  }
+
+  /// One more attempt is still available after [attempt].
+  static bool hasAttemptLeft(int attempt) => attempt + 1 < maxAttempts;
+
+  /// True when a body is an HTML error page rather than the JSON envelope.
+  @visibleForTesting
+  static bool looksLikeHtml(String body) {
+    final trimmed = body.trimLeft();
+    return trimmed.isNotEmpty && trimmed.startsWith('<');
+  }
+
+  /// Stable per-install id for the proxy's per-device rate limiting.
+  ///
+  /// Phones in one school share a router IP; without this the whole class
+  /// counts as one caller. It is generated once and persisted — it is not a
+  /// credential, only a bucket key (the proxy's per-IP ceiling bounds forgery).
+  Future<String> _resolveInstallId() async {
+    final existing = _installId;
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString(_installIdKey);
+    if (id == null || id.length < 8) {
+      id = _generateInstallId();
+      await prefs.setString(_installIdKey, id);
+    }
+    _installId = id;
+    return id;
+  }
+
+  static const String _installIdKey = 'cloud_grading_install_id';
+  String? _installId;
+
+  @visibleForTesting
+  void overrideInstallId(String id) {
+    _installId = id;
+  }
+
+  /// 24 hex chars from a secure random source — unique enough per device.
+  String _generateInstallId() {
+    final rng = math.Random.secure();
+    return List<String>.generate(
+      6,
+      (_) => rng.nextInt(0x10000).toRadixString(16).padLeft(4, '0'),
+    ).join();
   }
 
   static int? _asInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '');
+  }
+
+  /// Ethiopic Unicode block coverage: base block, supplement (gena marking,
+  /// used in Ethiopic liturgical text), and the supplement in the Extended-A
+  /// plane that recent Amharic syllables land in.
+  static final RegExp _ethiopicPattern =
+      RegExp('[\u{1200}-\u{137F}\u{1380}-\u{139F}\u{2D80}-\u{2DDF}]', unicode: true);
+
+  /// True when [text] contains Ethiopic (Amharic etc.) characters.
+  ///
+  /// Used for cloud routing because ML Kit has no Ethiopic recognition model:
+  /// when this returns true, on-device output is not trustworthy at any
+  /// confidence level and the paper must be transcribed by Gemini.
+  @visibleForTesting
+  static bool containsEthiopic(String text) {
+    return text.isNotEmpty && _ethiopicPattern.hasMatch(text);
   }
 
   /// Set preferred model (gemini, gemini-flash-lite, openai).
@@ -192,8 +340,14 @@ class SmartOcrService {
     // Step 2: Analyze quality — is this likely handwriting?
     final isHandwriting = _detectHandwriting(mlKitResult);
 
-    // Step 3: If handwriting detected and cloud available, try server proxy
-    if (isHandwriting && _cloudEnabled && _serverUrl != null) {
+    // Ethiopic script: ML Kit ships no Amharic model, so on-device output for
+    // Amharic handwriting is garbage regardless of its confidence score. Force
+    // those papers to the cloud rather than silently grading noise.
+    final ethiopicScript = containsEthiopic(mlKitResult.text);
+
+    // Step 3: If handwriting detected or Amharic content, and cloud available,
+    // try the server proxy.
+    if ((isHandwriting || ethiopicScript) && _cloudEnabled && _serverUrl != null) {
       try {
         final cloudResult = await _callServerProxy(imagePath);
         if (cloudResult != null && cloudResult.confidence > mlKitResult.confidence) {
