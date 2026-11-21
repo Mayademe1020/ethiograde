@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config/cloud_grading_config.dart';
 import '../models/grading_scale.dart';
 import 'error_handler.dart';
 import 'phone_utils.dart';

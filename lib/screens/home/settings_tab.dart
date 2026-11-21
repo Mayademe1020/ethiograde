@@ -17,7 +17,6 @@ import '../../services/teacher_provider.dart';
 import '../../services/class_provider.dart';
 import '../../services/backup_service.dart';
 import '../../services/phone_utils.dart';
-import '../../services/smart_ocr_service.dart';
 import '../classes/create_class_sheet.dart';
 import '../../models/teacher.dart';
 

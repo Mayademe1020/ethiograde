@@ -4,8 +4,8 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: '>=3.8.0 <4.0.0'
-  flutter: '>=3.41.6'
+  sdk: '>=3.7.0 <4.0.0'
+  flutter: '>=3.29.0'
 
 dependencies:
   flutter:
@@ -28,6 +28,7 @@ dependencies:
   # PDF & CSV
   pdf: ^3.10.7
   csv: ^6.0.0
+  excel: ^4.0.6
   file_picker: ^8.0.0+1
 
   # Voice (TTS only — STT/record/playback deferred to v0.3.0)
@@ -37,7 +38,7 @@ dependencies:
   # just_audio: ^0.9.36
 
   # ML
-  google_mlkit_text_recognition: ^0.15.1
+  google_mlkit_text_recognition: ^0.14.0
   # google_mlkit_commons is transitive — don't pin it directly
 
   # Network (optional cloud OCR — not used in offline mode)
@@ -52,7 +53,7 @@ dependencies:
   url_launcher: ^6.3.1
   uuid: ^4.2.2
   shared_preferences: ^2.2.2
-  google_fonts: ^8.1.0
+  # google_fonts removed — fonts bundled locally in assets/fonts/
 
 dev_dependencies:
   flutter_test:

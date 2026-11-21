@@ -16,7 +16,6 @@ import 'validation_service.dart';
 import 'answer_parser.dart';
 import 'student_matcher.dart';
 import 'backup_service.dart';
-import 'smart_ocr_service.dart';
 import 'settings_provider.dart';
 
 /// High-level grading service that orchestrates the full scan→score pipeline.

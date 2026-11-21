@@ -1,10 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../models/student.dart';
 import '../../models/class_info.dart';
-import '../../services/student_transfer_service.dart';
 import '../../services/student_provider.dart';
 import '../../services/class_provider.dart';
 

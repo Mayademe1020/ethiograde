@@ -1,6 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+// Plus Jakarta Sans is bundled locally in assets/fonts/ — no google_fonts package needed.
+// Helper to build a TextStyle using the local font family.
+TextStyle _pjs({
+  double? fontSize,
+  FontWeight? fontWeight,
+  FontStyle? fontStyle,
+  Color? color,
+  double? height,
+  double? letterSpacing,
+}) {
+  return TextStyle(
+    fontFamily: 'Plus Jakarta Sans',
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    fontStyle: fontStyle,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
+}
 
 // ─────────────────────────────────────────────
 //  Design Tokens
@@ -268,7 +288,7 @@ class AppTheme {
         shadowColor: outlineLight,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: _pjs(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: onSurfaceLight,
@@ -298,7 +318,7 @@ class AppTheme {
           return const IconThemeData(color: onSurfaceVariantLight, size: 22);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final base = GoogleFonts.plusJakartaSans(fontSize: 11);
+          final base = _pjs(fontSize: 11);
           if (states.contains(WidgetState.selected)) {
             return base.copyWith(fontWeight: FontWeight.w700, color: primary);
           }
@@ -334,7 +354,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -352,7 +372,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -369,7 +389,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -381,7 +401,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primary,
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -413,11 +433,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: error),
         ),
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantLight,
         ),
-        hintStyle: GoogleFonts.plusJakartaSans(
+        hintStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantLight.withValues(alpha: 0.6),
         ),
@@ -427,7 +447,7 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: surfaceVariantLight,
         selectedColor: primaryContainer,
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: _pjs(
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
@@ -490,12 +510,12 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.xl),
         ),
         elevation: 8,
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: _pjs(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: onSurfaceLight,
         ),
-        contentTextStyle: GoogleFonts.plusJakartaSans(
+        contentTextStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantLight,
           height: 1.5,
@@ -505,7 +525,7 @@ class AppTheme {
       // ── Snackbar ────────────────────────────
       snackBarTheme: SnackBarThemeData(
         backgroundColor: onSurfaceLight,
-        contentTextStyle: GoogleFonts.plusJakartaSans(
+        contentTextStyle: _pjs(
           fontSize: 14,
           color: Colors.white,
         ),
@@ -550,11 +570,11 @@ class AppTheme {
         labelColor: primary,
         unselectedLabelColor: onSurfaceVariantLight,
         indicatorColor: primary,
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: _pjs(
           fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
-        unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+        unselectedLabelStyle: _pjs(
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -613,7 +633,7 @@ class AppTheme {
         shadowColor: outlineDark,
         surfaceTintColor: Colors.transparent,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: _pjs(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: onSurfaceDark,
@@ -637,7 +657,7 @@ class AppTheme {
           return const IconThemeData(color: onSurfaceVariantDark, size: 22);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final base = GoogleFonts.plusJakartaSans(fontSize: 11);
+          final base = _pjs(fontSize: 11);
           if (states.contains(WidgetState.selected)) {
             return base.copyWith(
               fontWeight: FontWeight.w700,
@@ -673,7 +693,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -689,7 +709,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -704,7 +724,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
-          textStyle: GoogleFonts.plusJakartaSans(
+          textStyle: _pjs(
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -730,11 +750,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: darkPrimary, width: 2),
         ),
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantDark,
         ),
-        hintStyle: GoogleFonts.plusJakartaSans(
+        hintStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantDark.withValues(alpha: 0.5),
         ),
@@ -743,7 +763,7 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: surfaceVariantDark,
         selectedColor: darkPrimaryContainer,
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: _pjs(
           fontSize: 13,
           fontWeight: FontWeight.w500,
           color: onSurfaceDark,
@@ -790,12 +810,12 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.xl),
         ),
-        titleTextStyle: GoogleFonts.plusJakartaSans(
+        titleTextStyle: _pjs(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: onSurfaceDark,
         ),
-        contentTextStyle: GoogleFonts.plusJakartaSans(
+        contentTextStyle: _pjs(
           fontSize: 14,
           color: onSurfaceVariantDark,
           height: 1.5,
@@ -804,7 +824,7 @@ class AppTheme {
 
       snackBarTheme: SnackBarThemeData(
         backgroundColor: onSurfaceDark,
-        contentTextStyle: GoogleFonts.plusJakartaSans(
+        contentTextStyle: _pjs(
           fontSize: 14,
           color: surfaceDark,
         ),

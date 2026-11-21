@@ -8,7 +8,6 @@ import '../models/assessment.dart';
 import 'answer_parser.dart';
 import 'scoring_service.dart';
 import 'image_hash_service.dart';
-import 'smart_ocr_service.dart';
 import 'perspective_correction_service.dart';
 
 // ── Isolate entry points ─────────────────────────────────────────────
