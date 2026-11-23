@@ -23,6 +23,10 @@ import '../screens/settings/grading_scale_editor_screen.dart';
 import '../screens/classes/class_detail_screen.dart';
 import '../screens/classes/attendance_screen.dart';
 import '../screens/classes/class_notes_screen.dart';
+import '../screens/homeroom/homeroom_card_screen.dart';
+import '../screens/assessment/ca_fast_entry_screen.dart';
+import '../screens/review/proof_vault_inspector_screen.dart';
+import '../models/proof_vault_entry.dart';
 import '../models/student.dart';
 import '../models/class_info.dart';
 import '../models/grading_scale.dart';
@@ -69,6 +73,11 @@ class AppRoutes {
   // Settings
   static const String gradingScaleEditor = '/settings/grading-scale';
   static const String classDetail = '/class/detail';
+
+  // Homeroom & Proof Vault
+  static const String homeroomCard = '/homeroom/card';
+  static const String caFastEntry = '/assessment/ca-fast-entry';
+  static const String proofVaultInspector = '/review/proof-vault';
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -173,6 +182,16 @@ class AppRoutes {
       case classNotes:
         final classInfo = settings.arguments as ClassInfo;
         return _fade(ClassNotesScreen(classInfo: classInfo), settings);
+
+      // Homeroom & Proof Vault
+      case homeroomCard:
+        return _fade(const HomeroomCardScreen(), settings);
+      case caFastEntry:
+        final args = settings.arguments as Assessment;
+        return _fade(CaFastEntryScreen(assessment: args), settings);
+      case proofVaultInspector:
+        final args = settings.arguments as ProofVaultEntry;
+        return _fade(ProofVaultInspectorScreen(entry: args), settings);
 
       default:
         return _fade(const MainDashboard(), settings);

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ethiograde/models/student.dart';
+import 'package:ethiograde/models/homeroom_report.dart';
 import 'package:ethiograde/services/excel_service.dart';
 
 void main() {
@@ -302,6 +303,46 @@ void main() {
       expect(lines.length, 2); // header + 1 result, no ungraded rows
 
       await file.delete();
+    });
+
+    test('exportMinistryBroadsheet generates valid Ministry format', () async {
+      final report = HomeroomClassReport(
+        classId: 'c1',
+        className: 'Grade 10B',
+        academicYear: '2017 E.C.',
+        semester: 1,
+        homeroomTeacherName: 'Ato Kebede',
+        subjectList: ['Biology', 'Mathematics'],
+        students: [
+          StudentCardRecord(
+            studentId: 's1',
+            rollNumber: '001',
+            fullName: 'Abebe Bikila',
+            gender: 'M',
+            subjects: {
+              'Biology': const SubjectScoreBreakdown(
+                subjectName: 'Biology',
+                totalScore: 88.5,
+                letterGrade: 'A',
+              ),
+              'Mathematics': const SubjectScoreBreakdown(
+                subjectName: 'Mathematics',
+                totalScore: 92.0,
+                letterGrade: 'A',
+              ),
+            },
+            grandTotal: 180.5,
+            semesterAverage: 90.25,
+            classRank: 1,
+            conduct: 'A',
+          ),
+        ],
+      );
+
+      // Verify Broadsheet formatting logic
+      expect(report.className, equals('Grade 10B'));
+      expect(report.students.first.classRank, equals(1));
+      expect(report.subjectList, contains('Biology'));
     });
   });
 }

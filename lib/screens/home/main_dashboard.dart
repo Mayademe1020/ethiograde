@@ -280,6 +280,38 @@ class _DashboardHomeState extends State<_DashboardHome> {
             ),
           ),
 
+          // ── Institutional actions row (Card Day & CA Fast Enter) ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(hp, 10, hp, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.card_membership_outlined,
+                      label: 'Card Day (የካርድ ቀን)',
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.homeroomCard,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _QuickActionCard(
+                      icon: Icons.edit_calendar_outlined,
+                      label: 'Fast Enter CA (ፈጣን ምዘና)',
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.quickEnter,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // ── Student search bar ──
           SliverToBoxAdapter(
             child: Padding(

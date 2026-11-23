@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/student.dart';
+import '../models/homeroom_report.dart';
 import 'phone_utils.dart';
 
 /// CSV import and export for students and assessment results.
@@ -362,6 +363,61 @@ class ImportService {
       ]);
     }
     return rows;
+  }
+
+  /// Exports an official Ministry-format Broadsheet for a homeroom class.
+  Future<File> exportMinistryBroadsheet(HomeroomClassReport report) async {
+    final rows = <List<dynamic>>[];
+
+    // Title Block
+    rows.add(['የኢትዮጵያ ፌዴራላዊ ዲሞክራሲያዊ ሪፐብሊክ የትምህርት ሚኒስቴር']);
+    rows.add(['Ministry of Education - Semester Broadsheet / የተማሪዎች ውጤት ማጠቃለያ ሰሌዳ']);
+    rows.add(['Class: ${report.className}', 'Semester: ${report.semester}', 'Year: ${report.academicYear}']);
+    rows.add(['Homeroom Teacher: ${report.homeroomTeacherName}']);
+    rows.add([]); // empty spacer
+
+    // Header Row
+    final subjects = report.subjectList;
+    rows.add([
+      'ተ.ቁ (No)',
+      'የተማሪው ሙሉ ስም (Student Full Name)',
+      'ጾታ (Sex)',
+      ...subjects,
+      'ድምር (Total)',
+      'አማካይ (Average %)',
+      'ደረጃ (Rank)',
+      'ባህሪ (Conduct)',
+      'የመምህሩ አስተያየት (Remark)',
+    ]);
+
+    // Student Rows
+    for (int i = 0; i < report.students.length; i++) {
+      final s = report.students[i];
+      final subjectScores = subjects.map((subName) {
+        final sub = s.subjects[subName];
+        return sub != null ? sub.totalScore.toStringAsFixed(1) : '—';
+      }).toList();
+
+      rows.add([
+        s.rollNumber.isNotEmpty ? s.rollNumber : '${i + 1}',
+        s.fullName,
+        s.gender,
+        ...subjectScores,
+        s.grandTotal.toStringAsFixed(1),
+        '${s.semesterAverage.toStringAsFixed(1)}%',
+        s.classRank,
+        s.conduct,
+        s.hasFinanceHold ? 'እዳ ያለበት (Finance Hold)' : s.remarkAm,
+      ]);
+    }
+
+    final csvString = const ListToCsvConverter().convert(rows);
+    final outputDir = await getApplicationDocumentsDirectory();
+    final safeClass = report.className.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+    final file = File('${outputDir.path}/Broadsheet_${safeClass}_$dateStr.csv');
+    await file.writeAsString(csvString, encoding: utf8);
+    return file;
   }
 
   Map<String, int> _detectColumns(List<String> headers) {

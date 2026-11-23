@@ -176,6 +176,17 @@ class _QuickEnterScreenState extends State<QuickEnterScreen> {
       appBar: AppBar(
         title: const Text('Quick Enter'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.dialpad),
+            tooltip: 'Fast Numpad Mode (ፈጣን ማስገቢያ)',
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/assessment/ca-fast-entry',
+                arguments: _assessment,
+              );
+            },
+          ),
           if (savedCount > 0)
             Padding(
               padding: const EdgeInsets.only(right: 8),

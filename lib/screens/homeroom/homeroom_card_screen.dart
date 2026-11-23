@@ -10,6 +10,7 @@ import '../../services/student_provider.dart';
 import '../../services/settings_provider.dart';
 import '../../services/homeroom_consolidation_service.dart';
 import '../../services/report_card_pdf_service.dart';
+import '../../services/excel_service.dart';
 
 /// Homeroom Card Day Hub (የካርድ ቀን ማዕከል)
 ///
@@ -119,6 +120,32 @@ class _HomeroomCardScreenState extends State<HomeroomCardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to generate cards: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _exportBroadsheet() async {
+    if (_report == null) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final file = await ImportService().exportMinistryBroadsheet(_report!);
+      if (mounted) {
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Ministry Broadsheet - ${_report!.className}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to export broadsheet: $e'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -395,6 +422,7 @@ class _HomeroomCardScreenState extends State<HomeroomCardScreen> {
               child: Row(
                 children: [
                   Expanded(
+                    flex: 3,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
@@ -405,7 +433,23 @@ class _HomeroomCardScreenState extends State<HomeroomCardScreen> {
                           ? null
                           : _exportAndPrintCards,
                       icon: const Icon(Icons.print),
-                      label: const Text('🖨️ Print Report Cards (PDF)'),
+                      label: const Text('🖨️ Report Cards (PDF)'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    flex: 2,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                      onPressed: _report == null || _report!.students.isEmpty
+                          ? null
+                          : _exportBroadsheet,
+                      icon: const Icon(Icons.table_chart_outlined),
+                      label: const Text('📊 Broadsheet'),
                     ),
                   ),
                 ],
