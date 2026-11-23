@@ -152,85 +152,84 @@ class AppTheme {
   // ─────────────────────────────────────────────
 
   static TextTheme _buildTextTheme(Color bodyColor, Color displayColor) {
-    final base = GoogleFonts.plusJakartaSansTextTheme();
-    return base.copyWith(
-      displayLarge: base.displayLarge?.copyWith(
+    return TextTheme(
+      displayLarge: _pjs(
         fontSize: 34,
         fontWeight: FontWeight.w800,
         color: displayColor,
         height: 1.1,
       ),
-      displayMedium: base.displayMedium?.copyWith(
+      displayMedium: _pjs(
         fontSize: 28,
         fontWeight: FontWeight.w800,
         color: displayColor,
         height: 1.15,
       ),
-      headlineLarge: base.headlineLarge?.copyWith(
+      headlineLarge: _pjs(
         fontSize: 24,
         fontWeight: FontWeight.w700,
         color: displayColor,
         height: 1.2,
       ),
-      headlineMedium: base.headlineMedium?.copyWith(
+      headlineMedium: _pjs(
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: displayColor,
         height: 1.25,
       ),
-      headlineSmall: base.headlineSmall?.copyWith(
+      headlineSmall: _pjs(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: displayColor,
         height: 1.3,
       ),
-      titleLarge: base.titleLarge?.copyWith(
+      titleLarge: _pjs(
         fontSize: 17,
         fontWeight: FontWeight.w700,
         color: displayColor,
         height: 1.35,
       ),
-      titleMedium: base.titleMedium?.copyWith(
+      titleMedium: _pjs(
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: bodyColor,
         height: 1.4,
       ),
-      titleSmall: base.titleSmall?.copyWith(
+      titleSmall: _pjs(
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: bodyColor,
         height: 1.4,
       ),
-      bodyLarge: base.bodyLarge?.copyWith(
+      bodyLarge: _pjs(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: bodyColor,
         height: 1.5,
       ),
-      bodyMedium: base.bodyMedium?.copyWith(
+      bodyMedium: _pjs(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: bodyColor,
         height: 1.5,
       ),
-      bodySmall: base.bodySmall?.copyWith(
+      bodySmall: _pjs(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: bodyColor.withValues(alpha: 0.7),
         height: 1.4,
       ),
-      labelLarge: base.labelLarge?.copyWith(
+      labelLarge: _pjs(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: bodyColor,
       ),
-      labelMedium: base.labelMedium?.copyWith(
+      labelMedium: _pjs(
         fontSize: 12,
         fontWeight: FontWeight.w600,
         color: bodyColor,
       ),
-      labelSmall: base.labelSmall?.copyWith(
+      labelSmall: _pjs(
         fontSize: 11,
         fontWeight: FontWeight.w500,
         color: bodyColor.withValues(alpha: 0.7),
