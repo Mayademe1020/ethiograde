@@ -1,9 +1,0 @@
-// AGP version — Flutter reads this to locate APK output paths.
-// The actual plugin declaration is in settings.gradle.
-buildscript {
-    ext {
-        agpVersion = '8.9.1'
-    }
-}
-
-// All plugin declarations are in settings.gradle.

@@ -1,0 +1,8 @@
+{
+  "name": "EthioGrade",
+  "description": "100% offline-first Android grading, OMR/OCR exam scanning, class roster, attendance, and Ministry of Education report card workspace for Ethiopian teachers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
